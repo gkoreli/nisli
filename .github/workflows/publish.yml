@@ -23,68 +23,84 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check if version changed
-        id: version
-        run: |
-          git fetch --tags
-          CURRENT_VERSION=$(node -p "require('./packages/core/package.json').version")
-          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-
-          if git rev-parse "v$CURRENT_VERSION" >/dev/null 2>&1; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "Tag v$CURRENT_VERSION already exists, skipping"
-          else
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "Tag v$CURRENT_VERSION does not exist, will create"
-          fi
-
       - uses: pnpm/action-setup@v4
-        if: steps.version.outputs.changed == 'true'
 
       - uses: actions/setup-node@v4
-        if: steps.version.outputs.changed == 'true'
         with:
-          node-version: '22'
+          node-version: '22.x'
           registry-url: 'https://registry.npmjs.org'
           cache: 'pnpm'
 
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: Check release state
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch --tags
+          CURRENT_VERSION=$(node -p "require('./packages/core/package.json').version")
+          VERSION="v$CURRENT_VERSION"
+          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+          if npm view "@nisli/core@$CURRENT_VERSION" version >/dev/null 2>&1; then
+            echo "package_exists=true" >> $GITHUB_OUTPUT
+            echo "@nisli/core@$CURRENT_VERSION already exists on npm"
+          else
+            echo "package_exists=false" >> $GITHUB_OUTPUT
+            echo "@nisli/core@$CURRENT_VERSION does not exist on npm"
+          fi
+
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+            echo "Tag $VERSION already exists"
+          else
+            echo "tag_exists=false" >> $GITHUB_OUTPUT
+            echo "Tag $VERSION does not exist"
+          fi
+
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "release_exists=true" >> $GITHUB_OUTPUT
+            echo "Release $VERSION already exists"
+          else
+            echo "release_exists=false" >> $GITHUB_OUTPUT
+            echo "Release $VERSION does not exist"
+          fi
+
       - name: Install
-        if: steps.version.outputs.changed == 'true'
+        if: steps.release.outputs.package_exists == 'false'
         run: pnpm install --frozen-lockfile
 
       - name: Build
-        if: steps.version.outputs.changed == 'true'
+        if: steps.release.outputs.package_exists == 'false'
         run: pnpm build
 
       - name: Test
-        if: steps.version.outputs.changed == 'true'
+        if: steps.release.outputs.package_exists == 'false'
         run: pnpm test
 
-      - name: Upgrade npm
-        if: steps.version.outputs.changed == 'true'
-        run: npm install -g npm@latest
+      - name: Publish @nisli/core to npm
+        if: steps.release.outputs.package_exists == 'false'
+        run: |
+          cd packages/core
+          pnpm build
+          pnpm pack
+          npm publish nisli-core-*.tgz --provenance --access public
 
       - name: Create and push tag
-        if: steps.version.outputs.changed == 'true'
+        if: steps.release.outputs.tag_exists == 'false'
         run: |
-          VERSION="v${{ steps.version.outputs.current }}"
+          VERSION="v${{ steps.release.outputs.current }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$VERSION" -m "Release $VERSION"
           git push origin "$VERSION"
 
       - name: Create GitHub Release
-        if: steps.version.outputs.changed == 'true'
+        if: steps.release.outputs.release_exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="v${{ steps.version.outputs.current }}"
+          VERSION="v${{ steps.release.outputs.current }}"
           gh release create "$VERSION" --title "$VERSION" --generate-notes
-
-      - name: Publish @nisli/core to npm
-        if: steps.version.outputs.changed == 'true'
-        run: |
-          cd packages/core
-          pnpm build
-          pnpm pack
-          npm publish nisli-core-*.tgz --provenance --access public
