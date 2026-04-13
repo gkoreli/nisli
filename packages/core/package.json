@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/gkoreli/nisli",
+    "url": "https://github.com/gkoreli/nisli.git",
     "directory": "packages/core"
   },
   "keywords": [
