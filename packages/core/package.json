@@ -1,6 +1,6 @@
 {
   "name": "@nisli/core",
-  "version": "0.47.1",
+  "version": "0.47.2",
   "description": "A reactive web component framework. Signals, templates, dependency injection — no build step, no virtual DOM, no dependencies.",
   "type": "module",
   "license": "MIT",
