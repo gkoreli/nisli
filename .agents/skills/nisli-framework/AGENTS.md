@@ -111,9 +111,9 @@ component('my-el', (props, host) => {
 });
 ```
 
-### `comp-no-innerhtml` — Never use innerHTML in framework components
+### `comp-no-innerhtml` — Do not assign innerHTML imperatively
 
-The framework does targeted DOM patching via signal bindings. `innerHTML` destroys the entire subtree, losing all state, focus, scroll position, and event listeners.
+The framework does targeted DOM patching via signal bindings. Imperative `innerHTML` assignment destroys the entire subtree, losing all state, focus, scroll position, and event listeners.
 
 ```typescript
 // ❌ WRONG — destroys everything
@@ -122,6 +122,13 @@ host.innerHTML = `<div>${data}</div>`;
 // ✅ CORRECT — targeted updates via signals
 const content = signal(data);
 return html`<div>${content}</div>`;
+```
+
+For trusted, already-sanitized HTML, use the explicit `html:inner` directive so
+the unsafe boundary is visible in review:
+
+```typescript
+html`<div html:inner="${trustedHtml}"></div>`
 ```
 
 ### `comp-host-escape-hatch` — Use host only for imperative DOM access
@@ -465,14 +472,13 @@ const api = inject(ApiService); // returns mock
 
 `inject()` requires the setup context. Call it synchronously in the component setup function.
 
-### `di-bootstrap-eager` — Bootstrap services must be eagerly created
+### `di-bootstrap-eager` — Startup side-effect services must be eagerly created
 
-Services that must not miss events during startup (SSE connections, etc.) must be eagerly instantiated in `main.ts` before the component tree mounts:
+Services that must not miss startup events or must begin work before any component requests them should be eagerly instantiated by the app before the component tree mounts:
 
 ```typescript
-// main.ts — bootstrap before components mount
-const sse = inject(SSEEvents);
-sse.connect(); // starts receiving events immediately
+const service = inject(StartupService);
+service.start();
 ```
 
 ### `di-no-failed-cache` — Failed construction is never cached
@@ -637,45 +643,33 @@ Both computed (via `computing` flag) and DI (via `instantiating` set) detect cir
 
 ---
 
-## 8. Migration & Interop (MEDIUM)
+## 8. Interop & Migration (MEDIUM)
 
-### `migration-same-tag` — Keep the same custom element tag name
+### `migration-preserve-contract` — Preserve public contracts intentionally
 
-`<my-widget>` before = `<my-widget>` after. The `main.ts` import path stays the same. All consumers work without changes.
-
-### `migration-same-events` — Dispatch document CustomEvents during transition
-
-Until ALL listeners of an event are migrated, the event MUST still be dispatched on `document`. Tag with `HACK:DOC_EVENT`:
+When migrating an existing custom element to `component()`, preserve tag names
+and public APIs only when existing callers require them. Document the reason
+near the compatibility code.
 
 ```typescript
-// HACK:DOC_EVENT — migrate to Emitter when task-list is migrated
-document.dispatchEvent(new CustomEvent('filter-change', {
-  detail: { filter, type: currentType.value, sort: currentSort.value },
-}));
+// Compatibility: existing callers still query <my-widget>.
+const MyWidget = component('my-widget', (props) => html`...`);
 ```
 
-### `migration-same-api` — Maintain public method signatures
+### `migration-prefer-services` — Prefer framework communication primitives
 
-If external code calls `filterBar.setState(filter, type, query)`, the migrated component must accept the same arguments. Tag with `HACK:EXPOSE`:
+For new code, prefer injectable services, signals, and typed `Emitter` classes
+over cross-component `querySelector`, monkey-patched public methods, or document
+event buses.
 
 ```typescript
-// HACK:EXPOSE — replace with component expose() API when Gap 1 is resolved
-(host as any).setState = (filter: string, _type: string, _query: string | null) => {
-  currentFilter.value = filter;
-};
+class AppState {
+  readonly selectedId = signal<string | null>(null);
+}
+
+const state = inject(AppState);
+state.selectedId.value = id;
 ```
-
-### `migration-hack-tags` — Tag every backward-compat hack
-
-Every hack must be tagged so they can be found and cleaned up later:
-
-| Tag | Meaning | Cleanup trigger |
-|---|---|---|
-| `HACK:EXPOSE` | Monkey-patched public method | `expose()` API implemented |
-| `HACK:DOC_EVENT` | Document CustomEvent dispatch | All listeners migrated to Emitter |
-| `HACK:REF` | querySelector in effect | `ref()` primitive implemented |
-| `HACK:CROSS_QUERY` | Cross-component querySelector | Service extraction + DI |
-| `HACK:STATIC_LIST` | Static array rendering | `each()` implemented |
 
 ### `migration-auto-resolve` — Props auto-resolve on framework elements
 
@@ -863,27 +857,12 @@ effect(() => {
 });
 ```
 
-This replaces:
-- `HACK:EXPOSE` — no methods to expose, state is shared via signals
-- `HACK:CROSS_QUERY` — no querySelector needed, inject the service
-- Direct method calls via `(el as any).method()` — write to a signal instead
+This replaces cross-component DOM queries and direct method calls with shared
+reactive state.
 
 ---
 
-## Known Framework Gaps (Active)
-
-These are documented gaps from the ADRs. Code using workarounds MUST be tagged.
-
-| Gap | Severity | Tag | Status |
-|---|---|---|---|
-| `expose()` replaced by shared services | HIGH | `HACK:EXPOSE` | **Resolved** (ADR 0007) — use injectable services |
-| `ref()` primitive | MEDIUM | `HACK:REF` | **Resolved** (ADR 0006) — use `ref()` |
-| No Emitter integration (migration period) | LOW | `HACK:DOC_EVENT` | Deferred |
-| Reactive list rendering `each()` | MEDIUM | `HACK:STATIC_LIST` | **Resolved** (ADR 0007) — use `each()` |
-| Effect auto-disposal | MEDIUM | — | **Resolved** (ADR 0006) — auto-wired in component context |
-| No `observedAttributes` → signal bridge | LOW | — | Deferred (skip leaf migration) |
-
-### Resolved Gaps
+## Resolved Framework Gaps
 
 | Gap | Resolution | ADR |
 |---|---|---|
