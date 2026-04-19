@@ -2,6 +2,8 @@
  * Nisli SSG public API.
  */
 
+import './environment.js';
+
 export {
   buildStaticSite,
   type Renderable,

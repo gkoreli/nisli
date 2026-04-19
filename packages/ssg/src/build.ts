@@ -1,7 +1,8 @@
 import { mkdirSync } from 'node:fs';
+import { renderToHtml, type Renderable } from './core-render.js';
 import { cleanOutDir, copyPublicAssets, writeRoute } from './output.js';
 
-export type Renderable = string;
+export type { Renderable } from './core-render.js';
 
 export interface StaticRoute<Context extends Record<string, unknown> = Record<string, never>> {
   path: string;
@@ -31,10 +32,6 @@ export interface StaticSiteBuildResult {
   pages: StaticPageResult[];
 }
 
-function renderPage(value: Renderable): string {
-  return value;
-}
-
 export async function buildStaticSite<Context extends Record<string, unknown> = Record<string, never>>(
   config: StaticSiteConfig<Context>,
 ): Promise<StaticSiteBuildResult> {
@@ -56,7 +53,7 @@ export async function buildStaticSite<Context extends Record<string, unknown> = 
 
   const pages: StaticPageResult[] = [];
   for (const route of config.routes) {
-    const html = renderPage(await route.render(context));
+    const html = renderToHtml(await route.render(context));
     const page = writeRoute(config.outDir, route.path, html);
     pages.push(page);
     await config.onPage?.(page);

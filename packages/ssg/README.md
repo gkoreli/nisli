@@ -15,6 +15,7 @@ optionally copies public assets, and will own Nisli's component-to-static output
 internally. Applications should not import a separate static template API.
 
 ```typescript
+import { html } from '@nisli/core';
 import { buildStaticSite } from '@nisli/ssg';
 
 await buildStaticSite({
@@ -24,11 +25,16 @@ await buildStaticSite({
   routes: [
     {
       path: '/',
-      render: ({ title }) => `<h1>${title}</h1>`,
+      render: ({ title }) => html`<h1>${title}</h1>`,
     },
   ],
 });
 ```
+
+Route render functions may return either an existing HTML string or a normal
+`@nisli/core` `html` template result. SSG serializes Nisli template results
+internally at build time, so application templates should use the same `html`
+authoring API as browser components.
 
 ## Output Helpers
 

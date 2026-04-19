@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { component, html, signal } from '@nisli/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildStaticSite } from './index.js';
 
@@ -53,6 +54,75 @@ describe('buildStaticSite', () => {
     });
 
     expect(events).toEqual(['before:Nisli', 'page:/', 'after:1']);
+  });
+
+  it('renders regular @nisli/core html template results', async () => {
+    const outDir = tempDir();
+    const active = signal(true);
+
+    await buildStaticSite({
+      outDir,
+      routes: [
+        {
+          path: '/',
+          render: () => html`
+            <main class=${'page'} class:active=${active}>
+              <h1>${'Hello <Nisli>'}</h1>
+              <button @click=${() => {}}>Read</button>
+              <section html:inner=${'<p>trusted</p>'}></section>
+            </main>
+          `,
+        },
+      ],
+    });
+
+    const output = readFileSync(join(outDir, 'index.html'), 'utf-8');
+    expect(output).toContain('<main class="page active">');
+    expect(output).toContain('<h1>Hello &lt;Nisli&gt;</h1>');
+    expect(output).toContain('<button>Read</button>');
+    expect(output).toContain('<section><p>trusted</p></section>');
+  });
+
+  it('renders regular Nisli component factory results inside templates', async () => {
+    const outDir = tempDir();
+    const ArticleCard = component<{ title: string }>('ssg-article-card', props => {
+      return html`<article><h2>${props.title}</h2></article>`;
+    });
+
+    await buildStaticSite({
+      outDir,
+      routes: [
+        {
+          path: '/',
+          render: () => html`${ArticleCard({ title: 'Factory Component' }, { class: 'featured' })}`,
+        },
+      ],
+    });
+
+    const output = readFileSync(join(outDir, 'index.html'), 'utf-8');
+    expect(output).toContain('<ssg-article-card class="featured">');
+    expect(output).toContain('<article><h2>Factory Component</h2></article>');
+  });
+
+  it('renders top-level Nisli component factory results', async () => {
+    const outDir = tempDir();
+    const StaticHero = component<{ title: string }>('ssg-static-hero', props => {
+      return html`<header><h1>${props.title}</h1></header>`;
+    });
+
+    await buildStaticSite({
+      outDir,
+      routes: [
+        {
+          path: '/',
+          render: () => StaticHero({ title: 'Top Level Component' }, { class: 'hero' }),
+        },
+      ],
+    });
+
+    const output = readFileSync(join(outDir, 'index.html'), 'utf-8');
+    expect(output).toContain('<ssg-static-hero class="hero">');
+    expect(output).toContain('<header><h1>Top Level Component</h1></header>');
   });
 
   it('copies public assets before writing pages', async () => {

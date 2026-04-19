@@ -27,7 +27,15 @@ importers:
         specifier: ^22.0.0
         version: 22.19.17
 
-  packages/ssg: {}
+  packages/ssg:
+    dependencies:
+      happy-dom:
+        specifier: ^20.5.3
+        version: 20.8.9
+    devDependencies:
+      '@nisli/core':
+        specifier: workspace:*
+        version: link:../core
 
 packages:
 

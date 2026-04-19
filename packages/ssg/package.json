@@ -16,6 +16,15 @@
     "web-components",
     "publication"
   ],
+  "dependencies": {
+    "happy-dom": "^20.5.3"
+  },
+  "peerDependencies": {
+    "@nisli/core": ">=0.48.0"
+  },
+  "devDependencies": {
+    "@nisli/core": "workspace:*"
+  },
   "exports": {
     ".": "./src/index.ts"
   },
