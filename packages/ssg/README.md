@@ -30,5 +30,34 @@ await buildStaticSite({
 });
 ```
 
+## Output Helpers
+
+Use the output helpers when adopting `@nisli/ssg` incrementally inside an
+existing publication pipeline.
+
+```typescript
+import {
+  cleanOutDir,
+  copyPublicAssets,
+  writeRoot,
+  writeRoute,
+} from '@nisli/ssg';
+
+cleanOutDir('dist');
+copyPublicAssets({ publicDir: 'public', outDir: 'dist' });
+writeRoute('dist', 'about', '<main>About</main>');
+writeRoot('dist', 'feed.xml', '<rss />');
+```
+
+`writeRoute()` writes page routes to `index.html` files:
+
+- `/` -> `dist/index.html`
+- `/about` -> `dist/about/index.html`
+- `posts/hello` -> `dist/posts/hello/index.html`
+- `/404.html` -> `dist/404.html`
+
+`writeRoot()` writes root-level artifacts such as feeds, sitemaps, JSON files,
+and `llms.txt`. Route and root-file helpers reject path traversal.
+
 Long term, this package is where Nisli's SSG tooling belongs. `@nisli/core`
 stays focused on component authoring and the browser runtime.

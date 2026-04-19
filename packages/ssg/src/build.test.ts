@@ -27,12 +27,14 @@ describe('buildStaticSite', () => {
       routes: [
         { path: '/', render: () => '<h1>Home</h1>' },
         { path: '/about', render: () => '<p>About</p>' },
+        { path: 'posts/hello', render: () => '<article>Hello</article>' },
       ],
     });
 
     expect(readFileSync(join(outDir, 'index.html'), 'utf-8')).toBe('<h1>Home</h1>');
     expect(readFileSync(join(outDir, 'about', 'index.html'), 'utf-8')).toBe('<p>About</p>');
-    expect(result.pages.map(page => page.path)).toEqual(['/', '/about']);
+    expect(readFileSync(join(outDir, 'posts', 'hello', 'index.html'), 'utf-8')).toBe('<article>Hello</article>');
+    expect(result.pages.map(page => page.path)).toEqual(['/', '/about', 'posts/hello']);
   });
 
   it('passes context and calls hooks', async () => {
@@ -94,6 +96,22 @@ describe('buildStaticSite', () => {
     });
 
     expect(existsSync(join(outDir, 'stale.txt'))).toBe(false);
+    expect(readFileSync(join(outDir, 'index.html'), 'utf-8')).toBe('fresh');
+  });
+
+  it('preserves existing output when clean is false', async () => {
+    const outDir = tempDir();
+    writeFileSync(join(outDir, 'stale.txt'), 'stale');
+
+    await buildStaticSite({
+      outDir,
+      clean: false,
+      routes: [
+        { path: '/', render: () => 'fresh' },
+      ],
+    });
+
+    expect(readFileSync(join(outDir, 'stale.txt'), 'utf-8')).toBe('stale');
     expect(readFileSync(join(outDir, 'index.html'), 'utf-8')).toBe('fresh');
   });
 });
