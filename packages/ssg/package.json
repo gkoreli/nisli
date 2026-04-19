@@ -1,21 +1,20 @@
 {
-  "name": "@nisli/core",
-  "version": "0.48.0",
-  "description": "A reactive web component framework. Signals, templates, dependency injection — no build step, no virtual DOM, no dependencies.",
+  "name": "@nisli/ssg",
+  "version": "0.1.0",
+  "description": "Static site generation tooling for Nisli publications.",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/gkoreli/nisli.git",
-    "directory": "packages/core"
+    "directory": "packages/ssg"
   },
   "keywords": [
+    "ssg",
+    "static-site-generator",
+    "nisli",
     "web-components",
-    "signals",
-    "reactive",
-    "framework",
-    "template-literals",
-    "dependency-injection"
+    "publication"
   ],
   "exports": {
     ".": "./src/index.ts"

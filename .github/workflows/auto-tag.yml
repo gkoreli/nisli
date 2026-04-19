@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'packages/core/package.json'
+      - 'packages/*/package.json'
 
 concurrency:
   group: publish
@@ -18,24 +18,44 @@ permissions:
 jobs:
   tag-and-publish:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - name: '@nisli/core'
+            dir: packages/core
+            tag-prefix: core
+          - name: '@nisli/ssg'
+            dir: packages/ssg
+            tag-prefix: ssg
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Check if version changed
+      - name: Check if package version is publishable
         id: version
         run: |
           git fetch --tags
-          CURRENT_VERSION=$(node -p "require('./packages/core/package.json').version")
-          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          PACKAGE_NAME="${{ matrix.package.name }}"
+          CURRENT_VERSION=$(node -p "require('./${{ matrix.package.dir }}/package.json').version")
+          TAG="${{ matrix.package.tag-prefix }}-v$CURRENT_VERSION"
 
-          if git rev-parse "v$CURRENT_VERSION" >/dev/null 2>&1; then
+          echo "package=$PACKAGE_NAME" >> $GITHUB_OUTPUT
+          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          if npm view "$PACKAGE_NAME@$CURRENT_VERSION" version >/dev/null 2>&1; then
             echo "changed=false" >> $GITHUB_OUTPUT
-            echo "Tag v$CURRENT_VERSION already exists, skipping"
+            echo "$PACKAGE_NAME@$CURRENT_VERSION already exists on npm, skipping"
+          elif git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG exists but $PACKAGE_NAME@$CURRENT_VERSION is not on npm"
+            echo "Delete the failed release/tag before retrying this version:"
+            echo "gh release delete $TAG --cleanup-tag --yes"
+            exit 1
           else
             echo "changed=true" >> $GITHUB_OUTPUT
-            echo "Tag v$CURRENT_VERSION does not exist, will create"
+            echo "$PACKAGE_NAME@$CURRENT_VERSION is publishable"
           fi
 
       - uses: pnpm/action-setup@v4
@@ -67,7 +87,7 @@ jobs:
       - name: Create and push tag
         if: steps.version.outputs.changed == 'true'
         run: |
-          VERSION="v${{ steps.version.outputs.current }}"
+          VERSION="${{ steps.version.outputs.tag }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$VERSION" -m "Release $VERSION"
@@ -78,13 +98,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="v${{ steps.version.outputs.current }}"
+          VERSION="${{ steps.version.outputs.tag }}"
           gh release create "$VERSION" --title "$VERSION" --generate-notes
 
-      - name: Publish @nisli/core to npm
+      - name: Publish package to npm
         if: steps.version.outputs.changed == 'true'
         run: |
-          cd packages/core
-          pnpm build
-          pnpm pack
-          npm publish nisli-core-*.tgz --provenance --access public
+          cd "${{ matrix.package.dir }}"
+          npm publish --provenance --access public

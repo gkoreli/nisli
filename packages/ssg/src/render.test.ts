@@ -1,9 +1,5 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest';
-import { raw, renderToString, staticHtml, type StaticResult } from './index.js';
+import { raw, renderToString, staticHtml, type StaticResult } from './render.js';
 
 describe('static html renderer', () => {
   it('renders static markup', () => {

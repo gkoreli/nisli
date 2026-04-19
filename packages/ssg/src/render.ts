@@ -1,5 +1,5 @@
 /**
- * Static HTML renderer for Nisli-style templates.
+ * Static HTML renderer for Nisli SSG output.
  *
  * This module is intentionally DOM-free. It renders tagged templates to HTML
  * strings for build-time/static use cases, not live browser bindings.

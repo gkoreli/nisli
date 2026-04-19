@@ -2,7 +2,7 @@
 
 ## Shape
 
-- This repo publishes `@nisli/core` from `packages/core`.
+- This repo publishes `@nisli/core` from `packages/core` and `@nisli/ssg` from `packages/ssg`.
 - Root `package.json` is private and only delegates workspace scripts.
 - npm package README is `packages/core/README.md`.
 - Root `README.md` should carry the same user-facing framework information for GitHub.
@@ -26,11 +26,10 @@
 
 ## Package Architecture
 
-- Dev exports point at TypeScript source:
-  - `@nisli/core` -> `./src/index.ts`
-  - `@nisli/core/static` -> `./src/static/index.ts`
+- Dev exports point at TypeScript source.
 - Published exports point at built files via `publishConfig`.
-- Keep `@nisli/core/static` working whenever exports or build config change.
+- Keep `@nisli/core` focused on component authoring and the browser runtime.
+- Keep static rendering and SSG build tooling in `@nisli/ssg`.
 
 ## Publishing Invariants
 
@@ -42,7 +41,8 @@
 - Use `npm publish`, not `pnpm publish`, for OIDC trusted publishing.
 - Keep package repository metadata pointed at this repo:
   - `https://github.com/gkoreli/nisli.git`
-  - directory `packages/core`
+  - directory `packages/core` for `@nisli/core`
+  - directory `packages/ssg` for `@nisli/ssg`
 
 ## Publishing Failure Pattern
 

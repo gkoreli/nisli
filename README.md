@@ -34,7 +34,6 @@ const Counter = component('x-counter', () => {
 - **Lifecycle** -- `onMount`, `onCleanup`, `useHostEvent`
 - **Refs** -- Direct element access via `ref()`
 - **Control Flow** -- `when()` for toggles, `each()` for keyed list rendering
-- **Static Rendering** -- DOM-free HTML string rendering via `@nisli/core/static`
 
 ## API
 
@@ -82,26 +81,32 @@ inject(Nav).emit('select', { id })
 inject(Nav).on('select', ({ id }) => { ... })
 ```
 
-## Static Rendering
+## Static Site Generation
 
-Use the static entry point when you want HTML strings for build-time pages,
-feeds, emails, or other DOM-free output.
+Use `@nisli/ssg` when you want build-time pages, publication output, feeds, or
+other DOM-free static output.
 
 ```typescript
-import { staticHtml, raw, renderToString } from '@nisli/core/static';
+import { buildStaticSite } from '@nisli/ssg';
 
-const page = staticHtml`<article>${raw(markdownHtml)}</article>`;
-const output = renderToString(page);
+await buildStaticSite({
+  outDir: 'dist',
+  routes: [
+    { path: '/', render: () => '<article>...</article>' },
+  ],
+});
 ```
 
-`staticHtml` is intentionally separate from browser `html`. Browser `html`
-returns mountable DOM bindings; `staticHtml` returns escaped static HTML strings.
+`@nisli/core` stays focused on component authoring and the browser runtime.
+`@nisli/ssg` owns static site generation; static rendering internals stay behind
+the build tool.
 
 ## Package
 
-This repository currently publishes [`@nisli/core`](./packages/core). The package
-README is kept in [`packages/core/README.md`](./packages/core/README.md) because
-that file is included in the npm package.
+This repository publishes:
+
+- [`@nisli/core`](./packages/core) — component authoring and browser runtime
+- [`@nisli/ssg`](./packages/ssg) — static site generation tooling
 
 ## Development
 

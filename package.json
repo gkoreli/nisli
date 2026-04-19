@@ -1,10 +1,10 @@
 {
   "private": true,
   "scripts": {
-    "build": "pnpm --filter @nisli/core build",
-    "typecheck": "pnpm --filter @nisli/core typecheck",
-    "test": "pnpm --filter @nisli/core test",
-    "clean": "pnpm --filter @nisli/core clean"
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "clean": "pnpm -r clean"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

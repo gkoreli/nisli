@@ -1,8 +1,15 @@
 # 0020. Static Rendering Template Engine
 
 **Date**: 2026-04-11
-**Status**: Accepted
+**Status**: Accepted, superseded by [0020.1-static-site-generation-build-toolkit](./0020.1-static-publication-components-and-attributes.md)
 **Depends on**: [0017-framework-package-extraction](./0017-framework-package-extraction.md)
+
+**Update 2026-04-19**: Phase 1 shipped as `@nisli/core/static`, but the project
+has only one known consumer and no compatibility burden. ADR 0020.1 moves static
+and SSG internals into a dedicated `@nisli/ssg` package and removes
+`@nisli/core/static` so `@nisli/core` remains the browser/client UI framework.
+The low-level static primitives are no longer the customer-facing SSG API;
+`buildStaticSite()` is.
 
 ## Context
 
@@ -56,9 +63,10 @@ The static export owns a DOM-free HTML string renderer. It should not be added
 to the root barrel unless a later compatibility decision explicitly chooses to
 do so.
 
-This ADR accepts **Phase 1 only**. The first implementation is not SSR, not an
-SSG framework, and not Web Component server rendering. It is the primitive that
-can later support those layers.
+This ADR accepts **Phase 1 only**. The first implementation is not SSR, not a
+complete SSG framework, and not Web Component server rendering. It is the
+primitive that can support the next immediate product direction: **SSG plus
+custom-element islands for web publications**.
 
 Initial package shape:
 
@@ -92,12 +100,30 @@ a static HTML template engine.
 If full SSR becomes real later, reserve `@nisli/core/server` for that API. It can
 compose the static renderer internally.
 
+The terminology distinction is intentional:
+
+- **SSG/static rendering** is the current goal. Nisli should support build-time
+  HTML generation for publications, documentation, blogs, feeds, and other pages
+  whose HTML can be produced before deploy.
+- **Islands** are the current interactivity model. Static pages may include
+  useful light DOM and custom-element tags that upgrade in the browser through
+  the normal `@nisli/core` client runtime.
+- **SSR** is not the current goal. Request-time component rendering, streaming,
+  request-scoped dependency injection, server data orchestration, and
+  hydration/adoption semantics belong in a future dedicated server design, likely
+  a separate `@nisli/core/server` entry point or separate package.
+
+The immediate need is practical: the `gkoreli.com` publication is built with
+Nisli UI components and needs first-class static output for SEO. It does not
+need request-time SSR today, so this roadmap should improve the UI framework and
+SSG publication capabilities before attempting SSR.
+
 ## Phase 1 Scope
 
 Phase 1 ships a small, production-quality static template renderer:
 
 - package entry point: `@nisli/core/static`
-- source location: `packages/framework/src/static/`
+- source location: `packages/core/src/static/`
 - exports: `staticHtml`, `raw`, `renderToString`, `StaticResult`, `RawHtml`
 - no browser globals
 - no DOM parsing
@@ -588,6 +614,92 @@ It should not initially attempt to support browser-only features:
 - DOM reconciliation
 - component registration side effects
 
+## Mandatory SSG Publication Capabilities
+
+The current blog/publication use case has moved from a local prototype renderer
+to `@nisli/core/static`. That validates Phase 1, but it also shows which
+capabilities are mandatory before Nisli can honestly claim strong SSG support
+for web publications.
+
+These requirements are for SSG and islands. They do not imply SSR.
+
+1. Build-time rendering for existing Nisli components.
+
+   Publications need to reuse components already authored with `component()` and
+   `html`. SSG should be a build target, not a new component authoring mode.
+   Authors should not have to rewrite working Nisli components with
+   `staticHtml` or a separate `staticComponent()` API just to get SEO-friendly
+   output.
+
+   The next phase is therefore documented in
+   [0020.1-static-site-generation-build-toolkit](./0020.1-static-publication-components-and-attributes.md):
+
+   ```ts
+   import { buildStaticSite } from '@nisli/ssg';
+
+   await buildStaticSite({
+     routes: [
+       ...posts.map(post => ({
+         path: `/posts/${post.slug}`,
+         render: () => PostPage({ post }),
+       })),
+     ],
+   });
+   ```
+
+2. Static-safe serialization of existing template features.
+
+   The build-time renderer needs to understand the current `html` template
+   language: text interpolation, attribute interpolation, `class:name`,
+   `html:inner`, arrays, conditionals, and nested component factory results.
+   Attribute output still needs careful escaping, but the goal is to serialize
+   existing Nisli templates rather than introduce static-only attribute
+   authoring.
+
+3. Publication metadata primitives.
+
+   SSG publication output is not only article body HTML. A useful system needs
+   predictable generation of document metadata: titles, descriptions, canonical
+   URLs, Open Graph/Twitter tags, JSON-LD, RSS, sitemap entries, and
+   machine-readable indexes such as `posts.json` or `llms.txt`.
+
+   These may not belong in `@nisli/core/static`, but they are mandatory for a
+   complete Nisli publication stack.
+
+4. Content pipeline integration.
+
+   Markdown, frontmatter validation, syntax highlighting, generated `.md`
+   endpoints, and typed TypeScript article modules are application-level SSG
+   concerns. The static renderer should remain independent of these, but a future
+   SSG toolkit should make these integrations straightforward and testable.
+
+5. Island asset coordination.
+
+   Static pages need a reliable way to include the client bundles required by
+   the custom-element islands present on a page. The current publication manually
+   includes global and page-specific scripts. A future SSG layer should be able
+   to declare or collect island assets without implying hydration.
+
+   This is asset orchestration, not server rendering.
+
+6. File output and route mapping.
+
+   A publication needs deterministic mapping from routes and slugs to output
+   files, usually `dist/<slug>/index.html`, plus root files such as `feed.xml`,
+   `sitemap.xml`, `llms.txt`, and static assets. This should live above
+   `@nisli/core/static`.
+
+7. Build and dev ergonomics.
+
+   A practical SSG needs fast rebuilds, useful validation errors, deterministic
+   output, and a dev server loop. This is also an SSG toolkit concern rather than
+   a static renderer concern.
+
+The conclusion is that Phase 1 is sufficient as a low-level string rendering
+primitive, but not the end of the SSG story. The next framework work should
+prioritize a publication build toolkit that can render existing `component()`
+and `html` trees internally before any request-time SSR work.
+
 ## Phased Roadmap
 
 The long-term roadmap is documented here for orientation, but only Phase 1 is in
@@ -615,31 +727,38 @@ const output = renderToString(body);
 This is enough for the current blog use case: build-time page shells, posts,
 feeds, sitemap output, and HTML fragments.
 
-### Phase 2: Static Control Flow And Template Components
+### Phase 2: Static Site Generation Build Toolkit
 
-Status: **future**.
+Status: **next/current phase**.
 
-Purpose: improve authoring ergonomics for larger static pages without adding SSR
-semantics.
+Purpose: provide a build-time publication pipeline that turns existing Nisli
+components, content, metadata, assets, and routes into static files without
+introducing a second component authoring model.
 
 Potential additions:
 
 ```ts
-import { each, staticHtml, when } from '@nisli/core/static';
+import { buildStaticSite } from '@nisli/ssg';
 
-function PostLink(post: Post) {
-  return staticHtml`<a href="/${post.slug}">${post.title}</a>`;
-}
-
-staticHtml`
-  ${when(posts.length > 0, () => staticHtml`<h2>Posts</h2>`)}
-  <nav>${each(posts, PostLink)}</nav>
-`;
+await buildStaticSite({
+  outDir: 'dist',
+  context: { posts },
+  routes: [
+    { path: '/', render: ({ posts }) => HomePage({ posts }) },
+    ...posts.map(post => ({
+      path: `/posts/${post.slug}`,
+      render: () => PostPage({ post }),
+    })),
+  ],
+});
 ```
 
-These helpers should return `StaticResult` or values that `renderToString()`
-knows how to resolve. They should not require comment markers, DOM anchors,
-subscriptions, cleanup, or component lifecycle.
+The build tool should internally support the static-safe subset of the existing
+browser template model: one-time signal/computed reads, text and attribute
+serialization, `class:name`, `html:inner`, arrays, conditionals, and nested
+component factories. Browser-only behavior such as event listeners, refs,
+`onMount`, effects, and imperative host mutation should be omitted, rejected, or
+represented as explicit islands.
 
 ### Phase 3: Progressive Custom Element Islands
 
@@ -664,7 +783,8 @@ hydration unless a later ADR defines a concrete adoption protocol.
 
 ### Phase 4: Static Site Generation Toolkit
 
-Status: **future, maybe separate package**.
+Status: **future, maybe separate package, after the static component and island
+contracts are clearer**.
 
 Purpose: route/content orchestration on top of the static renderer.
 
@@ -675,6 +795,8 @@ Potential scope:
 - file writing
 - asset copying
 - RSS/sitemap helpers
+- publication metadata helpers
+- island asset coordination
 - dev server rebuild loop
 
 This would be an SSG layer, not a renderer. If it becomes generic and useful
@@ -719,8 +841,8 @@ already been sanitized."
 
 ## Testing
 
-Static renderer tests belong in `packages/framework/src/static/*.test.ts` or an
-equivalent colocated location under the framework package.
+Static renderer tests belong in `packages/core/src/static/*.test.ts` or an
+equivalent colocated location under the core package.
 
 They should be unit tests only:
 

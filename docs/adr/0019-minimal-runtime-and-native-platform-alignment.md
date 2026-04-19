@@ -76,7 +76,7 @@ Prioritize runtime deletion and browser alignment in this order:
    import { query, QueryClient } from '@nisli/core/query';
    ```
 
-   `@nisli/core/static` already follows this pattern.
+   `@nisli/ssg` follows this pattern for build-time static output.
 
 5. **Treat `query()` as optional framework policy.** Keep it available, but do
    not let data loading define the core runtime. If package size or conceptual
