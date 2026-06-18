@@ -1,6 +1,6 @@
 {
   "name": "@nisli/ssg",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Static site generation tooling for Nisli publications.",
   "type": "module",
   "license": "MIT",

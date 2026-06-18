@@ -104,5 +104,12 @@ jobs:
       - name: Publish package to npm
         if: steps.version.outputs.changed == 'true'
         run: |
+          # pnpm pack honors publishConfig.exports (rewrites exports -> dist
+          # form in the tarball); plain `npm publish` does NOT. We build the
+          # tarball with pnpm, then npm publishes it to attach provenance via
+          # OIDC trusted publishing. See the @nisli/core@0.48.0 regression:
+          # switching to plain `npm publish` shipped exports pointing at
+          # ./src/index.ts, which is not included in the tarball.
           cd "${{ matrix.package.dir }}"
-          npm publish --provenance --access public
+          pnpm pack
+          npm publish *.tgz --provenance --access public
