@@ -72,6 +72,7 @@ Reference these guidelines when:
 - `tmpl-event-modifiers` - Use `.stop`, `.prevent`, `.once`, `.enter`, `.escape` modifiers
 - `tmpl-class-directive` - Use `class:name=${signal}` for conditional classes, not ternary soup
 - `tmpl-class-attribute-safe` - Reactive class attributes use classList, safe alongside class:name directives (ADR 0007)
+- `tmpl-no-bare-array-slot` - NEVER use `computed(() => arr.map(...))` for reactive lists — causes full teardown; use `each()` instead
 - `tmpl-computed-views` - Use `computed()` for multi-branch conditional rendering
 - `tmpl-when-simple` - Use `when()` only for simple single-branch toggles
 - `tmpl-xss-safe` - Text bindings use `textNode.data`; never parse user input as HTML

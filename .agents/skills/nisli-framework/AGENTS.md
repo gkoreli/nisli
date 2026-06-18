@@ -355,6 +355,51 @@ const content = computed(() => {
 return html`<div class="container">${content}</div>`;
 ```
 
+### `tmpl-no-bare-array-slot` — NEVER use computed(() => arr.map(...)) for reactive lists
+
+A bare `computed(() => items.value.map(renderItem))` in a template slot does **full teardown-and-remount** of every item on every signal change. This is intentional — the framework has no key to reconcile by, so it correctly refuses to guess and destroys/recreates all DOM nodes.
+
+**Symptoms of this mistake:**
+- Scroll position resets (scroll container jumps to top)
+- Focus is lost (input fields lose cursor position)
+- Stateful children reset (expanded/collapsed state, animations, diff2html renders)
+- Performance degrades linearly with list size
+
+This is the #1 performance footgun in nisli. The code *looks* correct and produces the right DOM — it just destroys and rebuilds it every time.
+
+```typescript
+// ❌ WRONG — full teardown on every change. Looks correct, silently broken.
+const taskList = computed(() =>
+  tasks.value.map(t => html`<div>${t.title}</div>`)
+);
+html`<div class="scroll-container">${taskList}</div>`
+// ^ Every time tasks changes: all DOM removed, all DOM recreated, scroll jumps
+
+// ❌ ALSO WRONG — same problem even with factory components
+const taskList = computed(() =>
+  tasks.value.map(t => TaskItem({ task: t }))
+);
+
+// ✅ CORRECT — use each() for keyed reconciliation
+html`<div class="scroll-container">${each(
+  tasks,
+  t => t.id,
+  (task) => html`<div>${computed(() => task.value.title)}</div>`
+)}</div>`
+// ^ Only affected nodes update; scroll/focus/state preserved
+```
+
+**Why the framework can't auto-reconcile bare arrays:**
+- `html\`...\`` returns a frozen `TemplateResult` with no identity across renders
+- Ten items from the same `html\`<div>...\`` call site share one `TemplateStringsArray` — the framework knows "same shape" but never "this is item #7 from last render"
+- Positional (index-based) matching would silently bind wrong state to wrong logical row on insert/remove/reorder — worse than the teardown
+- The key is irreducible input that only `each()` demands
+
+**When bare arrays ARE fine:**
+- Static arrays that never change after mount (not wrapped in computed/signal)
+- Very short lists (2-3 items) with no scroll container or stateful children
+- Conditional fragments where teardown is the desired behavior
+
 ### `tmpl-each-lists` — Use each() for reactive list rendering
 
 `each()` renders an array of items reactively with keyed reconciliation. When the array signal changes, only affected DOM nodes are added, removed, or reordered.
