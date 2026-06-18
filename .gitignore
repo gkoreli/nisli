@@ -4,3 +4,6 @@ dist/
 *.log
 .DS_Store
 .env
+
+# esbuild-hmr build.test.ts scratch dirs (cleaned by afterAll; ignored as a safety net)
+.hmr-build-test-*/

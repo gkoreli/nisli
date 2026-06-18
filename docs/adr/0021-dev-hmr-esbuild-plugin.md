@@ -1,7 +1,7 @@
 # 0021. Dev-Only HMR for Nisli — esbuild Plugin with Component Re-Mount
 
 **Date**: 2026-06-18
-**Status**: Implemented — shipped as the `@nisli/core/esbuild-hmr` subpath; core suite 253 passing, prod-isolation verified
+**Status**: Implemented — shipped as the `@nisli/core/esbuild-hmr` subpath (0.49.0); client-injection defects fixed in 0.49.1 (see *Post-ship correction*); core suite 258 passing, prod-isolation verified
 **Triggered by**: backlog-mcp viewer dev loop — after the ADR 0108 (backlog-mcp) content-hash work, an esbuild `--watch` rebuild updates `dist/` but the browser does nothing; the operator wants a Vite-grade reload/HMR experience without adopting Vite
 **Relates to**: [0017. Framework Package Extraction](./0017-framework-package-extraction.md), [0019. Minimal Runtime and Native Platform Alignment](./0019-minimal-runtime-and-native-platform-alignment.md), [0008.1. Mount-Time Dependency Leak](./0008.1-mount-time-dependency-leak.md)
 
@@ -307,6 +307,63 @@ ship first.
 - **Out of scope / deferred:** the consumer wiring in
   `backlog-mcp packages/viewer/build.mjs` (Engineering Plan §4) is a cross-repo
   change, not part of this `@nisli/core` commit.
+
+## Post-ship correction — 0.49.1 (client injection mechanism)
+
+**Status**: Fixed in `@nisli/core@0.49.1`. The 0.49.0 client-injection design was
+wrong; this records the root cause, the corrected mechanism, and the evidence.
+
+### Defect 1 (blocking) — `banner` leaked a bare import the browser can't resolve
+
+- **Symptom (consumer):** `Uncaught TypeError: Failed to resolve module specifier
+  "@nisli/core/esbuild-hmr/runtime". Relative references must start with either
+  "/", "./", or "../".`
+- **Root cause:** 0.49.0 injected the dev client via esbuild's `banner.js`
+  (`clientBanner()` → `import { connect } from "@nisli/core/esbuild-hmr/runtime";
+  connect();`). **A `banner` is raw passthrough text** — esbuild neither resolves
+  nor bundles it — so the bare specifier leaked verbatim into `main-<hash>.js`.
+  With no import map, the browser cannot resolve a bare specifier → throw.
+- **Fix:** inject the client via esbuild's **`inject`** option pointed at a
+  **virtual shim module** (`onResolve` claims a sentinel path into a private
+  namespace; `onLoad` returns the generated shim source with a `resolveDir`
+  anchored to `absWorkingDir`). esbuild then **resolves + bundles the runtime
+  inline** — no bare import survives. `banner` is never used for module imports.
+- **Why `inject`, not a real temp file:** a virtual module needs no temp file on
+  disk, no cleanup, and no path-escaping; `onLoad` must set `resolveDir` (verified:
+  without it esbuild errors *"the plugin didn't set a resolve directory … so
+  esbuild did not search for the import on the file system"*).
+- **JS-entry-only (the svg concern):** esbuild applies `inject` **only to JS
+  modules**, never to file/copy-loaded entries. Verified empirically against
+  esbuild 0.28.1 with a two-entry build (`main.js` + `logo.svg` via the `file`
+  loader): the `connect()` call appeared in `main.js` (and any other JS entry) but
+  **not** in the emitted `logo.js`/`logo-<hash>.svg`. So the viewer's `logo.svg`
+  entry is untouched without any explicit per-entry guard.
+
+### Defect 2 (latent) — SSE URL hard-coded to the page origin
+
+- **Root cause:** `runtime.connect()` defaulted `path` to `'/esbuild'`, which the
+  browser resolves against the **page origin**. When the SSE hub (server.ts) runs
+  on a different port (e.g. `:3031`) than the page server (Hono `:3040`), the
+  client connects to the wrong origin and never receives `change` events.
+- **Fix:** add a plugin option **`clientUrl`** (default `'/esbuild'`) baked into
+  the shim as `connect({ path: <clientUrl> })`. Set it to an absolute URL
+  (e.g. `http://localhost:3031/esbuild`) for cross-origin hubs. The hub already
+  sends `Access-Control-Allow-Origin: '*'` (server.ts), so cross-origin SSE works.
+
+### Regression coverage (`build.test.ts`)
+
+- A **real esbuild build** (not a string assertion) drives the plugin and checks
+  the BUILT output: (1) no bare `import … from "@nisli/core/…"` survives — the
+  exact 0.49.0 bug; (2) the runtime is actually inlined (`EventSource` present);
+  (3) the configured `clientUrl` is what the client passes to `connect`; (4) the
+  svg/file entry never receives the client.
+- **esbuild stays an optional peerDependency** for consumers; it was added only as
+  a **devDependency** of `@nisli/core` so the regression can run. esbuild's JS API
+  resolves its binary from the `@esbuild/<platform>` optional dep (installed via
+  the lockfile), **not** the postinstall script — so the test runs in CI even
+  though CI blocks build scripts (verified: JS API transform works with the
+  postinstall-copied bin removed). The prod-isolation guarantee is unchanged: the
+  `.` runtime graph still reaches zero HMR code.
 
 ## Consequences
 

@@ -20,7 +20,17 @@
  *     build and broadcast a `change` payload ({added, removed, updated}) over
  *     SSE so the browser client can escalate (css/js/reload).
  *  3. Inject the browser dev client (`@nisli/core/esbuild-hmr/runtime` +
- *     `connect()`) via an esbuild `banner`, so no author HTML/JS change is needed.
+ *     `connect({ path })`) via esbuild's `inject` option pointed at a VIRTUAL
+ *     shim module, so the runtime is RESOLVED + BUNDLED into the output (no
+ *     author HTML/JS change needed). We deliberately do NOT use `banner`: a
+ *     banner is raw passthrough text that esbuild neither resolves nor bundles,
+ *     so a bare `import … from "@nisli/core/esbuild-hmr/runtime"` would leak
+ *     verbatim into the output and the browser would throw
+ *     `Failed to resolve module specifier` (no import map). `inject` runs the
+ *     shim through onResolve/onLoad so the runtime is inlined at build time, and
+ *     esbuild applies `inject` ONLY to JS modules — never to file/copy-loaded
+ *     entries (e.g. the viewer's `logo.svg`). Verified empirically against
+ *     esbuild 0.28.1.
  */
 
 /// <reference types="node" />
@@ -37,6 +47,17 @@ interface OnLoadArgs {
 interface OnLoadResult {
   contents: string;
   loader?: 'ts' | 'tsx' | 'js' | 'jsx';
+  /** Directory used to resolve imports from a virtual module (the client shim). */
+  resolveDir?: string;
+}
+/** A subset of esbuild's `OnResolveArgs`. */
+interface OnResolveArgs {
+  path: string;
+}
+/** A subset of esbuild's `OnResolveResult`. */
+interface OnResolveResult {
+  path: string;
+  namespace?: string;
 }
 /** A subset of esbuild's metafile. */
 interface Metafile {
@@ -50,8 +71,16 @@ interface BuildResult {
 interface PluginBuild {
   initialOptions: {
     banner?: { js?: string } & Record<string, string | undefined>;
+    /** Files esbuild injects into every JS module (never file/copy entries). */
+    inject?: string[];
+    /** esbuild's working directory; anchors virtual-module resolution. */
+    absWorkingDir?: string;
     [key: string]: unknown;
   };
+  onResolve(
+    options: { filter: RegExp; namespace?: string },
+    callback: (args: OnResolveArgs) => OnResolveResult | undefined,
+  ): void;
   onLoad(
     options: { filter: RegExp; namespace?: string },
     callback: (args: OnLoadArgs) => OnLoadResult | undefined,
@@ -79,10 +108,21 @@ export interface NisliHmrPluginOptions {
    */
   coreSpecifier?: string;
   /**
-   * The specifier of the browser dev runtime, injected into the bundle banner.
-   * Defaults to `@nisli/core/esbuild-hmr/runtime`.
+   * The specifier of the browser dev runtime, inlined into the bundle via the
+   * injected client shim. Defaults to `@nisli/core/esbuild-hmr/runtime`.
    */
   runtimeSpecifier?: string;
+  /**
+   * The SSE endpoint the browser dev client connects to. Baked into the injected
+   * shim as `connect({ path: clientUrl })`. Defaults to `/esbuild` (esbuild's
+   * client convention, same-origin).
+   *
+   * Set this to an ABSOLUTE URL when the SSE hub (server.ts) runs on a different
+   * origin than the page server — e.g. `http://localhost:3031/esbuild` when the
+   * hub listens on :3031 and the page is served by Hono on :3040. The hub already
+   * sends `Access-Control-Allow-Origin: '*'`, so cross-origin SSE works.
+   */
+  clientUrl?: string;
   /** Files to transform. Defaults to TS/JS sources (excludes node_modules). */
   filter?: RegExp;
 }
@@ -90,6 +130,15 @@ export interface NisliHmrPluginOptions {
 // ── Source transform (Ruling 2) ─────────────────────────────────────
 
 const DEFAULT_FILTER = /\.[mc]?[jt]sx?$/;
+
+/**
+ * Virtual path + namespace for the injected client shim. The path is a bare
+ * sentinel (not a real file); onResolve claims it into a private namespace and
+ * onLoad supplies its generated source, so esbuild bundles the runtime inline.
+ */
+const CLIENT_SHIM_PATH = 'nisli-hmr-client-shim';
+const CLIENT_SHIM_NAMESPACE = 'nisli-hmr-shim';
+const CLIENT_SHIM_FILTER = /^nisli-hmr-client-shim$/;
 
 /**
  * Rewrite a module's source so the `component` it imports from `@nisli/core` is
@@ -139,11 +188,17 @@ export function transformSource(code: string, coreSpecifier: string, runtimeSpec
   return preamble + rewritten;
 }
 
-/** Banner that boots the browser dev client once per bundle. */
-export function clientBanner(runtimeSpecifier: string): string {
+/**
+ * Source of the virtual client shim that esbuild's `inject` pulls into every JS
+ * module. Because it is `inject`ed (not a `banner`), esbuild RESOLVES the
+ * `runtimeSpecifier` import and BUNDLES `connect` inline — no bare specifier
+ * survives in the output (the 0.49.0 bug). `clientUrl` is baked in so the
+ * client targets the right SSE origin. Pure function — exported for testing.
+ */
+export function clientShimSource(runtimeSpecifier: string, clientUrl: string): string {
   return (
     `import { connect as __nisliConnect } from '${runtimeSpecifier}';\n` +
-    `__nisliConnect();\n`
+    `__nisliConnect({ path: ${JSON.stringify(clientUrl)} });\n`
   );
 }
 
@@ -156,6 +211,7 @@ export function clientBanner(runtimeSpecifier: string): string {
 export function nisliHmrPlugin(options: NisliHmrPluginOptions): EsbuildPlugin {
   const coreSpecifier = options.coreSpecifier ?? '@nisli/core';
   const runtimeSpecifier = options.runtimeSpecifier ?? '@nisli/core/esbuild-hmr/runtime';
+  const clientUrl = options.clientUrl ?? '/esbuild';
   const filter = options.filter ?? DEFAULT_FILTER;
   const { broadcaster } = options;
 
@@ -164,10 +220,28 @@ export function nisliHmrPlugin(options: NisliHmrPluginOptions): EsbuildPlugin {
   return {
     name: 'nisli-hmr',
     setup(build) {
-      // Inject the browser dev client into the bundle banner (no HTML change).
-      const banner = build.initialOptions.banner ?? {};
-      banner.js = `${clientBanner(runtimeSpecifier)}${banner.js ?? ''}`;
-      build.initialOptions.banner = banner;
+      // Inject the browser dev client via esbuild's `inject` (NOT `banner`).
+      // A banner is raw passthrough text — its bare `import` would leak into the
+      // output and the browser could not resolve it. `inject` points at a
+      // virtual shim that esbuild resolves + bundles, inlining the runtime so no
+      // bare specifier survives. esbuild applies `inject` only to JS modules, so
+      // the viewer's file/copy-loaded `logo.svg` entry is never touched.
+      build.initialOptions.inject = [
+        ...(build.initialOptions.inject ?? []),
+        CLIENT_SHIM_PATH,
+      ];
+      build.onResolve({ filter: CLIENT_SHIM_FILTER }, (args) => {
+        if (args.path !== CLIENT_SHIM_PATH) return undefined;
+        return { path: CLIENT_SHIM_PATH, namespace: CLIENT_SHIM_NAMESPACE };
+      });
+      build.onLoad({ filter: /.*/, namespace: CLIENT_SHIM_NAMESPACE }, () => ({
+        contents: clientShimSource(runtimeSpecifier, clientUrl),
+        loader: 'js',
+        // A virtual module has no on-disk location, so esbuild won't know where
+        // to resolve the runtime import from. Anchor it to the build's working
+        // directory (where the consumer's `@nisli/core` resolves).
+        resolveDir: build.initialOptions.absWorkingDir ?? process.cwd(),
+      }));
 
       // 1. Transform: wrap component() call sites (Ruling 2).
       build.onLoad({ filter }, (args) => {

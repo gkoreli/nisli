@@ -4,7 +4,7 @@
  * @vitest-environment node
  */
 import { describe, it, expect } from 'vitest';
-import { transformSource, diffOutputs, clientBanner, nisliHmrPlugin } from './plugin.js';
+import { transformSource, diffOutputs, clientShimSource, nisliHmrPlugin } from './plugin.js';
 import type { ChangeBroadcaster, ChangePayload } from './server.js';
 
 const CORE = '@nisli/core';
@@ -40,11 +40,17 @@ describe('transformSource (Ruling 2 — call-site indirection)', () => {
   });
 });
 
-describe('clientBanner', () => {
-  it('boots the dev client from the runtime subpath', () => {
-    const banner = clientBanner(RUNTIME);
-    expect(banner).toContain(`import { connect as __nisliConnect } from '${RUNTIME}'`);
-    expect(banner).toContain('__nisliConnect();');
+describe('clientShimSource', () => {
+  it('boots the dev client from the runtime subpath with the configured clientUrl', () => {
+    const shim = clientShimSource(RUNTIME, '/esbuild');
+    expect(shim).toContain(`import { connect as __nisliConnect } from '${RUNTIME}'`);
+    // The shim calls connect with the SSE path baked in (FIX 2).
+    expect(shim).toContain('__nisliConnect({ path: "/esbuild" });');
+  });
+
+  it('bakes an absolute cross-origin clientUrl into the connect call', () => {
+    const shim = clientShimSource(RUNTIME, 'http://localhost:3031/esbuild');
+    expect(shim).toContain('__nisliConnect({ path: "http://localhost:3031/esbuild" });');
   });
 });
 
@@ -75,22 +81,27 @@ describe('nisliHmrPlugin wiring', () => {
     return { events, clientCount: 0, broadcast: (p) => void events.push(p) };
   }
 
-  it('injects the client banner and registers onLoad/onEnd hooks', () => {
+  it('registers the inject shim (not a banner) plus onResolve/onLoad/onEnd hooks', () => {
     const broadcaster = fakeBroadcaster();
     const plugin = nisliHmrPlugin({ broadcaster });
     expect(plugin.name).toBe('nisli-hmr');
 
     let onLoadFilter: RegExp | null = null;
     let onEnd: ((r: { metafile?: { outputs: Record<string, { bytes: number; hash?: string }> } }) => void) | null = null;
-    const initialOptions: { banner?: { js?: string } } = {};
+    let onResolveRegistered = false;
+    const initialOptions: { banner?: { js?: string }; inject?: string[] } = {};
 
     plugin.setup({
       initialOptions,
+      onResolve: () => { onResolveRegistered = true; },
       onLoad: (opts: { filter: RegExp }) => { onLoadFilter = opts.filter; },
       onEnd: (cb: unknown) => { onEnd = cb as never; },
     } as never);
 
-    expect(initialOptions.banner?.js).toContain('__nisliConnect()');
+    // FIX 1: the client is wired via `inject`, never via a raw `banner`.
+    expect(initialOptions.banner).toBeUndefined();
+    expect(initialOptions.inject).toEqual(['nisli-hmr-client-shim']);
+    expect(onResolveRegistered).toBe(true);
     expect(onLoadFilter).toBeInstanceOf(RegExp);
     expect(onEnd).toBeTypeOf('function');
 
