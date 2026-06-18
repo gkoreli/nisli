@@ -263,10 +263,23 @@ ship first.
    `remount()`, `EventSource` client, CSS hot-swap, reload fallback), `server.ts`
    (tiny `node:http` SSE hub, or wire esbuild `serve` `/esbuild`).
 2. **`packages/core/package.json`** — add `exports` entries `./esbuild-hmr`
-   (Node) and `./esbuild-hmr/runtime` (browser), each with its own
-   `types`/`default`; declare `esbuild` as an **optional `peerDependency`**; keep
-   the `.` entry dependency-free. Build config (`tsconfig.build.json`) emits the
-   subpath alongside the runtime without pulling it into `.`.
+   (Node), `./esbuild-hmr/runtime` (browser), and `./esbuild-hmr/server` (Node);
+   declare `esbuild` as an **optional `peerDependency`**; keep the `.` entry
+   dependency-free. Build config (`tsconfig.build.json`) emits the subpath
+   alongside the runtime without pulling it into `.`.
+
+   **Why three subpath exports, not a single barrel:** the plugin injects the
+   runtime specifier *by string* into the browser bundle
+   (`import { connect } from '@nisli/core/esbuild-hmr/runtime'`). esbuild
+   resolves every import in a module before tree-shaking, so if runtime shared a
+   barrel with plugin/server, the browser build would attempt to resolve
+   `node:http` and `node:fs` → build failure. The **browser/Node resolution
+   boundary** forces `./esbuild-hmr/runtime` to be its own entry. The server
+   (`./esbuild-hmr/server`) could theoretically merge into `./esbuild-hmr` (both
+   are Node/build-time), but is kept separate for explicitness: a consumer can
+   import `createHmrServer` standalone without pulling in the plugin, and each
+   file = one entry avoids barrel indirection. The minimum that avoids breakage
+   is 2 exports (Node + browser); the third is a declarative/granularity choice.
 3. **`packages/core/src/esbuild-hmr/*.test.ts`** — disposal/re-mount invariants
    (no duplicate DOM, disposers run, scroll retained à la ADR 0008.1), tag-registry
    swap, CSS-only vs component vs reload escalation. Verify the `.` runtime entry's
