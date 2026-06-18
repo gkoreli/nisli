@@ -1,7 +1,7 @@
 # 0021. Dev-Only HMR for Nisli — esbuild Plugin with Component Re-Mount
 
 **Date**: 2026-06-18
-**Status**: Proposed — design-first; implementation pending sign-off
+**Status**: Implemented — shipped as the `@nisli/core/esbuild-hmr` subpath; core suite 253 passing, prod-isolation verified
 **Triggered by**: backlog-mcp viewer dev loop — after the ADR 0108 (backlog-mcp) content-hash work, an esbuild `--watch` rebuild updates `dist/` but the browser does nothing; the operator wants a Vite-grade reload/HMR experience without adopting Vite
 **Relates to**: [0017. Framework Package Extraction](./0017-framework-package-extraction.md), [0019. Minimal Runtime and Native Platform Alignment](./0019-minimal-runtime-and-native-platform-alignment.md), [0008.1. Mount-Time Dependency Leak](./0008.1-mount-time-dependency-leak.md)
 
@@ -274,6 +274,39 @@ ship first.
 4. **Consumer (`backlog-mcp` `packages/viewer/build.mjs`)** — import the plugin
    from `@nisli/core/esbuild-hmr` and add it only when `--watch`; prod path
    unchanged. (backlog-mcp side; cross-repo.)
+
+## Implementation Notes (as built)
+
+- **Files:** `packages/core/src/esbuild-hmr/{plugin,runtime,server}.ts` plus
+  `{runtime,plugin,prod-isolation}.test.ts`. `package.json` gained `./esbuild-hmr`,
+  `./esbuild-hmr/runtime`, `./esbuild-hmr/server` exports (with `publishConfig`
+  `dist` mappings) and `esbuild` as an **optional `peerDependency`**.
+- **Zero-dep preserved without importing esbuild.** The plugin types itself
+  against a minimal *structural* esbuild surface (`PluginBuild`/`OnLoadArgs`/
+  metafile subsets) instead of `import … from 'esbuild'`. So the `.` entry pulls
+  no new dependency and esbuild need not even be installed to build/typecheck
+  core — confirmed: `esbuild` is absent from the repo and build/typecheck/tests
+  are all green.
+- **Node-only subpath, DOM-only core.** `plugin.ts`/`server.ts` carry a
+  `/// <reference types="node" />` and use `node:fs`/`node:http`; this is fine
+  because they are unreachable from the `.` graph. `@types/node` was added to
+  core `devDependencies` for resolution.
+- **Drain ordering correctness.** `__register` queues a microtask drain on a
+  setup swap, but `applyChange` sets a `suppressAutoDrain` flag across the
+  `reimport()` await so **all** changed tags register before a single explicit
+  `drainRemounts()` — preventing a partial re-mount when several components
+  change in one rebuild. If re-import registers no changed tag, the JS edit was a
+  non-component module → full reload (Ruling 4 fallback).
+- **Prod isolation is asserted, not assumed.** `prod-isolation.test.ts` walks the
+  static import graph of the built `dist/index.js` and fails if any reachable
+  module sits under `esbuild-hmr/` or contains HMR markers (`__nisliRegister`,
+  `__nisliConnect`, `EventSource`, `nisli-hmr`, `esbuild-hmr`). Verified clean;
+  the subpath builds to `dist/esbuild-hmr/` but is off the `.` graph.
+- **Verification:** `pnpm build`, `pnpm typecheck`, `pnpm -r test` all pass —
+  core 253 tests (14 files), ssg 15 tests.
+- **Out of scope / deferred:** the consumer wiring in
+  `backlog-mcp packages/viewer/build.mjs` (Engineering Plan §4) is a cross-repo
+  change, not part of this `@nisli/core` commit.
 
 ## Consequences
 
