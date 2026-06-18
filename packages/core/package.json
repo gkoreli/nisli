@@ -18,15 +18,41 @@
     "dependency-injection"
   ],
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./esbuild-hmr": "./src/esbuild-hmr/plugin.ts",
+    "./esbuild-hmr/runtime": "./src/esbuild-hmr/runtime.ts",
+    "./esbuild-hmr/server": "./src/esbuild-hmr/server.ts"
   },
   "publishConfig": {
     "exports": {
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      },
+      "./esbuild-hmr": {
+        "types": "./dist/esbuild-hmr/plugin.d.ts",
+        "default": "./dist/esbuild-hmr/plugin.js"
+      },
+      "./esbuild-hmr/runtime": {
+        "types": "./dist/esbuild-hmr/runtime.d.ts",
+        "default": "./dist/esbuild-hmr/runtime.js"
+      },
+      "./esbuild-hmr/server": {
+        "types": "./dist/esbuild-hmr/server.d.ts",
+        "default": "./dist/esbuild-hmr/server.js"
       }
     }
+  },
+  "peerDependencies": {
+    "esbuild": "*"
+  },
+  "peerDependenciesMeta": {
+    "esbuild": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
   },
   "files": [
     "dist",
