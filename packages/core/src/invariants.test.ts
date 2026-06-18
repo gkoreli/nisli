@@ -1032,6 +1032,161 @@ describe('INVARIANT: unquoted attribute expressions (ADR 0069)', () => {
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════════
+// ADR 0008.1: Mount-time signal probe reads must NOT leak into the
+// enclosing reactive scope.
+//
+// replaceMarkerWithBinding probes a signal slot's `.value` to decide which
+// kind of binding to create. That probe runs during mount, which can execute
+// inside an enclosing effect — a parent reactive slot's effect, or an each()
+// reconcile effect. If the probe is tracked, the enclosing effect captures the
+// nested signal (and its transitive deps) as spurious dependencies. When any
+// of those leaked deps later changes, the enclosing effect re-runs and — since
+// the reactive-slot effect re-mounts unconditionally — tears down and rebuilds
+// the WHOLE subtree, replacing live DOM nodes.
+//
+// Real regression (backlog-mcp activity-panel): clicking "Show more" toggled
+// `expandedTaskGroups`; the `mainContent` reactive slot had leaked
+// toggleText → isExpanded → expandedTaskGroups via the probe, so it re-ran and
+// replaced the entire <div class="activity-list"> node, resetting scrollTop to
+// 0 (observed: connected:false, sameNode:false on the captured element).
+//
+// Invariant: mounting must never establish dependencies in the enclosing
+// scope. Each dynamic part owns its own subscription via its own effect; the
+// probe is wrapped in untrack(). Same principle as ADR 0008 / ADR 0009 Gap 1.
+// ═══════════════════════════════════════════════════════════════════════
+
+describe('INVARIANT: mount-time probe does not leak deps (ADR 0008.1)', () => {
+  it('changing a nested slot signal does not rebuild the parent reactive slot', () => {
+    const expanded = signal(false);
+    // A "variable" computed used directly in a slot — returns a string.
+    const toggleText = computed(() => (expanded.value ? 'Show less' : 'Show more'));
+
+    // Parent reactive slot. It does NOT read `expanded` directly — it only
+    // embeds a template that contains the nested toggleText slot.
+    const mainContent = computed(
+      () => html`<div class="list"><button class="toggle">${toggleText}</button></div>`,
+    );
+
+    const host = mount(html`${mainContent}`);
+
+    const listBefore = host.querySelector('.list');
+    expect(listBefore).not.toBeNull();
+    expect(host.querySelector('.toggle')?.textContent).toBe('Show more');
+
+    // Tag the node so a teardown/rebuild is detectable by identity.
+    (listBefore as unknown as Record<string, unknown>).__marker = 'original';
+
+    // Toggle the nested signal. The button text must update in place WITHOUT
+    // rebuilding the parent <div class="list">.
+    expanded.value = true;
+    flushEffects();
+
+    const listAfter = host.querySelector('.list');
+    // Same DOM node — the parent slot effect did NOT re-run/rebuild.
+    expect(listAfter).toBe(listBefore);
+    expect((listAfter as unknown as Record<string, unknown>).__marker).toBe('original');
+    // Nested binding still updated reactively.
+    expect(host.querySelector('.toggle')?.textContent).toBe('Show less');
+  });
+
+  it('parent computed view is not recomputed when only nested signals change', () => {
+    const nested = signal(0);
+    const inner = computed(() => `n=${nested.value}`);
+
+    let viewEvals = 0;
+    const view = computed(() => {
+      viewEvals++;
+      return html`<section class="view"><span>${inner}</span></section>`;
+    });
+
+    const host = mount(html`${view}`);
+    const sectionBefore = host.querySelector('.view');
+    expect(viewEvals).toBe(1);
+    expect(host.querySelector('span')?.textContent).toBe('n=0');
+
+    nested.value = 1;
+    flushEffects();
+    nested.value = 2;
+    flushEffects();
+
+    // `view` never read `nested`, so it must not recompute, and its mounted
+    // node must be the same instance (not torn down by a leaked re-trigger).
+    expect(viewEvals).toBe(1);
+    expect(host.querySelector('.view')).toBe(sectionBefore);
+    expect(host.querySelector('span')?.textContent).toBe('n=2');
+  });
+
+  it('nested signal leak does not reach an enclosing manual effect', () => {
+    // Direct encoding of the leak: mount a template containing a signal slot
+    // INSIDE a manual effect, and assert the nested signal is not captured.
+    const nested = signal('a');
+    let outerRuns = 0;
+    const container = document.createElement('div');
+
+    const dispose = effect(() => {
+      outerRuns++;
+      // Mount happens inside this effect's tracking scope.
+      const tpl = html`<span class="leaf">${nested}</span>`;
+      tpl.mount(container);
+    });
+    expect(outerRuns).toBe(1);
+
+    // Changing the nested signal must update its own text binding, not
+    // re-trigger the enclosing effect.
+    nested.value = 'b';
+    flushEffects();
+    expect(outerRuns).toBe(1);
+    dispose();
+  });
+
+  it('reactive slot does not rebuild when re-triggered with an identical value (memoization)', () => {
+    // Directly exercises the defense-in-depth memoization guard: even if the
+    // slot effect is spuriously re-triggered, an identical resolved value must
+    // be a no-op rather than a destructive teardown.
+    //
+    // We force a spurious re-trigger by making the slot's computed depend on a
+    // signal whose value it returns referentially-stably. `gate` flips, the
+    // computed re-runs, but it returns the SAME cached TemplateResult object,
+    // so Object.is holds and downstream must not rebuild.
+    const gate = signal(0);
+    const stable = html`<div class="stable"><span class="leaf">x</span></div>`;
+    const view = computed(() => {
+      gate.value; // create a dependency that changes without changing output
+      return stable; // referentially identical across recomputations
+    });
+
+    const host = mount(html`${view}`);
+    const nodeBefore = host.querySelector('.stable');
+    expect(nodeBefore).not.toBeNull();
+    (nodeBefore as unknown as Record<string, unknown>).__marker = 'original';
+
+    // Re-trigger: computed re-runs (gate changed) but returns the same object.
+    gate.value = 1;
+    flushEffects();
+    gate.value = 2;
+    flushEffects();
+
+    const nodeAfter = host.querySelector('.stable');
+    expect(nodeAfter).toBe(nodeBefore);
+    expect((nodeAfter as unknown as Record<string, unknown>).__marker).toBe('original');
+  });
+
+  it('first render still mounts when the resolved value is null then a template', async () => {
+    // Guards the Symbol-sentinel detail: a slot resolving to null on first run
+    // must still mount once it becomes a template (sentinel != null).
+    const tpl = signal<unknown>(null);
+    const view = computed(() => tpl.value as never);
+
+    const host = mount(html`<div class="wrap">${view}</div>`);
+    expect(host.querySelector('.appears')).toBeNull();
+
+    tpl.value = html`<span class="appears">here</span>`;
+    await new Promise(r => setTimeout(r, 0));
+    expect(host.querySelector('.appears')?.textContent).toBe('here');
+  });
+});
+
 // ── ADR 0070: Reactive slot reparenting ─────────────────────────────
 
 describe('INVARIANT: reactive slots survive DOM reparenting', () => {

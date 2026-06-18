@@ -68,6 +68,7 @@ Reference these guidelines when:
 ### 3. Template Engine (HIGH)
 
 - `tmpl-implicit-signals` - Write `${count}` not `${count.value}` in templates
+- `tmpl-no-eager-value-in-render` - NEVER read `signal.value` while building a template (inside a `computed`/render fn) — it leaks the signal into the enclosing view, so unrelated changes rebuild the whole subtree (scroll/focus/state lost). Pass the signal into the slot or use `each()` (ADR 0008.1)
 - `tmpl-event-colocated` - Use `@click=${handler}` on the element, not detached listeners
 - `tmpl-event-modifiers` - Use `.stop`, `.prevent`, `.once`, `.enter`, `.escape` modifiers
 - `tmpl-class-directive` - Use `class:name=${signal}` for conditional classes, not ternary soup

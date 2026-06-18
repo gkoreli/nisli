@@ -16,6 +16,7 @@ They moved with the framework when `@nisli/core` became a standalone package.
 - [0007a. Shared Reactive Services Replace expose() + Reactive List Rendering](./0007-shared-services-and-each.md) - Accepted - 2026-02-09
 - [0007b. Template Engine Bug: class Attribute Overwrites class:name Directives](./0007-class-attribute-classList-conflict.md) - Accepted - 2026-02-09
 - [0008. Effect Isolation and Loop Detection — Defense-in-Depth](./0008-effect-scheduling-and-batching-gaps.md) - Open - 2026-02-09
+- [0008.1. Mount-Time Dependency Leak — Reactive Slot Tears Down Live DOM](./0008.1-mount-time-dependency-leak.md) - Resolved - 2026-06-18
 - [0012. Migration Phase 14 — resource-viewer, activity-panel, Final Migration](./0012-migration-phase-14-final.md) - Active - 2026-02-11
 - [0015. Eliminate explicit batch() — automatic signal coalescing](./0015-eliminate-batch-automatic-coalescing.md) - Accepted - 2026-02-11
 - [0017. Framework Package Extraction — Standalone Reactive Web Component Library](./0017-framework-package-extraction.md) - Accepted - 2026-02-24

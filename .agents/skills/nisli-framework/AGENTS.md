@@ -281,6 +281,59 @@ html`<span>${count}</span>`
 html`<span>${label}</span>`
 ```
 
+### `tmpl-no-eager-value-in-render` — Never read `.value` while building a template
+
+Reactivity tracks through a single global active observer: **while a `computed`
+or `effect` is running, every `signal.value` read anywhere is registered as a
+dependency of that scope.** Building a template is not exempt. If you read a
+signal's `.value` *eagerly* while constructing the template a `computed` returns
+(or inside a render helper called from one), you subscribe the **enclosing view**
+to that signal — not the leaf binding.
+
+This is the same teardown footgun as `tmpl-no-bare-array-slot`, reached by a
+different route. When the leaked signal changes, the enclosing computed view
+re-runs and its reactive slot rebuilds the **entire subtree**.
+
+**Symptoms** (identical to a bare-array slot — shared root cause):
+- Scroll position resets; focus / text selection / IME state lost
+- Expanded/collapsed, hover, and animation state reset on unrelated edits
+- A whole panel re-renders when one nested value changes
+
+```typescript
+// ❌ WRONG — eager .value read leaks `r.label` into `view`.
+//    Editing ONE row's label rebuilds the WHOLE <ul> (scroll/focus lost).
+const view = computed(() => {
+  const rows = store.rows.value;                 // structural dep — intended
+  return html`<ul>${rows.map(r =>
+    html`<li>${r.label.value}</li>`              // ← leaks r.label into `view`
+  )}</ul>`;
+});
+
+// ✅ CORRECT — pass the signal into the slot; the leaf text-binding owns the
+//    subscription, so `view` depends only on `store.rows`.
+const view = computed(() => {
+  const rows = store.rows.value;
+  return html`<ul>${rows.map(r => html`<li>${r.label}</li>`)}</ul>`;
+});
+
+// ✅ BEST for dynamic lists — each() gives keyed, per-item reactivity
+html`<ul>${each(store.rows, r => r.id, r => html`<li>${computed(() => r.value.label)}</li>`)}</ul>`
+```
+
+**Rule of thumb:** inside a `computed`/render function, read `.value` ONLY for
+values that *should* re-run that computed — structural inputs like list length
+or which branch to show. For per-item and leaf values, pass the **signal itself**
+into the slot (`${signal}`, see `tmpl-implicit-signals`) so the binding
+subscribes, not the view.
+
+**Deliberate snapshot:** if you genuinely need a one-shot read without
+subscribing the enclosing scope, wrap it in `untrack()` (see `signal-untrack`).
+
+**Contributor note:** the engine obeys the same invariant — mounting must never
+establish dependencies in the enclosing scope. The mount-time value probe in
+`replaceMarkerWithBinding` is `untrack`-ed and reactive slots memoize by
+referential identity for exactly this reason. See ADR 0008.1.
+
 ### `tmpl-event-colocated` — Use @event on the element
 
 Events are part of the template, colocated with elements. No detached listeners, no selector coupling.

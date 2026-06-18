@@ -15,6 +15,7 @@ import {
   isSignal,
   effect,
   computed,
+  untrack,
   type Signal,
   type ReadonlySignal,
 } from './signal.js';
@@ -371,7 +372,18 @@ function replaceMarkerWithBinding(
   if (!parent) return;
 
   if (isSignal(value)) {
-    const signalValue = (value as ReadonlySignal<unknown>).value;
+    // Probe the current value WITHOUT tracking. This read runs during mount,
+    // which may execute inside an enclosing reactive scope (a parent reactive
+    // slot's effect, or an each() reconcile effect). The real subscription for
+    // THIS slot is established by the dedicated inner effect(s) below — the
+    // probe is only used to decide which kind of binding to create. If the
+    // probe were tracked, every nested `${signal}` slot would leak its signal
+    // (and its transitive deps) into the enclosing effect, so unrelated state
+    // changes would tear down and rebuild the whole subtree. Mount must never
+    // establish dependencies in the enclosing scope — same principle as the
+    // child-component connectedCallback isolation (ADR 0008 Gap 1).
+    let signalValue: unknown;
+    untrack(() => { signalValue = (value as ReadonlySignal<unknown>).value; });
 
     // Check if the signal holds a TemplateResult, factory, null, undefined, or array
     // (e.g., from reactive when(), computed(() => items.map(renderFn)), or factory results)
@@ -389,6 +401,10 @@ function replaceMarkerWithBinding(
 
       let currentResults: TemplateResult[] = [];
       let currentNodes: Node[] = [];
+      // Sentinel distinct from any resolvable value (including null/undefined)
+      // so the FIRST effect run always mounts. See ADR 0008.1.
+      const NOT_RENDERED = Symbol('not-rendered');
+      let lastValue: unknown = NOT_RENDERED;
 
       const dispose = effect(() => {
         const newValue = (value as ReadonlySignal<unknown>).value;
@@ -397,6 +413,16 @@ function replaceMarkerWithBinding(
         // leaving the markers reparented under the actual DOM element.
         const liveParent = endMarker.parentNode;
         if (!liveParent) return;
+
+        // Memoize by referential identity. A computed/signal only notifies
+        // when its value changes by Object.is, so an EQUAL value here means
+        // this effect was re-triggered by some OTHER dependency (a tracking
+        // leak), not by an actual change to this slot. Re-mounting identical
+        // content would destroy live DOM (and reset scroll/focus) for nothing.
+        // Defense-in-depth against the leak class fixed at the probe in this
+        // same file. See ADR 0008.1.
+        if (newValue === lastValue) return;
+        lastValue = newValue;
 
         // Remove previous content
         for (const r of currentResults) {
