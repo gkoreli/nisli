@@ -24,3 +24,4 @@ They moved with the framework when `@nisli/core` became a standalone package.
 - [0019. Minimal Runtime and Native Platform Alignment](./0019-minimal-runtime-and-native-platform-alignment.md) - Proposed - 2026-04-11
 - [0020. Static Rendering Template Engine](./0020-static-rendering-template-engine.md) - Superseded - 2026-04-11
 - [0020.1. Static Site Generation Build Toolkit](./0020.1-static-publication-components-and-attributes.md) - Proposed - 2026-04-19
+- [0021. Dev-Only HMR — esbuild Plugin with Component Re-Mount](./0021-dev-hmr-esbuild-plugin.md) - Proposed - 2026-06-18
