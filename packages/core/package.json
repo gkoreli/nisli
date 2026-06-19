@@ -1,6 +1,6 @@
 {
   "name": "@nisli/core",
-  "version": "0.49.2",
+  "version": "0.50.0",
   "description": "A reactive web component framework. Signals, templates, dependency injection — no build step, no virtual DOM, no dependencies.",
   "type": "module",
   "license": "MIT",
@@ -21,7 +21,9 @@
     ".": "./src/index.ts",
     "./esbuild-hmr": "./src/esbuild-hmr/plugin.ts",
     "./esbuild-hmr/runtime": "./src/esbuild-hmr/runtime.ts",
-    "./esbuild-hmr/server": "./src/esbuild-hmr/server.ts"
+    "./esbuild-hmr/server": "./src/esbuild-hmr/server.ts",
+    "./vite-hmr": "./src/vite-hmr/plugin.ts",
+    "./vite-hmr/runtime": "./src/vite-hmr/runtime.ts"
   },
   "publishConfig": {
     "exports": {
@@ -40,6 +42,14 @@
       "./esbuild-hmr/server": {
         "types": "./dist/esbuild-hmr/server.d.ts",
         "default": "./dist/esbuild-hmr/server.js"
+      },
+      "./vite-hmr": {
+        "types": "./dist/vite-hmr/plugin.d.ts",
+        "default": "./dist/vite-hmr/plugin.js"
+      },
+      "./vite-hmr/runtime": {
+        "types": "./dist/vite-hmr/runtime.d.ts",
+        "default": "./dist/vite-hmr/runtime.js"
       }
     }
   },

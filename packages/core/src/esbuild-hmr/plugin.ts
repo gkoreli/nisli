@@ -141,52 +141,12 @@ const CLIENT_SHIM_NAMESPACE = 'nisli-hmr-shim';
 const CLIENT_SHIM_FILTER = /^nisli-hmr-client-shim$/;
 
 /**
- * Rewrite a module's source so the `component` it imports from `@nisli/core` is
- * wrapped by the registry indirection. Pure function — exported for testing.
- *
- * Strategy: alias the real import, then shadow `component` with a wrapper that
- * registers the setup and passes a STABLE thunk to the real `component`. The
- * wrapper is a no-op-shaped passthrough at runtime cost of one Map write +
- * one thunk allocation per `component()` call.
- *
- * Returns the original source unchanged if it does not import `component` from
- * the core specifier (nothing to wrap).
+ * `transformSource` (wrap `component()` call sites) now lives in the shared
+ * `../hmr/transform.js` and is re-exported here so this module's surface — and
+ * the tests that import it from './plugin.js' — are unchanged (ADR 0110).
  */
-export function transformSource(code: string, coreSpecifier: string, runtimeSpecifier: string): string {
-  const spec = escapeRegExp(coreSpecifier);
-  // Match a named import of `component` (alone or among others) from core.
-  const importRe = new RegExp(
-    `import\\s*\\{([^}]*)\\}\\s*from\\s*['"]${spec}['"]`,
-    'g',
-  );
-
-  let importsComponent = false;
-  const rewritten = code.replace(importRe, (_full: string, names: string) => {
-    const parts = names.split(',').map((s) => s.trim()).filter(Boolean);
-    const next = parts.map((p) => {
-      // Handle `component` and `component as X` — we only wrap the bare name.
-      if (p === 'component') {
-        importsComponent = true;
-        return 'component as __nisliRealComponent';
-      }
-      return p;
-    });
-    return `import { ${next.join(', ')} } from '${coreSpecifier}'`;
-  });
-
-  if (!importsComponent) return code;
-
-  // Prepend the registry-import + wrapper. `__register` returns the STABLE
-  // thunk the real component captures; the wrapper preserves the factory's
-  // return value and signature.
-  const preamble =
-    `import { __register as __nisliRegister } from '${runtimeSpecifier}';\n` +
-    `function component(tag, setup, opts) {\n` +
-    `  return __nisliRealComponent(tag, __nisliRegister(tag, setup), opts);\n` +
-    `}\n`;
-
-  return preamble + rewritten;
-}
+import { transformSource } from '../hmr/transform.js';
+export { transformSource };
 
 /**
  * Source of the virtual client shim that esbuild's `inject` pulls into every JS
@@ -299,10 +259,6 @@ export function diffOutputs(
 }
 
 // ── helpers ─────────────────────────────────────────────────────────
-
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 function loaderFor(path: string): 'ts' | 'tsx' | 'js' | 'jsx' {
   if (path.endsWith('.tsx')) return 'tsx';

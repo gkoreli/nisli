@@ -20,8 +20,19 @@
 
 // ── Types ───────────────────────────────────────────────────────────
 
-/** The author's setup function, kept opaque here (props proxy, host). */
-export type HmrSetup = (props: unknown, host: HTMLElement) => unknown;
+// Transport-agnostic registry/remount core lives in ../hmr/registry.js and is
+// shared with the Vite adapter (ADR 0110). Re-exported here so this module's
+// public surface — and the tests that import from './runtime.js' — are
+// unchanged by the extraction.
+export {
+  __register,
+  pendingRemountCount,
+  drainRemounts,
+  remount,
+  __resetRegistry,
+  type HmrSetup,
+} from '../hmr/registry.js';
+import { beginManualDrain, drainRemounts, endManualDrain, pendingRemountCount } from '../hmr/registry.js';
 
 /** esbuild's `change` event payload shape (added/removed/updated paths). */
 export interface EsbuildChangePayload {
@@ -56,112 +67,6 @@ export interface ConnectOptions {
   reimport?: () => Promise<void>;
   /** Force a full reload. Defaults to `location.reload()`. */
   reload?: () => void;
-}
-
-// ── Tag -> setup registry (Ruling 2) ────────────────────────────────
-
-const registry = new Map<string, HmrSetup>();
-
-/** Tags whose setup changed since the last drain — pending a re-mount. */
-const pendingRemounts = new Set<string>();
-let remountScheduled = false;
-/**
- * When true, `__register` accumulates pending tags but does NOT auto-schedule a
- * microtask drain — `applyChange` owns the drain so it can wait for a full
- * module re-eval to register ALL changed tags first.
- */
-let suppressAutoDrain = false;
-
-/**
- * Register (or update) the setup for a tag and return a STABLE indirection
- * thunk that always reads the *current* setup from the registry.
- *
- * On the first registration for a tag (initial page load) no re-mount is
- * scheduled. On a subsequent registration with a *different* setup reference
- * (a watch rebuild re-evaluating the module) the tag is queued for re-mount.
- *
- * The returned thunk is what `component()` hands to the real
- * `FrameworkComponent`; because it reads `registry.get(tag)` lazily, the live
- * element picks up new setup without any class swap or tag re-definition.
- */
-export function __register(tag: string, setup: HmrSetup): HmrSetup {
-  const prev = registry.get(tag);
-  registry.set(tag, setup);
-  if (prev !== undefined && prev !== setup) {
-    pendingRemounts.add(tag);
-    if (!suppressAutoDrain) scheduleRemount();
-  }
-  return (props: unknown, host: HTMLElement) => {
-    const current = registry.get(tag);
-    if (!current) throw new Error(`[nisli-hmr] no setup registered for <${tag}>`);
-    return current(props, host);
-  };
-}
-
-/** Number of tags awaiting a re-mount (for orchestration/tests). */
-export function pendingRemountCount(): number {
-  return pendingRemounts.size;
-}
-
-/** Drain and re-mount every pending tag. Returns the tags that were remounted. */
-export function drainRemounts(): string[] {
-  const tags = [...pendingRemounts];
-  pendingRemounts.clear();
-  remountScheduled = false;
-  for (const tag of tags) remount(tag);
-  return tags;
-}
-
-function scheduleRemount(): void {
-  if (remountScheduled) return;
-  remountScheduled = true;
-  // Defer so a full module re-eval can register *all* changed tags first.
-  queueMicrotask(() => {
-    if (remountScheduled) drainRemounts();
-  });
-}
-
-// ── Re-mount through the existing lifecycle (Ruling 3) ──────────────
-
-interface CustomElementLike extends HTMLElement {
-  connectedCallback?: () => void;
-  disconnectedCallback?: () => void;
-}
-
-/**
- * Re-mount every live element of `tag` in place, on the SAME instance:
- *
- *   disconnectedCallback()  — resets `_mounted`, disposes effects + template
- *                             (the ADR 0008.1 disposal contract)
- *   replaceChildren()       — clears old DOM, firing nested custom elements'
- *                             disconnectedCallback so their disposers run too
- *   connectedCallback()     — re-runs the NEW setup (via the registry thunk)
- *                             inside the same `untrack(...)` mount path
- *
- * Props survive because `_propsProxy` is constructor-owned (component.ts), and
- * the element node identity is preserved — siblings, scroll, route, and global
- * stores are untouched.
- */
-export function remount(tag: string): void {
-  const elements = document.querySelectorAll(tag);
-  elements.forEach((node) => {
-    const el = node as CustomElementLike;
-    // Dispose first: must run BEFORE clearing DOM or effects/subscriptions
-    // leak across reloads (ADR 0008.1 hazard).
-    el.disconnectedCallback?.();
-    // Clear old DOM — removal fires nested children's disconnectedCallback.
-    el.replaceChildren();
-    // Re-run setup + re-mount on the same instance.
-    el.connectedCallback?.();
-  });
-}
-
-/** Test-only: clear the registry and pending state between cases. */
-export function __resetRegistry(): void {
-  registry.clear();
-  pendingRemounts.clear();
-  remountScheduled = false;
-  suppressAutoDrain = false;
 }
 
 // ── Change classification + escalation (Ruling 4) ───────────────────
@@ -275,12 +180,11 @@ export async function applyChange(
   if (action === 'js') {
     // Own the drain: suppress the auto microtask so ALL changed tags register
     // during re-import before any re-mount runs.
-    suppressAutoDrain = true;
-    remountScheduled = false;
+    beginManualDrain();
     try {
       await deps.reimport();
     } finally {
-      suppressAutoDrain = false;
+      endManualDrain();
     }
     if (pendingRemountCount() > 0) {
       drainRemounts();
