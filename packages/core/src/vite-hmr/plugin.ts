@@ -1,7 +1,7 @@
 /**
  * vite-hmr/plugin.ts — Dev-only Vite plugin for Nisli HMR (ADR 0110).
  *
- * Mirrors the esbuild plugin's component-wrapping (shared `transformSource`),
+ * Vite plugin that wraps component() calls (shared `transformSource`),
  * but drives re-mount through Vite's native `import.meta.hot` instead of an SSE
  * hub + whole-bundle re-import. For each source module that imports `component`
  * from `@nisli/core`, it:

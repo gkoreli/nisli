@@ -8,7 +8,7 @@
  *  - `__drain()` is called from the module's `import.meta.hot.accept` hook to
  *    apply the queued re-mounts.
  *
- * Unlike the esbuild path, Vite re-evaluates ONLY the changed module against a
+ * Vite re-evaluates ONLY the changed module against a
  * STABLE framework module — so there is exactly one `@nisli/core` instance and
  * no lifecycle/reactive split-brain. This module just re-exports the
  * transport-agnostic registry core.

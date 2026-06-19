@@ -19,9 +19,6 @@
   ],
   "exports": {
     ".": "./src/index.ts",
-    "./esbuild-hmr": "./src/esbuild-hmr/plugin.ts",
-    "./esbuild-hmr/runtime": "./src/esbuild-hmr/runtime.ts",
-    "./esbuild-hmr/server": "./src/esbuild-hmr/server.ts",
     "./vite-hmr": "./src/vite-hmr/plugin.ts",
     "./vite-hmr/runtime": "./src/vite-hmr/runtime.ts"
   },
@@ -30,18 +27,6 @@
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
-      },
-      "./esbuild-hmr": {
-        "types": "./dist/esbuild-hmr/plugin.d.ts",
-        "default": "./dist/esbuild-hmr/plugin.js"
-      },
-      "./esbuild-hmr/runtime": {
-        "types": "./dist/esbuild-hmr/runtime.d.ts",
-        "default": "./dist/esbuild-hmr/runtime.js"
-      },
-      "./esbuild-hmr/server": {
-        "types": "./dist/esbuild-hmr/server.d.ts",
-        "default": "./dist/esbuild-hmr/server.js"
       },
       "./vite-hmr": {
         "types": "./dist/vite-hmr/plugin.d.ts",
@@ -53,17 +38,8 @@
       }
     }
   },
-  "peerDependencies": {
-    "esbuild": "*"
-  },
-  "peerDependenciesMeta": {
-    "esbuild": {
-      "optional": true
-    }
-  },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "esbuild": "^0.28.1"
+    "@types/node": "^22.0.0"
   },
   "files": [
     "dist",

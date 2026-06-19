@@ -3,7 +3,7 @@
  *
  * The tag→setup registry, the stable indirection thunk, and the in-place
  * re-mount through the custom-element lifecycle. This is the part that is
- * IDENTICAL regardless of how change notifications arrive — esbuild SSE
+ * IDENTICAL regardless of how change notifications arrive — change
  * (`../esbuild-hmr/*`) or Vite `import.meta.hot` (`../vite-hmr/*`) both drive
  * the same registry. Keeping it here means one implementation, one set of
  * correctness guarantees (ADR 0008.1 disposal), and no duplication.
@@ -33,7 +33,7 @@ let remountScheduled = false;
 /**
  * When true, `__register` accumulates pending tags but does NOT auto-schedule a
  * microtask drain — the caller owns the drain so it can wait for a full module
- * re-eval to register ALL changed tags first (the esbuild whole-bundle path).
+ * re-eval to register ALL changed tags first.
  * The Vite path leaves this false and drains explicitly from its accept hook.
  */
 let suppressAutoDrain = false;
@@ -42,7 +42,7 @@ let suppressAutoDrain = false;
  * Begin a caller-owned drain window: suppress auto-scheduling AND cancel any
  * pending microtask drain, so the caller can re-evaluate a whole bundle and
  * register ALL changed tags before a single explicit `drainRemounts()`. Used by
- * the esbuild whole-bundle path; the Vite path drains per-module instead.
+ * the Vite path drains per-module.
  */
 export function beginManualDrain(): void {
   suppressAutoDrain = true;

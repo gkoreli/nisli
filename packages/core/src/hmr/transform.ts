@@ -4,7 +4,7 @@
  * Wraps the `component` a module imports from `@nisli/core` with the registry
  * indirection so a rebuilt module's `component()` calls re-register their setup
  * and trigger an in-place re-mount. Transport-agnostic and pure — used by both
- * the esbuild `onLoad` transform and the Vite `transform` hook.
+ * the Vite `transform` hook.
  */
 
 function escapeRegExp(s: string): string {
