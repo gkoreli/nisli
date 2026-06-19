@@ -1,7 +1,7 @@
 # 0021. Dev-Only HMR for Nisli — esbuild Plugin with Component Re-Mount
 
 **Date**: 2026-06-18
-**Status**: Implemented — shipped as the `@nisli/core/esbuild-hmr` subpath (0.49.0); client-injection defects fixed in 0.49.1 (see *Post-ship correction*); core suite 258 passing, prod-isolation verified
+**Status**: Implemented — shipped as the `@nisli/core/esbuild-hmr` subpath (0.49.0); client-injection defects fixed in 0.49.1, bundled re-import defects (content-hash collision + connect stacking) fixed/documented in 0.49.2 (see *Post-ship correction*); core suite 260 passing, prod-isolation verified
 **Triggered by**: backlog-mcp viewer dev loop — after the ADR 0108 (backlog-mcp) content-hash work, an esbuild `--watch` rebuild updates `dist/` but the browser does nothing; the operator wants a Vite-grade reload/HMR experience without adopting Vite
 **Relates to**: [0017. Framework Package Extraction](./0017-framework-package-extraction.md), [0019. Minimal Runtime and Native Platform Alignment](./0019-minimal-runtime-and-native-platform-alignment.md), [0008.1. Mount-Time Dependency Leak](./0008.1-mount-time-dependency-leak.md)
 
@@ -377,6 +377,54 @@ wrong; this records the root cause, the corrected mechanism, and the evidence.
   though CI blocks build scripts (verified: JS API transform works with the
   postinstall-copied bin removed). The prod-isolation guarantee is unchanged: the
   `.` runtime graph still reaches zero HMR code.
+
+## Post-ship correction — 0.49.2 (the bundled re-import model, found in live use)
+
+Live `pnpm dev` against a **content-hashed** consumer build (backlog-mcp ADR
+0108) surfaced two coupled problems the unit tests structurally missed (they
+injected a fake `reimport`, so the real whole-entry re-eval was never exercised).
+
+### Defect 3 (blocking) — content hashing breaks `defaultReimport`
+
+Browser error: `Failed to fetch dynamically imported module: …/main-5Z7G4QJ5.js?t=…`.
+`defaultReimport` re-imports the page's `<script src>` with a `?t=` cache-bust,
+which assumes a **stable module URL**. Content hashing rotates the entry filename
+every rebuild (`main-5Z7G4QJ5.js → main-LUBM4SOV.js`), so re-importing the
+original URL 404s. **Root cause is not in this plugin** — it is a consumer build
+mis-config: *content hashing is a production-only optimization and must be
+disabled in dev.* This is universal prior art — **webpack rejects
+`[contenthash]`/`[chunkhash]` + HMR outright** (*"use [hash] instead"*,
+angular-cli #19394, webpack #1363; SO: *"With HMR the chunk is held in memory and
+never emitted to disk — there is no reason to have a hash"*); **Vite** hashes only
+in the production `build`, dev uses stable URLs + `?t=`. Fix lives in the
+consumer's `build.mjs` (`entryNames: watch ? '[name]' : '[name]-[hash]'`); the
+plugin/runtime are correct as-is. Documented here so the next consumer wires dev
+with stable names.
+
+### Defect 4 (latent) — `connect()` stacked EventSources on every re-import
+
+The bundled HMR model re-evaluates the **whole entry** on a JS update (so the
+wrapper's `__register` re-runs for changed tags). That re-eval also re-runs the
+**injected `connect()`** call. Without a guard, every edit opened another
+EventSource + `change` listener, fanning one edit into N compounding re-imports.
+Fix: an idempotency guard (`if (connected) return connected;`). It works because
+`connected` lives in the **persistent HMR runtime chunk** — re-imported entries
+reuse that chunk by name (un-`?t=`'d), so the registry and the connection both
+survive across re-imports. This is also *why* whole-entry re-import works at all:
+the registry must persist for `__register` to see `prev !== setup` and queue a
+re-mount. The app's own singletons (e.g. an SSE data client) must likewise be
+re-entry-safe — backlog-mcp's already guards with `if (this.source) return`.
+
+### Scope note — bundled re-import vs. module-graph HMR
+
+We re-import the entry, not individual modules (esbuild bundles author modules
+into the entry; there are no per-module dev URLs as in Vite's unbundled model,
+which constraint #5 rejects). The cost: re-running the entry's top-level side
+effects on each edit. We accept this for component edits because (a) the root is
+a **static element in `index.html`** (not JS-appended) and `customElements.define`
+is guarded, so no double-mount; (b) `connect()` is now idempotent; (c) app
+singletons are expected to be idempotent. Non-component edits still escalate to a
+full reload (Ruling 4).
 
 ## Consequences
 
