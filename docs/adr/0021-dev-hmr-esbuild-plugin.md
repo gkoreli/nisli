@@ -1,7 +1,7 @@
 # 0021. Dev-Only HMR for Nisli — esbuild Plugin with Component Re-Mount
 
 **Date**: 2026-06-18
-**Status**: Implemented — shipped as the `@nisli/core/esbuild-hmr` subpath (0.49.0); client-injection defects fixed in 0.49.1, bundled re-import defects (content-hash collision + connect stacking) fixed/documented in 0.49.2 (see *Post-ship correction*); core suite 260 passing, prod-isolation verified
+**Status**: Superseded — removed in 0.51.0. The `esbuild-hmr` subpath is retired; `@nisli/core/vite-hmr` (0.50.0+) replaces it. The shared HMR core (`src/hmr/`) survives. See *Engineering Record — Retirement* below. Historical implementation record preserved for context.
 **Triggered by**: backlog-mcp viewer dev loop — after the ADR 0108 (backlog-mcp) content-hash work, an esbuild `--watch` rebuild updates `dist/` but the browser does nothing; the operator wants a Vite-grade reload/HMR experience without adopting Vite
 **Relates to**: [0017. Framework Package Extraction](./0017-framework-package-extraction.md), [0019. Minimal Runtime and Native Platform Alignment](./0019-minimal-runtime-and-native-platform-alignment.md), [0008.1. Mount-Time Dependency Leak](./0008.1-mount-time-dependency-leak.md)
 
@@ -499,3 +499,79 @@ full reload (Ruling 4).
   mirrors esm-hmr; confirms the contract is the ecosystem standard. Vite buys HMR
   via **unbundled native ESM in dev + Rollup in prod** (dev≠prod) — the model this
   ADR deliberately rejects to honor constraint #5.
+
+## Engineering Record — Retirement (0.51.0)
+
+**Status updated: Superseded.** The `@nisli/core/esbuild-hmr` subpath, its
+source (`src/esbuild-hmr/`), tests (4 files, ~40 tests), and the `esbuild`
+peer/devDep have been removed. The shared HMR core (`src/hmr/registry.ts`,
+`src/hmr/transform.ts`) remains — it powers `@nisli/core/vite-hmr`.
+
+### Why we moved away
+
+The constraint that motivated esbuild-hmr — *"keep a prod-shaped bundle in dev"*
+(constraint #5 in this ADR) — turned out to be the very thing that makes correct
+HMR impossible on esbuild:
+
+1. **esbuild scope-hoists the entire module graph into one bundle.** Re-importing
+   the bundle to apply a change instantiates a **second copy of the framework
+   runtime** — live elements and new component setups disagree about the
+   lifecycle/reactive context (`onCleanup() called outside setup()`). This was
+   diagnosed and documented in 0.49.2's post-ship correction (this ADR) and
+   confirmed in backlog-mcp ADR 0110.
+2. **esbuild has no module runtime** (by design — #1940, #464, #802). Without
+   per-module boundaries in the output, there is no mechanism for granular
+   invalidation. The choices were: (a) whole-page reload (not HMR), (b)
+   hand-roll a module runtime on top of esbuild (the `leegeunhyeok/esbuild-hmr`
+   6★ PoC path — maintenance of a tool esbuild's author explicitly declined to
+   build), or (c) use the tool the ecosystem already uses for exactly this
+   problem (Vite).
+3. **The operator retired constraint #5.** Dev ≠ prod is the accepted tradeoff of
+   every modern bundler's dev mode (Vite, webpack, Turbopack). The constraint
+   was premature — it introduced a harder problem (correct HMR without module
+   boundaries) to avoid a non-problem (Vite's dev/prod split has years of
+   production validation).
+
+### Dead ends explored (that led here)
+
+1. **Per-component entry points + splitting** (Option A in this ADR) — esbuild's
+   `splitting: true` dedupes the framework into one shared chunk, solving the
+   double-instance problem. But: it produces N entry points for N components +
+   requires a custom module-system loader to coordinate updates. We'd be
+   maintaining the layer esbuild #1940 says belongs in a higher-level tool.
+   Prototype worked; complexity/maintenance was unjustifiable.
+2. **0.49.0–0.49.2 shipped approach** — SSE-driven full re-import of the single
+   bundle + registry-based remount. Worked for the simple case. Failed on:
+   content-hash collision (file unchanged → SSE fires → no network bust), second
+   `new EventSource()` stacking on reconnects, and the fundamental double-
+   runtime instantiation on real edits. Each fix (cache-bust URL, connect
+   tracking, drain-before-eval) was a bandaid over the structural impossibility.
+3. **`@hono/vite-dev-server` for the consumer** — this was tried in the
+   backlog-mcp viewer migration. The plugin puts Hono first and requires an
+   `exclude` list to hand assets back to Vite. Wrong model for a static SPA
+   (SVG icons leaked to Hono → 404). Not a nisli concern, but documented
+   because it was part of the migration chain from esbuild-hmr → vite-hmr.
+
+### What shipped instead
+
+`@nisli/core/vite-hmr` (0.50.0) — a Vite plugin (`apply: 'serve'`) that:
+- Wraps `component()` calls with `__register(tag, setup)` (shared
+  `transformSource` from `src/hmr/transform.ts`)
+- Appends `import.meta.hot.accept(() => __drain())` so each module self-accepts
+- On edit: Vite re-evaluates ONLY the changed module against the **stable,
+  single** `@nisli/core` instance (Vite's dep pre-bundling guarantees this)
+- `__drain()` calls `remount(tag)` from the shared registry → component
+  re-mounts in place with no full page reload
+
+This is correct by construction — Vite's unbundled ESM dev mode provides the
+per-module boundaries that esbuild structurally cannot.
+
+### Cross-references
+
+- **backlog-mcp ADR 0110** — the consumer-side migration that drove this
+  retirement. Documents the Vite dev architecture (single-origin, configureServer
+  post-hook, Hono as fallback) and the dead ends explored there.
+- **nisli ADR 0008.1** — mount-time dependency leak; the correctness analysis
+  for re-mount lifecycle that both esbuild-hmr and vite-hmr share.
+- **nisli `src/hmr/`** — the surviving shared layer (registry + transform);
+  transport-agnostic, now only consumed by vite-hmr.
