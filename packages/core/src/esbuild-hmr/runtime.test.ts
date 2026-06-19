@@ -20,6 +20,8 @@ import {
   classifyChange,
   hotSwapCss,
   applyChange,
+  connect,
+  disconnect,
   type HmrSetup,
 } from './runtime.js';
 import { component } from '../component.js';
@@ -35,6 +37,7 @@ beforeEach(() => {
   document.body.innerHTML = '';
   document.head.innerHTML = '';
   __resetRegistry();
+  disconnect(); // reset the connect() singleton between cases
 });
 
 /**
@@ -288,5 +291,40 @@ describe('applyChange escalation ladder (Ruling 4)', () => {
     expect(action).toBe('reload');
     expect(reimport).not.toHaveBeenCalled();
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── connect() idempotency (bundled re-import model) ─────────────────
+
+describe('connect() idempotency', () => {
+  it('opens exactly one EventSource even if called repeatedly (entry re-eval)', () => {
+    const created: string[] = [];
+    const fakeFactory = (url: string) => {
+      created.push(url);
+      return { addEventListener: () => {}, close: () => {} };
+    };
+
+    const first = connect({ path: '/esbuild', eventSourceFactory: fakeFactory });
+    // Simulate the injected client re-running on every JS re-import.
+    const second = connect({ path: '/esbuild', eventSourceFactory: fakeFactory });
+    const third = connect({ path: '/esbuild', eventSourceFactory: fakeFactory });
+
+    expect(created).toHaveLength(1);
+    expect(second).toBe(first);
+    expect(third).toBe(first);
+  });
+
+  it('reconnects after an explicit disconnect()', () => {
+    let count = 0;
+    const fakeFactory = () => {
+      count++;
+      return { addEventListener: () => {}, close: () => {} };
+    };
+
+    connect({ eventSourceFactory: fakeFactory });
+    disconnect();
+    connect({ eventSourceFactory: fakeFactory });
+
+    expect(count).toBe(2);
   });
 });

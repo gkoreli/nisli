@@ -217,6 +217,16 @@ let connected: EventSourceLike | null = null;
  * Safe to call once from the dev client; injected by the plugin in watch builds.
  */
 export function connect(options: ConnectOptions = {}): EventSourceLike {
+  // Idempotency guard (critical for the bundled re-import model). The plugin
+  // injects `connect()` at the entry's top level, and a JS update re-evaluates
+  // the entry (so `__register` re-runs for changed tags). That re-eval also
+  // re-runs this `connect()` call. Because `connected` lives in the persistent
+  // HMR runtime chunk (re-imported entries reuse it by name, un-busted), the
+  // guard survives across re-imports and keeps EXACTLY ONE EventSource + change
+  // listener alive — otherwise listeners stack and each edit fans out into N
+  // compounding re-imports.
+  if (connected) return connected;
+
   const path = options.path ?? '/esbuild';
   const reload = options.reload ?? (() => location.reload());
   const reimport = options.reimport ?? defaultReimport;
