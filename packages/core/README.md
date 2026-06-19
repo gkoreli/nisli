@@ -101,6 +101,21 @@ await buildStaticSite({
 `@nisli/ssg` owns static site generation; static rendering internals stay behind
 the build tool.
 
+## Vite HMR Plugin
+
+`@nisli/core/vite-hmr` — a dev-only Vite plugin for granular component hot module replacement. Edit a component, it re-mounts in place with no page reload.
+
+```ts
+// vite.config.ts
+import { nisliHmr } from '@nisli/core/vite-hmr';
+
+export default defineConfig({
+  plugins: [nisliHmr()],
+});
+```
+
+Used in production by [backlog-mcp](https://github.com/gkoreli/backlog-mcp) — a single Vite process serves the SPA + API on one origin, with component edits hot-swapping via this plugin.
+
 ## Size
 
 ~2,600 lines of TypeScript. Zero dependencies.
