@@ -81,6 +81,13 @@
       "description": "A native multi-line text input with theme styling. Port of shadcn/ui textarea.",
       "files": ["ui/textarea.ts"],
       "registryDependencies": ["utils"]
+    },
+    {
+      "name": "checkbox",
+      "type": "ui",
+      "description": "A native checkbox styled with pure CSS. Port of shadcn/ui checkbox.",
+      "files": ["ui/checkbox.ts"],
+      "registryDependencies": ["utils"]
     }
   ]
 }
