@@ -303,6 +303,17 @@
         "utils",
         "floating"
       ]
+    },
+    {
+      "name": "breadcrumb",
+      "type": "ui",
+      "description": "Displays the path to the current resource using a hierarchy of links. Port of shadcn/ui breadcrumb.",
+      "files": [
+        "ui/breadcrumb.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }

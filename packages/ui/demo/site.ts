@@ -68,6 +68,14 @@ import {
 } from './src/nisli-ui/ui/table.js';
 import { Avatar, AvatarImage, AvatarFallback } from './src/nisli-ui/ui/avatar.js';
 import { Progress } from './src/nisli-ui/ui/progress.js';
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from './src/nisli-ui/ui/breadcrumb.js';
 
 function section(title: string, body: TemplateResult): TemplateResult {
   return html`<section class="space-y-3">
@@ -283,6 +291,21 @@ export function renderKitchenSink(): TemplateResult {
             ${Button({ children: 'Save changes' })}`,
           })}`,
         })}`,
+      }),
+    )}
+
+    ${section(
+      'Breadcrumb',
+      Breadcrumb({
+        children: BreadcrumbList({
+          children: html`${BreadcrumbItem({
+            children: BreadcrumbLink({ href: '/', children: 'Home' }),
+          })}${BreadcrumbSeparator({})}
+          ${BreadcrumbItem({
+            children: BreadcrumbLink({ href: '/components', children: 'Components' }),
+          })}${BreadcrumbSeparator({})}
+          ${BreadcrumbItem({ children: BreadcrumbPage({ children: 'Breadcrumb' }) })}`,
+        }),
       }),
     )}
 
