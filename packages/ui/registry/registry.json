@@ -102,6 +102,13 @@
       "description": "A set of layered sections of content, displayed one at a time. Port of shadcn/ui tabs.",
       "files": ["ui/tabs.ts"],
       "registryDependencies": ["utils", "roving-focus"]
+    },
+    {
+      "name": "accordion",
+      "type": "ui",
+      "description": "A vertically stacked set of collapsible sections. Port of shadcn/ui accordion.",
+      "files": ["ui/accordion.ts"],
+      "registryDependencies": ["utils", "roving-focus"]
     }
   ]
 }
