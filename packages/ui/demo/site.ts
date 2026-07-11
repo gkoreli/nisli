@@ -13,6 +13,7 @@ import { buildStaticSite, type StaticSiteBuildResult } from '@nisli/ssg';
 import { Button, buttonVariants } from './src/nisli-ui/ui/button.js';
 import { AspectRatio } from './src/nisli-ui/ui/aspect-ratio.js';
 import { Kbd, KbdGroup } from './src/nisli-ui/ui/kbd.js';
+import { Spinner } from './src/nisli-ui/ui/spinner.js';
 import { Badge } from './src/nisli-ui/ui/badge.js';
 import { Label } from './src/nisli-ui/ui/label.js';
 import { Separator } from './src/nisli-ui/ui/separator.js';
@@ -243,6 +244,14 @@ export function renderKitchenSink(): TemplateResult {
         ${KbdGroup({
           children: html`${Kbd({ children: '⌘' })}${Kbd({ children: 'K' })}`,
         })}
+      </div>`,
+    )}
+
+    ${section(
+      'Spinner',
+      html`<div class="flex items-center gap-2">
+        ${Spinner({})}
+        <span class="text-sm text-muted-foreground">Loading</span>
       </div>`,
     )}
 

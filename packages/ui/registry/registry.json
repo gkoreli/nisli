@@ -543,6 +543,17 @@
         "dismissable-layer",
         "focus"
       ]
+    },
+    {
+      "name": "spinner",
+      "type": "ui",
+      "description": "An animated loading status icon. Port of shadcn/ui spinner.",
+      "files": [
+        "ui/spinner.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }
