@@ -77,6 +77,15 @@ import {
   ContextMenuShortcut,
 } from './src/nisli-ui/ui/context-menu.js';
 import {
+  Menubar,
+  MenubarMenu,
+  MenubarTrigger,
+  MenubarContent,
+  MenubarItem,
+  MenubarSeparator,
+  MenubarShortcut,
+} from './src/nisli-ui/ui/menubar.js';
+import {
   Popover,
   PopoverTrigger,
   PopoverContent,
@@ -452,6 +461,38 @@ export function renderKitchenSink(): TemplateResult {
           ${ContextMenuItem({ value: 'reload', children: 'Reload' })}
           ${ContextMenuSeparator({})}
           ${ContextMenuItem({ value: 'delete', variant: 'destructive', children: 'Delete' })}`,
+        })}`,
+      }),
+    )}
+
+    ${section(
+      'Menubar',
+      Menubar({
+        children: html`${MenubarMenu({
+          children: html`${MenubarTrigger({ children: 'File' })}
+          ${MenubarContent({
+            children: html`${MenubarItem({
+              value: 'new-tab',
+              children: html`New Tab ${MenubarShortcut({ children: '⌘T' })}`,
+            })}
+            ${MenubarItem({ value: 'new-window', children: 'New Window' })}
+            ${MenubarSeparator({})}
+            ${MenubarItem({ value: 'print', children: 'Print' })}`,
+          })}`,
+        })}
+        ${MenubarMenu({
+          children: html`${MenubarTrigger({ children: 'Edit' })}
+          ${MenubarContent({
+            children: html`${MenubarItem({ value: 'undo', children: 'Undo' })}
+            ${MenubarItem({ value: 'redo', children: 'Redo' })}`,
+          })}`,
+        })}
+        ${MenubarMenu({
+          children: html`${MenubarTrigger({ children: 'View' })}
+          ${MenubarContent({
+            children: html`${MenubarItem({ value: 'reload', children: 'Reload' })}
+            ${MenubarItem({ value: 'fullscreen', children: 'Toggle Fullscreen' })}`,
+          })}`,
         })}`,
       }),
     )}

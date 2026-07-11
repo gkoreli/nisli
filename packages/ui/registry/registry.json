@@ -503,6 +503,22 @@
         "roving-focus",
         "typeahead"
       ]
+    },
+    {
+      "name": "menubar",
+      "type": "ui",
+      "description": "A horizontal bar of menus (like an application menu). Port of shadcn/ui menubar.",
+      "files": [
+        "ui/menubar.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "floating",
+        "dismissable-layer",
+        "focus",
+        "roving-focus",
+        "typeahead"
+      ]
     }
   ]
 }
