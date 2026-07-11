@@ -28,6 +28,9 @@ jobs:
           - name: '@nisli/ssg'
             dir: packages/ssg
             tag-prefix: ssg
+          - name: '@nisli/ui'
+            dir: packages/ui
+            tag-prefix: ui
     steps:
       - uses: actions/checkout@v4
         with:

@@ -36,8 +36,8 @@ html`${Button({ variant: 'outline', children: 'Save' })}`;
 ## Design
 
 Architecture and conventions are recorded in
-[ADR 0022](../../docs/adr/0022-nisli-ui-component-library.md); vision,
-invariants, and roadmap in [NORTH-STAR.md](./NORTH-STAR.md). Highlights:
+[ADR 0022](https://github.com/gkoreli/nisli/blob/main/docs/adr/0022-nisli-ui-component-library.md); vision,
+invariants, and roadmap in [NORTH-STAR.md](https://github.com/gkoreli/nisli/blob/main/packages/ui/NORTH-STAR.md). Highlights:
 
 - **Light DOM, no shadow roots.** Hosts are layout-transparent
   (`display: contents`); styling lives on the inner elements, so Tailwind
