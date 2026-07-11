@@ -5,150 +5,240 @@
       "name": "utils",
       "type": "lib",
       "description": "cn()/cv() class utilities and custom-element interop helpers.",
-      "files": ["lib/utils.ts"]
+      "files": [
+        "lib/utils.ts"
+      ]
     },
     {
       "name": "theme",
       "type": "style",
       "description": "shadcn-compatible CSS variable tokens (light + dark) for Tailwind v4.",
-      "files": ["styles/theme.css"]
+      "files": [
+        "styles/theme.css"
+      ]
     },
     {
       "name": "roving-focus",
       "type": "lib",
       "description": "Roving-tabindex keyboard navigation (arrow keys, Home/End, wrap) for composite widgets like tabs.",
-      "files": ["lib/roving-focus.ts"]
+      "files": [
+        "lib/roving-focus.ts"
+      ]
     },
     {
       "name": "dismissable-layer",
       "type": "lib",
       "description": "Escape-key + outside-pointer dismissal with a LIFO layer stack, for dialogs, popovers, and dropdowns.",
-      "files": ["lib/dismissable-layer.ts"]
+      "files": [
+        "lib/dismissable-layer.ts"
+      ]
     },
     {
       "name": "focus",
       "type": "lib",
       "description": "Focus trap and focus restore for modal surfaces like dialogs.",
-      "files": ["lib/focus.ts"]
+      "files": [
+        "lib/focus.ts"
+      ]
+    },
+    {
+      "name": "floating",
+      "type": "lib",
+      "description": "Anchored positioning for floating elements: side/align placement, viewport flip, scroll/resize tracking.",
+      "files": [
+        "lib/floating.ts"
+      ]
     },
     {
       "name": "button",
       "type": "ui",
       "description": "Displays a button. Port of shadcn/ui button.",
-      "files": ["ui/button.ts"],
-      "registryDependencies": ["utils"]
+      "files": [
+        "ui/button.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     },
     {
       "name": "badge",
       "type": "ui",
       "description": "Displays a badge or a component that looks like a badge. Port of shadcn/ui badge.",
-      "files": ["ui/badge.ts"],
-      "registryDependencies": ["utils"]
+      "files": [
+        "ui/badge.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     },
     {
       "name": "label",
       "type": "ui",
       "description": "Renders an accessible label associated with controls. Port of shadcn/ui label.",
-      "files": ["ui/label.ts"],
-      "registryDependencies": ["utils"]
+      "files": [
+        "ui/label.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     },
     {
       "name": "separator",
       "type": "ui",
       "description": "Visually or semantically separates content. Port of shadcn/ui separator.",
-      "files": ["ui/separator.ts"],
-      "registryDependencies": ["utils"]
+      "files": [
+        "ui/separator.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     },
     {
       "name": "skeleton",
       "type": "ui",
       "description": "A placeholder to show while content is loading. Port of shadcn/ui skeleton.",
-      "files": ["ui/skeleton.ts"],
-      "registryDependencies": ["utils"]
+      "files": [
+        "ui/skeleton.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     },
     {
       "name": "alert",
       "type": "ui",
       "description": "Displays a callout for user attention. Port of shadcn/ui alert.",
-      "files": ["ui/alert.ts"],
-      "registryDependencies": ["utils"]
+      "files": [
+        "ui/alert.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     },
     {
       "name": "card",
       "type": "ui",
       "description": "Displays a card with header, content, and footer. Port of shadcn/ui card.",
-      "files": ["ui/card.ts"],
-      "registryDependencies": ["utils"]
+      "files": [
+        "ui/card.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     },
     {
       "name": "input",
       "type": "ui",
       "description": "A native form input with theme styling. Port of shadcn/ui input.",
-      "files": ["ui/input.ts"],
-      "registryDependencies": ["utils"]
+      "files": [
+        "ui/input.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     },
     {
       "name": "textarea",
       "type": "ui",
       "description": "A native multi-line text input with theme styling. Port of shadcn/ui textarea.",
-      "files": ["ui/textarea.ts"],
-      "registryDependencies": ["utils"]
+      "files": [
+        "ui/textarea.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     },
     {
       "name": "checkbox",
       "type": "ui",
       "description": "A native checkbox styled with pure CSS. Port of shadcn/ui checkbox.",
-      "files": ["ui/checkbox.ts"],
-      "registryDependencies": ["utils"]
+      "files": [
+        "ui/checkbox.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     },
     {
       "name": "switch",
       "type": "ui",
       "description": "A native toggle switch styled with pure CSS. Port of shadcn/ui switch.",
-      "files": ["ui/switch.ts"],
-      "registryDependencies": ["utils"]
+      "files": [
+        "ui/switch.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     },
     {
       "name": "tabs",
       "type": "ui",
       "description": "A set of layered sections of content, displayed one at a time. Port of shadcn/ui tabs.",
-      "files": ["ui/tabs.ts"],
-      "registryDependencies": ["utils", "roving-focus"]
+      "files": [
+        "ui/tabs.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "roving-focus"
+      ]
     },
     {
       "name": "accordion",
       "type": "ui",
       "description": "A vertically stacked set of collapsible sections. Port of shadcn/ui accordion.",
-      "files": ["ui/accordion.ts"],
-      "registryDependencies": ["utils", "roving-focus"]
+      "files": [
+        "ui/accordion.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "roving-focus"
+      ]
     },
     {
       "name": "radio-group",
       "type": "ui",
       "description": "A set of native radio buttons where only one can be selected. Port of shadcn/ui radio-group.",
-      "files": ["ui/radio-group.ts"],
-      "registryDependencies": ["utils"]
+      "files": [
+        "ui/radio-group.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     },
     {
       "name": "select",
       "type": "ui",
       "description": "A native select styled like shadcn/ui's native-select, with a themeable chevron.",
-      "files": ["ui/select.ts"],
-      "registryDependencies": ["utils"]
+      "files": [
+        "ui/select.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     },
     {
       "name": "form-field",
       "type": "ui",
       "description": "A label + control + description + error composition helper that wires ids and aria. Port of shadcn/ui field.",
-      "files": ["ui/form-field.ts"],
-      "registryDependencies": ["utils"]
+      "files": [
+        "ui/form-field.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     },
     {
       "name": "dialog",
       "type": "ui",
       "description": "A modal dialog overlaying the page. Port of shadcn/ui dialog.",
-      "files": ["ui/dialog.ts"],
-      "registryDependencies": ["utils", "dismissable-layer", "focus"]
+      "files": [
+        "ui/dialog.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "dismissable-layer",
+        "focus"
+      ]
     }
   ]
 }
