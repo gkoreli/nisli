@@ -2,9 +2,18 @@
 
 **Status**: proposed — awaiting arch review before page-building begins.
 **Scope**: the full nisli website (`packages/www`, `@nisli/www`), deployed live at
-**https://nisli.dev**. Modeled on ui.shadcn.com's `www` and Goga's blog
-(`/Users/goga/Documents/goga/blog`). Everything here is authored in nisli, composed from
-`@nisli/ui` (owned copies via the copy-in CLI), rendered static by `@nisli/ssg`.
+**https://nisli.dev**. Everything here is authored in nisli, composed from `@nisli/ui`
+(owned copies via the copy-in CLI), rendered static by `@nisli/ssg`.
+
+**Identity — this is a FRAMEWORK site.** nisli.dev is the home of the nisli *framework*
+(`@nisli/core` is the product); `@nisli/ui` is the framework's design language + component
+layer, one cohesive thing. The site reads like **react.dev / svelte.dev / angular.dev** — a
+framework site that *also* ships a first-class component library — **not** like a
+component-library site. ui.shadcn.com is the model **only** for `/ui` (per-component pages,
+`add` commands) and `/themes`. The one-liner used everywhere:
+
+> **nisli = framework + design language + UI components, all in one — install the framework,
+> copy in the components.**
 
 ---
 
@@ -25,14 +34,18 @@
 
 | Route              | Page                                   | Source of content              |
 | ------------------ | -------------------------------------- | ------------------------------ |
-| `/`                | Home — hero, live teasers, install, framework pitch | hand-authored sections |
-| `/docs`            | Docs landing — what is nisli, install, quick start  | README + ADRs          |
+| `/`                | Home — **framework-led** hero (signals, tagged-template components, no build step, no vDOM, DI), then `@nisli/ui` as the second beat ("batteries included: shadcn-style components you own"), live teasers, quick-start | hand-authored sections |
+| `/docs`            | Docs landing — what nisli is, install, a **framework hello-world** quick-start | README + ADRs          |
 | `/docs/<topic>`    | One page per concept (see §2)          | README + ADRs                  |
 | `/ui`              | Component gallery index (grid of all)  | registry (auto)                |
 | `/ui/<component>`  | Per-component page (shadcn-style)       | registry + curated examples    |
 | `/themes`          | Token / design showcase, light+dark    | registry `theme.css`           |
 
-This is the shadcn shape exactly: **home / docs / components (one page each) / themes**.
+Framework-site shape (react.dev/svelte.dev): **home / docs / components / themes**. The
+shadcn model applies to `/ui` + `/themes` only; `/` and `/docs` lead with the framework.
+The hero leads with `@nisli/core`; `@nisli/ui` is the second beat, never the headline. The
+`/docs` quick-start is a framework hello-world (signal + component + `html`), **not** an
+`@nisli/ui add` walkthrough — the copy-in flow lives in the `/docs/cli` and `/ui` pages.
 
 Docs topics (`/docs/<topic>`), grouped in a left sidebar like shadcn:
 - **Getting started**: `installation`, `quick-start`
@@ -50,10 +63,14 @@ Docs topics (`/docs/<topic>`), grouped in a left sidebar like shadcn:
 The blog has a markdown→nisli pipeline (`lib/markdown.ts` + frontmatter), but **that
 pipeline does not exist in this repo's `@nisli/ssg`**. Rather than build one up front:
 
-**v1 — docs authored as nisli static-template modules (no new pipeline).**
-Each doc page is a `.ts` module returning `staticHtml` (`@nisli/core/static`, the blog's
-approach), composed from a small set of **doc primitives** — `Prose`, `CodeBlock`,
-`PropsTable`, `ComponentPreview`, `Callout` — built from nisli + `@nisli/ui`. This is the
+**v1 — docs authored as nisli template modules (no new pipeline).**
+Each doc page is a `.ts` module returning a regular nisli `html` template (from
+`@nisli/core`) rendered through `buildStaticSite` — the same path the home sections use.
+(The blog's `staticHtml` from `@nisli/core/static` is **not** available: that subpath was
+removed in ADR 0020.1; static internals moved into `@nisli/ssg`.) Pages compose a small set
+of **doc primitives** — `Prose`, `CodeBlock`, `PropsTable`, `ComponentPreview`, `Callout` —
+built from nisli + `@nisli/ui`. Text bindings escape by default, which is exactly what
+`CodeBlock` needs for safe code samples. This is the
 honest dogfood (the docs *are* a nisli app), ships immediately, and ~8 concept pages is a
 comfortable amount of prose-in-TS.
 
@@ -96,16 +113,20 @@ So: **structure auto-derived (always complete), example content curated (grows o
 
 **v1 — first real site (replaces the scaffold's stubs):**
 1. Persistent nav + theme toggle as nisli components.
-2. **Home**: real hero / install / framework / live component teasers (replace the 4 stubs).
+2. **Home** (framework-led): hero pitches `@nisli/core` — signals, tagged-template
+   components, no build step, no vDOM, DI — with `@nisli/ui` as the second beat ("batteries
+   included: shadcn-style components you own"); a framework hello-world; live component
+   teasers. Replaces the 4 stubs. **Not** component-library-first.
 3. **`/themes`**: color palette + tokens + typography + radius, light & dark side by side —
    cheap, high-signal, dogfoods the token layer.
 4. **`/ui`** index + **`/ui/<name>`** for the top ~8–10 components with curated examples;
    every other registry component auto-listed with a default preview.
 5. **`/docs`** landing + 4 core concept pages (`signals`, `templates`, `components`, `cli`)
-   as nisli templates.
-6. **Multi-route build**: extend `build.ts` beyond the single `/` route (apply the shell
-   per route, `writeRoute` each). *This touches the pipeline/shell that ADR 0024 assigned to
-   arch — I propose taking it over as www owner; flagging for your OK.*
+   as nisli templates; the quick-start is a framework hello-world (signal + component +
+   `html`), not an `@nisli/ui add` walkthrough.
+6. **Multi-route build**: extend `build.ts` beyond the single `/` route (per-route body
+   fragment through `buildStaticSite` → `writeRoute`, wrapped by the shell). *arch approved
+   me taking this over as www owner.*
 
 **Later:**
 - Full docs coverage (DI, query, ssg, quick-start) + curated examples for *all* components.
@@ -115,7 +136,23 @@ So: **structure auto-derived (always complete), example content curated (grows o
 
 ---
 
-## Open questions for arch
-1. Docs authoring: OK to ship v1 as prose-in-TS and defer markdown to its own ADR? (§2)
-2. `build.ts`/shell multi-route rework was arch's per ADR 0024 — hand it to me as www owner? (§4.6)
-3. Any of eng1/eng2's folded SITE-1/SITE-2 content I should treat as authoritative vs. rework?
+## 5. Deploy
+
+Cloudflare **Workers Builds** (git-connected, like the blog): push to `main` → clean-env
+build + deploy in ~60s. Build is self-contained (`pnpm install && pnpm --filter @nisli/www
+build`), runs the `@nisli/ui` copy-in, and deploys via `wrangler deploy` with root dir
+`packages/www`. Watched paths: `packages/www/**`, `packages/ui/**`, `packages/core/**`.
+`pnpm --filter @nisli/www deploy` remains the manual escape hatch. Details in
+[`README.md`](./README.md).
+
+---
+
+## Resolved with arch (review verdict)
+1. **Docs authoring** — v1 as nisli-module prose with doc primitives; markdown pipeline
+   deferred to its own ADR (tripwire: >~10 pages or non-engineer editors). ✅
+2. **Multi-route `build.ts`/shell rework** — mine as www owner. ✅
+3. **Folded SITE-1/SITE-2** — stub sections are disposable; authoritative inputs are the
+   ticket specs (gallery = eng2's approved component list + SSG-safe open/closed states;
+   hero/install/framework = the SITE-2 outline). ✅
+4. **Identity** — framework site (react.dev/svelte.dev class), `@nisli/ui` as the second
+   beat; shadcn model scoped to `/ui` + `/themes`. ✅

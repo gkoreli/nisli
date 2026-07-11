@@ -7,8 +7,8 @@
   "scripts": {
     "sync": "pnpm --filter @nisli/ui build && node scripts/sync.mjs",
     "render": "vitest run src/render.test.ts",
-    "build": "pnpm render && tailwindcss -i src/styles/input.css -o dist/assets/site.css --minify",
-    "deploy": "pnpm build && npx wrangler deploy",
+    "build": "pnpm run sync && pnpm run render && tailwindcss -i src/styles/input.css -o dist/assets/site.css --minify",
+    "deploy": "pnpm run build && npx wrangler deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
