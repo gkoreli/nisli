@@ -26,6 +26,13 @@
       "description": "Displays a badge or a component that looks like a badge. Port of shadcn/ui badge.",
       "files": ["ui/badge.ts"],
       "registryDependencies": ["utils"]
+    },
+    {
+      "name": "label",
+      "type": "ui",
+      "description": "Renders an accessible label associated with controls. Port of shadcn/ui label.",
+      "files": ["ui/label.ts"],
+      "registryDependencies": ["utils"]
     }
   ]
 }
