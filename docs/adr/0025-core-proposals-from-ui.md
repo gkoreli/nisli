@@ -116,6 +116,17 @@ porting.
 **Proposal**: relax the constraint (e.g. `object`) or document the alias
 requirement in the framework skill.
 
+### 10. Static factory arrays don't mount in slots — BUG
+
+`html\`${[Item(...), Item(...)]}\`` (a plain array of factory results in a
+slot) renders nothing/text under happy-dom: `template.ts`'s static-array
+branch handles TemplateResults and primitives but not factory results,
+while the *reactive*-slot array path handles all three — an asymmetric
+gap. Found by eng2 writing carousel tests; components avoid it via nested
+templates or `each()`.
+**Proposal**: handle `__type: 'factory'` items in the static-array branch
+(mirror the reactive path), plus a regression test.
+
 ## Process
 
 New friction found while building ui/www lands here first (PR review may
