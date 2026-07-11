@@ -60,6 +60,13 @@
       "description": "Displays a callout for user attention. Port of shadcn/ui alert.",
       "files": ["ui/alert.ts"],
       "registryDependencies": ["utils"]
+    },
+    {
+      "name": "card",
+      "type": "ui",
+      "description": "Displays a card with header, content, and footer. Port of shadcn/ui card.",
+      "files": ["ui/card.ts"],
+      "registryDependencies": ["utils"]
     }
   ]
 }
