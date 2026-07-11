@@ -30,6 +30,7 @@
 import {
   component,
   computed,
+  effect,
   html,
   onMount,
   ref,
@@ -315,24 +316,72 @@ export const AccordionContent = component<AccordionContentProps>(
     const contentId = `${state.baseId}-content-${value}`;
 
     const className = attr(props.className, host, 'class-name');
-    // The content carries upstream's animate-accordion-up/down classes (line
-    // below); their keyframes ship in styles/theme.css but stay inert until a
-    // component wires --accordion-content-height. Actual show/hide is driven by
-    // the `hidden` attribute for a11y correctness (no height animation yet).
     const innerClasses = computed(() => cn('pt-0 pb-4', className.value));
 
+    const outer = ref<HTMLDivElement>();
     const inner = ref<HTMLDivElement>();
+
+    // `present` decouples the `hidden` attribute from `open` so the
+    // accordion-up (close) animation can play before the region is removed
+    // from the a11y tree; the accordion-down (open) animation plays as soon as
+    // the region is shown.
+    const present = signal<boolean>(open.value);
+
+    // JS-MEASURE + CSS-ANIMATE (theme.css keyframes animate height 0 ↔
+    // var(--accordion-content-height)). We only measure and set the var; the
+    // browser runs the animation. Measuring uses the inner content's
+    // scrollHeight, which is unaffected by the outer element's animated height.
+    const measure = (): void => {
+      const el = outer.current;
+      const content = inner.current;
+      if (el && content) {
+        el.style.setProperty('--accordion-content-height', `${content.scrollHeight}px`);
+      }
+    };
+
+    effect(() => {
+      const isOpen = open.value;
+      const el = outer.current;
+      if (!el) return;
+      if (isOpen) {
+        present.value = true;
+        // Measure once the region is displayed (the `hidden` binding has run).
+        queueMicrotask(measure);
+      } else if (present.value) {
+        // Freeze the current height so accordion-up animates from it. Arm the
+        // closed state now, then either wait for the up animation to end before
+        // hiding (real browser) or hide synchronously when none runs (reduced
+        // motion / no compiled CSS / happy-dom) — keeping `hidden` in step with
+        // the flush so a11y stays correct without a JS-driven animation.
+        measure();
+        el.setAttribute('data-state', 'closed');
+        const name = el.ownerDocument.defaultView?.getComputedStyle(el).animationName;
+        if (name && name !== 'none') {
+          const onEnd = (): void => {
+            el.removeEventListener('animationend', onEnd);
+            if (!open.value) present.value = false;
+          };
+          el.addEventListener('animationend', onEnd);
+        } else {
+          present.value = false;
+        }
+      }
+    });
+
     onMount(() => {
       if (inner.current) projectChildren(host, inner.current, projected);
+      // Initially-open items never see `open` change, so measure here too.
+      if (open.value) queueMicrotask(measure);
     });
 
     return html`<div
+      ref="${outer}"
       data-slot="accordion-content"
       role="region"
       id="${contentId}"
       aria-labelledby="${triggerId}"
       data-state="${computed(() => (open.value ? 'open' : 'closed'))}"
-      hidden="${computed(() => !open.value)}"
+      hidden="${computed(() => !present.value)}"
       class="overflow-hidden text-sm data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down"
     ><div ref="${inner}" class="${innerClasses}">${props.children}</div></div>`;
   },

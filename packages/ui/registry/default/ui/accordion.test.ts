@@ -286,3 +286,25 @@ describe('Accordion — plain custom element usage', () => {
     expect(triggerFor(acc, 'b').getAttribute('aria-expanded')).toBe('false');
   });
 });
+
+describe('Accordion — height animation wiring', () => {
+  it('sets --accordion-content-height from the content scrollHeight when open', async () => {
+    const c = mountAccordion({ defaultValue: 'a' });
+    const [regA] = regions(c);
+    // measure() runs in a microtask once the region is displayed.
+    await Promise.resolve();
+    // happy-dom has no layout (scrollHeight 0), but the var is wired to a px
+    // value so theme.css's accordion-down/up keyframes are no longer inert.
+    expect(regA.style.getPropertyValue('--accordion-content-height')).toMatch(/px$/);
+  });
+
+  it('keeps the region present when open and hides it after close', () => {
+    const c = mountAccordion({ collapsible: true, defaultValue: 'a' });
+    const [regA] = regions(c);
+    expect(regA.hasAttribute('hidden')).toBe(false);
+
+    click(triggers(c)[0]); // collapse
+    // No animation runs under happy-dom, so the region hides within the flush.
+    expect(regA.hasAttribute('hidden')).toBe(true);
+  });
+});
