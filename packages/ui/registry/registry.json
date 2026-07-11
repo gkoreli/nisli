@@ -269,6 +269,17 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "progress",
+      "type": "ui",
+      "description": "Displays an indicator showing completion progress of a task. Port of shadcn/ui progress.",
+      "files": [
+        "ui/progress.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }

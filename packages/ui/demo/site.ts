@@ -61,6 +61,7 @@ import {
   TableCaption,
 } from './src/nisli-ui/ui/table.js';
 import { Avatar, AvatarImage, AvatarFallback } from './src/nisli-ui/ui/avatar.js';
+import { Progress } from './src/nisli-ui/ui/progress.js';
 
 function section(title: string, body: TemplateResult): TemplateResult {
   return html`<section class="space-y-3">
@@ -247,6 +248,8 @@ export function renderKitchenSink(): TemplateResult {
         })}`,
       }),
     )}
+
+    ${section('Progress', Progress({ value: 60, className: 'max-w-sm' }))}
 
     ${section(
       'Avatar',
