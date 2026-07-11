@@ -86,7 +86,9 @@ describe('addItems()', () => {
 
   it('rejects unknown items with the available list', () => {
     init(cwd);
-    expect(() => addItems(cwd, ['carousel'])).toThrow(/Unknown registry item "carousel"/);
+    expect(() => addItems(cwd, ['not-a-real-component'])).toThrow(
+      /Unknown registry item "not-a-real-component"/,
+    );
   });
 
   it('pulls a component dependency transitively (add pagination → button)', () => {

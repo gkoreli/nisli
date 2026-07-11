@@ -602,6 +602,18 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "carousel",
+      "type": "ui",
+      "description": "A slide carousel with drag, prev/next, and keyboard nav. Port of shadcn/ui carousel (embla).",
+      "files": [
+        "ui/carousel.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "button"
+      ]
     }
   ]
 }

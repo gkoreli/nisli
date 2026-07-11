@@ -200,6 +200,13 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from './src/nisli-ui/ui/resizable.js';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselPrevious,
+  CarouselNext,
+} from './src/nisli-ui/ui/carousel.js';
 
 function section(title: string, body: TemplateResult): TemplateResult {
   return html`<section class="space-y-3">
@@ -604,6 +611,26 @@ export function renderKitchenSink(): TemplateResult {
             minSize: 20,
             children: html`<div class="flex h-full items-center justify-center p-6 text-sm">Content</div>`,
           })}`,
+        })}
+      </div>`,
+    )}
+
+    ${section(
+      'Carousel',
+      html`<div class="mx-auto max-w-xs px-12">
+        ${Carousel({
+          children: html`${CarouselContent({
+            children: html`${CarouselItem({
+              children: html`<div class="flex aspect-square items-center justify-center rounded-lg border p-6 text-4xl font-semibold">1</div>`,
+            })}
+            ${CarouselItem({
+              children: html`<div class="flex aspect-square items-center justify-center rounded-lg border p-6 text-4xl font-semibold">2</div>`,
+            })}
+            ${CarouselItem({
+              children: html`<div class="flex aspect-square items-center justify-center rounded-lg border p-6 text-4xl font-semibold">3</div>`,
+            })}`,
+          })}
+          ${CarouselPrevious({})}${CarouselNext({})}`,
         })}
       </div>`,
     )}
