@@ -1,6 +1,6 @@
 /**
  * render.test.ts — renders the site into dist/ and asserts the page.
- * Doubles as the render step of `pnpm --filter @nisli/site build`.
+ * Doubles as the render step of `pnpm --filter @nisli/www build`.
  *
  * @vitest-environment happy-dom
  */

@@ -1,8 +1,15 @@
-# Cloudflare Workers Static Assets deploy for the nisli showcase site.
-#   pnpm --filter @nisli/site build && npx wrangler deploy
+# Cloudflare Workers Static Assets deploy for the nisli website (nisli.dev).
+#   pnpm --filter @nisli/www build && npx wrangler deploy
 # dist/ is plain static files, so any static host (GitHub Pages, etc.) works too.
 name = "nisli-www"
 compatibility_date = "2026-07-01"
+
+# Custom domains — nisli.dev zone lives in Goga's Cloudflare account.
+# (Top-level keys must precede the [assets] table, or TOML nests them under it.)
+routes = [
+  { pattern = "nisli.dev", custom_domain = true },
+  { pattern = "www.nisli.dev", custom_domain = true },
+]
 
 [assets]
 directory = "./dist"
