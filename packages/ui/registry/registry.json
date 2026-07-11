@@ -109,6 +109,13 @@
       "description": "A vertically stacked set of collapsible sections. Port of shadcn/ui accordion.",
       "files": ["ui/accordion.ts"],
       "registryDependencies": ["utils", "roving-focus"]
+    },
+    {
+      "name": "radio-group",
+      "type": "ui",
+      "description": "A set of native radio buttons where only one can be selected. Port of shadcn/ui radio-group.",
+      "files": ["ui/radio-group.ts"],
+      "registryDependencies": ["utils"]
     }
   ]
 }
