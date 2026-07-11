@@ -52,6 +52,7 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "demo:sync": "pnpm build && node demo/sync.mjs",
-    "e2e:pack": "pnpm build && node scripts/pack-e2e.mjs"
+    "e2e:pack": "pnpm build && node scripts/pack-e2e.mjs",
+    "demo:build": "vitest run demo/page.test.ts"
   }
 }
