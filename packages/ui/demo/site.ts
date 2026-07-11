@@ -69,6 +69,7 @@ import {
 } from './src/nisli-ui/ui/form-field.js';
 import { Toaster, toast } from './src/nisli-ui/ui/toast.js';
 import { Toggle } from './src/nisli-ui/ui/toggle.js';
+import { ScrollArea } from './src/nisli-ui/ui/scroll-area.js';
 import { ToggleGroup, ToggleGroupItem } from './src/nisli-ui/ui/toggle-group.js';
 import {
   Dialog,
@@ -492,6 +493,14 @@ export function renderKitchenSink(): TemplateResult {
           ${ToggleGroupItem({ value: 'right', children: 'Right' })}`,
         })}
       </div>`,
+    )}
+
+    ${section(
+      'Scroll area',
+      ScrollArea({
+        className: 'h-32 w-64 rounded-md border p-3',
+        children: html`${Array.from({ length: 12 }, (_, i) => html`<p class="py-1 text-sm">Scrollable row ${i + 1}</p>`)}`,
+      }),
     )}
 
     ${section(

@@ -413,6 +413,17 @@
         "toggle",
         "roving-focus"
       ]
+    },
+    {
+      "name": "scroll-area",
+      "type": "ui",
+      "description": "A themed scroll container with native scrolling and a thin styled scrollbar. Port of shadcn/ui scroll-area.",
+      "files": [
+        "ui/scroll-area.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }
