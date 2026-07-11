@@ -452,6 +452,18 @@
         "utils",
         "floating"
       ]
+    },
+    {
+      "name": "command",
+      "type": "ui",
+      "description": "A command palette: type-to-filter list with keyboard highlight and selection. Visuals from shadcn/ui command; cmdk-convention behavior, zero-dep.",
+      "files": [
+        "ui/command.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "dialog"
+      ]
     }
   ]
 }

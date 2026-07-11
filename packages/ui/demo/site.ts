@@ -87,6 +87,14 @@ import {
 import { Toaster, toast } from './src/nisli-ui/ui/toast.js';
 import { Toggle } from './src/nisli-ui/ui/toggle.js';
 import { ScrollArea } from './src/nisli-ui/ui/scroll-area.js';
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from './src/nisli-ui/ui/command.js';
 import { ToggleGroup, ToggleGroupItem } from './src/nisli-ui/ui/toggle-group.js';
 import {
   Dialog,
@@ -564,6 +572,24 @@ export function renderKitchenSink(): TemplateResult {
         className: 'h-32 w-64 rounded-md border p-3',
         children: html`${Array.from({ length: 12 }, (_, i) => html`<p class="py-1 text-sm">Scrollable row ${i + 1}</p>`)}`,
       }),
+    )}
+
+    ${section(
+      'Command',
+      html`<div class="max-w-md rounded-lg border shadow-md">
+        ${Command({
+          children: html`${CommandInput({ placeholder: 'Type a command or search…' })}
+          ${CommandList({
+            children: html`${CommandEmpty({ children: 'No results found.' })}
+            ${CommandGroup({
+              heading: 'Suggestions',
+              children: html`${CommandItem({ value: 'calendar', children: 'Calendar' })}
+              ${CommandItem({ value: 'emoji', children: 'Search Emoji' })}
+              ${CommandItem({ value: 'calculator', children: 'Calculator' })}`,
+            })}`,
+          })}`,
+        })}
+      </div>`,
     )}
 
     ${section(
