@@ -33,6 +33,16 @@ function uniqueTag(prefix = 'inv'): string {
   return `${prefix}-${++tagCounter}-${Date.now()}`;
 }
 
+/**
+ * Disconnect teardown is deferred one microtask so same-tick DOM moves
+ * don't dispose the component (ADR 0023). Await this after removing an
+ * element before asserting disposal happened.
+ */
+function settleTeardown(): Promise<void> {
+  return new Promise((resolve) => queueMicrotask(resolve));
+}
+
+
 function mount(result: TemplateResult): HTMLElement {
   const host = document.createElement('div');
   result.mount(host);
@@ -45,7 +55,7 @@ function mount(result: TemplateResult): HTMLElement {
 // ═══════════════════════════════════════════════════════════════════════
 
 describe('INVARIANT: effect() auto-disposes in component context', () => {
-  it('effects created during setup are disposed on disconnect', () => {
+  it('effects created during setup are disposed on disconnect', async () => {
     const tag = uniqueTag('eff-dispose');
     const count = signal(0);
     const values: number[] = [];
@@ -66,8 +76,9 @@ describe('INVARIANT: effect() auto-disposes in component context', () => {
     flushEffects();
     expect(values).toEqual([0, 1]);
 
-    // Remove element — effects should be disposed
+    // Remove element — effects should be disposed (teardown settles a microtask later)
     document.body.removeChild(el);
+    await settleTeardown();
 
     // Signal change should NOT trigger effect
     count.value = 2;
@@ -75,7 +86,7 @@ describe('INVARIANT: effect() auto-disposes in component context', () => {
     expect(values).toEqual([0, 1]); // no 2 — effect was disposed
   });
 
-  it('multiple effects in setup are all auto-disposed', () => {
+  it('multiple effects in setup are all auto-disposed', async () => {
     const tag = uniqueTag('eff-multi');
     const a = signal(0);
     const b = signal(0);
@@ -94,6 +105,7 @@ describe('INVARIANT: effect() auto-disposes in component context', () => {
     expect(bValues).toEqual([0]);
 
     document.body.removeChild(el);
+    await settleTeardown();
 
     a.value = 1;
     b.value = 1;
@@ -237,7 +249,7 @@ describe('INVARIANT: cleanup errors are swallowed', () => {
     expect(values).toEqual([0, 1, 2]);
   });
 
-  it('disposal cleanup error does not prevent other disposers from running', () => {
+  it('disposal cleanup error does not prevent other disposers from running', async () => {
     const tag = uniqueTag('cleanup-swallow');
     const afterBroken = vi.fn();
 
@@ -250,6 +262,7 @@ describe('INVARIANT: cleanup errors are swallowed', () => {
     const el = document.createElement(tag);
     document.body.appendChild(el);
     document.body.removeChild(el);
+    await settleTeardown();
 
     // The second disposer should still run even though the first threw
     expect(afterBroken).toHaveBeenCalledTimes(1);
@@ -483,7 +496,7 @@ describe('INVARIANT: auto-resolution for props vs attributes', () => {
 // ═══════════════════════════════════════════════════════════════════════
 
 describe('INVARIANT: emitter.on() auto-disposes in component context', () => {
-  it('subscription is cleaned up on disconnect', () => {
+  it('subscription is cleaned up on disconnect', async () => {
     const tag = uniqueTag('emitter-dispose');
     class TestEvents extends Emitter<{ ping: undefined }> {}
 
@@ -502,6 +515,7 @@ describe('INVARIANT: emitter.on() auto-disposes in component context', () => {
     expect(fn).toHaveBeenCalledTimes(1);
 
     document.body.removeChild(el);
+    await settleTeardown();
 
     events.emit('ping', undefined);
     expect(fn).toHaveBeenCalledTimes(1); // disposed — not called again

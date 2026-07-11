@@ -175,6 +175,7 @@ export function component<P extends Record<string, unknown> = Record<string, nev
     private _propsProxy: ReturnType<typeof createPropsProxy<P>> | null = null;
     private _mounted = false;
     private _templateResult: TemplateResult | null = null;
+    private _teardownScheduled = false;
 
     constructor() {
       super();
@@ -230,14 +231,29 @@ export function component<P extends Record<string, unknown> = Record<string, nev
     }
 
     disconnectedCallback() {
-      this._mounted = false;
-      if (this._templateResult?.dispose) {
-        this._templateResult.dispose();
-      }
-      if (this._host) {
-        this._host.dispose();
-        this._host = null;
-      }
+      // A same-tick remove+reinsert is a MOVE, not a removal: per WHATWG,
+      // append-based moves fire disconnected+connected (only moveBefore()
+      // preserves state). Moves happen routinely inside the framework —
+      // each() keyed reorders, light-DOM projection of nested components —
+      // and re-running setup on them duplicates rendered output and loses
+      // state. Defer teardown one microtask and skip it if the element is
+      // connected again; connectedCallback's _mounted guard then makes the
+      // whole move a no-op. True removals still dispose, one microtask
+      // later. See ADR 0023.
+      if (this._teardownScheduled) return;
+      this._teardownScheduled = true;
+      queueMicrotask(() => {
+        this._teardownScheduled = false;
+        if (this.isConnected) return;
+        this._mounted = false;
+        if (this._templateResult?.dispose) {
+          this._templateResult.dispose();
+        }
+        if (this._host) {
+          this._host.dispose();
+          this._host = null;
+        }
+      });
     }
 
     /**

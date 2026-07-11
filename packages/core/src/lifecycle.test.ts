@@ -17,6 +17,15 @@ beforeEach(() => {
 });
 
 let tagCounter = 0;
+/**
+ * Disconnect teardown is deferred one microtask so same-tick DOM moves
+ * don't dispose the component (ADR 0023). Await this after removing an
+ * element before asserting disposal happened.
+ */
+function settleTeardown(): Promise<void> {
+  return new Promise((resolve) => queueMicrotask(resolve));
+}
+
 function uniqueTag(prefix = 'lc'): string {
   return `${prefix}-${++tagCounter}-${Date.now()}`;
 }
@@ -58,7 +67,7 @@ describe('onMount()', () => {
     expect(foundSpan).toBe(true);
   });
 
-  it('cleanup from onMount runs on disconnect', () => {
+  it('cleanup from onMount runs on disconnect', async () => {
     const tag = uniqueTag('mount-cleanup');
     const cleanup = vi.fn();
 
@@ -74,6 +83,7 @@ describe('onMount()', () => {
     expect(cleanup).not.toHaveBeenCalled();
 
     document.body.removeChild(el);
+    await settleTeardown();
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
@@ -119,7 +129,7 @@ describe('onMount()', () => {
 });
 
 describe('onCleanup()', () => {
-  it('runs callback on disconnect', () => {
+  it('runs callback on disconnect', async () => {
     const tag = uniqueTag('cleanup');
     const cleanup = vi.fn();
 
@@ -133,6 +143,7 @@ describe('onCleanup()', () => {
     expect(cleanup).not.toHaveBeenCalled();
 
     document.body.removeChild(el);
+    await settleTeardown();
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 

@@ -24,6 +24,15 @@ function uniqueTag(prefix = 'test'): string {
   return `${prefix}-${++tagCounter}-${Date.now()}`;
 }
 
+/**
+ * Disconnect teardown is deferred one microtask so same-tick DOM moves
+ * don't dispose the component (ADR 0023). Await this after removing an
+ * element before asserting disposal happened.
+ */
+function settleTeardown(): Promise<void> {
+  return new Promise((resolve) => queueMicrotask(resolve));
+}
+
 // ── Basic registration and lifecycle ────────────────────────────────
 
 describe('component() registration', () => {
@@ -50,7 +59,7 @@ describe('component() registration', () => {
     expect(setupFn).toHaveBeenCalledTimes(1);
   });
 
-  it('setup does not run twice on re-connect', () => {
+  it('same-tick remove+reinsert is a move: setup does not re-run', () => {
     const tag = uniqueTag('reconnect');
     const setupFn = vi.fn(() => html`<span>content</span>`);
 
@@ -60,14 +69,29 @@ describe('component() registration', () => {
     document.body.appendChild(el);
     expect(setupFn).toHaveBeenCalledTimes(1);
 
-    // Remove and re-add — should not re-run setup
-    // (guard in connectedCallback)
+    // Append-based moves fire disconnected+connected (WHATWG), but teardown
+    // is deferred a microtask (ADR 0023) — the component survives the move
+    // intact and does not duplicate its rendered output.
     document.body.removeChild(el);
-    // After disconnect, _mounted is set to false
-    // On reconnect, setup runs again — this is correct behavior
-    // since disconnectedCallback disposes everything
     document.body.appendChild(el);
-    // The component re-initializes on re-mount
+    expect(setupFn).toHaveBeenCalledTimes(1);
+    expect(el.querySelectorAll('span').length).toBe(1);
+  });
+
+  it('true removal tears down; a later re-connect re-initializes', async () => {
+    const tag = uniqueTag('remount');
+    const setupFn = vi.fn(() => html`<span>content</span>`);
+
+    component(tag, setupFn);
+
+    const el = document.createElement(tag);
+    document.body.appendChild(el);
+    expect(setupFn).toHaveBeenCalledTimes(1);
+
+    document.body.removeChild(el);
+    await settleTeardown(); // still disconnected → teardown runs
+
+    document.body.appendChild(el);
     expect(setupFn).toHaveBeenCalledTimes(2);
   });
 });
@@ -115,7 +139,7 @@ describe('component props', () => {
 // ── Lifecycle and disposal ──────────────────────────────────────────
 
 describe('component lifecycle', () => {
-  it('disconnectedCallback disposes all registered disposers', () => {
+  it('disconnectedCallback disposes all registered disposers', async () => {
     const tag = uniqueTag('dispose');
     const disposer = vi.fn();
 
@@ -132,6 +156,7 @@ describe('component lifecycle', () => {
     expect(disposer).not.toHaveBeenCalled();
 
     document.body.removeChild(el);
+    await settleTeardown();
     expect(disposer).toHaveBeenCalledTimes(1);
   });
 
