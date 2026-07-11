@@ -530,6 +530,19 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "drawer",
+      "type": "ui",
+      "description": "A draggable edge panel (bottom by default) with drag-to-dismiss. Port of shadcn/ui drawer (vaul).",
+      "files": [
+        "ui/drawer.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "dismissable-layer",
+        "focus"
+      ]
     }
   ]
 }

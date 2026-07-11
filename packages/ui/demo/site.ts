@@ -172,6 +172,16 @@ import {
   SheetDescription,
   SheetClose,
 } from './src/nisli-ui/ui/sheet.js';
+import {
+  Drawer,
+  DrawerTrigger,
+  DrawerContent,
+  DrawerHeader,
+  DrawerFooter,
+  DrawerTitle,
+  DrawerDescription,
+  DrawerClose,
+} from './src/nisli-ui/ui/drawer.js';
 
 function section(title: string, body: TemplateResult): TemplateResult {
   return html`<section class="space-y-3">
@@ -503,6 +513,26 @@ export function renderKitchenSink(): TemplateResult {
           ${MenubarContent({
             children: html`${MenubarItem({ value: 'reload', children: 'Reload' })}
             ${MenubarItem({ value: 'fullscreen', children: 'Toggle Fullscreen' })}`,
+          })}`,
+        })}`,
+      }),
+    )}
+
+    ${section(
+      'Drawer',
+      Drawer({
+        children: html`${DrawerTrigger({
+          className: buttonVariants({ variant: 'outline' }),
+          children: 'Open drawer',
+        })}
+        ${DrawerContent({
+          children: html`${DrawerHeader({
+            children: html`${DrawerTitle({ children: 'Move goal' })}
+            ${DrawerDescription({ children: 'Drag down to dismiss, or use the buttons.' })}`,
+          })}
+          ${DrawerFooter({
+            children: html`${Button({ children: 'Submit' })}
+            ${DrawerClose({ className: buttonVariants({ variant: 'outline' }), children: 'Cancel' })}`,
           })}`,
         })}`,
       }),
