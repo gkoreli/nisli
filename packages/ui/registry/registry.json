@@ -326,6 +326,17 @@
         "utils",
         "button"
       ]
+    },
+    {
+      "name": "toast",
+      "type": "ui",
+      "description": "A toaster stack + toast() function, sonner-style. Original zero-dep implementation.",
+      "files": [
+        "ui/toast.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }

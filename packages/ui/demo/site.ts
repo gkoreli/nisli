@@ -48,6 +48,7 @@ import {
   FieldDescription,
   FieldError,
 } from './src/nisli-ui/ui/form-field.js';
+import { Toaster, toast } from './src/nisli-ui/ui/toast.js';
 import {
   Dialog,
   DialogTrigger,
@@ -383,7 +384,23 @@ export function renderKitchenSink(): TemplateResult {
         </div>
       </div>`,
     )}
+    ${section(
+      'Toast',
+      html`<div class="flex gap-3">
+        ${Button({
+          variant: 'outline',
+          children: 'Show toast',
+          className: 'toast-demo-trigger',
+        })}
+        ${Toaster({})}
+      </div>`,
+    )}
   </main>`;
+}
+
+/** Demo helper so the static page ships a wired example (see demo docs). */
+export function showDemoToast(): number {
+  return toast.success('Saved', { description: 'Your changes are live.' });
 }
 
 /** Build the demo site into `outDir` (used by tests and manual builds). */
