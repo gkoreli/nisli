@@ -13,8 +13,15 @@ deployed to Cloudflare Workers Static Assets.
 
 **Update (same day)**: scope expanded from a single showcase page to the
 **full nisli website** — home, docs, design/theme showcase, and component
-gallery, modeled on ui.shadcn.com and Goga's blog (a static nisli+wrangler
-site). Following the shadcn `apps/www` precedent the package is renamed
+gallery. **Identity (per Goga)**: nisli.dev is the home of the nisli
+*framework* — `@nisli/core` is the product, `@nisli/ui` its design language
+and component layer, one cohesive thing. The site reads like a framework
+site (react.dev / svelte.dev class) that also ships a first-class component
+library; ui.shadcn.com is the model only for the `/ui` and `/themes`
+sections, and Goga's blog (a static nisli+wrangler site) for the build/deploy
+shape. One-liner: framework + design language + UI components, all in one —
+install the framework, copy in the components. The `/docs` quick-start is a
+framework hello-world (signal + component + html), not a ui-add walkthrough. Following the shadcn `apps/www` precedent the package is renamed
 `packages/site` → **`packages/www` (`@nisli/www`)**, and a dedicated engineer
 (eng3) owns it — the pipeline below (CLI-dogfood sync, SSG render via the
 vitest runner, Tailwind CLI, wrangler static assets) carries over unchanged.
