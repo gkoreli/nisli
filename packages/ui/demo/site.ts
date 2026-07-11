@@ -88,6 +88,7 @@ import {
 } from './src/nisli-ui/ui/table.js';
 import { Avatar, AvatarImage, AvatarFallback } from './src/nisli-ui/ui/avatar.js';
 import { Progress } from './src/nisli-ui/ui/progress.js';
+import { Slider } from './src/nisli-ui/ui/slider.js';
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -426,6 +427,8 @@ export function renderKitchenSink(): TemplateResult {
     )}
 
     ${section('Progress', Progress({ value: 60, className: 'max-w-sm' }))}
+
+    ${section('Slider', Slider({ defaultValue: 40, className: 'max-w-sm' }))}
 
     ${section(
       'Avatar',

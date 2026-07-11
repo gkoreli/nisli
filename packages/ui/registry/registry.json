@@ -378,6 +378,17 @@
         "dismissable-layer",
         "focus"
       ]
+    },
+    {
+      "name": "slider",
+      "type": "ui",
+      "description": "A native range slider styled to match shadcn/ui slider (single thumb).",
+      "files": [
+        "ui/slider.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }
