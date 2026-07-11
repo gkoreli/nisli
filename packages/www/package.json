@@ -1,8 +1,8 @@
 {
-  "name": "@nisli/site",
+  "name": "@nisli/www",
   "version": "0.0.0",
   "private": true,
-  "description": "nisli + @nisli/ui showcase site — nisli-authored pages rendered static by @nisli/ssg.",
+  "description": "The nisli website \u2014 home, docs, design showcase, and component gallery, rendered static by @nisli/ssg.",
   "type": "module",
   "scripts": {
     "sync": "pnpm --filter @nisli/ui build && node scripts/sync.mjs",
