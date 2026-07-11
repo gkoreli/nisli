@@ -314,8 +314,10 @@ export const AccordionContent = component<AccordionContentProps>(
     const contentId = `${state.baseId}-content-${value}`;
 
     const className = attr(props.className, host, 'class-name');
-    // shadcn's animate-accordion-up/down keyframes are omitted (they require
-    // consumer @theme keyframes); visibility is via `hidden` for correctness.
+    // The content carries upstream's animate-accordion-up/down classes (line
+    // below); their keyframes ship in styles/theme.css but stay inert until a
+    // component wires --accordion-content-height. Actual show/hide is driven by
+    // the `hidden` attribute for a11y correctness (no height animation yet).
     const innerClasses = computed(() => cn('pt-0 pb-4', className.value));
 
     const inner = ref<HTMLDivElement>();

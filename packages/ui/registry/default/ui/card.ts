@@ -1,6 +1,6 @@
 /**
- * ui/card.ts — Card, CardHeader, CardTitle, CardDescription, CardContent,
- * CardFooter.
+ * ui/card.ts — Card, CardHeader, CardTitle, CardDescription, CardAction,
+ * CardContent, CardFooter.
  *
  * Ported from shadcn/ui `new-york-v4/ui/card.tsx` (MIT —
  * https://github.com/shadcn-ui/ui)
