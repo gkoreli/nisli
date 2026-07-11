@@ -568,6 +568,17 @@
         "popover",
         "command"
       ]
+    },
+    {
+      "name": "resizable",
+      "type": "ui",
+      "description": "Resizable panel groups with draggable handles. Port of shadcn/ui resizable (react-resizable-panels).",
+      "files": [
+        "ui/resizable.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }

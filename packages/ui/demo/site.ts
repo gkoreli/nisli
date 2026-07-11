@@ -184,6 +184,11 @@ import {
   DrawerDescription,
   DrawerClose,
 } from './src/nisli-ui/ui/drawer.js';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from './src/nisli-ui/ui/resizable.js';
 
 function section(title: string, body: TemplateResult): TemplateResult {
   return html`<section class="space-y-3">
@@ -559,6 +564,26 @@ export function renderKitchenSink(): TemplateResult {
           })}`,
         })}`,
       }),
+    )}
+
+    ${section(
+      'Resizable',
+      html`<div class="h-48 overflow-hidden rounded-lg border">
+        ${ResizablePanelGroup({
+          direction: 'horizontal',
+          children: html`${ResizablePanel({
+            defaultSize: 40,
+            minSize: 20,
+            children: html`<div class="flex h-full items-center justify-center p-6 text-sm">Sidebar</div>`,
+          })}
+          ${ResizableHandle({ withHandle: true })}
+          ${ResizablePanel({
+            defaultSize: 60,
+            minSize: 20,
+            children: html`<div class="flex h-full items-center justify-center p-6 text-sm">Content</div>`,
+          })}`,
+        })}
+      </div>`,
     )}
 
     ${section(
