@@ -105,6 +105,16 @@ import {
   PaginationNext,
   PaginationEllipsis,
 } from './src/nisli-ui/ui/pagination.js';
+import {
+  Sheet,
+  SheetTrigger,
+  SheetContent,
+  SheetHeader,
+  SheetFooter,
+  SheetTitle,
+  SheetDescription,
+  SheetClose,
+} from './src/nisli-ui/ui/sheet.js';
 
 function section(title: string, body: TemplateResult): TemplateResult {
   return html`<section class="space-y-3">
@@ -356,6 +366,29 @@ export function renderKitchenSink(): TemplateResult {
           ${DialogFooter({
             children: html`${Button({ variant: 'outline', children: 'Cancel' })}
             ${Button({ children: 'Save changes' })}`,
+          })}`,
+        })}`,
+      }),
+    )}
+
+    ${section(
+      'Sheet',
+      Sheet({
+        children: html`${SheetTrigger({
+          className: buttonVariants({ variant: 'outline' }),
+          children: 'Open sheet',
+        })}
+        ${SheetContent({
+          side: 'right',
+          children: html`${SheetHeader({
+            children: html`${SheetTitle({ children: 'Edit profile' })}
+            ${SheetDescription({ children: "Make changes and save when you're done." })}`,
+          })}
+          ${SheetFooter({
+            children: SheetClose({
+              className: buttonVariants({ variant: 'outline' }),
+              children: 'Close',
+            }),
           })}`,
         })}`,
       }),

@@ -365,6 +365,19 @@
         "dismissable-layer",
         "focus"
       ]
+    },
+    {
+      "name": "sheet",
+      "type": "ui",
+      "description": "A dialog that slides in from a screen edge. Port of shadcn/ui sheet.",
+      "files": [
+        "ui/sheet.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "dismissable-layer",
+        "focus"
+      ]
     }
   ]
 }
