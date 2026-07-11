@@ -137,6 +137,27 @@ export function attr<T extends string>(
 }
 
 /**
+ * Like `attr()`, but *moves* the host attribute onto the inner control:
+ * the fallback is read once at setup and then removed from the host. Use it
+ * for attributes that must live on the real form element rather than the
+ * layout-transparent host — `id` and `name` — so that native form
+ * participation works: `form.elements.namedItem('email')` resolves to the
+ * inner `<input>`, and `<ui-label for="email">` + `label.control` bind to it.
+ * Without the move, the id/name would be duplicated on both the host and the
+ * inner control, and `document.getElementById` could resolve to the wrong one.
+ * An explicitly set prop still wins.
+ */
+export function forwardedAttr<T extends string>(
+  prop: ReadonlySignal<T | undefined>,
+  host: HTMLElement,
+  name: string,
+): ReadonlySignal<T | undefined> {
+  const fallback = (host.getAttribute(name) ?? undefined) as T | undefined;
+  if (fallback !== undefined) host.removeAttribute(name);
+  return computed(() => prop.value ?? fallback);
+}
+
+/**
  * Boolean variant of `attr()`. An explicitly set prop always wins; otherwise
  * the host attribute is the fallback, resolved at setup:
  *

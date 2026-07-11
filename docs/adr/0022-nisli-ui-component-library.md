@@ -203,6 +203,21 @@ Conventions, all proven by Button:
   always wins. Live attribute observation is deliberately out of scope for
   v1 — plain-HTML consumers set attributes at parse time; JS consumers should
   set properties.
+- **Form controls render real native inputs.** Every form control
+  (`ui-input`, `ui-textarea`, `ui-checkbox`, `ui-switch`, …) renders a real
+  `<input>`/`<textarea>` in the light DOM — native form participation is the
+  differentiator over shadcn/Radix. `form.elements`, `form.reset()`,
+  constraint validation, and label association all work natively. For this,
+  `id` and `name` must live on the **inner control**, not the transparent
+  host: `forwardedAttr(prop, host, name)` reads the host attribute once and
+  **removes it from the host**, so a plain-HTML `<ui-input id="email"
+  name="email">` yields a single `<input id="email" name="email">` that
+  `form.elements.namedItem('email')` and `<ui-label for="email">` resolve to.
+  `value`/`checked` are one-way `PropInput`s (signal-able) with native
+  `input`/`change` events bubbling out — no synthetic events, no two-way
+  binding. They mirror the native attribute/property split: the `value`/
+  `checked` **attribute** is the initial value and the `form.reset()` target,
+  while later signal updates are applied to the **property**.
 - **Children**: factories take a `children` prop (`string | TemplateResult`).
   For plain-HTML usage, setup **captures pre-existing host child nodes**
   before mounting and re-appends them into the inner root element (light-DOM

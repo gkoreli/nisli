@@ -67,6 +67,13 @@
       "description": "Displays a card with header, content, and footer. Port of shadcn/ui card.",
       "files": ["ui/card.ts"],
       "registryDependencies": ["utils"]
+    },
+    {
+      "name": "input",
+      "type": "ui",
+      "description": "A native form input with theme styling. Port of shadcn/ui input.",
+      "files": ["ui/input.ts"],
+      "registryDependencies": ["utils"]
     }
   ]
 }
