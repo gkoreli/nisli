@@ -622,6 +622,17 @@
       "files": [
         "lib/use-mobile.ts"
       ]
+    },
+    {
+      "name": "empty",
+      "type": "ui",
+      "description": "An empty-state block with icon, title, description, and actions. Port of shadcn/ui empty.",
+      "files": [
+        "ui/empty.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }

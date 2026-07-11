@@ -23,6 +23,14 @@ import { Badge } from './src/nisli-ui/ui/badge.js';
 import { Label } from './src/nisli-ui/ui/label.js';
 import { Separator } from './src/nisli-ui/ui/separator.js';
 import { Skeleton } from './src/nisli-ui/ui/skeleton.js';
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+  EmptyContent,
+} from './src/nisli-ui/ui/empty.js';
 import { Alert, AlertTitle, AlertDescription } from './src/nisli-ui/ui/alert.js';
 import {
   Card,
@@ -803,6 +811,19 @@ export function renderKitchenSink(): TemplateResult {
             ${TableCell({ children: 'Pending' })}${TableCell({ children: '$150.00' })}`,
           })}`,
         })}`,
+      }),
+    )}
+
+    ${section(
+      'Empty',
+      Empty({
+        className: 'border',
+        children: html`${EmptyHeader({
+          children: html`${EmptyMedia({ variant: 'icon', children: '📭' })}
+          ${EmptyTitle({ children: 'No messages' })}
+          ${EmptyDescription({ children: 'Your inbox is empty. New messages will appear here.' })}`,
+        })}
+        ${EmptyContent({ children: Button({ size: 'sm', children: 'Refresh' }) })}`,
       }),
     )}
 
