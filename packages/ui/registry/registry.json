@@ -88,6 +88,13 @@
       "description": "A native checkbox styled with pure CSS. Port of shadcn/ui checkbox.",
       "files": ["ui/checkbox.ts"],
       "registryDependencies": ["utils"]
+    },
+    {
+      "name": "switch",
+      "type": "ui",
+      "description": "A native toggle switch styled with pure CSS. Port of shadcn/ui switch.",
+      "files": ["ui/switch.ts"],
+      "registryDependencies": ["utils"]
     }
   ]
 }
