@@ -11,6 +11,7 @@
 import { html, type TemplateResult } from '@nisli/core';
 import { buildStaticSite, type StaticSiteBuildResult } from '@nisli/ssg';
 import { Button, buttonVariants } from './src/nisli-ui/ui/button.js';
+import { AspectRatio } from './src/nisli-ui/ui/aspect-ratio.js';
 import { Badge } from './src/nisli-ui/ui/badge.js';
 import { Label } from './src/nisli-ui/ui/label.js';
 import { Separator } from './src/nisli-ui/ui/separator.js';
@@ -193,6 +194,17 @@ export function renderKitchenSink(): TemplateResult {
         ${Badge({ variant: 'destructive', children: 'Destructive' })}
         ${Badge({ variant: 'outline', children: 'Outline' })}
       </div>`,
+    )}
+
+    ${section(
+      'Aspect Ratio',
+      AspectRatio({
+        ratio: 16 / 9,
+        className: 'overflow-hidden rounded-lg bg-muted',
+        children: html`<div class="flex h-full items-center justify-center text-muted-foreground">
+          16 / 9
+        </div>`,
+      }),
     )}
 
     ${section(

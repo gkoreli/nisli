@@ -476,6 +476,17 @@
         "utils",
         "roving-focus"
       ]
+    },
+    {
+      "name": "aspect-ratio",
+      "type": "ui",
+      "description": "Displays content within a desired aspect ratio. Port of shadcn/ui aspect-ratio.",
+      "files": [
+        "ui/aspect-ratio.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }
