@@ -251,12 +251,11 @@ describe('Accordion — misuse', () => {
 });
 
 describe('Accordion — plain custom element usage', () => {
-  // See the note in tabs.test.ts: under the current nisli lifecycle, moving a
-  // connected custom element during projection re-runs its setup, so nested
-  // plain-HTML children render a duplicate "ghost" in tests. We assert against
-  // the first (correctly projected) element. Factory composition (above) is the
-  // duplication-free primary coverage.
-  const firstTriggerIn = (root: ParentNode, value: string) =>
+  // Parser (innerHTML) authoring connects parent-first, so nested children
+  // resolve their accordion/item state; projection moves them into the inner
+  // roots without re-running setup (ADR 0023 deferred-disconnect teardown), so
+  // counts are exact — no ghost duplication.
+  const triggerFor = (root: ParentNode, value: string) =>
     root.querySelector<HTMLButtonElement>(`[data-slot="accordion-trigger"][id$="-trigger-${value}"]`)!;
 
   it('reads type/value from attributes and projects labels', async () => {
@@ -276,9 +275,14 @@ describe('Accordion — plain custom element usage', () => {
     await Promise.resolve();
 
     const acc = document.querySelector('ui-accordion')!;
-    const btnA = firstTriggerIn(acc, 'a');
-    expect(btnA.textContent).toContain('A'); // label projected
+    // Exactly one trigger/region per item — no ghosts.
+    expect(triggers(acc)).toHaveLength(2);
+    expect(regions(acc)).toHaveLength(2);
+    expect(acc.querySelectorAll('[data-slot="accordion-item"]')).toHaveLength(2);
+
+    const btnA = triggerFor(acc, 'a');
+    expect(btnA.querySelector('span')!.textContent).toBe('A'); // label projected
     expect(btnA.getAttribute('aria-expanded')).toBe('true'); // default-value="a"
-    expect(firstTriggerIn(acc, 'b').getAttribute('aria-expanded')).toBe('false');
+    expect(triggerFor(acc, 'b').getAttribute('aria-expanded')).toBe('false');
   });
 });

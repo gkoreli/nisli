@@ -233,16 +233,11 @@ describe('Tabs — controlled value', () => {
 
 describe('Tabs — plain custom element usage', () => {
   // Plain-HTML consumers author markup (the innerHTML parse path), which
-  // connects each element parent-first so children resolve their <ui-tabs>
-  // state. NOTE: under happy-dom, projectChildren moving an already-connected
-  // custom element re-fires connectedCallback (a happy-dom deviation — the DOM
-  // spec keeps same-document moves connected with no re-setup), so nested
-  // triggers/panels render a duplicate "ghost" in the test environment. Real
-  // browsers do not duplicate. We assert against the first (correctly
-  // projected) element per value — the same first-match tolerance the alert
-  // component's plain-HTML tests use. Factory composition (above) is the
-  // duplication-free primary path and carries the behavioral coverage.
-  const firstTab = (root: ParentNode, v: string) =>
+  // connects each element parent-first so nested children resolve their
+  // <ui-tabs> state, and projection moves them into the inner roots without
+  // re-running setup (ADR 0023 deferred-disconnect teardown) — so counts are
+  // exact, no duplication.
+  const byValue = (root: ParentNode, v: string) =>
     root.querySelector<HTMLButtonElement>(`[role="tab"][data-value="${v}"]`)!;
   const visiblePanel = (root: ParentNode) =>
     Array.from(root.querySelectorAll<HTMLElement>('[role="tabpanel"]')).find(
@@ -264,10 +259,13 @@ describe('Tabs — plain custom element usage', () => {
     await Promise.resolve();
 
     const tabs = document.querySelector('ui-tabs')!;
-    expect(tabs.querySelector('[role="tablist"]')).not.toBeNull();
+    expect(tabs.querySelectorAll('[role="tablist"]')).toHaveLength(1);
+    // Exactly one button per trigger and one panel per content — no ghosts.
+    expect(tabButtons(tabs)).toHaveLength(2);
+    expect(panels(tabs)).toHaveLength(2);
 
-    const tabA = firstTab(tabs, 'a');
-    const tabB = firstTab(tabs, 'b');
+    const tabA = byValue(tabs, 'a');
+    const tabB = byValue(tabs, 'b');
     expect(tabA.textContent).toBe('A'); // label projected into the button
     expect(tabB.textContent).toBe('B');
 
@@ -279,17 +277,21 @@ describe('Tabs — plain custom element usage', () => {
     expect(visiblePanel(tabs).textContent).toBe('Panel B');
   });
 
-  it('reads value/disabled from a trigger attribute (2-level)', async () => {
+  it('reads value/disabled from a trigger attribute', async () => {
     document.body.innerHTML =
       '<ui-tabs default-value="a">' +
+      '<ui-tabs-list>' +
       '<ui-tabs-trigger value="a">A</ui-tabs-trigger>' +
       '<ui-tabs-trigger value="b" disabled>B</ui-tabs-trigger>' +
+      '</ui-tabs-list>' +
       '</ui-tabs>';
+    await Promise.resolve();
     await Promise.resolve();
 
     const tabs = document.querySelector('ui-tabs')!;
-    expect(firstTab(tabs, 'a').getAttribute('aria-selected')).toBe('true');
-    expect(firstTab(tabs, 'b').hasAttribute('disabled')).toBe(true);
+    expect(tabButtons(tabs)).toHaveLength(2);
+    expect(byValue(tabs, 'a').getAttribute('aria-selected')).toBe('true');
+    expect(byValue(tabs, 'b').hasAttribute('disabled')).toBe(true);
   });
 });
 
