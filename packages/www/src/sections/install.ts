@@ -1,12 +1,82 @@
 /**
- * sections/install.ts — copy-in install flow. (Stub — SITE-2/eng1 replaces this file.)
+ * sections/install.ts — get started: install the framework, copy in the
+ * components. Real, published commands (npm install @nisli/core; npx @nisli/ui
+ * init / add) — no "coming soon" hedging.
  */
 import { html, type TemplateResult } from '@nisli/core';
 
+interface Step {
+  n: number;
+  title: string;
+  body: string;
+  code: string;
+}
+
+// Import snippet uses `${count}` — escaped so it survives this template literal
+// and renders literally through the <code> text binding.
+const importSnippet = `import { Button } from '@/components/ui/button';
+
+// your owned copy — edit it, it's yours
+document.body.append(Button({ children: 'Ship it' }));`;
+
+const STEPS: readonly Step[] = [
+  {
+    n: 1,
+    title: 'Install the framework',
+    body: 'nisli is the product — signals, components, DI, all in @nisli/core.',
+    code: 'npm install @nisli/core',
+  },
+  {
+    n: 2,
+    title: 'Set up @nisli/ui',
+    body: 'One-time init drops the token layer and config into your project.',
+    code: 'npx @nisli/ui init',
+  },
+  {
+    n: 3,
+    title: 'Copy in the components you want',
+    body: 'add copies real source into your repo — you own and edit it.',
+    code: 'npx @nisli/ui add button dialog',
+  },
+];
+
 export function install(): TemplateResult {
-  return html`<section id="install" class="mx-auto max-w-4xl px-6 py-16">
-    <h2 class="text-3xl font-semibold tracking-tight">Install by owning</h2>
-    <pre class="mt-6 overflow-x-auto rounded-lg border bg-muted p-4 text-sm"><code>npx @nisli/ui init
-npx @nisli/ui add button</code></pre>
+  return html`<section id="install" class="border-t border-border/60 bg-muted/20">
+    <div class="mx-auto max-w-6xl px-6 py-16 sm:py-24">
+      <div class="max-w-2xl">
+        <h2 class="text-3xl font-semibold tracking-tight text-balance">
+          Install the framework, copy in the components
+        </h2>
+        <p class="mt-3 text-lg text-muted-foreground text-pretty">
+          nisli = framework + design language + UI components, all in one. No
+          registry account, no lock-in — the components become your source.
+        </p>
+      </div>
+
+      <ol class="mt-10 grid gap-4 lg:grid-cols-3">
+        ${STEPS.map(
+          (step) => html`<li class="flex flex-col rounded-xl border bg-card p-6">
+            <div class="flex items-center gap-3">
+              <span
+                class="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground"
+                >${String(step.n)}</span
+              >
+              <h3 class="font-semibold tracking-tight">${step.title}</h3>
+            </div>
+            <p class="mt-2 text-sm text-muted-foreground text-pretty">${step.body}</p>
+            <pre
+              class="mt-4 overflow-x-auto rounded-lg border bg-background p-3 text-[13px]"
+            ><code class="font-mono">${step.code}</code></pre>
+          </li>`,
+        )}
+      </ol>
+
+      <div class="mt-6">
+        <p class="text-sm font-medium text-muted-foreground">Then import your copy and go:</p>
+        <pre
+          class="mt-3 overflow-x-auto rounded-xl border bg-card p-4 text-[13px] leading-relaxed"
+        ><code class="font-mono">${importSnippet}</code></pre>
+      </div>
+    </div>
   </section>`;
 }

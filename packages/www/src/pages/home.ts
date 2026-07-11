@@ -11,5 +11,6 @@ import { install } from '../sections/install.js';
 import { framework } from '../sections/framework.js';
 
 export function homePage(): TemplateResult {
-  return html`${hero()} ${gallery()} ${install()} ${framework()}`;
+  // Framework-first: hero → framework primitives → @nisli/ui second beat → install.
+  return html`${hero()} ${framework()} ${gallery()} ${install()}`;
 }
