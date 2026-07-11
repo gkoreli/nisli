@@ -314,6 +314,18 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "pagination",
+      "type": "ui",
+      "description": "Pagination with page navigation, previous/next, and ellipsis. Port of shadcn/ui pagination.",
+      "files": [
+        "ui/pagination.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "button"
+      ]
     }
   ]
 }

@@ -88,6 +88,16 @@ describe('addItems()', () => {
     init(cwd);
     expect(() => addItems(cwd, ['carousel'])).toThrow(/Unknown registry item "carousel"/);
   });
+
+  it('pulls a component dependency transitively (add pagination → button)', () => {
+    init(cwd);
+    const result = addItems(cwd, ['pagination']);
+
+    // pagination depends on the button component (for buttonVariants).
+    expect(existsSync(join(cwd, 'src/nisli-ui/ui/pagination.ts'))).toBe(true);
+    expect(existsSync(join(cwd, 'src/nisli-ui/ui/button.ts'))).toBe(true);
+    expect(result.copied).toContain(join('src/nisli-ui', 'ui/button.ts'));
+  });
 });
 
 describe('resolveItems()', () => {
@@ -96,6 +106,16 @@ describe('resolveItems()', () => {
     const items = resolveItems(registry, ['button', 'utils']);
 
     expect(items.map((i) => i.name)).toEqual(['utils', 'button']);
+  });
+
+  it('resolves a component-to-component dependency, deps first (pagination → button → utils)', () => {
+    const registry = loadRegistry();
+    const names = resolveItems(registry, ['pagination']).map((i) => i.name);
+
+    expect(names).toContain('button');
+    expect(names).toContain('utils');
+    expect(names.indexOf('utils')).toBeLessThan(names.indexOf('button'));
+    expect(names.indexOf('button')).toBeLessThan(names.indexOf('pagination'));
   });
 
   it('every registry item resolves and its files exist', () => {

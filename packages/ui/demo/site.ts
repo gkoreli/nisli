@@ -76,6 +76,15 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from './src/nisli-ui/ui/breadcrumb.js';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+  PaginationEllipsis,
+} from './src/nisli-ui/ui/pagination.js';
 
 function section(title: string, body: TemplateResult): TemplateResult {
   return html`<section class="space-y-3">
@@ -305,6 +314,22 @@ export function renderKitchenSink(): TemplateResult {
             children: BreadcrumbLink({ href: '/components', children: 'Components' }),
           })}${BreadcrumbSeparator({})}
           ${BreadcrumbItem({ children: BreadcrumbPage({ children: 'Breadcrumb' }) })}`,
+        }),
+      }),
+    )}
+
+    ${section(
+      'Pagination',
+      Pagination({
+        children: PaginationContent({
+          children: html`${PaginationItem({ children: PaginationPrevious({ href: '#' }) })}
+          ${PaginationItem({ children: PaginationLink({ href: '#', children: '1' }) })}
+          ${PaginationItem({
+            children: PaginationLink({ href: '#', isActive: true, children: '2' }),
+          })}
+          ${PaginationItem({ children: PaginationLink({ href: '#', children: '3' }) })}
+          ${PaginationItem({ children: PaginationEllipsis({}) })}
+          ${PaginationItem({ children: PaginationNext({ href: '#' }) })}`,
         }),
       }),
     )}
