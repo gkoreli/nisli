@@ -10,7 +10,7 @@
 
 import { html, type TemplateResult } from '@nisli/core';
 import { buildStaticSite, type StaticSiteBuildResult } from '@nisli/ssg';
-import { Button } from './src/nisli-ui/ui/button.js';
+import { Button, buttonVariants } from './src/nisli-ui/ui/button.js';
 import { Badge } from './src/nisli-ui/ui/badge.js';
 import { Label } from './src/nisli-ui/ui/label.js';
 import { Separator } from './src/nisli-ui/ui/separator.js';
@@ -42,6 +42,15 @@ import {
   FieldDescription,
   FieldError,
 } from './src/nisli-ui/ui/form-field.js';
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from './src/nisli-ui/ui/dialog.js';
 
 function section(title: string, body: TemplateResult): TemplateResult {
   return html`<section class="space-y-3">
@@ -204,6 +213,28 @@ export function renderKitchenSink(): TemplateResult {
         ${Input({ type: 'email', name: 'field-email', value: 'not-an-email' })}
         ${FieldDescription({ children: "We'll never share your email." })}
         ${FieldError({ children: 'Enter a valid email address.' })}`,
+      }),
+    )}
+
+    ${section(
+      'Dialog',
+      Dialog({
+        children: html`${DialogTrigger({
+          className: buttonVariants({ variant: 'outline' }),
+          children: 'Open Dialog',
+        })}
+        ${DialogContent({
+          children: html`${DialogHeader({
+            children: html`${DialogTitle({ children: 'Edit profile' })}
+            ${DialogDescription({
+              children: "Make changes to your profile here. Click save when you're done.",
+            })}`,
+          })}
+          ${DialogFooter({
+            children: html`${Button({ variant: 'outline', children: 'Cancel' })}
+            ${Button({ children: 'Save changes' })}`,
+          })}`,
+        })}`,
       }),
     )}
 

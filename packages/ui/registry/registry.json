@@ -20,6 +20,18 @@
       "files": ["lib/roving-focus.ts"]
     },
     {
+      "name": "dismissable-layer",
+      "type": "lib",
+      "description": "Escape-key + outside-pointer dismissal with a LIFO layer stack, for dialogs, popovers, and dropdowns.",
+      "files": ["lib/dismissable-layer.ts"]
+    },
+    {
+      "name": "focus",
+      "type": "lib",
+      "description": "Focus trap and focus restore for modal surfaces like dialogs.",
+      "files": ["lib/focus.ts"]
+    },
+    {
       "name": "button",
       "type": "ui",
       "description": "Displays a button. Port of shadcn/ui button.",
@@ -130,6 +142,13 @@
       "description": "A label + control + description + error composition helper that wires ids and aria. Port of shadcn/ui field.",
       "files": ["ui/form-field.ts"],
       "registryDependencies": ["utils"]
+    },
+    {
+      "name": "dialog",
+      "type": "ui",
+      "description": "A modal dialog overlaying the page. Port of shadcn/ui dialog.",
+      "files": ["ui/dialog.ts"],
+      "registryDependencies": ["utils", "dismissable-layer", "focus"]
     }
   ]
 }
