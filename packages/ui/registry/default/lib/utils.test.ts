@@ -83,6 +83,49 @@ describe('attr() / boolAttr()', () => {
     prop.value = false;
     expect(resolved.value).toBe(false);
   });
+
+  it('boolAttr uses defaultValue when the attribute is absent', () => {
+    const host = document.createElement('div');
+    const prop = signal<boolean | undefined>(undefined);
+
+    // default-false flag (e.g. disabled): absent → false
+    expect(boolAttr(prop, host, 'disabled').value).toBe(false);
+    // default-true flag (e.g. decorative): absent → true
+    expect(boolAttr(prop, host, 'decorative', true).value).toBe(true);
+  });
+
+  it('boolAttr coerces the literal string "false" to false (opt-out)', () => {
+    const host = document.createElement('div');
+    host.setAttribute('decorative', 'false');
+    const prop = signal<boolean | undefined>(undefined);
+
+    // Lets a default-true flag be opted out of from plain HTML.
+    expect(boolAttr(prop, host, 'decorative', true).value).toBe(false);
+  });
+
+  it('boolAttr treats any non-"false" attribute value as true (opt-in)', () => {
+    const host = document.createElement('div');
+    host.setAttribute('disabled', ''); // bare attribute
+    host.setAttribute('checked', 'checked'); // non-empty value
+    const prop = signal<boolean | undefined>(undefined);
+
+    expect(boolAttr(prop, host, 'disabled').value).toBe(true);
+    expect(boolAttr(prop, host, 'checked').value).toBe(true);
+  });
+
+  it('boolAttr lets an explicit prop win over the attribute fallback', () => {
+    const host = document.createElement('div');
+    host.setAttribute('decorative', 'false');
+
+    // Explicit true prop beats the "false" attribute.
+    expect(boolAttr(signal<boolean | undefined>(true), host, 'decorative', true).value).toBe(
+      true,
+    );
+    // Explicit false prop beats a default-true / bare-attr fallback.
+    expect(boolAttr(signal<boolean | undefined>(false), host, 'missing', true).value).toBe(
+      false,
+    );
+  });
 });
 
 describe('captureChildren()', () => {

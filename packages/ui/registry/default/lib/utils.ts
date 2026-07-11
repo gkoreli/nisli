@@ -137,15 +137,26 @@ export function attr<T extends string>(
 }
 
 /**
- * Boolean variant of `attr()`: falls back to attribute presence
+ * Boolean variant of `attr()`. An explicitly set prop always wins; otherwise
+ * the host attribute is the fallback, resolved at setup:
+ *
+ * - attribute **absent** → `defaultValue` (default `false`);
+ * - attribute equal to the literal string `"false"` → `false`;
+ * - attribute present with any other value (including empty) → `true`.
+ *
+ * The `"false"` coercion is what lets a default-`true` flag like a separator's
+ * `decorative` be opted out of from plain HTML (`decorative="false"`), while a
+ * default-`false` flag like `disabled` still opts in with a bare attribute
  * (`<ui-button disabled>`).
  */
 export function boolAttr(
   prop: ReadonlySignal<boolean | undefined>,
   host: HTMLElement,
   name: string,
+  defaultValue = false,
 ): ReadonlySignal<boolean> {
-  const fallback = host.hasAttribute(name);
+  const raw = host.getAttribute(name);
+  const fallback = raw === null ? defaultValue : raw !== 'false';
   return computed(() => prop.value ?? fallback);
 }
 

@@ -194,9 +194,15 @@ Conventions, all proven by Button:
   reactivity. Enumerated string unions for variants (`variant`, `size`).
 - **Attribute fallback**: setup reads host attributes once as fallback for
   unset props (`attr(props.variant, host, 'variant')` helper; camelCase prop
-  ↔ kebab-case attribute; boolean = attribute presence). Live attribute
-  observation is deliberately out of scope for v1 — plain-HTML consumers set
-  attributes at parse time; JS consumers should set properties.
+  ↔ kebab-case attribute). For booleans, `boolAttr(prop, host, name,
+  defaultValue = false)`: an absent attribute yields `defaultValue`, the
+  literal string `"false"` coerces to `false`, and any other present value
+  (including empty) is `true`. This lets default-`false` flags opt in with a
+  bare attribute (`<ui-button disabled>`) and default-`true` flags opt out
+  with `="false"` (`<ui-separator decorative="false">`); an explicit prop
+  always wins. Live attribute observation is deliberately out of scope for
+  v1 — plain-HTML consumers set attributes at parse time; JS consumers should
+  set properties.
 - **Children**: factories take a `children` prop (`string | TemplateResult`).
   For plain-HTML usage, setup **captures pre-existing host child nodes**
   before mounting and re-appends them into the inner root element (light-DOM

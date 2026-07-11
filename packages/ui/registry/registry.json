@@ -39,6 +39,13 @@
       "description": "Renders an accessible label associated with controls. Port of shadcn/ui label.",
       "files": ["ui/label.ts"],
       "registryDependencies": ["utils"]
+    },
+    {
+      "name": "separator",
+      "type": "ui",
+      "description": "Visually or semantically separates content. Port of shadcn/ui separator.",
+      "files": ["ui/separator.ts"],
+      "registryDependencies": ["utils"]
     }
   ]
 }
