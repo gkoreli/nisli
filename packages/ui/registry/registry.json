@@ -424,6 +424,22 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "dropdown-menu",
+      "type": "ui",
+      "description": "A menu of actions or choices triggered by a button. Port of shadcn/ui dropdown-menu.",
+      "files": [
+        "ui/dropdown-menu.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "floating",
+        "dismissable-layer",
+        "focus",
+        "roving-focus",
+        "typeahead"
+      ]
     }
   ]
 }

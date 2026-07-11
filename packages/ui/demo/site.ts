@@ -42,6 +42,15 @@ import {
 } from './src/nisli-ui/ui/collapsible.js';
 import { Tooltip, TooltipTrigger, TooltipContent } from './src/nisli-ui/ui/tooltip.js';
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuItem,
+  DropdownMenuShortcut,
+} from './src/nisli-ui/ui/dropdown-menu.js';
+import {
   Popover,
   PopoverTrigger,
   PopoverContent,
@@ -309,6 +318,32 @@ export function renderKitchenSink(): TemplateResult {
           ${AlertDialogFooter({
             children: html`${AlertDialogCancel({ children: 'Cancel' })}
             ${AlertDialogAction({ variant: 'destructive', children: 'Delete' })}`,
+          })}`,
+        })}`,
+      }),
+    )}
+
+    ${section(
+      'Dropdown menu',
+      DropdownMenu({
+        children: html`${DropdownMenuTrigger({
+          className: buttonVariants({ variant: 'outline' }),
+          children: 'Open menu',
+        })}
+        ${DropdownMenuContent({
+          className: 'w-56',
+          children: html`${DropdownMenuLabel({ children: 'My Account' })}
+          ${DropdownMenuSeparator({})}
+          ${DropdownMenuItem({
+            value: 'profile',
+            children: html`Profile ${DropdownMenuShortcut({ children: '⇧⌘P' })}`,
+          })}
+          ${DropdownMenuItem({ value: 'settings', children: 'Settings' })}
+          ${DropdownMenuSeparator({})}
+          ${DropdownMenuItem({
+            value: 'logout',
+            variant: 'destructive',
+            children: 'Log out',
           })}`,
         })}`,
       }),

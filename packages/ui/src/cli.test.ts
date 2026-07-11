@@ -98,6 +98,27 @@ describe('addItems()', () => {
     expect(existsSync(join(cwd, 'src/nisli-ui/ui/button.ts'))).toBe(true);
     expect(result.copied).toContain(join('src/nisli-ui', 'ui/button.ts'));
   });
+
+  it('copies the full lib closure for dropdown-menu (all six behavior libs)', () => {
+    init(cwd);
+    addItems(cwd, ['dropdown-menu']);
+
+    // dropdown-menu is the first item consuming every behavior primitive.
+    for (const lib of [
+      'utils',
+      'floating',
+      'dismissable-layer',
+      'focus',
+      'roving-focus',
+      'typeahead',
+    ]) {
+      expect(
+        existsSync(join(cwd, `src/nisli-ui/lib/${lib}.ts`)),
+        `expected lib/${lib}.ts to be installed`,
+      ).toBe(true);
+    }
+    expect(existsSync(join(cwd, 'src/nisli-ui/ui/dropdown-menu.ts'))).toBe(true);
+  });
 });
 
 describe('resolveItems()', () => {
