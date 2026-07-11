@@ -41,6 +41,14 @@ import {
   CollapsibleContent,
 } from './src/nisli-ui/ui/collapsible.js';
 import { Tooltip, TooltipTrigger, TooltipContent } from './src/nisli-ui/ui/tooltip.js';
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverDescription,
+} from './src/nisli-ui/ui/popover.js';
 import { RadioGroup, RadioGroupItem } from './src/nisli-ui/ui/radio-group.js';
 import { Select } from './src/nisli-ui/ui/select.js';
 import {
@@ -240,6 +248,22 @@ export function renderKitchenSink(): TemplateResult {
           children: 'Hover me',
         })}
         ${TooltipContent({ children: 'Rendered statically; opens on hover.' })}`,
+      }),
+    )}
+
+    ${section(
+      'Popover',
+      Popover({
+        children: html`${PopoverTrigger({
+          className: buttonVariants({ variant: 'outline' }),
+          children: 'Open popover',
+        })}
+        ${PopoverContent({
+          children: html`${PopoverHeader({
+            children: html`${PopoverTitle({ children: 'Dimensions' })}
+            ${PopoverDescription({ children: 'Set the dimensions for the layer.' })}`,
+          })}`,
+        })}`,
       }),
     )}
 

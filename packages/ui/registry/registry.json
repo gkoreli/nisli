@@ -337,6 +337,20 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "popover",
+      "type": "ui",
+      "description": "Floating content anchored to a trigger. Port of shadcn/ui popover.",
+      "files": [
+        "ui/popover.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "floating",
+        "dismissable-layer",
+        "focus"
+      ]
     }
   ]
 }
