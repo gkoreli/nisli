@@ -53,6 +53,13 @@
       "description": "A placeholder to show while content is loading. Port of shadcn/ui skeleton.",
       "files": ["ui/skeleton.ts"],
       "registryDependencies": ["utils"]
+    },
+    {
+      "name": "alert",
+      "type": "ui",
+      "description": "Displays a callout for user attention. Port of shadcn/ui alert.",
+      "files": ["ui/alert.ts"],
+      "registryDependencies": ["utils"]
     }
   ]
 }

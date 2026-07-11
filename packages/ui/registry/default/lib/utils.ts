@@ -178,12 +178,20 @@ export function captureChildren(host: HTMLElement): Node[] {
  * (in a microtask) any children a streaming parser appended to the host
  * after upgrade — needed when the element is defined before the document
  * finishes parsing.
+ *
+ * The `node.contains(root)` guard matters for nested components
+ * (`<ui-alert><ui-alert-title>…`): a parent's sweep can move a child host
+ * — and the just-mounted `root` inside it — before the child's own sweep
+ * runs. Skipping any node that already contains `root` avoids the invalid
+ * "append an ancestor into its own descendant" DOMException.
  */
 export function projectChildren(host: HTMLElement, root: Element, captured: Node[]): void {
   if (captured.length > 0) root.append(...captured);
   queueMicrotask(() => {
     for (const node of Array.from(host.childNodes)) {
-      if (node !== root && !root.contains(node)) root.append(node);
+      if (node !== root && !root.contains(node) && !node.contains(root)) {
+        root.append(node);
+      }
     }
   });
 }

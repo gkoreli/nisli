@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { signal } from '@nisli/core';
-import { attr, boolAttr, captureChildren, cn, cv } from './utils.js';
+import { attr, boolAttr, captureChildren, cn, cv, projectChildren } from './utils.js';
 
 describe('cn()', () => {
   it('joins strings and skips falsy values', () => {
@@ -140,5 +140,51 @@ describe('captureChildren()', () => {
     expect(captured).toHaveLength(2);
     expect(captured[0]).toBe(icon);
     expect(captured[1]?.textContent).toBe('text');
+  });
+});
+
+describe('projectChildren()', () => {
+  it('appends captured children immediately into the root', () => {
+    const host = document.createElement('div');
+    const root = document.createElement('div');
+    host.append(root);
+    const a = document.createElement('span');
+    const b = document.createElement('span');
+
+    projectChildren(host, root, [a, b]);
+
+    expect(root.contains(a)).toBe(true);
+    expect(root.contains(b)).toBe(true);
+  });
+
+  it('sweeps parser-appended host children into the root on a microtask', async () => {
+    const host = document.createElement('div');
+    const root = document.createElement('div');
+    host.append(root);
+
+    projectChildren(host, root, []);
+    // Simulate a streaming parser appending a child after upgrade.
+    const late = document.createElement('span');
+    host.append(late);
+
+    await Promise.resolve();
+    expect(root.contains(late)).toBe(true);
+  });
+
+  it('never appends an ancestor of the root (nested-component guard)', async () => {
+    // Reproduces the nested case where a parent sweep has already moved a
+    // child host — and the root inside it — so host.childNodes contains a
+    // node that already contains root. Appending it would throw.
+    const host = document.createElement('div');
+    const wrapper = document.createElement('div');
+    const root = document.createElement('span');
+    wrapper.append(root);
+    host.append(wrapper); // host.childNodes = [wrapper], wrapper contains root
+
+    expect(() => projectChildren(host, root, [])).not.toThrow();
+    await Promise.resolve();
+
+    // The guard skipped the ancestor; nothing moved, no exception.
+    expect(root.parentElement).toBe(wrapper);
   });
 });
