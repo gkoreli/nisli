@@ -116,6 +116,13 @@
       "description": "A set of native radio buttons where only one can be selected. Port of shadcn/ui radio-group.",
       "files": ["ui/radio-group.ts"],
       "registryDependencies": ["utils"]
+    },
+    {
+      "name": "select",
+      "type": "ui",
+      "description": "A native select styled like shadcn/ui's native-select, with a themeable chevron.",
+      "files": ["ui/select.ts"],
+      "registryDependencies": ["utils"]
     }
   ]
 }
