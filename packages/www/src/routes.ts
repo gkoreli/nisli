@@ -12,6 +12,7 @@ import { homePage } from './pages/home.js';
 import { uiIndexPage } from './pages/ui-index.js';
 import { uiComponentPage } from './pages/ui-component.js';
 import { components, primitives, itemPath, type RegistryItem } from './registry.js';
+import { docPages, docPath, docsLayout, type DocPage } from './pages/docs.js';
 
 export interface SiteRoute {
   path: string;
@@ -53,8 +54,19 @@ function itemRoute(item: RegistryItem): SiteRoute {
   };
 }
 
+/** One route per docs page, wrapped in the docs sidebar layout. */
+function docRoute(page: DocPage): SiteRoute {
+  const path = docPath(page.slug);
+  return {
+    path,
+    meta: { title: `${page.title} — nisli docs`, description: page.description },
+    body: () => layout(docsLayout(page), { current: path }),
+  };
+}
+
 export const routes: readonly SiteRoute[] = [
   ...staticRoutes,
+  ...docPages.map(docRoute),
   ...components.map(itemRoute),
   ...primitives.map(itemRoute),
 ];

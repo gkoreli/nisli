@@ -70,4 +70,20 @@ describe('nisli website', () => {
     expect(indexHtml).toContain('href="/ui/button"');
     expect(indexHtml).toContain('href="/ui/dialog"');
   });
+
+  it('renders framework-first docs with a hello-world quick-start', async () => {
+    const built = await buildSite();
+
+    // docs landing + concept pages exist
+    for (const path of ['/docs', '/docs/quick-start', '/docs/signals', '/docs/cli']) {
+      expect(built.some((p) => p.path === path)).toBe(true);
+    }
+
+    const quick = built.find((p) => p.path === '/docs/quick-start');
+    const page = readFileSync(quick!.filePath, 'utf8');
+    // framework hello-world, not an @nisli/ui add walkthrough
+    expect(page).toContain("component('x-counter'");
+    expect(page).toContain("from '@nisli/core'");
+    expect(page).toContain('href="/docs/signals"'); // sidebar nav
+  });
 });
