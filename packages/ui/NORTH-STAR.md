@@ -72,18 +72,22 @@ any shadcn theme drops in.
 ## Roadmap — shadcn-parity components
 
 **Wave 1 — primitives (prove the conventions)**
-- [x] button *(scaffold, canonical reference)*
-- [ ] badge, label, separator, skeleton, card, alert
+- [x] button *(canonical reference)*
+- [x] badge, label, separator, skeleton, card, alert
 
 **Wave 2 — forms**
-- [ ] input, textarea, checkbox, switch, radio-group, select (native), form field wiring
+- [x] input, textarea, checkbox, switch, radio-group, select (native), form-field wiring
 
 **Wave 3 — behavior (needs lib primitives)**
-- [ ] lib: dismissable-layer, focus trap/restore, roving tabindex
-- [ ] tabs, accordion, collapsible, dialog, alert-dialog, tooltip, popover, dropdown-menu
+- [x] lib: roving-focus, dismissable-layer, focus trap/restore, floating, typeahead
+- [x] tabs, accordion, dialog (+ standalone dialog-close)
+- [ ] collapsible, alert-dialog, tooltip, popover *(in flight — UI-7)*
+- [ ] dropdown-menu *(UI-8, needs submenu design)*
 
 **Wave 4 — surfaces & feedback**
-- [ ] table, avatar, progress, slider, toast (sonner-style), sheet, breadcrumb, pagination
+- [x] table, avatar
+- [ ] progress, breadcrumb, pagination *(in flight — UI-6)*
+- [ ] slider, toast (sonner-style), sheet
 
 **Later / explicitly deferred**
 - Portal primitive; live attribute observation (MutationObserver); calendar /
