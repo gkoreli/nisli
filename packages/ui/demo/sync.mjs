@@ -21,10 +21,13 @@ const demoDir = dirname(fileURLToPath(import.meta.url));
 rmSync(join(demoDir, 'src/nisli-ui'), { recursive: true, force: true });
 
 const initResult = init(demoDir);
-const uiItems = loadRegistry().items.filter((item) => item.type === 'ui').map((item) => item.name);
-const addResult = addItems(demoDir, uiItems, { overwrite: true });
+// Install EVERY registry item, not just ui items via their dependency
+// closure — the demo.test.ts byte-equality check covers all items, so a
+// lib item committed before its first consumer must still be in the fixture.
+const allItems = loadRegistry().items.map((item) => item.name);
+const addResult = addItems(demoDir, allItems, { overwrite: true });
 
 for (const file of [...initResult.add.copied, ...addResult.copied]) {
   console.log(`  + ${file}`);
 }
-console.log(`Synced demo fixture: ${uiItems.length} ui items (${uiItems.join(', ')})`);
+console.log(`Synced demo fixture: ${allItems.length} registry items (${allItems.join(', ')})`);
