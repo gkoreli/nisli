@@ -6,6 +6,6 @@
     "declaration": false,
     "sourceMap": false
   },
-  "include": ["src/**/*.ts", "registry/**/*.ts"],
-  "exclude": ["src/**/*.test.ts", "registry/**/*.test.ts"]
+  "include": ["src/**/*.ts", "registry/**/*.ts", "demo/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "registry/**/*.test.ts", "demo/**/*.test.ts"]
 }

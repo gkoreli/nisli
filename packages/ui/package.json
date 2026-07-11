@@ -25,7 +25,8 @@
     "@nisli/core": ">=0.48.0"
   },
   "devDependencies": {
-    "@nisli/core": "workspace:*"
+    "@nisli/core": "workspace:*",
+    "@nisli/ssg": "workspace:*"
   },
   "exports": {
     ".": "./src/index.ts"
@@ -49,6 +50,7 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "demo:sync": "pnpm build && node demo/sync.mjs"
   }
 }

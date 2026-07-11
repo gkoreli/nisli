@@ -42,6 +42,9 @@ importers:
       '@nisli/core':
         specifier: workspace:*
         version: link:../core
+      '@nisli/ssg':
+        specifier: workspace:*
+        version: link:../ssg
 
 packages:
 
