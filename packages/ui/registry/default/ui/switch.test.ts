@@ -151,3 +151,40 @@ describe('Switch native form participation', () => {
     expect(getInput(host).checked).toBe(false);
   });
 });
+
+describe('Switch data-state reflection', () => {
+  it('reflects unchecked + data-disabled when disabled', () => {
+    const c = mount(html`${Switch({ disabled: true })}`);
+    const input = getInput(c);
+    expect(input.getAttribute('data-state')).toBe('unchecked');
+    expect(input.hasAttribute('data-disabled')).toBe(true);
+  });
+
+  it('reflects checked state and omits data-disabled when enabled', () => {
+    const c = mount(html`${Switch({ checked: true })}`);
+    const input = getInput(c);
+    expect(input.getAttribute('data-state')).toBe('checked');
+    expect(input.hasAttribute('data-disabled')).toBe(false);
+  });
+
+  it('updates data-state on native change', () => {
+    const c = mount(html`${Switch({})}`);
+    const input = getInput(c);
+    input.checked = true;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    flushEffects();
+    expect(input.getAttribute('data-state')).toBe('checked');
+  });
+
+  it('follows the checked signal', () => {
+    const checked = signal<boolean | undefined>(false);
+    const c = mount(html`${Switch({ checked })}`);
+    const input = getInput(c);
+    expect(input.getAttribute('data-state')).toBe('unchecked');
+    checked.value = true;
+    flushEffects();
+    flushEffects();
+    flushEffects();
+    expect(input.getAttribute('data-state')).toBe('checked');
+  });
+});

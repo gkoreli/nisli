@@ -15,7 +15,10 @@
  * `<span>` thumb driven purely by `peer-checked:translate-x`. The thumb is
  * `pointer-events-none` so clicks reach the input. `className` merges into
  * the track (the input) so consumer size overrides (`h-6 w-11`) land there.
- * No JS drives the visual.
+ * No JS drives the visual. `data-state` (checked / unchecked) and
+ * `data-disabled` are reflected reactively so consumer CSS using shadcn's
+ * `data-[state=checked]` selectors works alongside the native `:checked`
+ * styling.
  *
  * `checked` mirrors the native attribute/property split (attribute =
  * `defaultChecked` / `form.reset()` target, property = programmatic updates);
@@ -31,6 +34,7 @@ import {
   html,
   onMount,
   ref,
+  signal,
 } from '@nisli/core';
 import {
   attr,
@@ -96,11 +100,20 @@ export const Switch = component<SwitchProps>('ui-switch', (props, host) => {
 
   const control = ref<HTMLInputElement>();
 
+  // Radix-style data-state, reflecting the ACTUAL checked state (so consumer
+  // CSS using data-[state=checked] works alongside our native :checked
+  // styling). Driven by both the `checked` signal and native user changes.
+  const state = signal<'checked' | 'unchecked'>(checked.value ? 'checked' : 'unchecked');
+  const syncState = (): void => {
+    if (control.current) state.value = control.current.checked ? 'checked' : 'unchecked';
+  };
+
   // Programmatic checked updates → the property (leaves the reset target).
   effect(() => {
     const c = checked.value;
     const box = control.current;
     if (box && box.checked !== c) box.checked = c;
+    if (box) state.value = box.checked ? 'checked' : 'unchecked';
   });
 
   onMount(() => {
@@ -110,6 +123,7 @@ export const Switch = component<SwitchProps>('ui-switch', (props, host) => {
       box.defaultChecked = true; // native form.reset() target
       box.checked = true;
     }
+    syncState();
   });
 
   return html`<span data-slot="switch-wrapper" class="${switchWrapperClasses}">
@@ -119,12 +133,15 @@ export const Switch = component<SwitchProps>('ui-switch', (props, host) => {
       role="switch"
       data-slot="switch"
       data-size="${size}"
+      data-state="${state}"
+      data-disabled="${computed(() => (disabled.value ? '' : undefined))}"
       class="${controlClasses}"
       id="${id}"
       name="${name}"
       value="${value}"
       disabled="${disabled}"
       required="${required}"
+      @change=${syncState}
     />
     <span data-slot="switch-thumb" class="${thumbClasses}"></span>
   </span>`;

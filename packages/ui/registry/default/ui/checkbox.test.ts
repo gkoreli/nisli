@@ -153,3 +153,40 @@ describe('Checkbox native form participation', () => {
     expect(getBox(host).checked).toBe(false);
   });
 });
+
+describe('Checkbox data-state reflection', () => {
+  it('reflects unchecked + data-disabled by default when disabled', () => {
+    const c = mount(html`${Checkbox({ disabled: true })}`);
+    const box = getBox(c);
+    expect(box.getAttribute('data-state')).toBe('unchecked');
+    expect(box.hasAttribute('data-disabled')).toBe(true);
+  });
+
+  it('reflects checked state and omits data-disabled when enabled', () => {
+    const c = mount(html`${Checkbox({ checked: true })}`);
+    const box = getBox(c);
+    expect(box.getAttribute('data-state')).toBe('checked');
+    expect(box.hasAttribute('data-disabled')).toBe(false);
+  });
+
+  it('updates data-state on native change', () => {
+    const c = mount(html`${Checkbox({})}`);
+    const box = getBox(c);
+    box.checked = true;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+    flushEffects();
+    expect(box.getAttribute('data-state')).toBe('checked');
+  });
+
+  it('follows the checked signal', () => {
+    const checked = signal<boolean | undefined>(false);
+    const c = mount(html`${Checkbox({ checked })}`);
+    const box = getBox(c);
+    expect(box.getAttribute('data-state')).toBe('unchecked');
+    checked.value = true;
+    flushEffects();
+    flushEffects();
+    flushEffects();
+    expect(box.getAttribute('data-state')).toBe('checked');
+  });
+});

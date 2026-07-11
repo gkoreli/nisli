@@ -14,7 +14,10 @@
  * shadcn styling is drawn with Tailwind `checked:`/`disabled:` variants. The
  * check mark is a `background-image` data-URI SVG (not a `::before` glyph —
  * pseudo-elements do not render on replaced `<input>` elements) shown on
- * `:checked`. No JavaScript draws the indicator.
+ * `:checked`. No JavaScript draws the indicator. `data-state` (checked /
+ * unchecked) and `data-disabled` are reflected reactively so consumer CSS
+ * using shadcn's `data-[state=checked]` selectors works alongside the native
+ * `:checked` styling.
  *
  * `checked` mirrors the native attribute/property split: the attribute is the
  * initial state and `form.reset()` target (`defaultChecked`); later signal
@@ -30,6 +33,7 @@ import {
   html,
   onMount,
   ref,
+  signal,
 } from '@nisli/core';
 import {
   attr,
@@ -69,11 +73,20 @@ export const Checkbox = component<CheckboxProps>('ui-checkbox', (props, host) =>
 
   const root = ref<HTMLInputElement>();
 
+  // Radix-style data-state, reflecting the ACTUAL checked state (so consumer
+  // CSS using data-[state=checked] works alongside our native :checked
+  // styling). Driven by both the `checked` signal and native user changes.
+  const state = signal<'checked' | 'unchecked'>(checked.value ? 'checked' : 'unchecked');
+  const syncState = (): void => {
+    if (root.current) state.value = root.current.checked ? 'checked' : 'unchecked';
+  };
+
   // Programmatic checked updates → the property (leaves the reset target).
   effect(() => {
     const c = checked.value;
     const box = root.current;
     if (box && box.checked !== c) box.checked = c;
+    if (box) state.value = box.checked ? 'checked' : 'unchecked';
   });
 
   onMount(() => {
@@ -83,17 +96,21 @@ export const Checkbox = component<CheckboxProps>('ui-checkbox', (props, host) =>
       box.defaultChecked = true; // native form.reset() target
       box.checked = true;
     }
+    syncState();
   });
 
   return html`<input
     ref="${root}"
     type="checkbox"
     data-slot="checkbox"
+    data-state="${state}"
+    data-disabled="${computed(() => (disabled.value ? '' : undefined))}"
     class="${classes}"
     id="${id}"
     name="${name}"
     value="${value}"
     disabled="${disabled}"
     required="${required}"
+    @change=${syncState}
   />`;
 });
