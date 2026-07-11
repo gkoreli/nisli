@@ -14,6 +14,11 @@ import { Button, buttonVariants } from './src/nisli-ui/ui/button.js';
 import { AspectRatio } from './src/nisli-ui/ui/aspect-ratio.js';
 import { Kbd, KbdGroup } from './src/nisli-ui/ui/kbd.js';
 import { Spinner } from './src/nisli-ui/ui/spinner.js';
+import {
+  ButtonGroup,
+  ButtonGroupSeparator,
+  ButtonGroupText,
+} from './src/nisli-ui/ui/button-group.js';
 import { Badge } from './src/nisli-ui/ui/badge.js';
 import { Label } from './src/nisli-ui/ui/label.js';
 import { Separator } from './src/nisli-ui/ui/separator.js';
@@ -259,6 +264,17 @@ export function renderKitchenSink(): TemplateResult {
         ${Spinner({})}
         <span class="text-sm text-muted-foreground">Loading</span>
       </div>`,
+    )}
+
+    ${section(
+      'Button Group',
+      ButtonGroup({
+        children: html`${Button({ variant: 'outline', children: 'Back' })}
+        ${ButtonGroupSeparator({})}
+        ${ButtonGroupText({ children: '1 of 3' })}
+        ${ButtonGroupSeparator({})}
+        ${Button({ variant: 'outline', children: 'Next' })}`,
+      }),
     )}
 
     ${section(

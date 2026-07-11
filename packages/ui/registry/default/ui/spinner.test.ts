@@ -31,6 +31,7 @@ describe('Spinner via factory', () => {
 
     expect(spinner.getAttribute('role')).toBe('status');
     expect(spinner.getAttribute('aria-label')).toBe('Loading');
+    expect(spinner.getAttribute('data-slot')).toBe('spinner');
     expect(spinner.getAttribute('class')).toBe(spinnerClasses);
     expect(spinner.getAttribute('viewBox')).toBe('0 0 24 24');
     expect(spinner.querySelector('path')?.getAttribute('d')).toBe(
