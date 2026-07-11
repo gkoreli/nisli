@@ -1,0 +1,3 @@
+@import "../src/styles/input.css";
+@source "../src/**/*.ts";
+@source "./index.html";
