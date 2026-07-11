@@ -31,9 +31,13 @@ setContextHook(() => {
 /**
  * Maps a props interface to reactive signals.
  * Each prop `P[K]` becomes `Signal<P[K]>`.
+ *
+ * Optionality is stripped (`-?`): the props Proxy always returns a signal,
+ * even for props never set — an optional prop `variant?: T` is
+ * `Signal<T | undefined>`, not `Signal<T> | undefined`.
  */
 export type ReactiveProps<P> = {
-  readonly [K in keyof P]: Signal<P[K]>;
+  readonly [K in keyof P]-?: Signal<P[K]>;
 };
 
 /**
