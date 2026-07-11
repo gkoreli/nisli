@@ -49,6 +49,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuItem,
   DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from './src/nisli-ui/ui/dropdown-menu.js';
 import {
   Popover,
@@ -339,6 +342,13 @@ export function renderKitchenSink(): TemplateResult {
             children: html`Profile ${DropdownMenuShortcut({ children: '⇧⌘P' })}`,
           })}
           ${DropdownMenuItem({ value: 'settings', children: 'Settings' })}
+          ${DropdownMenuSub({
+            children: html`${DropdownMenuSubTrigger({ children: 'Invite users' })}
+            ${DropdownMenuSubContent({
+              children: html`${DropdownMenuItem({ value: 'email', children: 'Email' })}
+              ${DropdownMenuItem({ value: 'message', children: 'Message' })}`,
+            })}`,
+          })}
           ${DropdownMenuSeparator({})}
           ${DropdownMenuItem({
             value: 'logout',

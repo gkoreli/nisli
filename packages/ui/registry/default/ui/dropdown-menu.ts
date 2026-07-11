@@ -5,7 +5,7 @@
  * https://github.com/shadcn-ui/ui) and the Radix DropdownMenu behavior it
  * wraps (MIT — https://github.com/radix-ui/primitives), rebuilt as Nisli
  * custom elements. Submenu elements (ui-dropdown-menu-sub/-sub-trigger/
- * -sub-content) live in the companion file section.
+ * -sub-content) are defined in the Submenu section near the end of this file.
  *
  * The content is a role=menu surface positioned with the floating lib,
  * dismissed via dismissable-layer (LIFO Escape), focus-contained via the focus
@@ -208,6 +208,146 @@ export type DropdownMenuContentProps = {
   children?: string | TemplateResult;
 };
 
+/**
+ * Wire the shared behavior of a menu surface (root content or submenu content):
+ * floating placement, dismissable-layer, optional focus trap, vertical roving
+ * focus with data-highlighted, typeahead, and pointerover focus. Returns the
+ * keydown/pointerover handlers to bind to the surface element.
+ */
+interface MenuSurfaceConfig {
+  content: Ref<HTMLElement>;
+  open: ReadonlySignal<boolean>;
+  /** Close this surface (and, for a submenu, restore focus to its trigger). */
+  close: () => void;
+  anchor: () => HTMLElement | null;
+  placement: () => { side: Side; align: Align; sideOffset: number };
+  /** Where to place focus on open; read once per open. */
+  focusIntent: () => 'first' | 'last';
+  afterOpen?: () => void;
+  useTrap: boolean;
+  returnFocus?: Ref<HTMLElement>;
+  /** The surface's own trigger — excluded from outside-pointer dismissal. */
+  triggerExclude: () => HTMLElement | null;
+  /** ArrowLeft handler (submenus close themselves). */
+  onArrowLeft?: () => void;
+}
+
+function wireMenuSurface(cfg: MenuSurfaceConfig): {
+  onKeyDown: (event: KeyboardEvent) => void;
+  onPointerOver: (event: PointerEvent) => void;
+} {
+  const { content } = cfg;
+  // Only items belonging to THIS menu — not ones nested in a submenu, whose
+  // nearest [role=menu] ancestor is that submenu's content.
+  const allItems = (): HTMLElement[] =>
+    content.current
+      ? Array.from(content.current.querySelectorAll<HTMLElement>(ITEM_SELECTOR)).filter(
+          (el) => el.closest('[role="menu"]') === content.current,
+        )
+      : [];
+  const isDisabled = (el: HTMLElement) => el.getAttribute('aria-disabled') === 'true';
+  const enabledItems = (): HTMLElement[] => allItems().filter((el) => !isDisabled(el));
+
+  const applyHighlight = (activeEl: HTMLElement | null): void => {
+    for (const el of allItems()) {
+      const on = el === activeEl;
+      el.setAttribute('tabindex', on ? '0' : '-1');
+      if (on) el.setAttribute('data-highlighted', '');
+      else el.removeAttribute('data-highlighted');
+    }
+  };
+
+  const roving = rovingFocus(allItems, {
+    orientation: 'vertical',
+    loop: false,
+    onActiveChange: (_index, el) => applyHighlight(el),
+  });
+  const search = typeahead();
+
+  const focusItem = (el: HTMLElement | undefined): void => {
+    if (!el) return;
+    const idx = allItems().indexOf(el);
+    if (idx >= 0) roving.setActiveIndex(idx);
+    el.focus();
+    applyHighlight(el);
+  };
+
+  const layer = dismissableLayer(content, {
+    onDismiss: cfg.close,
+    onPointerDownOutside: (event) => {
+      const t = cfg.triggerExclude();
+      if (t && t.contains(event.target as Node)) event.preventDefault();
+    },
+  });
+  const trap = cfg.useTrap ? focusTrap(content, { returnFocus: cfg.returnFocus }) : null;
+
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (cfg.onArrowLeft && event.key === 'ArrowLeft') {
+      event.preventDefault();
+      event.stopPropagation();
+      cfg.onArrowLeft();
+      return;
+    }
+    if (roving.onKeydown(event)) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      (document.activeElement as HTMLElement | null)?.click();
+      return;
+    }
+    const items = allItems();
+    const current = items.indexOf(document.activeElement as HTMLElement);
+    const match = search.onKey(
+      event.key,
+      items.map((el) => el.textContent?.trim() ?? ''),
+      current,
+    );
+    if (match >= 0) {
+      event.preventDefault();
+      focusItem(items[match]);
+    }
+  };
+
+  const onPointerOver = (event: PointerEvent): void => {
+    const item = (event.target as HTMLElement)?.closest<HTMLElement>(ITEM_SELECTOR);
+    if (item && item.closest('[role="menu"]') === content.current && !isDisabled(item)) {
+      focusItem(item);
+    }
+  };
+
+  let disposePosition: (() => void) | null = null;
+  const stopPositioning = (): void => {
+    disposePosition?.();
+    disposePosition = null;
+  };
+
+  effect(() => {
+    if (cfg.open.value) {
+      layer.activate();
+      const intent = cfg.focusIntent();
+      queueMicrotask(() => {
+        if (!cfg.open.value) return;
+        const anchor = cfg.anchor();
+        if (anchor && content.current) {
+          stopPositioning();
+          disposePosition = positionFloating(anchor, content.current, cfg.placement());
+        }
+        trap?.activate();
+        const items = enabledItems();
+        focusItem(intent === 'last' ? items[items.length - 1] : items[0]);
+        cfg.afterOpen?.();
+      });
+    } else {
+      trap?.deactivate();
+      layer.deactivate();
+      stopPositioning();
+      search.reset();
+    }
+  });
+  onCleanup(stopPositioning);
+
+  return { onKeyDown, onPointerOver };
+}
+
 export const DropdownMenuContent = component<DropdownMenuContentProps>(
   'ui-dropdown-menu-content',
   (props, host) => {
@@ -226,110 +366,24 @@ export const DropdownMenuContent = component<DropdownMenuContentProps>(
     const contentId = `${state.baseId}-content`;
 
     const content = ref<HTMLElement>();
-
-    const allItems = (): HTMLElement[] =>
-      content.current
-        ? Array.from(content.current.querySelectorAll<HTMLElement>(ITEM_SELECTOR))
-        : [];
-    const isDisabled = (el: HTMLElement) => el.getAttribute('aria-disabled') === 'true';
-    const enabledItems = (): HTMLElement[] => allItems().filter((el) => !isDisabled(el));
-
-    const applyHighlight = (activeEl: HTMLElement | null): void => {
-      for (const el of allItems()) {
-        const on = el === activeEl;
-        el.setAttribute('tabindex', on ? '0' : '-1');
-        if (on) el.setAttribute('data-highlighted', '');
-        else el.removeAttribute('data-highlighted');
-      }
-    };
-
-    const roving = rovingFocus(allItems, {
-      orientation: 'vertical',
-      loop: false,
-      onActiveChange: (_index, el) => applyHighlight(el),
-    });
-    const search = typeahead();
-
-    const focusItem = (el: HTMLElement | undefined): void => {
-      if (!el) return;
-      const idx = allItems().indexOf(el);
-      if (idx >= 0) roving.setActiveIndex(idx);
-      el.focus();
-      applyHighlight(el);
-    };
-
-    const layer = dismissableLayer(content, {
-      onDismiss: () => state.setOpen(false),
-      onPointerDownOutside: (event) => {
-        const t = state.trigger.current;
-        if (t && t.contains(event.target as Node)) event.preventDefault();
+    const { onKeyDown, onPointerOver } = wireMenuSurface({
+      content,
+      open: state.open,
+      close: () => state.setOpen(false),
+      anchor: () => state.trigger.current,
+      placement: () => ({ side: side.value, align: align.value, sideOffset: sideOffset.value }),
+      focusIntent: () => state.focusIntent,
+      afterOpen: () => {
+        state.focusIntent = 'first';
       },
-    });
-    const trap = focusTrap(content, { returnFocus: state.trigger });
-
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (roving.onKeydown(event)) return;
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        (document.activeElement as HTMLElement | null)?.click();
-        return;
-      }
-      const items = allItems();
-      const current = items.indexOf(document.activeElement as HTMLElement);
-      const match = search.onKey(
-        event.key,
-        items.map((el) => el.textContent?.trim() ?? ''),
-        current,
-      );
-      if (match >= 0) {
-        event.preventDefault();
-        focusItem(items[match]);
-      }
-    };
-
-    const onPointerOver = (event: PointerEvent): void => {
-      const item = (event.target as HTMLElement)?.closest<HTMLElement>(ITEM_SELECTOR);
-      if (item && content.current?.contains(item) && !isDisabled(item)) focusItem(item);
-    };
-
-    let disposePosition: (() => void) | null = null;
-    const stopPositioning = (): void => {
-      disposePosition?.();
-      disposePosition = null;
-    };
-
-    effect(() => {
-      if (state.open.value) {
-        layer.activate();
-        const intent = state.focusIntent;
-        queueMicrotask(() => {
-          if (!state.open.value) return;
-          const anchor = state.trigger.current;
-          if (anchor && content.current) {
-            stopPositioning();
-            disposePosition = positionFloating(anchor, content.current, {
-              side: side.value,
-              align: align.value,
-              sideOffset: sideOffset.value,
-            });
-          }
-          trap.activate();
-          const items = enabledItems();
-          focusItem(intent === 'last' ? items[items.length - 1] : items[0]);
-          state.focusIntent = 'first';
-        });
-      } else {
-        trap.deactivate();
-        layer.deactivate();
-        stopPositioning();
-        search.reset();
-      }
+      useTrap: true,
+      returnFocus: state.trigger,
+      triggerExclude: () => state.trigger.current,
     });
 
     onMount(() => {
       if (content.current) projectChildren(host, content.current, projected);
     });
-    onCleanup(stopPositioning);
 
     return html`<div
       ref="${content}"
@@ -647,5 +701,231 @@ export const DropdownMenuGroup = component<DropdownMenuGroupProps>(
       if (root.current) projectChildren(host, root.current, projected);
     });
     return html`<div ref="${root}" role="group" data-slot="dropdown-menu-group" style="display:contents" class="${classes}">${props.children}</div>`;
+  },
+);
+
+// ── Submenu: ui-dropdown-menu-sub / -sub-trigger / -sub-content ──────
+
+const chevronRightIcon = html`<svg class="ml-auto size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>`;
+
+const HOVER_DELAY = 100;
+let subUid = 0;
+
+export interface DropdownMenuSubState {
+  open: ReadonlySignal<boolean>;
+  setOpen(open: boolean): void;
+  baseId: string;
+  trigger: Ref<HTMLElement>;
+  hoverOpen(): void;
+  hoverClose(): void;
+  hoverCancel(): void;
+}
+type SubHost = HTMLElement & { __uiDropdownMenuSub?: DropdownMenuSubState };
+
+function useSubState(host: HTMLElement, tag: string): DropdownMenuSubState {
+  const sub = (host.closest('ui-dropdown-menu-sub') as SubHost | null)?.__uiDropdownMenuSub;
+  if (!sub) throw new Error(`<${tag}> must be used inside <ui-dropdown-menu-sub>.`);
+  return sub;
+}
+
+/** Nearest ancestor scope open signal (enclosing submenu, else the root menu). */
+function resolveParentOpen(host: HTMLElement): ReadonlySignal<boolean> {
+  let el: HTMLElement | null = host.parentElement;
+  while (el) {
+    const sub = (el as SubHost).__uiDropdownMenuSub;
+    if (sub) return sub.open;
+    const root = (el as DropdownMenuHost).__uiDropdownMenu;
+    if (root) return root.open;
+    el = el.parentElement;
+  }
+  return computed(() => false);
+}
+
+export type DropdownMenuSubProps = {
+  open?: boolean;
+  defaultOpen?: boolean;
+  className?: string;
+  children?: string | TemplateResult;
+};
+
+export const DropdownMenuSub = component<DropdownMenuSubProps>(
+  'ui-dropdown-menu-sub',
+  (props, host) => {
+    useMenuState(host, 'ui-dropdown-menu-sub');
+    transparentHost(host);
+    const projected = captureChildren(host);
+
+    const parentOpen = resolveParentOpen(host);
+    const internal = signal<boolean>(
+      Boolean(props.defaultOpen.value ?? host.hasAttribute('default-open')),
+    );
+    const desired = computed<boolean>(() => props.open.value ?? internal.value);
+    // A submenu is open only while its parent scope is — closing the root
+    // collapses every nested submenu.
+    const open = computed<boolean>(() => desired.value && parentOpen.value);
+    const setOpen = (next: boolean): void => {
+      if (next === desired.value) return;
+      internal.value = next;
+    };
+
+    let openTimer: ReturnType<typeof setTimeout> | undefined;
+    let closeTimer: ReturnType<typeof setTimeout> | undefined;
+    const clearTimers = (): void => {
+      clearTimeout(openTimer);
+      clearTimeout(closeTimer);
+    };
+
+    const state: DropdownMenuSubState = {
+      open,
+      setOpen,
+      baseId: `ui-dropdown-menu-sub-${++subUid}`,
+      trigger: ref<HTMLElement>(),
+      hoverOpen: () => {
+        clearTimeout(closeTimer);
+        openTimer = setTimeout(() => setOpen(true), HOVER_DELAY);
+      },
+      hoverClose: () => {
+        clearTimeout(openTimer);
+        closeTimer = setTimeout(() => setOpen(false), HOVER_DELAY);
+      },
+      hoverCancel: clearTimers,
+    };
+    (host as SubHost).__uiDropdownMenuSub = state;
+    onCleanup(clearTimers);
+
+    const className = attr(props.className, host, 'class-name');
+    const classes = computed(() => cn(className.value));
+    const root = ref<HTMLDivElement>();
+    onMount(() => {
+      if (root.current) projectChildren(host, root.current, projected);
+    });
+
+    return html`<div ref="${root}" data-slot="dropdown-menu-sub" style="display:contents" class="${classes}">${props.children}</div>`;
+  },
+);
+
+const subTriggerClasses =
+  "flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[inset]:pl-8 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground";
+
+export type DropdownMenuSubTriggerProps = {
+  inset?: boolean;
+  disabled?: boolean;
+  className?: string;
+  children?: string | TemplateResult;
+};
+
+export const DropdownMenuSubTrigger = component<DropdownMenuSubTriggerProps>(
+  'ui-dropdown-menu-sub-trigger',
+  (props, host) => {
+    const sub = useSubState(host, 'ui-dropdown-menu-sub-trigger');
+    transparentHost(host);
+    const projected = captureChildren(host);
+
+    const inset = boolAttr(props.inset, host, 'inset');
+    const disabled = boolAttr(props.disabled, host, 'disabled');
+    const className = attr(props.className, host, 'class-name');
+    const classes = computed(() => cn(subTriggerClasses, className.value));
+
+    const item = ref<HTMLDivElement>();
+    const label = ref<HTMLSpanElement>();
+    onMount(() => {
+      if (label.current) projectChildren(host, label.current, projected);
+      if (item.current) sub.trigger.current = item.current;
+    });
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (disabled.value) return;
+      if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        event.stopPropagation();
+        sub.hoverCancel();
+        sub.setOpen(true);
+      }
+    };
+
+    return html`<div
+      ref="${item}"
+      role="menuitem"
+      data-slot="dropdown-menu-sub-trigger"
+      aria-haspopup="menu"
+      aria-expanded="${computed(() => (sub.open.value ? 'true' : 'false'))}"
+      aria-controls="${`${sub.baseId}-content`}"
+      data-state="${computed(() => stateAttr(sub.open.value))}"
+      data-inset="${computed(() => (inset.value ? '' : undefined))}"
+      data-disabled="${computed(() => (disabled.value ? '' : undefined))}"
+      aria-disabled="${computed(() => (disabled.value ? 'true' : undefined))}"
+      tabindex="-1"
+      class="${classes}"
+      @click=${() => {
+        if (!disabled.value) sub.setOpen(true);
+      }}
+      @pointerenter=${() => {
+        if (!disabled.value) {
+          sub.hoverOpen();
+          item.current?.focus();
+        }
+      }}
+      @pointerleave=${() => sub.hoverClose()}
+      @keydown=${onKeyDown}
+    ><span ref="${label}" style="display:contents">${props.children}</span>${chevronRightIcon}</div>`;
+  },
+);
+
+const subContentClasses =
+  'z-50 min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95';
+
+export type DropdownMenuSubContentProps = {
+  sideOffset?: number;
+  className?: string;
+  children?: string | TemplateResult;
+};
+
+export const DropdownMenuSubContent = component<DropdownMenuSubContentProps>(
+  'ui-dropdown-menu-sub-content',
+  (props, host) => {
+    const sub = useSubState(host, 'ui-dropdown-menu-sub-content');
+    transparentHost(host);
+    const projected = captureChildren(host);
+
+    const sideOffset = computed<number>(() => props.sideOffset.value ?? 0);
+    const className = attr(props.className, host, 'class-name');
+    const classes = computed(() => cn(subContentClasses, className.value));
+    const contentId = `${sub.baseId}-content`;
+
+    const content = ref<HTMLElement>();
+    const closeAndFocusTrigger = (): void => {
+      sub.setOpen(false);
+      sub.trigger.current?.focus();
+    };
+    const { onKeyDown, onPointerOver } = wireMenuSurface({
+      content,
+      open: sub.open,
+      close: closeAndFocusTrigger,
+      anchor: () => sub.trigger.current,
+      placement: () => ({ side: 'right', align: 'start', sideOffset: sideOffset.value }),
+      focusIntent: () => 'first',
+      useTrap: false,
+      triggerExclude: () => sub.trigger.current,
+      onArrowLeft: closeAndFocusTrigger,
+    });
+
+    onMount(() => {
+      if (content.current) projectChildren(host, content.current, projected);
+    });
+
+    return html`<div
+      ref="${content}"
+      role="menu"
+      data-slot="dropdown-menu-sub-content"
+      id="${contentId}"
+      data-state="${computed(() => stateAttr(sub.open.value))}"
+      hidden="${computed(() => !sub.open.value)}"
+      tabindex="-1"
+      class="${classes}"
+      @keydown=${onKeyDown}
+      @pointerover=${onPointerOver}
+      @pointerenter=${() => sub.hoverCancel()}
+      @pointerleave=${() => sub.hoverClose()}
+    >${props.children}</div>`;
   },
 );
