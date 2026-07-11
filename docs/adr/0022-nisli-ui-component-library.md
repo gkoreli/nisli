@@ -305,6 +305,11 @@ packages/ui/
   practice (the registry supports per-item npm deps as the escape hatch).
 - No live attribute reactivity for plain-HTML consumers in v1; acceptable
   for parse-time attributes, revisit with `MutationObserver` if demanded.
+- DOM structural convenience APIs (`table.rows`, `table.tHead`, etc.) don't
+  traverse the `display: contents` hosts between structural elements;
+  `querySelector` and `data-slot` do, and CSS layout + the a11y tree collapse
+  the hosts, so semantics/styling are unaffected. Same class of trade-off as
+  `form.elements` working because native inputs are leaves.
 - The framework gains a second downstream consumer (after the blog), which
   will pressure-test `component()`/`template.ts` — expect upstream gap ADRs.
 - MIT attribution to shadcn/ui (and Radix, for ported behavior) is carried in

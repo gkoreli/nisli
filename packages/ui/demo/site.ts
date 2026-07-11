@@ -60,6 +60,7 @@ import {
   TableCell,
   TableCaption,
 } from './src/nisli-ui/ui/table.js';
+import { Avatar, AvatarImage, AvatarFallback } from './src/nisli-ui/ui/avatar.js';
 
 function section(title: string, body: TemplateResult): TemplateResult {
   return html`<section class="space-y-3">
@@ -245,6 +246,20 @@ export function renderKitchenSink(): TemplateResult {
           })}`,
         })}`,
       }),
+    )}
+
+    ${section(
+      'Avatar',
+      html`<div class="flex items-center gap-4">
+        ${Avatar({
+          children: html`${AvatarImage({ src: 'https://github.com/shadcn.png', alt: '@shadcn' })}
+          ${AvatarFallback({ children: 'CN' })}`,
+        })}
+        ${Avatar({
+          size: 'lg',
+          children: AvatarFallback({ children: 'AB' }),
+        })}
+      </div>`,
     )}
 
     ${section(

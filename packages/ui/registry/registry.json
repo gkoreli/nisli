@@ -258,6 +258,17 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "avatar",
+      "type": "ui",
+      "description": "An image element with a fallback for representing a user. Port of shadcn/ui avatar.",
+      "files": [
+        "ui/avatar.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }
