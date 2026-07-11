@@ -74,6 +74,13 @@
       "description": "A native form input with theme styling. Port of shadcn/ui input.",
       "files": ["ui/input.ts"],
       "registryDependencies": ["utils"]
+    },
+    {
+      "name": "textarea",
+      "type": "ui",
+      "description": "A native multi-line text input with theme styling. Port of shadcn/ui textarea.",
+      "files": ["ui/textarea.ts"],
+      "registryDependencies": ["utils"]
     }
   ]
 }
