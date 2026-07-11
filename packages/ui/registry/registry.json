@@ -519,6 +519,17 @@
         "roving-focus",
         "typeahead"
       ]
+    },
+    {
+      "name": "kbd",
+      "type": "ui",
+      "description": "Displays keyboard input or a group of keys. Port of shadcn/ui kbd.",
+      "files": [
+        "ui/kbd.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }
