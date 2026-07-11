@@ -50,6 +50,14 @@
       ]
     },
     {
+      "name": "typeahead",
+      "type": "lib",
+      "description": "Printable-key item search for menus and listboxes, with Radix cycle-on-repeat semantics.",
+      "files": [
+        "lib/typeahead.ts"
+      ]
+    },
+    {
       "name": "button",
       "type": "ui",
       "description": "Displays a button. Port of shadcn/ui button.",
