@@ -153,6 +153,12 @@ import { Avatar, AvatarImage, AvatarFallback } from './src/nisli-ui/ui/avatar.js
 import { Progress } from './src/nisli-ui/ui/progress.js';
 import { Slider } from './src/nisli-ui/ui/slider.js';
 import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+  InputOTPSeparator,
+} from './src/nisli-ui/ui/input-otp.js';
+import {
   Breadcrumb,
   BreadcrumbList,
   BreadcrumbItem,
@@ -720,6 +726,21 @@ export function renderKitchenSink(): TemplateResult {
     ${section('Progress', Progress({ value: 60, className: 'max-w-sm' }))}
 
     ${section('Slider', Slider({ defaultValue: 40, className: 'max-w-sm' }))}
+
+    ${section(
+      'Input OTP',
+      InputOTP({
+        maxLength: 6,
+        pattern: '[0-9]',
+        children: html`${InputOTPGroup({
+          children: html`${InputOTPSlot({ index: 0 })}${InputOTPSlot({ index: 1 })}${InputOTPSlot({ index: 2 })}`,
+        })}
+        ${InputOTPSeparator({})}
+        ${InputOTPGroup({
+          children: html`${InputOTPSlot({ index: 3 })}${InputOTPSlot({ index: 4 })}${InputOTPSlot({ index: 5 })}`,
+        })}`,
+      }),
+    )}
 
     ${section(
       'Avatar',

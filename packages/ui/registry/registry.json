@@ -591,6 +591,17 @@
         "utils",
         "separator"
       ]
+    },
+    {
+      "name": "input-otp",
+      "type": "ui",
+      "description": "A one-time-password input: a single native input overlaying slot cells. Port of shadcn/ui input-otp.",
+      "files": [
+        "ui/input-otp.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }

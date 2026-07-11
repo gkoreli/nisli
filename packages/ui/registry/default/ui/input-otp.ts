@@ -1,0 +1,297 @@
+/**
+ * ui/input-otp.ts — InputOTP.
+ *
+ * Cited source: new-york-v4/ui/input-otp.tsx (shadcn/ui, MIT — https://github.com/shadcn-ui/ui).
+ *
+ * DEVIATION (documented, ADR 0022 canonical-reference rule): upstream wraps
+ * the `input-otp` package (unvendorable). We keep its VISUALS verbatim (slot
+ * groups, border/rounding, active-slot ring, fake caret, minus separator) but
+ * write the behavior ourselves.
+ *
+ * ARCHITECTURE DECISION — a SINGLE native `<input>`, not N inputs. The real
+ * input holds the whole OTP string and is overlaid transparently across the
+ * slots; the slot `<div>`s are presentation, reading each character + the
+ * active/caret state from the shared context. This is the native-first choice
+ * (ADR 0022 §5): one real form field carries the value (so `form.elements`,
+ * `form.reset()`, and constraint validation just work), and paste-to-fill,
+ * backspace-navigates, and auto-advance all come FREE from native single-input
+ * behavior — plus `autocomplete="one-time-code"` gives browsers/OS the SMS-OTP
+ * autofill hook. N separate inputs would fragment form participation and need
+ * JS to split pastes; the single input reaches full parity, so we use it.
+ *
+ * `maxLength` sets the slot count; `pattern` (a RegExp source, e.g. `"[0-9]"`)
+ * filters accepted characters. `value` mirrors the native attribute/property
+ * split. Changes dispatch a bubbling `ui-value-change`; reaching `maxLength`
+ * dispatches `ui-complete` (`detail: { value }`), both from the root host.
+ *
+ * This file was copied into your project by `nisli-ui` — you own it.
+ */
+
+import {
+  component,
+  computed,
+  effect,
+  html,
+  onMount,
+  ref,
+  signal,
+  when,
+  type ReadonlySignal,
+  type TemplateResult,
+} from '@nisli/core';
+import {
+  attr,
+  boolAttr,
+  cn,
+  forwardedAttr,
+  transparentHost,
+} from '../lib/utils.js';
+
+// ── Shared state (published on the <ui-input-otp> host) ──────────────
+
+export interface InputOTPState {
+  maxLength: number;
+  charAt(index: number): string;
+  isActive(index: number): boolean;
+  hasFakeCaret(index: number): boolean;
+}
+
+type InputOTPHost = HTMLElement & { __uiInputOTP?: InputOTPState };
+
+function useInputOTPState(host: HTMLElement, tag: string): InputOTPState {
+  const parent = host.closest('ui-input-otp') as InputOTPHost | null;
+  const state = parent?.__uiInputOTP;
+  if (!state) {
+    throw new Error(`<${tag}> must be used inside <ui-input-otp>.`);
+  }
+  return state;
+}
+
+// ── ui-input-otp (root: single native input + shared slot state) ─────
+
+export type InputOTPProps = {
+  /** Number of slots. Required. */
+  maxLength?: number;
+  /** RegExp source filtering accepted characters (e.g. "[0-9]"). */
+  pattern?: string;
+  inputMode?: string;
+  value?: string;
+  defaultValue?: string;
+  id?: string;
+  name?: string;
+  disabled?: boolean;
+  className?: string;
+  containerClassName?: string;
+  /** The InputOTPGroup(s) of slots. */
+  children?: string | TemplateResult;
+};
+
+export const InputOTP = component<InputOTPProps>('ui-input-otp', (props, host) => {
+  transparentHost(host);
+
+  const maxLength = props.maxLength.value ?? (Number(host.getAttribute('max-length')) || 6);
+  const patternSrc = props.pattern.value ?? host.getAttribute('pattern') ?? undefined;
+  const regex = patternSrc ? new RegExp(patternSrc) : null;
+  const inputMode = attr(props.inputMode, host, 'input-mode');
+  const value = attr(props.value, host, 'value');
+  const defaultValue = attr(props.defaultValue, host, 'default-value');
+  const id = forwardedAttr(props.id, host, 'id');
+  const name = forwardedAttr(props.name, host, 'name');
+  const disabled = boolAttr(props.disabled, host, 'disabled');
+  const className = attr(props.className, host, 'class-name');
+  const containerClassName = attr(props.containerClassName, host, 'container-class-name');
+
+  const current = signal<string>('');
+  const caret = signal<number>(0);
+  const focused = signal<boolean>(false);
+
+  const sanitize = (raw: string): string => {
+    let out = regex ? Array.from(raw).filter((c) => regex.test(c)).join('') : raw;
+    if (out.length > maxLength) out = out.slice(0, maxLength);
+    return out;
+  };
+
+  const emit = (name_: string): void => {
+    host.dispatchEvent(
+      new CustomEvent(name_, { detail: { value: current.value }, bubbles: true }),
+    );
+  };
+
+  const state: InputOTPState = {
+    maxLength,
+    charAt: (i) => current.value[i] ?? '',
+    isActive: (i) => {
+      if (!focused.value) return false;
+      const active = Math.min(caret.value, maxLength - 1);
+      return i === active;
+    },
+    hasFakeCaret: (i) => state.isActive(i) && current.value[i] == null,
+  };
+  (host as InputOTPHost).__uiInputOTP = state;
+
+  const root = ref<HTMLInputElement>();
+
+  const syncCaret = (): void => {
+    const el = root.current;
+    if (el) caret.value = el.selectionStart ?? el.value.length;
+  };
+
+  const onInput = (): void => {
+    const el = root.current;
+    if (!el) return;
+    const clean = sanitize(el.value);
+    if (clean !== el.value) {
+      el.value = clean;
+      el.setSelectionRange?.(clean.length, clean.length);
+    }
+    current.value = clean;
+    syncCaret();
+    emit('ui-value-change');
+    if (clean.length === maxLength) emit('ui-complete');
+  };
+
+  // Controlled value updates → the property (leaves the reset target alone).
+  effect(() => {
+    const v = value.value;
+    const el = root.current;
+    if (el && v != null && el.value !== v) {
+      el.value = v;
+      current.value = v;
+    }
+  });
+
+  onMount(() => {
+    const el = root.current;
+    if (!el) return;
+    const initial = value.value ?? defaultValue.value;
+    if (initial != null) {
+      const clean = sanitize(initial);
+      el.setAttribute('value', clean); // native reset target
+      el.value = clean;
+      current.value = clean;
+    }
+  });
+
+  const inputClasses = computed(() =>
+    cn(
+      'absolute inset-0 z-10 h-full w-full cursor-text bg-transparent text-transparent caret-transparent opacity-0 outline-none disabled:cursor-not-allowed',
+      className.value,
+    ),
+  );
+  const containerClasses = computed(() =>
+    cn(
+      'relative flex items-center gap-2 has-[input:disabled]:opacity-50',
+      containerClassName.value,
+    ),
+  );
+
+  return html`<div data-slot="input-otp" class="${containerClasses}">
+    <input
+      ref="${root}"
+      data-slot="input-otp-input"
+      type="text"
+      inputmode="${computed(() => inputMode.value ?? (regex ? 'numeric' : 'text'))}"
+      autocomplete="one-time-code"
+      autocorrect="off"
+      spellcheck="false"
+      maxlength="${String(maxLength)}"
+      aria-label="One-time password"
+      id="${id}"
+      name="${name}"
+      disabled="${disabled}"
+      class="${inputClasses}"
+      @input=${onInput}
+      @focus=${() => {
+        focused.value = true;
+        syncCaret();
+      }}
+      @blur=${() => {
+        focused.value = false;
+      }}
+      @click=${syncCaret}
+      @keyup=${syncCaret}
+    />
+    ${props.children}
+  </div>`;
+});
+
+// ── ui-input-otp-group ───────────────────────────────────────────────
+
+export type InputOTPGroupProps = {
+  className?: string;
+  children?: string | TemplateResult;
+};
+
+export const InputOTPGroup = component<InputOTPGroupProps>(
+  'ui-input-otp-group',
+  (props, host) => {
+    transparentHost(host);
+    const className = attr(props.className, host, 'class-name');
+    const classes = computed(() => cn('flex items-center', className.value));
+    return html`<div data-slot="input-otp-group" class="${classes}">${props.children}</div>`;
+  },
+);
+
+// ── ui-input-otp-slot ────────────────────────────────────────────────
+
+export const inputOTPSlotClasses =
+  'relative flex h-9 w-9 items-center justify-center border-y border-r border-input text-sm shadow-xs transition-all outline-none first:rounded-l-md first:border-l last:rounded-r-md aria-invalid:border-destructive data-[active=true]:z-10 data-[active=true]:border-ring data-[active=true]:ring-[3px] data-[active=true]:ring-ring/50 dark:bg-input/30';
+
+export type InputOTPSlotProps = {
+  /** Slot position (0-based). Required. */
+  index?: number;
+  className?: string;
+};
+
+export const InputOTPSlot = component<InputOTPSlotProps>('ui-input-otp-slot', (props, host) => {
+  const state = useInputOTPState(host, 'ui-input-otp-slot');
+  transparentHost(host);
+
+  const indexAttr = host.getAttribute('index');
+  const index = computed<number>(
+    () => props.index.value ?? (indexAttr != null ? Number(indexAttr) : 0),
+  );
+  const char = computed(() => state.charAt(index.value));
+  const active = computed(() => state.isActive(index.value));
+  const fakeCaret = computed(() => state.hasFakeCaret(index.value));
+
+  const className = attr(props.className, host, 'class-name');
+  const classes = computed(() => cn(inputOTPSlotClasses, className.value));
+
+  return html`<div
+    data-slot="input-otp-slot"
+    data-active="${computed(() => (active.value ? 'true' : 'false'))}"
+    class="${classes}"
+  >${char}${when(
+    fakeCaret,
+    html`<div class="pointer-events-none absolute inset-0 flex items-center justify-center">
+      <div class="h-4 w-px animate-caret-blink bg-foreground duration-1000"></div>
+    </div>`,
+  )}</div>`;
+});
+
+// ── ui-input-otp-separator ───────────────────────────────────────────
+
+export type InputOTPSeparatorProps = {
+  className?: string;
+};
+
+export const InputOTPSeparator = component<InputOTPSeparatorProps>(
+  'ui-input-otp-separator',
+  (props, host) => {
+    transparentHost(host);
+    const className = attr(props.className, host, 'class-name');
+    const classes = computed(() => cn(className.value));
+    return html`<div data-slot="input-otp-separator" role="separator" class="${classes}"><svg
+        class="size-4"
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      ><path d="M5 12h14"></path></svg></div>`;
+  },
+);
