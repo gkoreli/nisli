@@ -42,6 +42,11 @@ import {
 } from './src/nisli-ui/ui/collapsible.js';
 import { Tooltip, TooltipTrigger, TooltipContent } from './src/nisli-ui/ui/tooltip.js';
 import {
+  HoverCard,
+  HoverCardTrigger,
+  HoverCardContent,
+} from './src/nisli-ui/ui/hover-card.js';
+import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -285,6 +290,19 @@ export function renderKitchenSink(): TemplateResult {
           children: 'Hover me',
         })}
         ${TooltipContent({ children: 'Rendered statically; opens on hover.' })}`,
+      }),
+    )}
+
+    ${section(
+      'Hover card',
+      HoverCard({
+        children: html`${HoverCardTrigger({
+          className: 'cursor-default font-medium underline underline-offset-4',
+          children: '@nisli',
+        })}
+        ${HoverCardContent({
+          children: 'A reactive web-component framework — signals, html templates, DI.',
+        })}`,
       }),
     )}
 

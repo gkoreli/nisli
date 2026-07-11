@@ -440,6 +440,18 @@
         "roving-focus",
         "typeahead"
       ]
+    },
+    {
+      "name": "hover-card",
+      "type": "ui",
+      "description": "A pointer-hover card that reveals a floating preview. Port of shadcn/ui hover-card.",
+      "files": [
+        "ui/hover-card.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "floating"
+      ]
     }
   ]
 }
