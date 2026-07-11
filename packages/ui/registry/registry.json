@@ -487,6 +487,22 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "context-menu",
+      "type": "ui",
+      "description": "A menu opened by right-clicking, positioned at the pointer. Port of shadcn/ui context-menu.",
+      "files": [
+        "ui/context-menu.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "floating",
+        "dismissable-layer",
+        "focus",
+        "roving-focus",
+        "typeahead"
+      ]
     }
   ]
 }
