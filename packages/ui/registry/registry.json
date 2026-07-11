@@ -389,6 +389,30 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "toggle",
+      "type": "ui",
+      "description": "A two-state button that can be on or off. Port of shadcn/ui toggle.",
+      "files": [
+        "ui/toggle.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
+    },
+    {
+      "name": "toggle-group",
+      "type": "ui",
+      "description": "A set of two-state buttons with single or multiple selection. Port of shadcn/ui toggle-group.",
+      "files": [
+        "ui/toggle-group.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "toggle",
+        "roving-focus"
+      ]
     }
   ]
 }
