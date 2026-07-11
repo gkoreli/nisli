@@ -49,6 +49,7 @@ import {
   HoverCardTrigger,
   HoverCardContent,
 } from './src/nisli-ui/ui/hover-card.js';
+import { Combobox, ComboboxItem } from './src/nisli-ui/ui/combobox.js';
 import {
   NavigationMenu,
   NavigationMenuList,
@@ -398,6 +399,19 @@ export function renderKitchenSink(): TemplateResult {
         ${HoverCardContent({
           children: 'A reactive web-component framework — signals, html templates, DI.',
         })}`,
+      }),
+    )}
+
+    ${section(
+      'Combobox',
+      Combobox({
+        placeholder: 'Select framework…',
+        searchPlaceholder: 'Search framework…',
+        emptyText: 'No framework found.',
+        children: html`${ComboboxItem({ value: 'next', children: 'Next.js' })}
+        ${ComboboxItem({ value: 'sveltekit', children: 'SvelteKit' })}
+        ${ComboboxItem({ value: 'astro', children: 'Astro' })}
+        ${ComboboxItem({ value: 'remix', children: 'Remix' })}`,
       }),
     )}
 

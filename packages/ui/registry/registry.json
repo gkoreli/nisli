@@ -554,6 +554,20 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "combobox",
+      "type": "ui",
+      "description": "An autocomplete select \u2014 a Popover + Command composition with single/multiple selection. Classic shadcn/ui combobox pattern.",
+      "files": [
+        "ui/combobox.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "button",
+        "popover",
+        "command"
+      ]
     }
   ]
 }
