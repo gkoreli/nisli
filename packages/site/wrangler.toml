@@ -1,0 +1,8 @@
+# Cloudflare Workers Static Assets deploy for the nisli showcase site.
+#   pnpm --filter @nisli/site build && npx wrangler deploy
+# dist/ is plain static files, so any static host (GitHub Pages, etc.) works too.
+name = "nisli-site"
+compatibility_date = "2026-07-01"
+
+[assets]
+directory = "./dist"

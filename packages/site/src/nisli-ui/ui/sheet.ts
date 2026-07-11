@@ -1,0 +1,382 @@
+/**
+ * ui/sheet.ts — Sheet.
+ *
+ * Ported from new-york-v4/ui/sheet.tsx (shadcn/ui, MIT — https://github.com/shadcn-ui/ui),
+ * which wraps the Radix Dialog behavior (MIT). A Sheet is a Dialog that slides
+ * in from a screen edge; this mirrors our `dialog.ts` machinery (shared
+ * `__uiSheet` state, the dismissable-layer + focus lib items, inline fixed
+ * overlay) and adds the `side` (top/right/bottom/left) panel variants.
+ *
+ * ```
+ * <ui-sheet>
+ *   <ui-sheet-trigger>Open</ui-sheet-trigger>
+ *   <ui-sheet-content side="right">
+ *     <ui-sheet-header>
+ *       <ui-sheet-title>Title</ui-sheet-title>
+ *       <ui-sheet-description>Description</ui-sheet-description>
+ *     </ui-sheet-header>
+ *     …
+ *     <ui-sheet-footer>…</ui-sheet-footer>
+ *   </ui-sheet-content>
+ * </ui-sheet>
+ * ```
+ *
+ * NO PORTAL in v1 (same as dialog): the overlay + content render inline with
+ * `position: fixed` and `z-50`. A transformed/filtered ancestor becomes the
+ * containing block for `position: fixed`, so keep sheets out of transformed
+ * subtrees until the portal-lite lib item lands.
+ *
+ * Open/close changes dispatch a bubbling `ui-open-change` CustomEvent
+ * (`detail: { open }`) from the `<ui-sheet>` host.
+ *
+ * This file was copied into your project by `nisli-ui` — you own it.
+ */
+
+import {
+  component,
+  computed,
+  effect,
+  html,
+  onMount,
+  ref,
+  signal,
+  type ReadonlySignal,
+  type TemplateResult,
+} from '@nisli/core';
+import {
+  attr,
+  captureChildren,
+  cn,
+  cv,
+  projectChildren,
+  transparentHost,
+} from '../lib/utils.js';
+import { dismissableLayer } from '../lib/dismissable-layer.js';
+import { focusTrap } from '../lib/focus.js';
+
+// ── Shared state (published on the <ui-sheet> host) ──────────────────
+
+export interface SheetState {
+  open: ReadonlySignal<boolean>;
+  setOpen(open: boolean): void;
+  baseId: string;
+}
+
+type SheetHost = HTMLElement & { __uiSheet?: SheetState };
+
+let uid = 0;
+
+function useSheetState(host: HTMLElement, tag: string): SheetState {
+  const parent = host.closest('ui-sheet') as SheetHost | null;
+  const state = parent?.__uiSheet;
+  if (!state) {
+    throw new Error(`<${tag}> must be used inside <ui-sheet>.`);
+  }
+  return state;
+}
+
+// ── ui-sheet (root, owns state) ──────────────────────────────────────
+
+export type SheetProps = {
+  open?: boolean;
+  defaultOpen?: boolean;
+  className?: string;
+  children?: string | TemplateResult;
+};
+
+export const Sheet = component<SheetProps>('ui-sheet', (props, host) => {
+  transparentHost(host);
+  const projected = captureChildren(host);
+
+  const initialOpen =
+    props.defaultOpen.value ??
+    props.open.value ??
+    (host.hasAttribute('open') || host.hasAttribute('default-open'));
+  const internal = signal<boolean>(Boolean(initialOpen));
+  const open = computed<boolean>(() => props.open.value ?? internal.value);
+
+  const setOpen = (next: boolean): void => {
+    if (next === open.value) return;
+    internal.value = next;
+    host.dispatchEvent(
+      new CustomEvent('ui-open-change', { detail: { open: next }, bubbles: true }),
+    );
+  };
+
+  const state: SheetState = { open, setOpen, baseId: `ui-sheet-${++uid}` };
+  (host as SheetHost).__uiSheet = state;
+
+  const className = attr(props.className, host, 'class-name');
+  const classes = computed(() => cn(className.value));
+
+  const root = ref<HTMLDivElement>();
+  onMount(() => {
+    if (root.current) projectChildren(host, root.current, projected);
+  });
+
+  return html`<div ref="${root}" data-slot="sheet" style="display:contents" class="${classes}">${props.children}</div>`;
+});
+
+// ── ui-sheet-trigger ─────────────────────────────────────────────────
+
+export type SheetTriggerProps = {
+  className?: string;
+  children?: string | TemplateResult;
+};
+
+export const SheetTrigger = component<SheetTriggerProps>('ui-sheet-trigger', (props, host) => {
+  const state = useSheetState(host, 'ui-sheet-trigger');
+  transparentHost(host);
+  const projected = captureChildren(host);
+
+  const className = attr(props.className, host, 'class-name');
+  const classes = computed(() => cn(className.value));
+
+  const root = ref<HTMLButtonElement>();
+  onMount(() => {
+    if (root.current) projectChildren(host, root.current, projected);
+  });
+
+  return html`<button
+    ref="${root}"
+    type="button"
+    data-slot="sheet-trigger"
+    aria-haspopup="dialog"
+    aria-controls="${`${state.baseId}-content`}"
+    aria-expanded="${computed(() => (state.open.value ? 'true' : 'false'))}"
+    data-state="${computed(() => (state.open.value ? 'open' : 'closed'))}"
+    class="${classes}"
+    @click=${() => state.setOpen(true)}
+  >${props.children}</button>`;
+});
+
+// ── ui-sheet-close (standalone) ──────────────────────────────────────
+
+export type SheetCloseProps = {
+  className?: string;
+  children?: string | TemplateResult;
+};
+
+export const SheetClose = component<SheetCloseProps>('ui-sheet-close', (props, host) => {
+  const state = useSheetState(host, 'ui-sheet-close');
+  transparentHost(host);
+  const projected = captureChildren(host);
+
+  const className = attr(props.className, host, 'class-name');
+  const classes = computed(() => cn(className.value));
+
+  const root = ref<HTMLButtonElement>();
+  onMount(() => {
+    if (root.current) projectChildren(host, root.current, projected);
+  });
+
+  return html`<button
+    ref="${root}"
+    type="button"
+    data-slot="sheet-close"
+    class="${classes}"
+    @click=${() => state.setOpen(false)}
+  >${props.children}</button>`;
+});
+
+// ── ui-sheet-content (overlay + side panel + close) ──────────────────
+
+const overlayClasses =
+  'fixed inset-0 z-50 bg-black/50 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0';
+
+export const sheetContentVariants = cv(
+  'fixed z-50 flex flex-col gap-4 bg-background shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:animate-in data-[state=open]:duration-500',
+  {
+    variants: {
+      side: {
+        right:
+          'inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm',
+        left: 'inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm',
+        top: 'inset-x-0 top-0 h-auto border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top',
+        bottom:
+          'inset-x-0 bottom-0 h-auto border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',
+      },
+    },
+    defaultVariants: {
+      side: 'right',
+    },
+  },
+);
+
+const closeClasses =
+  'absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary';
+
+export type SheetSide = 'top' | 'right' | 'bottom' | 'left';
+
+export type SheetContentProps = {
+  side?: SheetSide;
+  showCloseButton?: boolean;
+  className?: string;
+  children?: string | TemplateResult;
+};
+
+export const SheetContent = component<SheetContentProps>('ui-sheet-content', (props, host) => {
+  const state = useSheetState(host, 'ui-sheet-content');
+  transparentHost(host);
+  const projected = captureChildren(host);
+
+  const withClose = props.showCloseButton.value ?? true;
+  const side = attr(props.side, host, 'side');
+  const dataState = computed(() => (state.open.value ? 'open' : 'closed'));
+  const hidden = computed(() => !state.open.value);
+  const contentId = `${state.baseId}-content`;
+
+  const className = attr(props.className, host, 'class-name');
+  const classes = computed(() =>
+    cn(sheetContentVariants({ side: side.value ?? 'right' }), className.value),
+  );
+
+  const overlayRef = ref<HTMLDivElement>();
+  const contentRef = ref<HTMLElement>();
+
+  const layer = dismissableLayer(contentRef, {
+    onDismiss: () => state.setOpen(false),
+  });
+  const trap = focusTrap(contentRef);
+
+  effect(() => {
+    if (state.open.value) {
+      layer.activate();
+      queueMicrotask(() => {
+        if (state.open.value) trap.activate();
+      });
+    } else {
+      trap.deactivate();
+      layer.deactivate();
+    }
+  });
+
+  onMount(() => {
+    if (contentRef.current) projectChildren(host, contentRef.current, projected);
+  });
+
+  const closeButton = html`<button
+    type="button"
+    data-slot="sheet-close"
+    aria-label="Close"
+    class="${closeClasses}"
+    @click=${() => state.setOpen(false)}
+  ><svg
+      class="size-4"
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    ><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg><span class="sr-only">Close</span></button>`;
+
+  return html`<div data-slot="sheet-portal" style="display:contents">
+    <div
+      ref="${overlayRef}"
+      data-slot="sheet-overlay"
+      data-state="${dataState}"
+      hidden="${hidden}"
+      class="${overlayClasses}"
+    ></div>
+    <div
+      ref="${contentRef}"
+      role="dialog"
+      aria-modal="true"
+      data-slot="sheet-content"
+      id="${contentId}"
+      aria-labelledby="${`${state.baseId}-title`}"
+      aria-describedby="${`${state.baseId}-description`}"
+      data-state="${dataState}"
+      hidden="${hidden}"
+      tabindex="-1"
+      class="${classes}"
+    >${props.children}${withClose ? closeButton : ''}</div>
+  </div>`;
+});
+
+// ── ui-sheet-header / -footer ────────────────────────────────────────
+
+export type SheetSectionProps = {
+  className?: string;
+  children?: string | TemplateResult;
+};
+
+function sheetSection(tag: string, slot: string, base: string) {
+  return component<SheetSectionProps>(tag, (props, host) => {
+    transparentHost(host);
+    const projected = captureChildren(host);
+    const className = attr(props.className, host, 'class-name');
+    const classes = computed(() => cn(base, className.value));
+    const root = ref<HTMLDivElement>();
+    onMount(() => {
+      if (root.current) projectChildren(host, root.current, projected);
+    });
+    return html`<div ref="${root}" data-slot="${slot}" class="${classes}">${props.children}</div>`;
+  });
+}
+
+export const SheetHeader = sheetSection(
+  'ui-sheet-header',
+  'sheet-header',
+  'flex flex-col gap-1.5 p-4',
+);
+
+export const SheetFooter = sheetSection(
+  'ui-sheet-footer',
+  'sheet-footer',
+  'mt-auto flex flex-col gap-2 p-4',
+);
+
+// ── ui-sheet-title / -description ────────────────────────────────────
+
+export type SheetTitleProps = {
+  className?: string;
+  children?: string | TemplateResult;
+};
+
+export const SheetTitle = component<SheetTitleProps>('ui-sheet-title', (props, host) => {
+  const state = useSheetState(host, 'ui-sheet-title');
+  transparentHost(host);
+  const projected = captureChildren(host);
+  const className = attr(props.className, host, 'class-name');
+  const classes = computed(() => cn('font-semibold text-foreground', className.value));
+  const root = ref<HTMLHeadingElement>();
+  onMount(() => {
+    if (root.current) projectChildren(host, root.current, projected);
+  });
+  return html`<h2
+    ref="${root}"
+    data-slot="sheet-title"
+    id="${`${state.baseId}-title`}"
+    class="${classes}"
+  >${props.children}</h2>`;
+});
+
+export type SheetDescriptionProps = {
+  className?: string;
+  children?: string | TemplateResult;
+};
+
+export const SheetDescription = component<SheetDescriptionProps>(
+  'ui-sheet-description',
+  (props, host) => {
+    const state = useSheetState(host, 'ui-sheet-description');
+    transparentHost(host);
+    const projected = captureChildren(host);
+    const className = attr(props.className, host, 'class-name');
+    const classes = computed(() => cn('text-sm text-muted-foreground', className.value));
+    const root = ref<HTMLParagraphElement>();
+    onMount(() => {
+      if (root.current) projectChildren(host, root.current, projected);
+    });
+    return html`<p
+      ref="${root}"
+      data-slot="sheet-description"
+      id="${`${state.baseId}-description`}"
+      class="${classes}"
+    >${props.children}</p>`;
+  },
+);

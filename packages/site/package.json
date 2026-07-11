@@ -1,0 +1,21 @@
+{
+  "name": "@nisli/site",
+  "version": "0.0.0",
+  "private": true,
+  "description": "nisli + @nisli/ui showcase site — nisli-authored pages rendered static by @nisli/ssg.",
+  "type": "module",
+  "scripts": {
+    "sync": "pnpm --filter @nisli/ui build && node scripts/sync.mjs",
+    "render": "vitest run src/render.test.ts",
+    "build": "pnpm render && tailwindcss -i src/styles/input.css -o dist/assets/site.css --minify",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@nisli/core": "workspace:*",
+    "@nisli/ssg": "workspace:*",
+    "@nisli/ui": "workspace:*",
+    "@tailwindcss/cli": "^4.0.0"
+  }
+}
