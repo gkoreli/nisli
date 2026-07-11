@@ -49,6 +49,17 @@ import {
   PopoverTitle,
   PopoverDescription,
 } from './src/nisli-ui/ui/popover.js';
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from './src/nisli-ui/ui/alert-dialog.js';
 import { RadioGroup, RadioGroupItem } from './src/nisli-ui/ui/radio-group.js';
 import { Select } from './src/nisli-ui/ui/select.js';
 import {
@@ -262,6 +273,28 @@ export function renderKitchenSink(): TemplateResult {
           children: html`${PopoverHeader({
             children: html`${PopoverTitle({ children: 'Dimensions' })}
             ${PopoverDescription({ children: 'Set the dimensions for the layer.' })}`,
+          })}`,
+        })}`,
+      }),
+    )}
+
+    ${section(
+      'Alert dialog',
+      AlertDialog({
+        children: html`${AlertDialogTrigger({
+          className: buttonVariants({ variant: 'destructive' }),
+          children: 'Delete account',
+        })}
+        ${AlertDialogContent({
+          children: html`${AlertDialogHeader({
+            children: html`${AlertDialogTitle({ children: 'Are you absolutely sure?' })}
+            ${AlertDialogDescription({
+              children: 'This permanently deletes your account and cannot be undone.',
+            })}`,
+          })}
+          ${AlertDialogFooter({
+            children: html`${AlertDialogCancel({ children: 'Cancel' })}
+            ${AlertDialogAction({ variant: 'destructive', children: 'Delete' })}`,
           })}`,
         })}`,
       }),

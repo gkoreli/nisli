@@ -351,6 +351,20 @@
         "dismissable-layer",
         "focus"
       ]
+    },
+    {
+      "name": "alert-dialog",
+      "type": "ui",
+      "description": "A modal dialog that interrupts the user with an important choice. Port of shadcn/ui alert-dialog.",
+      "files": [
+        "ui/alert-dialog.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "button",
+        "dismissable-layer",
+        "focus"
+      ]
     }
   ]
 }
