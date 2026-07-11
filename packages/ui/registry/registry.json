@@ -19,6 +19,13 @@
       "description": "Displays a button. Port of shadcn/ui button.",
       "files": ["ui/button.ts"],
       "registryDependencies": ["utils"]
+    },
+    {
+      "name": "badge",
+      "type": "ui",
+      "description": "Displays a badge or a component that looks like a badge. Port of shadcn/ui badge.",
+      "files": ["ui/badge.ts"],
+      "registryDependencies": ["utils"]
     }
   ]
 }
