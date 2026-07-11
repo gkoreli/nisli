@@ -14,6 +14,12 @@
       "files": ["styles/theme.css"]
     },
     {
+      "name": "roving-focus",
+      "type": "lib",
+      "description": "Roving-tabindex keyboard navigation (arrow keys, Home/End, wrap) for composite widgets like tabs.",
+      "files": ["lib/roving-focus.ts"]
+    },
+    {
       "name": "button",
       "type": "ui",
       "description": "Displays a button. Port of shadcn/ui button.",
