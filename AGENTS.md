@@ -2,7 +2,7 @@
 
 ## Shape
 
-- This repo publishes `@nisli/core` from `packages/core` and `@nisli/ssg` from `packages/ssg`.
+- This repo publishes `@nisli/core` from `packages/core`, `@nisli/ssg` from `packages/ssg`, and `@nisli/ui` from `packages/ui`.
 - Root `package.json` is private and only delegates workspace scripts.
 - npm package README is `packages/core/README.md`.
 - Root `README.md` should carry the same user-facing framework information for GitHub.
@@ -30,6 +30,7 @@
 - Published exports point at built files via `publishConfig`.
 - Keep `@nisli/core` focused on component authoring and the browser runtime.
 - Keep static rendering and SSG build tooling in `@nisli/ssg`.
+- Keep the component registry and `nisli-ui` CLI in `@nisli/ui` (`packages/ui`); components ship as copyable source under `registry/`, only the CLI is compiled to `dist` (ADR 0022, `packages/ui/NORTH-STAR.md`).
 
 ## Publishing Invariants
 
@@ -43,6 +44,7 @@
   - `https://github.com/gkoreli/nisli.git`
   - directory `packages/core` for `@nisli/core`
   - directory `packages/ssg` for `@nisli/ssg`
+  - directory `packages/ui` for `@nisli/ui`
 
 ## Publishing Failure Pattern
 

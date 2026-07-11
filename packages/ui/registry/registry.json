@@ -1,0 +1,24 @@
+{
+  "style": "default",
+  "items": [
+    {
+      "name": "utils",
+      "type": "lib",
+      "description": "cn()/cv() class utilities and custom-element interop helpers.",
+      "files": ["lib/utils.ts"]
+    },
+    {
+      "name": "theme",
+      "type": "style",
+      "description": "shadcn-compatible CSS variable tokens (light + dark) for Tailwind v4.",
+      "files": ["styles/theme.css"]
+    },
+    {
+      "name": "button",
+      "type": "ui",
+      "description": "Displays a button. Port of shadcn/ui button.",
+      "files": ["ui/button.ts"],
+      "registryDependencies": ["utils"]
+    }
+  ]
+}

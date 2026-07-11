@@ -26,3 +26,4 @@ They moved with the framework when `@nisli/core` became a standalone package.
 - [0020.1. Static Site Generation Build Toolkit](./0020.1-static-publication-components-and-attributes.md) - Proposed - 2026-04-19
 - [0020.2. SSG Blog Adoption And Publication Primitives](./0020.2-ssg-blog-adoption-and-publication-primitives.md) - Proposed - 2026-04-19
 - [0021. Dev-Only HMR — esbuild Plugin with Component Re-Mount](./0021-dev-hmr-esbuild-plugin.md) - Proposed - 2026-06-18
+- [0022. Nisli UI Component Library — `@nisli/ui`, Source Copy-In Distribution](./0022-nisli-ui-component-library.md) - Accepted - 2026-07-11

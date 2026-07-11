@@ -1,0 +1,111 @@
+/**
+ * cli.test.ts — init/add round-trip against the real registry, into a temp dir.
+ */
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { init } from './init.js';
+import { addItems } from './add.js';
+import { loadRegistry, registryDir, resolveItems } from './registry.js';
+
+let cwd: string;
+
+beforeEach(() => {
+  cwd = mkdtempSync(join(tmpdir(), 'nisli-ui-test-'));
+});
+
+afterEach(() => {
+  rmSync(cwd, { recursive: true, force: true });
+});
+
+describe('init()', () => {
+  it('writes nisli-ui.json and copies base files', () => {
+    const result = init(cwd);
+
+    expect(result.created).toBe(true);
+    expect(result.config.dir).toBe('src/nisli-ui');
+    expect(existsSync(join(cwd, 'nisli-ui.json'))).toBe(true);
+    expect(existsSync(join(cwd, 'src/nisli-ui/lib/utils.ts'))).toBe(true);
+    expect(existsSync(join(cwd, 'src/nisli-ui/styles/theme.css'))).toBe(true);
+  });
+
+  it('respects a custom dir', () => {
+    const result = init(cwd, { dir: 'app/ui' });
+
+    expect(result.config.dir).toBe('app/ui');
+    expect(existsSync(join(cwd, 'app/ui/lib/utils.ts'))).toBe(true);
+  });
+
+  it('reuses an existing config on re-run', () => {
+    init(cwd, { dir: 'app/ui' });
+    const second = init(cwd, { dir: 'ignored' });
+
+    expect(second.created).toBe(false);
+    expect(second.config.dir).toBe('app/ui');
+    expect(second.add.copied).toHaveLength(0);
+    expect(second.add.skipped.length).toBeGreaterThan(0);
+  });
+});
+
+describe('addItems()', () => {
+  it('throws without a config', () => {
+    expect(() => addItems(cwd, ['button'])).toThrow(/nisli-ui init/);
+  });
+
+  it('copies a component and its registry dependencies verbatim', () => {
+    init(cwd);
+    const result = addItems(cwd, ['button']);
+
+    const target = join(cwd, 'src/nisli-ui/ui/button.ts');
+    expect(result.copied).toContain(join('src/nisli-ui', 'ui/button.ts'));
+    expect(existsSync(target)).toBe(true);
+
+    // utils was already copied by init — skipped, not overwritten.
+    expect(result.skipped).toContain(join('src/nisli-ui', 'lib/utils.ts'));
+
+    // Verbatim copy: byte-identical to the registry source.
+    const source = readFileSync(join(registryDir(), 'default/ui/button.ts'), 'utf8');
+    expect(readFileSync(target, 'utf8')).toBe(source);
+
+    // Fixed layout keeps the relative import valid.
+    expect(source).toContain("from '../lib/utils.js'");
+    expect(existsSync(join(cwd, 'src/nisli-ui/lib/utils.ts'))).toBe(true);
+  });
+
+  it('skips existing files unless overwrite is set', () => {
+    init(cwd);
+    addItems(cwd, ['button']);
+
+    const again = addItems(cwd, ['button']);
+    expect(again.copied).toHaveLength(0);
+
+    const forced = addItems(cwd, ['button'], { overwrite: true });
+    expect(forced.copied.length).toBeGreaterThan(0);
+  });
+
+  it('rejects unknown items with the available list', () => {
+    init(cwd);
+    expect(() => addItems(cwd, ['carousel'])).toThrow(/Unknown registry item "carousel"/);
+  });
+});
+
+describe('resolveItems()', () => {
+  it('orders dependencies before dependents and dedupes', () => {
+    const registry = loadRegistry();
+    const items = resolveItems(registry, ['button', 'utils']);
+
+    expect(items.map((i) => i.name)).toEqual(['utils', 'button']);
+  });
+
+  it('every registry item resolves and its files exist', () => {
+    const registry = loadRegistry();
+    for (const item of registry.items) {
+      for (const resolved of resolveItems(registry, [item.name])) {
+        for (const file of resolved.files) {
+          expect(existsSync(join(registryDir(), registry.style, file))).toBe(true);
+        }
+      }
+    }
+  });
+});
