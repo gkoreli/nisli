@@ -4,27 +4,33 @@ All notable changes to `@nisli/ui`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
-## 0.1.2 — Unreleased
+## 0.1.2 — 2026-07-11
 
 ### Added
 - **resizable** — panel groups with pointer + keyboard resizing, min-size
   clamping, nesting (react-resizable-panels visuals, original behavior).
-- **button-group** — grouped buttons with orientation and separator support.
-- Calibration-batch primitives: **aspect-ratio**, **kbd**, **spinner**.
-- **context-menu** and **menubar** — completing the menu family on the
-  shared six behavior primitives.
-- **combobox** — classic Popover + Command composition (upstream migrated to
-  @base-ui, unvendorable; deviation documented).
-- **drawer** — vaul-convention drag-to-dismiss on the dialog machinery.
+- **carousel** — transform-track slider with drag-settle and edge-aware nav
+  (embla visuals/conventions, original behavior).
+- **input-otp** — one-time-code input on a single native `<input>` (full
+  form participation, native paste/backspace, OS autofill) under verbatim
+  slot visuals.
+- **button-group** and **input-group** — grouped control containers with
+  upstream variant maps.
+- **empty** and **item** — content-layout primitives.
+- **use-mobile** (lib) — viewport signal helper backing responsive
+  components.
 
 ### Fixed
 - `spinner` now carries `data-slot` per the house styling-hook invariant.
+- theme.css gains the `caret-blink` keyframe (input-otp's caret).
 
 ## 0.1.1 — 2026-07-11
 
 ### Added
-- **drawer**, **spinner**, **combobox** (first release after 0.1.0; these
-  landed between the initial tarball and the bump).
+- **drawer** (vaul-convention drag-to-dismiss), **spinner**, **combobox**
+  (classic Popover + Command composition; upstream migrated to @base-ui,
+  unvendorable — deviation documented). These landed between the initial
+  tarball and the bump.
 
 ## 0.1.0 — 2026-07-11
 
@@ -47,7 +53,7 @@ Initial release: "shadcn for nisli".
   popover, hover-card, dropdown-menu (with submenus), table, avatar,
   progress, breadcrumb, pagination, slider, toggle, toggle-group,
   scroll-area, toast (sonner-conventions), command (cmdk-conventions),
-  navigation-menu, kbd, and more.
+  navigation-menu, context-menu, menubar, hover-card, aspect-ratio, kbd.
 - Every component works as a typed Nisli factory **and** as a plain custom
   element (light DOM, native form participation, real ARIA).
 
