@@ -233,6 +233,20 @@ import {
   CarouselPrevious,
   CarouselNext,
 } from './src/nisli-ui/ui/carousel.js';
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarTrigger,
+  SidebarHeader,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+} from './src/nisli-ui/ui/sidebar.js';
 
 function section(title: string, body: TemplateResult): TemplateResult {
   return html`<section class="space-y-3">
@@ -678,6 +692,48 @@ export function renderKitchenSink(): TemplateResult {
             })}`,
           })}
           ${CarouselPrevious({})}${CarouselNext({})}`,
+        })}
+      </div>`,
+    )}
+
+    ${section(
+      'Sidebar',
+      html`<div class="h-72 overflow-hidden rounded-lg border">
+        ${SidebarProvider({
+          children: html`<div class="flex h-full">
+            ${Sidebar({
+              collapsible: 'none',
+              className: 'w-56 border-r',
+              children: html`${SidebarHeader({
+                children: html`<div class="px-2 text-sm font-semibold">Acme Inc</div>`,
+              })}
+              ${SidebarContent({
+                children: SidebarGroup({
+                  children: html`${SidebarGroupLabel({ children: 'Platform' })}
+                  ${SidebarGroupContent({
+                    children: SidebarMenu({
+                      children: html`${SidebarMenuItem({
+                        children: SidebarMenuButton({ isActive: true, children: 'Dashboard' }),
+                      })}
+                      ${SidebarMenuItem({
+                        children: SidebarMenuButton({ children: 'Projects' }),
+                      })}
+                      ${SidebarMenuItem({
+                        children: SidebarMenuButton({ children: 'Settings' }),
+                      })}`,
+                    }),
+                  })}`,
+                }),
+              })}
+              ${SidebarFooter({
+                children: html`<div class="px-2 text-sm text-muted-foreground">shadcn</div>`,
+              })}`,
+            })}
+            <div class="flex flex-1 flex-col gap-2 p-4">
+              ${SidebarTrigger({})}
+              <p class="text-sm text-muted-foreground">Main content area.</p>
+            </div>
+          </div>`,
         })}
       </div>`,
     )}

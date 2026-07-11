@@ -658,6 +658,18 @@
         "input",
         "textarea"
       ]
+    },
+    {
+      "name": "sidebar",
+      "type": "ui",
+      "description": "A composable, collapsible sidebar with a provider, frame variants, and a full menu/group part family. Port of shadcn/ui sidebar.",
+      "files": [
+        "ui/sidebar.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "use-mobile"
+      ]
     }
   ]
 }
