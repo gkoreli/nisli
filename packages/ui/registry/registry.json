@@ -95,6 +95,13 @@
       "description": "A native toggle switch styled with pure CSS. Port of shadcn/ui switch.",
       "files": ["ui/switch.ts"],
       "registryDependencies": ["utils"]
+    },
+    {
+      "name": "tabs",
+      "type": "ui",
+      "description": "A set of layered sections of content, displayed one at a time. Port of shadcn/ui tabs.",
+      "files": ["ui/tabs.ts"],
+      "registryDependencies": ["utils", "roving-focus"]
     }
   ]
 }
