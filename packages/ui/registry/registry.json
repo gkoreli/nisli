@@ -644,6 +644,20 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "input-group",
+      "type": "ui",
+      "description": "Combines inputs, textareas, buttons, and addons into one control group. Port of shadcn/ui input-group.",
+      "files": [
+        "ui/input-group.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "button",
+        "input",
+        "textarea"
+      ]
     }
   ]
 }

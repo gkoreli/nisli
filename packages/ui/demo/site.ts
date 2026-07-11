@@ -19,6 +19,14 @@ import {
   ButtonGroupSeparator,
   ButtonGroupText,
 } from './src/nisli-ui/ui/button-group.js';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  InputGroupText,
+  InputGroupTextarea,
+} from './src/nisli-ui/ui/input-group.js';
 import { Badge } from './src/nisli-ui/ui/badge.js';
 import { Label } from './src/nisli-ui/ui/label.js';
 import { Separator } from './src/nisli-ui/ui/separator.js';
@@ -306,6 +314,27 @@ export function renderKitchenSink(): TemplateResult {
         ${ButtonGroupSeparator({})}
         ${Button({ variant: 'outline', children: 'Next' })}`,
       }),
+    )}
+
+    ${section(
+      'Input Group',
+      html`<div class="grid max-w-md gap-4">
+        ${InputGroup({
+          children: html`${InputGroupAddon({ children: 'https://' })}
+          ${InputGroupInput({ placeholder: 'example.com' })}
+          ${InputGroupAddon({
+            align: 'inline-end',
+            children: InputGroupButton({ children: 'Copy' }),
+          })}`,
+        })}
+        ${InputGroup({
+          children: html`${InputGroupTextarea({ placeholder: 'Write a message…' })}
+          ${InputGroupAddon({
+            align: 'block-end',
+            children: InputGroupText({ children: '0 / 280' }),
+          })}`,
+        })}
+      </div>`,
     )}
 
     ${section(
