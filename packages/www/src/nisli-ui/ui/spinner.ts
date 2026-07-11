@@ -50,6 +50,7 @@ export const Spinner = component<SpinnerProps>('ui-spinner', (props, host) => {
 
   return html`<svg
     ref="${root}"
+    data-slot="spinner"
     xmlns="http://www.w3.org/2000/svg"
     width="24"
     height="24"
