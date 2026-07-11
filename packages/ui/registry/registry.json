@@ -46,6 +46,13 @@
       "description": "Visually or semantically separates content. Port of shadcn/ui separator.",
       "files": ["ui/separator.ts"],
       "registryDependencies": ["utils"]
+    },
+    {
+      "name": "skeleton",
+      "type": "ui",
+      "description": "A placeholder to show while content is loading. Port of shadcn/ui skeleton.",
+      "files": ["ui/skeleton.ts"],
+      "registryDependencies": ["utils"]
     }
   ]
 }
