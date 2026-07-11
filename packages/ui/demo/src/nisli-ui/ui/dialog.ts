@@ -8,7 +8,7 @@
  * v4 source; the modal behavior (Escape/outside-click dismissal, focus trap +
  * restore) comes from the dismissable-layer and focus lib items.
  *
- * Seven elements compose a dialog:
+ * The elements composing a dialog:
  *   <ui-dialog>
  *     <ui-dialog-trigger>Open</ui-dialog-trigger>
  *     <ui-dialog-content>
@@ -155,6 +155,40 @@ export const DialogTrigger = component<DialogTriggerProps>(
     >${props.children}</button>`;
   },
 );
+
+// ── ui-dialog-close (standalone, for footer composition) ─────────────
+
+export type DialogCloseProps = {
+  className?: string;
+  children?: string | TemplateResult;
+};
+
+/**
+ * A button that closes the dialog, for use anywhere inside it (e.g. a footer
+ * "Cancel"). The content's built-in top-right close button is separate; this
+ * mirrors upstream's exported `DialogClose`.
+ */
+export const DialogClose = component<DialogCloseProps>('ui-dialog-close', (props, host) => {
+  const state = useDialogState(host, 'ui-dialog-close');
+  transparentHost(host);
+  const projected = captureChildren(host);
+
+  const className = attr(props.className, host, 'class-name');
+  const classes = computed(() => cn(className.value));
+
+  const root = ref<HTMLButtonElement>();
+  onMount(() => {
+    if (root.current) projectChildren(host, root.current, projected);
+  });
+
+  return html`<button
+    ref="${root}"
+    type="button"
+    data-slot="dialog-close"
+    class="${classes}"
+    @click=${() => state.setOpen(false)}
+  >${props.children}</button>`;
+});
 
 // ── ui-dialog-content (overlay + panel + close) ──────────────────────
 

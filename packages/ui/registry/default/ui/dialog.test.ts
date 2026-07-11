@@ -9,6 +9,7 @@ import {
   Dialog,
   DialogTrigger,
   DialogContent,
+  DialogClose,
   DialogHeader,
   DialogFooter,
   DialogTitle,
@@ -169,6 +170,27 @@ describe('Dialog — dismissal', () => {
   it('closes when the close button is clicked', () => {
     const c = mountDialog({ defaultOpen: true });
     q(c, 'dialog-close').click();
+    flush2();
+    expect(q(c, 'dialog-content').hasAttribute('hidden')).toBe(true);
+  });
+
+  it('a standalone ui-dialog-close (e.g. in the footer) closes the dialog', () => {
+    const c = mount(
+      html`${Dialog({
+        defaultOpen: true,
+        children: html`${DialogTrigger({ children: 'Open' })}
+        ${DialogContent({
+          showCloseButton: false,
+          children: html`${DialogTitle({ children: 'T' })}
+          ${DialogFooter({
+            children: DialogClose({ children: 'Cancel' }),
+          })}`,
+        })}`,
+      })}`,
+    );
+    const footerClose = c.querySelector<HTMLButtonElement>('[data-slot="dialog-close"]')!;
+    expect(footerClose.textContent).toBe('Cancel');
+    footerClose.click();
     flush2();
     expect(q(c, 'dialog-content').hasAttribute('hidden')).toBe(true);
   });
