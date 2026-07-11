@@ -1,27 +1,40 @@
 /**
- * build.ts — render the site to dist/ with @nisli/ssg.
- * Driven by src/render.test.ts (vitest is the repo's TS runner); the
- * package build script then compiles dist/assets/site.css with Tailwind.
+ * build.ts — render every route to dist/ with @nisli/ssg.
+ * Driven by src/render.test.ts (vitest is the repo's TS runner); the package
+ * build script then compiles dist/assets/site.css with the Tailwind CLI.
+ *
+ * @nisli/ssg renders each route's body fragment and writes it to its per-route
+ * file (writeRoute: `/` → dist/index.html, `/docs/x` → dist/docs/x/index.html);
+ * we then wrap each fragment in the full HTML document (shell) and overwrite.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildStaticSite } from '@nisli/ssg';
 import { shell } from './shell.js';
-import { homePage } from './pages/home.js';
+import { routes } from './routes.js';
 
 const siteDir = dirname(dirname(fileURLToPath(import.meta.url)));
 
-export async function buildSite(outDir: string = join(siteDir, 'dist')): Promise<string> {
+export interface BuiltPage {
+  path: string;
+  filePath: string;
+}
+
+export async function buildSite(outDir: string = join(siteDir, 'dist')): Promise<BuiltPage[]> {
   const result = await buildStaticSite({
     outDir,
-    routes: [{ path: '/', render: () => homePage() }],
+    routes: routes.map((route) => ({ path: route.path, render: () => route.body() })),
   });
-  const first = result.pages[0];
-  if (!first) throw new Error('no page rendered');
-  const page = shell(readFileSync(first.filePath, 'utf8'));
+
   mkdirSync(join(outDir, 'assets'), { recursive: true });
-  const outFile = join(outDir, 'index.html');
-  writeFileSync(outFile, page);
-  return outFile;
+
+  const built: BuiltPage[] = [];
+  for (const page of result.pages) {
+    const route = routes.find((r) => r.path === page.path);
+    if (!route) throw new Error(`no route metadata for rendered page ${page.path}`);
+    writeFileSync(page.filePath, shell(page.html, route.meta));
+    built.push({ path: page.path, filePath: page.filePath });
+  }
+  return built;
 }

@@ -1,3 +1,8 @@
 @import "tailwindcss";
-@source "../../dist/index.html";
+
+/* Class-based dark mode: `dark:` utilities key off the `.dark` class the theme
+   toggle flips (theme.css already overrides the token variables on `.dark`). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@source "../../dist/**/*.html";
 @import "../nisli-ui/styles/theme.css";
