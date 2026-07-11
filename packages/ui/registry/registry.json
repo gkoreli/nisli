@@ -464,6 +464,18 @@
         "utils",
         "dialog"
       ]
+    },
+    {
+      "name": "navigation-menu",
+      "type": "ui",
+      "description": "A non-modal menu bar of triggers and content panels. Port of shadcn/ui navigation-menu.",
+      "files": [
+        "ui/navigation-menu.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "roving-focus"
+      ]
     }
   ]
 }

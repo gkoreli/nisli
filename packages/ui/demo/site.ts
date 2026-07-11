@@ -47,6 +47,14 @@ import {
   HoverCardContent,
 } from './src/nisli-ui/ui/hover-card.js';
 import {
+  NavigationMenu,
+  NavigationMenuList,
+  NavigationMenuItem,
+  NavigationMenuTrigger,
+  NavigationMenuContent,
+  NavigationMenuLink,
+} from './src/nisli-ui/ui/navigation-menu.js';
+import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -298,6 +306,25 @@ export function renderKitchenSink(): TemplateResult {
           children: 'Hover me',
         })}
         ${TooltipContent({ children: 'Rendered statically; opens on hover.' })}`,
+      }),
+    )}
+
+    ${section(
+      'Navigation menu',
+      NavigationMenu({
+        children: NavigationMenuList({
+          children: html`${NavigationMenuItem({
+            children: html`${NavigationMenuTrigger({ value: 'getting-started', children: 'Getting started' })}
+            ${NavigationMenuContent({
+              value: 'getting-started',
+              children: html`${NavigationMenuLink({ href: '#install', children: 'Install' })}
+              ${NavigationMenuLink({ href: '#framework', children: 'Framework' })}`,
+            })}`,
+          })}
+          ${NavigationMenuItem({
+            children: NavigationMenuLink({ href: '#gallery', children: 'Components' }),
+          })}`,
+        }),
       }),
     )}
 
