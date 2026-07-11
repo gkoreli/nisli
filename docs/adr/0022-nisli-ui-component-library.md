@@ -289,12 +289,19 @@ packages/ui/
   tests do.
 - Publishing joins the existing `auto-tag.yml` trusted-publisher flow with
   `directory: packages/ui` repository metadata.
-- **Release cadence (added after 0.1.0 shipped)**: the published package must
-  track the registry. Arch bumps the **patch version as part of landing any
-  batch that adds or changes registry items** (engineers never touch the
-  version); every push to origin then auto-publishes the newest registry via
-  `auto-tag.yml`. Minor bumps are reserved for convention/CLI changes,
-  major for breaking copied-source conventions.
+- **Release policy: checkpoint releases on 0.x semver (supersedes the
+  per-batch cadence briefly in effect after 0.1.0)**. We stay 0-based until
+  the NORTH-STAR "v1 done" milestone holds; `0.x.y` patch = additive
+  components/fixes, `0.x` minor = breaking changes to component APIs,
+  registry format, or CLI. Releases happen at **checkpoints** — coherent
+  milestones the architect calls (a wave completes, a behavior family lands,
+  the CLI changes), not per landed batch. The checkpoint ritual: bump
+  version → update `packages/ui/CHANGELOG.md` (keep-a-changelog-lite:
+  human-readable highlights per version, never commit-log dumps) → push
+  `origin main` (auto-publishes via trusted publishing; also triggers site
+  deploys once Workers Builds is connected). Between checkpoints, work lands
+  on local main with no bump/push. Engineers never touch versions. The same
+  checkpoint policy governs `@nisli/core` and `@nisli/ssg` releases.
 
 ## Consequences
 
