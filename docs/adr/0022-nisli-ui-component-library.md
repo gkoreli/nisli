@@ -23,6 +23,27 @@ shadcn/ui is MIT-licensed, so we can port its component source — markup,
 variant taxonomy, class lists, a11y patterns — directly into Nisli components,
 with attribution.
 
+**Canonical reference (added 2026-07-11).** Early ports were written from
+model memory and drifted from real shadcn (pre-v4 focus rings, missing
+`aria-invalid:` states). Porting from memory is now banned. The canonical
+source is a local checkout of the real shadcn v4 registry:
+
+```
+/Users/goga/Documents/goga/shadcn-ref/apps/v4/registry/new-york-v4/{ui,lib,hooks}
+```
+
+Every port is a **diff against the corresponding `.tsx` there** — exact
+class lists, variant maps, `data-slot` names, `aria-*`/`data-*` attributes,
+icons, and behavior — and every ported file cites its source file in the
+header comment (`Ported from new-york-v4/ui/button.tsx`). Architectural
+translation (custom elements, light DOM, native inputs) is ours; visuals and
+taxonomy are theirs, verbatim.
+
+**Style naming**: shadcn v4 retired its old `default` style; `new-york-v4`
+is upstream's canonical style. Our registry keeps its single style named
+`default`, defined as **tracking shadcn `new-york-v4`** — consumers see one
+obvious choice, and the mapping is recorded here.
+
 This ADR decides how `@nisli/ui` ("shadcn for Nisli") is distributed, styled,
 and authored, and what conventions keep its components consumable as plain
 custom elements outside Nisli.

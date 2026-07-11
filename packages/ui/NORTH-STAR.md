@@ -33,6 +33,11 @@ token layer. Editing a component is editing your own source file.
 3. **shadcn parity, not shadcn inspiration.** Port shadcn/ui markup, variant
    taxonomy, tokens, and Radix-derived behavior directly (MIT, attributed).
    Their docs, themes, and muscle memory should transfer to Nisli unchanged.
+   Parity means **diffed against the real source, never ported from
+   memory**: the canonical reference is the local checkout at
+   `/Users/goga/Documents/goga/shadcn-ref/apps/v4/registry/new-york-v4/`
+   (our `default` style tracks upstream `new-york-v4`), and every ported
+   file cites its source `.tsx` (ADR 0022).
 4. **Native platform first.** Real `<button>`, real `<input>`, real form
    participation, native event bubbling. No synthetic layers (ADR 0019).
 5. **Zero runtime dependencies.** Vendored `cn()`/`cv()` instead of
