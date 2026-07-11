@@ -155,6 +155,27 @@ describe('focusTrap — Tab wrapping', () => {
   });
 });
 
+describe('focusTrap — non-modal (trapped: false)', () => {
+  it('still moves focus in on activate and restores on deactivate', () => {
+    const { root, trigger, buttons } = scene();
+    trigger.focus();
+    const t = trap(root, { trapped: false });
+    t.activate();
+    expect(document.activeElement).toBe(buttons[0]);
+    t.deactivate();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('does not intercept Tab, so focus can leave the root', () => {
+    const { root, buttons } = scene();
+    trap(root, { trapped: false }).activate();
+    buttons[2].focus();
+    tab();
+    // Modal mode would wrap to buttons[0]; non-modal leaves Tab to the browser.
+    expect(document.activeElement).toBe(buttons[2]);
+  });
+});
+
 describe('focusTrap — idempotency', () => {
   it('activate/deactivate are idempotent', () => {
     const { root, trigger } = scene();

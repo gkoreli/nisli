@@ -11,9 +11,10 @@
  * Elements: ui-popover / -trigger / -anchor / -content / -header / -title /
  * -description. Content renders inline with position:fixed (no portal in v1;
  * same transformed-ancestor caveat as ui-dialog) and carries data-side/
- * data-align for the slide animations. The panel is role="dialog" and its
- * focus is contained while open (focus lib traps; slightly more modal than
- * Radix's non-modal default — documented).
+ * data-align for the slide animations. The panel is role="dialog"; focus
+ * moves into it on open and restores on close, but is NOT trapped
+ * (`focusTrap(..., { trapped: false })`) — Radix's non-modal Popover default,
+ * so Tab can leave the panel.
  *
  * Open state is signal-driven (controlled `open` prop; default-open / attr
  * fallback) and dispatches a bubbling `ui-open-change` CustomEvent.
@@ -237,7 +238,9 @@ export const PopoverContent = component<PopoverContentProps>(
         if (t && t.contains(event.target as Node)) event.preventDefault();
       },
     });
-    const trap = focusTrap(content, { returnFocus: state.trigger });
+    // Non-modal, matching Radix Popover: focus moves in on open and restores
+    // on close, but Tab can leave the panel.
+    const trap = focusTrap(content, { returnFocus: state.trigger, trapped: false });
 
     let disposePosition: (() => void) | null = null;
     const stopPositioning = (): void => {

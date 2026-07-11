@@ -13,6 +13,11 @@
  * focused before (typically the trigger). Operates on the component's inner
  * root element (via a Ref), never the `display: contents` host (ADR 0022).
  *
+ * Pass `trapped: false` for Radix's *non-modal* FocusScope behavior: focus
+ * still moves in on activate and restores on deactivate, but Tab is not
+ * intercepted, so keyboard focus may leave the root (used by popover; dialog,
+ * alert-dialog, and sheet keep the default modal trap).
+ *
  * This file was copied into your project by `nisli-ui` — you own it.
  */
 
@@ -26,6 +31,12 @@ export interface FocusTrapOptions {
    * when the trap activated (the trigger).
    */
   returnFocus?: Ref<HTMLElement>;
+  /**
+   * When `false`, focus moves in on activate and restores on deactivate but
+   * Tab is not trapped — keyboard focus may leave the root (Radix's non-modal
+   * FocusScope). Defaults to `true` (modal trap).
+   */
+  trapped?: boolean;
 }
 
 export interface FocusTrapController {
@@ -123,7 +134,11 @@ export function focusTrap(
       }
       target.focus();
     }
-    document.addEventListener('keydown', handleKeyDown, true);
+    // Non-modal (trapped: false) still moves focus in + restores, but leaves
+    // Tab alone so focus can exit the root.
+    if (options.trapped !== false) {
+      document.addEventListener('keydown', handleKeyDown, true);
+    }
   };
 
   const deactivate = (): void => {
