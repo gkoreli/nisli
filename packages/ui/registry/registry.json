@@ -614,6 +614,14 @@
         "utils",
         "button"
       ]
+    },
+    {
+      "name": "use-mobile",
+      "type": "lib",
+      "description": "A reactive viewport-width signal (isMobile) matching shadcn/ui's use-mobile hook.",
+      "files": [
+        "lib/use-mobile.ts"
+      ]
     }
   ]
 }
