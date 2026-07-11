@@ -203,6 +203,17 @@
       ]
     },
     {
+      "name": "collapsible",
+      "type": "ui",
+      "description": "An interactive component that expands/collapses a panel. Port of shadcn/ui collapsible.",
+      "files": [
+        "ui/collapsible.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
+    },
+    {
       "name": "radio-group",
       "type": "ui",
       "description": "A set of native radio buttons where only one can be selected. Port of shadcn/ui radio-group.",

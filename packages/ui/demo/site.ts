@@ -35,6 +35,11 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from './src/nisli-ui/ui/accordion.js';
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from './src/nisli-ui/ui/collapsible.js';
 import { RadioGroup, RadioGroupItem } from './src/nisli-ui/ui/radio-group.js';
 import { Select } from './src/nisli-ui/ui/select.js';
 import {
@@ -185,6 +190,26 @@ export function renderKitchenSink(): TemplateResult {
             children: 'Yes. nisli-ui add copies the source into your project.',
           })}`,
         })}`,
+      }),
+    )}
+
+    ${section(
+      'Collapsible',
+      Collapsible({
+        defaultOpen: true,
+        className: 'w-full max-w-md space-y-2',
+        children: html`<div class="flex items-center justify-between gap-4">
+            <span class="text-sm font-medium">Starred repositories</span>
+            ${CollapsibleTrigger({
+              className: buttonVariants({ variant: 'ghost', size: 'sm' }),
+              children: 'Toggle',
+            })}
+          </div>
+          ${CollapsibleContent({
+            className: 'space-y-2',
+            children: html`<div class="rounded-md border px-4 py-2 text-sm">@nisli/core</div>
+            <div class="rounded-md border px-4 py-2 text-sm">@nisli/ui</div>`,
+          })}`,
       }),
     )}
 

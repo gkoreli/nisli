@@ -188,6 +188,7 @@ export const Accordion = component<AccordionProps>('ui-accordion', (props, host)
   return html`<div
     ref="${root}"
     data-slot="accordion"
+    data-orientation="vertical"
     class="${classes}"
     @keydown=${(e: KeyboardEvent) => roving.onKeydown(e)}
   >${props.children}</div>`;
