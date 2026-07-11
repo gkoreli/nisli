@@ -35,6 +35,13 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from './src/nisli-ui/ui/accordion.js';
+import { RadioGroup, RadioGroupItem } from './src/nisli-ui/ui/radio-group.js';
+import { Select } from './src/nisli-ui/ui/select.js';
+import {
+  FormField,
+  FieldDescription,
+  FieldError,
+} from './src/nisli-ui/ui/form-field.js';
 
 function section(title: string, body: TemplateResult): TemplateResult {
   return html`<section class="space-y-3">
@@ -158,6 +165,45 @@ export function renderKitchenSink(): TemplateResult {
             children: 'Yes. nisli-ui add copies the source into your project.',
           })}`,
         })}`,
+      }),
+    )}
+
+    ${section(
+      'Radio group',
+      RadioGroup({
+        name: 'plan',
+        defaultValue: 'pro',
+        children: html`<div class="flex items-center gap-2">
+            ${RadioGroupItem({ value: 'free', id: 'plan-free' })}
+            ${Label({ htmlFor: 'plan-free', children: 'Free' })}
+          </div>
+          <div class="flex items-center gap-2">
+            ${RadioGroupItem({ value: 'pro', id: 'plan-pro' })}
+            ${Label({ htmlFor: 'plan-pro', children: 'Pro' })}
+          </div>`,
+      }),
+    )}
+
+    ${section(
+      'Select',
+      Select({
+        name: 'fruit',
+        defaultValue: 'apple',
+        className: 'w-56',
+        children: html`<option value="apple">Apple</option>
+          <option value="banana">Banana</option>
+          <option value="pear">Pear</option>`,
+      }),
+    )}
+
+    ${section(
+      'Form field',
+      FormField({
+        invalid: true,
+        children: html`${Label({ children: 'Email' })}
+        ${Input({ type: 'email', name: 'field-email', value: 'not-an-email' })}
+        ${FieldDescription({ children: "We'll never share your email." })}
+        ${FieldError({ children: 'Enter a valid email address.' })}`,
       }),
     )}
 

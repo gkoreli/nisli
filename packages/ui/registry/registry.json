@@ -123,6 +123,13 @@
       "description": "A native select styled like shadcn/ui's native-select, with a themeable chevron.",
       "files": ["ui/select.ts"],
       "registryDependencies": ["utils"]
+    },
+    {
+      "name": "form-field",
+      "type": "ui",
+      "description": "A label + control + description + error composition helper that wires ids and aria. Port of shadcn/ui field.",
+      "files": ["ui/form-field.ts"],
+      "registryDependencies": ["utils"]
     }
   ]
 }
