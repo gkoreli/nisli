@@ -1,4 +1,4 @@
-# 0024. Showcase Site — `packages/site`, Full-Stack Dogfood
+# 0024. nisli Website — `packages/www`, Full-Stack Dogfood
 
 **Date**: 2026-07-11
 **Status**: Accepted
@@ -11,9 +11,17 @@ Goga wants a public static site that showcases both the nisli framework and
 composed from `@nisli/ui` components, rendered to static HTML by `@nisli/ssg`,
 deployed to Cloudflare Workers Static Assets.
 
+**Update (same day)**: scope expanded from a single showcase page to the
+**full nisli website** — home, docs, design/theme showcase, and component
+gallery, modeled on ui.shadcn.com and Goga's blog (a static nisli+wrangler
+site). Following the shadcn `apps/www` precedent the package is renamed
+`packages/site` → **`packages/www` (`@nisli/www`)**, and a dedicated engineer
+(eng3) owns it — the pipeline below (CLI-dogfood sync, SSG render via the
+vitest runner, Tailwind CLI, wrangler static assets) carries over unchanged.
+
 ## Decision
 
-- **Location: a new private workspace package, `packages/site`** — not an
+- **Location: a new private workspace package, now `packages/www`** — not an
   extension of `packages/ui/demo`. The demo is a byte-locked CLI-output
   fixture (its files must equal the registry exactly, enforced in CI); a
   showcase site needs editorial freedom, its own sections and copy, and a
@@ -29,10 +37,10 @@ deployed to Cloudflare Workers Static Assets.
 - **Deploy**: `wrangler.toml` with `[assets] directory = "./dist"`
   (Cloudflare Workers Static Assets; `npx wrangler deploy`). `dist/` is plain
   static files — host-portable to GitHub Pages or any static host.
-- **Ownership**: sections are per-ticket modules under `src/sections/`
-  (hero/install/framework: eng1; gallery: eng2); the page composition
-  (`src/pages/home.ts`), shell, pipeline, and deploy wiring are arch's.
-  Section owners edit only their module — no composition conflicts.
+- **Ownership**: eng3 owns `packages/www` end to end (pages, sections, IA,
+  content); arch owns the cross-package architecture, reviews, and landing.
+  The original section split (hero/install/framework: eng1; gallery: eng2)
+  was folded into eng3's backlog when the scope expanded.
 - Dark mode: `.dark` class persisted in localStorage; tokens are the
   registry's `theme.css` (upstream `new-york-v4` neutral).
 
