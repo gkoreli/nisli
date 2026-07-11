@@ -291,6 +291,18 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "tooltip",
+      "type": "ui",
+      "description": "A floating label shown on hover/focus. Port of shadcn/ui tooltip.",
+      "files": [
+        "ui/tooltip.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "floating"
+      ]
     }
   ]
 }

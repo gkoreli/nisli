@@ -40,6 +40,7 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from './src/nisli-ui/ui/collapsible.js';
+import { Tooltip, TooltipTrigger, TooltipContent } from './src/nisli-ui/ui/tooltip.js';
 import { RadioGroup, RadioGroupItem } from './src/nisli-ui/ui/radio-group.js';
 import { Select } from './src/nisli-ui/ui/select.js';
 import {
@@ -210,6 +211,17 @@ export function renderKitchenSink(): TemplateResult {
             children: html`<div class="rounded-md border px-4 py-2 text-sm">@nisli/core</div>
             <div class="rounded-md border px-4 py-2 text-sm">@nisli/ui</div>`,
           })}`,
+      }),
+    )}
+
+    ${section(
+      'Tooltip',
+      Tooltip({
+        children: html`${TooltipTrigger({
+          className: buttonVariants({ variant: 'outline' }),
+          children: 'Hover me',
+        })}
+        ${TooltipContent({ children: 'Rendered statically; opens on hover.' })}`,
       }),
     )}
 
