@@ -239,6 +239,17 @@
         "dismissable-layer",
         "focus"
       ]
+    },
+    {
+      "name": "table",
+      "type": "ui",
+      "description": "A responsive table built from real table elements. Port of shadcn/ui table.",
+      "files": [
+        "ui/table.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }

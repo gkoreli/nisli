@@ -51,6 +51,15 @@ import {
   DialogTitle,
   DialogDescription,
 } from './src/nisli-ui/ui/dialog.js';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  TableCaption,
+} from './src/nisli-ui/ui/table.js';
 
 function section(title: string, body: TemplateResult): TemplateResult {
   return html`<section class="space-y-3">
@@ -233,6 +242,29 @@ export function renderKitchenSink(): TemplateResult {
           ${DialogFooter({
             children: html`${Button({ variant: 'outline', children: 'Cancel' })}
             ${Button({ children: 'Save changes' })}`,
+          })}`,
+        })}`,
+      }),
+    )}
+
+    ${section(
+      'Table',
+      Table({
+        children: html`${TableCaption({ children: 'Recent invoices.' })}
+        ${TableHeader({
+          children: TableRow({
+            children: html`${TableHead({ children: 'Invoice' })}
+            ${TableHead({ children: 'Status' })}${TableHead({ children: 'Amount' })}`,
+          }),
+        })}
+        ${TableBody({
+          children: html`${TableRow({
+            children: html`${TableCell({ children: 'INV-001' })}
+            ${TableCell({ children: 'Paid' })}${TableCell({ children: '$250.00' })}`,
+          })}
+          ${TableRow({
+            children: html`${TableCell({ children: 'INV-002' })}
+            ${TableCell({ children: 'Pending' })}${TableCell({ children: '$150.00' })}`,
           })}`,
         })}`,
       }),
