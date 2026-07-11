@@ -633,6 +633,17 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "item",
+      "type": "ui",
+      "description": "A flexible list row with media, content, actions, and separators. Port of shadcn/ui item.",
+      "files": [
+        "ui/item.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }

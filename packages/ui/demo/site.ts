@@ -31,6 +31,16 @@ import {
   EmptyDescription,
   EmptyContent,
 } from './src/nisli-ui/ui/empty.js';
+import {
+  Item,
+  ItemGroup,
+  ItemSeparator,
+  ItemMedia,
+  ItemContent,
+  ItemTitle,
+  ItemDescription,
+  ItemActions,
+} from './src/nisli-ui/ui/item.js';
 import { Alert, AlertTitle, AlertDescription } from './src/nisli-ui/ui/alert.js';
 import {
   Card,
@@ -809,6 +819,29 @@ export function renderKitchenSink(): TemplateResult {
           ${TableRow({
             children: html`${TableCell({ children: 'INV-002' })}
             ${TableCell({ children: 'Pending' })}${TableCell({ children: '$150.00' })}`,
+          })}`,
+        })}`,
+      }),
+    )}
+
+    ${section(
+      'Item',
+      ItemGroup({
+        className: 'max-w-md gap-2',
+        children: html`${Item({
+          variant: 'outline',
+          children: html`${ItemMedia({ variant: 'icon', children: '👤' })}
+          ${ItemContent({
+            children: html`${ItemTitle({ children: 'Ada Lovelace' })}
+            ${ItemDescription({ children: 'The first computer programmer.' })}`,
+          })}
+          ${ItemActions({ children: Button({ variant: 'outline', size: 'sm', children: 'Follow' }) })}`,
+        })}
+        ${ItemSeparator({})}
+        ${Item({
+          variant: 'muted',
+          children: html`${ItemContent({
+            children: ItemTitle({ children: 'Grace Hopper' })
           })}`,
         })}`,
       }),
