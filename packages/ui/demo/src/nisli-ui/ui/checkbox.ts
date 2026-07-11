@@ -1,8 +1,11 @@
 /**
  * ui/checkbox.ts — Checkbox.
  *
- * Port of shadcn/ui `checkbox` (MIT — https://github.com/shadcn-ui/ui) as a
- * Nisli component. Renders a REAL native `<input type="checkbox">` in the
+ * Ported from shadcn/ui `new-york-v4/ui/checkbox.tsx` (MIT —
+ * https://github.com/shadcn-ui/ui) as a Nisli component. Radix
+ * `data-[state=checked]:` tokens are translated to native `checked:`
+ * variants; the lucide CheckIcon becomes a data-URI (its stroke cannot
+ * follow text-primary-foreground — a documented fidelity limit). Renders a REAL native `<input type="checkbox">` in the
  * light DOM for native form participation (ADR 0022 §5): `form.elements`,
  * `form.reset()`, label association, and free spacebar toggling all work
  * natively. Keyboard and a11y come from the platform — no role shims.
@@ -37,7 +40,7 @@ import {
 } from '../lib/utils.js';
 
 export const checkboxClasses =
-  'peer h-4 w-4 shrink-0 appearance-none rounded-sm border border-primary shadow focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 checked:border-primary checked:bg-primary checked:bg-[length:0.75rem] checked:bg-center checked:bg-no-repeat checked:bg-[url("data:image/svg+xml,%3Csvg%20xmlns=\'http://www.w3.org/2000/svg\'%20viewBox=\'0%200%2020%2020\'%20fill=\'none\'%20stroke=\'white\'%20stroke-width=\'3\'%20stroke-linecap=\'round\'%20stroke-linejoin=\'round\'%3E%3Cpath%20d=\'M5%2010l4%204l6-8\'/%3E%3C/svg%3E")]';
+  'peer size-4 shrink-0 appearance-none rounded-[4px] border border-input shadow-xs transition-shadow outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 checked:border-primary checked:bg-primary checked:text-primary-foreground dark:bg-input/30 dark:aria-invalid:ring-destructive/40 dark:checked:bg-primary checked:bg-[length:0.875rem] checked:bg-center checked:bg-no-repeat checked:bg-[url("data:image/svg+xml,%3Csvg%20xmlns=\'http://www.w3.org/2000/svg\'%20viewBox=\'0%200%2024%2024\'%20fill=\'none\'%20stroke=\'white\'%20stroke-width=\'2\'%20stroke-linecap=\'round\'%20stroke-linejoin=\'round\'%3E%3Cpath%20d=\'M20%206%209%2017l-5-5\'/%3E%3C/svg%3E")]';
 
 export type CheckboxProps = {
   checked?: boolean;

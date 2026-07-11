@@ -2,7 +2,8 @@
  * ui/card.ts — Card, CardHeader, CardTitle, CardDescription, CardContent,
  * CardFooter.
  *
- * Port of shadcn/ui `card` (MIT — https://github.com/shadcn-ui/ui)
+ * Ported from shadcn/ui `new-york-v4/ui/card.tsx` (MIT —
+ * https://github.com/shadcn-ui/ui)
  * as Nisli components. A container with header/title/description/content/
  * footer regions.
  *
@@ -74,19 +75,19 @@ function cardSection(tag: string, slot: string, base: string) {
 export const Card = cardSection(
   'ui-card',
   'card',
-  'rounded-xl border bg-card text-card-foreground shadow',
+  'flex flex-col gap-6 rounded-xl border bg-card py-6 text-card-foreground shadow-sm',
 );
 
 export const CardHeader = cardSection(
   'ui-card-header',
   'card-header',
-  'flex flex-col space-y-1.5 p-6',
+  '@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6',
 );
 
 export const CardTitle = cardSection(
   'ui-card-title',
   'card-title',
-  'font-semibold leading-none tracking-tight',
+  'leading-none font-semibold',
 );
 
 export const CardDescription = cardSection(
@@ -95,10 +96,16 @@ export const CardDescription = cardSection(
   'text-sm text-muted-foreground',
 );
 
-export const CardContent = cardSection('ui-card-content', 'card-content', 'p-6 pt-0');
+export const CardAction = cardSection(
+  'ui-card-action',
+  'card-action',
+  'col-start-2 row-span-2 row-start-1 self-start justify-self-end',
+);
+
+export const CardContent = cardSection('ui-card-content', 'card-content', 'px-6');
 
 export const CardFooter = cardSection(
   'ui-card-footer',
   'card-footer',
-  'flex items-center p-6 pt-0',
+  'flex items-center px-6 [.border-t]:pt-6',
 );

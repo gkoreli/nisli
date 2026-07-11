@@ -1,8 +1,9 @@
 /**
  * ui/separator.ts — Separator.
  *
- * Port of shadcn/ui `separator` (MIT — https://github.com/shadcn-ui/ui),
- * which wraps Radix `@radix-ui/react-separator`, as a Nisli component.
+ * Ported from shadcn/ui `new-york-v4/ui/separator.tsx` (MIT —
+ * https://github.com/shadcn-ui/ui), which wraps Radix Separator, as a Nisli
+ * component.
  * Visually or semantically separates content.
  *
  * ARIA follows Radix: a decorative separator (the default) is `role="none"`
@@ -47,10 +48,10 @@ export const Separator = component<SeparatorProps>('ui-separator', (props, host)
     !decorative.value && orientation.value === 'vertical' ? 'vertical' : undefined,
   );
 
+  // Sizing is driven by the data-orientation attribute, as upstream.
   const classes = computed(() =>
     cn(
-      'shrink-0 bg-border',
-      orientation.value === 'vertical' ? 'h-full w-[1px]' : 'h-[1px] w-full',
+      'shrink-0 bg-border data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px',
       className.value,
     ),
   );

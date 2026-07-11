@@ -36,7 +36,7 @@ describe('Separator via factory', () => {
     expect(sep.getAttribute('role')).toBe('none');
     expect(sep.hasAttribute('aria-orientation')).toBe(false);
     expect(sep.className).toContain('bg-border');
-    expect(sep.className).toContain('h-[1px]');
+    expect(sep.className).toContain('data-[orientation=horizontal]:h-px');
     expect(sep.className).toContain('w-full');
   });
 
@@ -56,7 +56,7 @@ describe('Separator via factory', () => {
 
     expect(sep.getAttribute('data-orientation')).toBe('vertical');
     expect(sep.className).toContain('h-full');
-    expect(sep.className).toContain('w-[1px]');
+    expect(sep.className).toContain('data-[orientation=vertical]:w-px');
     expect(sep.className.endsWith('mx-2')).toBe(true);
   });
 
@@ -89,15 +89,16 @@ describe('Separator via factory', () => {
     const orientation = signal<SeparatorOrientation | undefined>('horizontal');
     const c = mount(html`${Separator({ orientation })}`);
     const sep = getSeparator(c);
-    expect(sep.className).toContain('w-full');
+    // Sizing is data-orientation-driven (upstream form): the class list is
+    // static; the attribute is what flips.
+    expect(sep.getAttribute('data-orientation')).toBe('horizontal');
 
     orientation.value = 'vertical';
     flushEffects();
     flushEffects();
 
     expect(sep.getAttribute('data-orientation')).toBe('vertical');
-    expect(sep.className).toContain('h-full');
-    expect(sep.className).not.toContain('w-full');
+    expect(sep.className).toContain('data-[orientation=vertical]:h-full');
   });
 });
 

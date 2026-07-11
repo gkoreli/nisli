@@ -1,7 +1,8 @@
 /**
  * ui/tabs.ts — Tabs.
  *
- * Port of shadcn/ui `tabs` (MIT — https://github.com/shadcn-ui/ui) and the
+ * Ported from shadcn/ui `new-york-v4/ui/tabs.tsx` (MIT —
+ * https://github.com/shadcn-ui/ui) and the
  * Radix Tabs behavior it wraps (MIT — https://github.com/radix-ui/primitives),
  * rebuilt as Nisli custom elements. WAI-ARIA Tabs pattern with automatic
  * activation (selection follows focus).
@@ -41,6 +42,7 @@ import {
   boolAttr,
   captureChildren,
   cn,
+  cv,
   projectChildren,
   transparentHost,
 } from '../lib/utils.js';
@@ -120,7 +122,9 @@ export const Tabs = component<TabsProps>('ui-tabs', (props, host) => {
   (host as TabsHost).__uiTabs = state;
 
   const className = attr(props.className, host, 'class-name');
-  const classes = computed(() => cn('flex flex-col gap-2', className.value));
+  const classes = computed(() =>
+    cn('group/tabs flex gap-2 data-[orientation=horizontal]:flex-col', className.value),
+  );
 
   const root = ref<HTMLDivElement>();
   onMount(() => {
@@ -137,7 +141,23 @@ export const Tabs = component<TabsProps>('ui-tabs', (props, host) => {
 
 // ── ui-tabs-list ─────────────────────────────────────────────────────
 
+export type TabsListVariant = 'default' | 'line';
+
+export const tabsListVariants = cv(
+  'group/tabs-list inline-flex w-fit items-center justify-center rounded-lg p-[3px] text-muted-foreground group-data-[orientation=horizontal]/tabs:h-9 group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col data-[variant=line]:rounded-none',
+  {
+    variants: {
+      variant: {
+        default: 'bg-muted',
+        line: 'gap-1 bg-transparent',
+      },
+    },
+    defaultVariants: { variant: 'default' },
+  },
+);
+
 export type TabsListProps = {
+  variant?: TabsListVariant;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -147,12 +167,13 @@ export const TabsList = component<TabsListProps>('ui-tabs-list', (props, host) =
   transparentHost(host);
   const projected = captureChildren(host);
 
+  const variantAttr = attr(props.variant, host, 'variant');
+  const variant = computed<TabsListVariant>(() =>
+    variantAttr.value === 'line' ? 'line' : 'default',
+  );
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() =>
-    cn(
-      'bg-muted text-muted-foreground inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px]',
-      className.value,
-    ),
+    cn(tabsListVariants({ variant: variant.value }), className.value),
   );
 
   const root = ref<HTMLDivElement>();
@@ -182,6 +203,7 @@ export const TabsList = component<TabsListProps>('ui-tabs-list', (props, host) =
     ref="${root}"
     role="tablist"
     data-slot="tabs-list"
+    data-variant="${variant}"
     aria-orientation="${state.orientation}"
     data-orientation="${state.orientation}"
     class="${classes}"
@@ -191,8 +213,12 @@ export const TabsList = component<TabsListProps>('ui-tabs-list', (props, host) =
 
 // ── ui-tabs-trigger ──────────────────────────────────────────────────
 
-const triggerClasses =
-  "inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap text-foreground transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:shadow-sm dark:text-muted-foreground dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 dark:data-[state=active]:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
+const triggerClasses = cn(
+  "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all group-data-[orientation=vertical]/tabs:w-full group-data-[orientation=vertical]/tabs:justify-start hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 group-data-[variant=default]/tabs-list:data-[state=active]:shadow-sm group-data-[variant=line]/tabs-list:data-[state=active]:shadow-none dark:text-muted-foreground dark:hover:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  'group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent dark:group-data-[variant=line]/tabs-list:data-[state=active]:border-transparent dark:group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent',
+  'data-[state=active]:bg-background data-[state=active]:text-foreground dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 dark:data-[state=active]:text-foreground',
+  'after:absolute after:bg-foreground after:opacity-0 after:transition-opacity group-data-[orientation=horizontal]/tabs:after:inset-x-0 group-data-[orientation=horizontal]/tabs:after:bottom-[-5px] group-data-[orientation=horizontal]/tabs:after:h-0.5 group-data-[orientation=vertical]/tabs:after:inset-y-0 group-data-[orientation=vertical]/tabs:after:-right-1 group-data-[orientation=vertical]/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-[state=active]:after:opacity-100',
+);
 
 export type TabsTriggerProps = {
   /** The value this trigger selects. Required. */

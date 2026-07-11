@@ -114,7 +114,7 @@ describe('Button as a plain custom element', () => {
 
     const btn = getButton(host);
     expect(btn.className).toContain('bg-secondary');
-    expect(btn.className).toContain('px-8');
+    expect(btn.className).toContain('px-6');
     expect(btn.hasAttribute('disabled')).toBe(true);
   });
 

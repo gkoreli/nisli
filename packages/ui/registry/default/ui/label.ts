@@ -1,8 +1,9 @@
 /**
  * ui/label.ts — Label.
  *
- * Port of shadcn/ui `label` (MIT — https://github.com/shadcn-ui/ui),
- * which wraps Radix `@radix-ui/react-label`, as a Nisli component.
+ * Ported from shadcn/ui `new-york-v4/ui/label.tsx` (MIT —
+ * https://github.com/shadcn-ui/ui), which wraps Radix Label, as a Nisli
+ * component.
  * Renders a real light-DOM `<label>`, so native `for`/`id` association
  * and click-to-focus work with no extra machinery.
  *
@@ -29,7 +30,7 @@ import {
 } from '../lib/utils.js';
 
 export const labelVariants =
-  'text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70';
+  'flex items-center gap-2 text-sm leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50';
 
 export type LabelProps = {
   /** The id of the form control this label is bound to (renders `for`). */

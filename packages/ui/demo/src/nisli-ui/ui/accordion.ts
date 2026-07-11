@@ -1,7 +1,7 @@
 /**
  * ui/accordion.ts — Accordion.
  *
- * Port of shadcn/ui `accordion` (MIT — https://github.com/shadcn-ui/ui) and
+ * Ported from shadcn/ui `new-york-v4/ui/accordion.tsx`, (MIT — https://github.com/shadcn-ui/ui) and
  * the Radix Accordion behavior it wraps (MIT — https://github.com/radix-ui/primitives),
  * rebuilt as Nisli custom elements following the WAI-ARIA Accordion pattern.
  *
@@ -235,7 +235,7 @@ export const AccordionItem = component<AccordionItemProps>(
 // ── ui-accordion-trigger ─────────────────────────────────────────────
 
 const triggerClasses =
-  'flex flex-1 items-start justify-between gap-4 rounded-md py-4 text-left text-sm font-medium transition-all outline-none hover:underline focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 [&[data-state=open]>svg]:rotate-180';
+  'flex flex-1 items-start justify-between gap-4 rounded-md py-4 text-left text-sm font-medium transition-all outline-none hover:underline focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 [&[data-state=open]>svg]:rotate-180';
 
 export type AccordionTriggerProps = {
   disabled?: boolean;
@@ -288,7 +288,7 @@ export const AccordionTrigger = component<AccordionTriggerProps>(
           stroke-linecap="round"
           stroke-linejoin="round"
           aria-hidden="true"
-          class="text-muted-foreground pointer-events-none size-4 shrink-0 translate-y-0.5 transition-transform duration-200"
+          class="pointer-events-none size-4 shrink-0 translate-y-0.5 text-muted-foreground transition-transform duration-200"
         ><path d="m6 9 6 6 6-6"></path></svg></button>
     </h3>`;
   },
@@ -330,7 +330,7 @@ export const AccordionContent = component<AccordionContentProps>(
       aria-labelledby="${triggerId}"
       data-state="${computed(() => (open.value ? 'open' : 'closed'))}"
       hidden="${computed(() => !open.value)}"
-      class="overflow-hidden text-sm"
+      class="overflow-hidden text-sm data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down"
     ><div ref="${inner}" class="${innerClasses}">${props.children}</div></div>`;
   },
 );

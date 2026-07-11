@@ -35,7 +35,7 @@ describe('Checkbox via factory', () => {
     expect(box.type).toBe('checkbox');
     expect(box.getAttribute('data-slot')).toBe('checkbox');
     expect(box.className).toContain('appearance-none');
-    expect(box.className).toContain('rounded-sm');
+    expect(box.className).toContain('rounded-[4px]');
     expect(box.checked).toBe(false);
   });
 

@@ -33,7 +33,7 @@ describe('Textarea via factory', () => {
 
     expect(ta.tagName).toBe('TEXTAREA');
     expect(ta.getAttribute('data-slot')).toBe('textarea');
-    expect(ta.className).toContain('min-h-[60px]');
+    expect(ta.className).toContain('min-h-16');
     expect(ta.className).toContain('border-input');
   });
 

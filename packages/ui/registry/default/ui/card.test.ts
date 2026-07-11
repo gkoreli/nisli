@@ -57,10 +57,10 @@ describe('Card via factory', () => {
 
   it('renders every region with its own data-slot and base classes', () => {
     const regions: Array<[TemplateResult, string, string]> = [
-      [CardHeader({ children: 'h' }), 'card-header', 'space-y-1.5'],
+      [CardHeader({ children: 'h' }), 'card-header', 'auto-rows-min'],
       [CardTitle({ children: 't' }), 'card-title', 'font-semibold'],
       [CardDescription({ children: 'd' }), 'card-description', 'text-muted-foreground'],
-      [CardContent({ children: 'c' }), 'card-content', 'pt-0'],
+      [CardContent({ children: 'c' }), 'card-content', 'px-6'],
       [CardFooter({ children: 'f' }), 'card-footer', 'items-center'],
     ];
     for (const [tpl, slot, cls] of regions) {

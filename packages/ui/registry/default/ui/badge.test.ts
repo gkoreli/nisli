@@ -34,7 +34,7 @@ describe('Badge via factory', () => {
     expect(badge.textContent).toBe('New');
     expect(badge.getAttribute('data-slot')).toBe('badge');
     expect(badge.className).toContain('bg-primary');
-    expect(badge.className).toContain('rounded-md');
+    expect(badge.className).toContain('rounded-full');
   });
 
   it('host is layout-transparent; styling lives on the inner span', () => {

@@ -34,7 +34,7 @@ describe('Skeleton via factory', () => {
     expect(sk.getAttribute('data-slot')).toBe('skeleton');
     expect(sk.className).toContain('animate-pulse');
     expect(sk.className).toContain('rounded-md');
-    expect(sk.className).toContain('bg-primary/10');
+    expect(sk.className).toContain('bg-accent');
   });
 
   it('host is layout-transparent; styling lives on the inner div', () => {

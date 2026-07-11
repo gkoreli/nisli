@@ -1,7 +1,8 @@
 /**
  * ui/alert.ts — Alert, AlertTitle, AlertDescription.
  *
- * Port of shadcn/ui `alert` (MIT — https://github.com/shadcn-ui/ui)
+ * Ported from shadcn/ui `new-york-v4/ui/alert.tsx` (MIT —
+ * https://github.com/shadcn-ui/ui)
  * as Nisli components. Displays a callout for user attention.
  *
  * Usable as typed factories (`Alert({ variant: 'destructive', children: ... })`)
@@ -35,13 +36,13 @@ import {
 } from '../lib/utils.js';
 
 export const alertVariants = cv(
-  'relative w-full rounded-lg border px-4 py-3 text-sm [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7',
+  'relative grid w-full grid-cols-[0_1fr] items-start gap-y-0.5 rounded-lg border px-4 py-3 text-sm has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] has-[>svg]:gap-x-3 [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current',
   {
     variants: {
       variant: {
-        default: 'bg-background text-foreground',
+        default: 'bg-card text-card-foreground',
         destructive:
-          'border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive',
+          'bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 [&>svg]:text-current',
       },
     },
     defaultVariants: {
@@ -84,7 +85,7 @@ export const Alert = component<AlertProps>('ui-alert', (props, host) => {
 });
 
 export type AlertTitleProps = {
-  /** Merged last into the inner <h5>'s class list via cn(). */
+  /** Merged last into the inner <div>'s class list via cn(). */
   className?: string;
   children?: string | TemplateResult;
 };
@@ -95,7 +96,7 @@ export const AlertTitle = component<AlertTitleProps>('ui-alert-title', (props, h
 
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() =>
-    cn('mb-1 font-medium leading-none tracking-tight', className.value),
+    cn('col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight', className.value),
   );
 
   const root = ref<HTMLHeadingElement>();
@@ -103,11 +104,11 @@ export const AlertTitle = component<AlertTitleProps>('ui-alert-title', (props, h
     if (root.current) projectChildren(host, root.current, projected);
   });
 
-  return html`<h5
+  return html`<div
     ref="${root}"
     data-slot="alert-title"
     class="${classes}"
-  >${props.children}</h5>`;
+  >${props.children}</div>`;
 });
 
 export type AlertDescriptionProps = {
@@ -124,7 +125,7 @@ export const AlertDescription = component<AlertDescriptionProps>(
 
     const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
-      cn('text-sm [&_p]:leading-relaxed', className.value),
+      cn('col-start-2 grid justify-items-start gap-1 text-sm text-muted-foreground [&_p]:leading-relaxed', className.value),
     );
 
     const root = ref<HTMLDivElement>();

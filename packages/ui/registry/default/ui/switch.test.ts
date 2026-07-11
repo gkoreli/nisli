@@ -42,7 +42,7 @@ describe('Switch via factory', () => {
     expect(thumb).not.toBeNull();
     // The thumb is a sibling after the peer input, and takes no pointer events.
     expect(input.nextElementSibling).toBe(thumb);
-    expect(switchThumbClasses).toContain('peer-checked:translate-x-4');
+    expect(switchThumbClasses).toContain('peer-checked:translate-x-[calc(100%-2px)]');
     expect(switchThumbClasses).toContain('pointer-events-none');
   });
 
@@ -60,7 +60,7 @@ describe('Switch via factory', () => {
     const input = getInput(c);
     const wrapper = c.querySelector('[data-slot="switch-wrapper"]') as HTMLElement;
 
-    const expected = new Set(`${switchControlClasses} h-6 w-11`.split(/\s+/));
+    const expected = new Set(`${switchControlClasses} h-[1.15rem] w-8 h-6 w-11`.split(/\s+/));
     expect(new Set(input.className.split(/\s+/))).toEqual(expected);
     expect(input.className.endsWith('h-6 w-11')).toBe(true);
     expect(wrapper.className).not.toContain('w-11');

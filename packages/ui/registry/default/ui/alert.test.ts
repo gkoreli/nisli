@@ -41,7 +41,7 @@ describe('Alert via factory', () => {
     expect(alert.getAttribute('data-slot')).toBe('alert');
     expect(alert.textContent).toBe('Heads up!');
     expect(alert.className).toContain('rounded-lg');
-    expect(alert.className).toContain('bg-background');
+    expect(alert.className).toContain('bg-card');
   });
 
   it('host is layout-transparent; styling lives on the inner div', () => {
@@ -68,7 +68,7 @@ describe('Alert via factory', () => {
     const variant = signal<AlertVariant | undefined>('default');
     const c = mount(html`${Alert({ variant, children: 'x' })}`);
     const alert = bySlot('alert', c);
-    expect(alert.className).toContain('bg-background');
+    expect(alert.className).toContain('bg-card');
 
     variant.value = 'destructive';
     flushEffects();
@@ -87,7 +87,7 @@ describe('Alert via factory', () => {
     const title = bySlot('alert-title', alert);
     const desc = bySlot('alert-description', alert);
 
-    expect(title.tagName).toBe('H5');
+    expect(title.tagName).toBe('DIV');
     expect(title.textContent).toBe('Error');
     expect(title.className).toContain('font-medium');
     expect(desc.tagName).toBe('DIV');

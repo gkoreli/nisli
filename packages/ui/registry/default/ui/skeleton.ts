@@ -1,8 +1,8 @@
 /**
  * ui/skeleton.ts — Skeleton.
  *
- * Port of shadcn/ui `skeleton` (MIT — https://github.com/shadcn-ui/ui)
- * as a Nisli component. A pulsing placeholder for content that is loading.
+ * Ported from shadcn/ui `new-york-v4/ui/skeleton.tsx` (MIT —
+ * https://github.com/shadcn-ui/ui) as a Nisli component. A pulsing placeholder for content that is loading.
  *
  * Usable as a typed factory (`Skeleton({ className: 'h-4 w-32' })`) or as a
  * plain custom element (`<ui-skeleton class-name="h-4 w-32"></ui-skeleton>`).
@@ -26,7 +26,7 @@ import {
   transparentHost,
 } from '../lib/utils.js';
 
-export const skeletonClasses = 'animate-pulse rounded-md bg-primary/10';
+export const skeletonClasses = 'animate-pulse rounded-md bg-accent';
 
 export type SkeletonProps = {
   /** Merged last into the inner <div>'s class list via cn(). */
