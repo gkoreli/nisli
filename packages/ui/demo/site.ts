@@ -68,6 +68,8 @@ import {
   FieldError,
 } from './src/nisli-ui/ui/form-field.js';
 import { Toaster, toast } from './src/nisli-ui/ui/toast.js';
+import { Toggle } from './src/nisli-ui/ui/toggle.js';
+import { ToggleGroup, ToggleGroupItem } from './src/nisli-ui/ui/toggle-group.js';
 import {
   Dialog,
   DialogTrigger,
@@ -477,6 +479,21 @@ export function renderKitchenSink(): TemplateResult {
         </div>
       </div>`,
     )}
+    ${section(
+      'Toggle',
+      html`<div class="flex items-center gap-4">
+        ${Toggle({ variant: 'outline', children: 'Bold' })}
+        ${ToggleGroup({
+          type: 'single',
+          variant: 'outline',
+          defaultValue: 'center',
+          children: html`${ToggleGroupItem({ value: 'left', children: 'Left' })}
+          ${ToggleGroupItem({ value: 'center', children: 'Center' })}
+          ${ToggleGroupItem({ value: 'right', children: 'Right' })}`,
+        })}
+      </div>`,
+    )}
+
     ${section(
       'Toast',
       html`<div class="flex gap-3">
