@@ -289,6 +289,12 @@ packages/ui/
   tests do.
 - Publishing joins the existing `auto-tag.yml` trusted-publisher flow with
   `directory: packages/ui` repository metadata.
+- **Release cadence (added after 0.1.0 shipped)**: the published package must
+  track the registry. Arch bumps the **patch version as part of landing any
+  batch that adds or changes registry items** (engineers never touch the
+  version); every push to origin then auto-publishes the newest registry via
+  `auto-tag.yml`. Minor bumps are reserved for convention/CLI changes,
+  major for breaking copied-source conventions.
 
 ## Consequences
 
