@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { buildSite } from './build.js';
 import { routes } from './routes.js';
+import { components, primitives } from './registry.js';
 
 describe('nisli website', () => {
   it('renders every route through the shell + chrome', async () => {
@@ -40,5 +41,33 @@ describe('nisli website', () => {
     expect(page).toContain('id="gallery"');
     expect(page).toContain('id="install"');
     expect(page).toContain('id="framework"');
+  });
+
+  it('is registry-driven: one /ui/<name> route per registry item', async () => {
+    const built = await buildSite();
+    const paths = new Set(built.map((p) => p.path));
+
+    // every component + primitive in the registry has its own page
+    for (const item of [...components, ...primitives]) {
+      expect(paths.has(`/ui/${item.name}`)).toBe(true);
+    }
+    expect(paths.has('/ui')).toBe(true);
+  });
+
+  it('renders a component page from registry metadata (exact add command)', async () => {
+    const built = await buildSite();
+    const button = built.find((p) => p.path === '/ui/button');
+    expect(button).toBeDefined();
+    const page = readFileSync(button!.filePath, 'utf8');
+
+    expect(page).toContain('npx @nisli/ui add button'); // exact command from item name
+    expect(page).toContain('ui/button.ts'); // files you own
+    expect(page).toContain('<ui-button'); // curated live preview
+
+    // /ui index links to component pages
+    const index = built.find((p) => p.path === '/ui');
+    const indexHtml = readFileSync(index!.filePath, 'utf8');
+    expect(indexHtml).toContain('href="/ui/button"');
+    expect(indexHtml).toContain('href="/ui/dialog"');
   });
 });
