@@ -19,21 +19,13 @@
  */
 
 import {
+  children,
   component,
   computed,
   html,
-  onMount,
-  ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  cv,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, cv, transparentHost } from '../lib/utils.js';
 
 export const alertVariants = cv(
   'relative grid w-full grid-cols-[0_1fr] items-start gap-y-0.5 rounded-lg border px-4 py-3 text-sm has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] has-[>svg]:gap-x-3 [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current',
@@ -62,26 +54,24 @@ export type AlertProps = {
 
 export const Alert = component<AlertProps>('ui-alert', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const variant = attr(props.variant, host, 'variant');
-  const className = attr(props.className, host, 'class-name');
+  const variant = props.variant;
+  const className = props.className;
 
   const classes = computed(() =>
     cn(alertVariants({ variant: variant.value }), className.value),
   );
 
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
   return html`<div
-    ref="${root}"
     data-slot="alert"
     role="alert"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  attrs: {
+    variant: 'string',
+    className: 'string',
+  },
 });
 
 export type AlertTitleProps = {
@@ -92,23 +82,20 @@ export type AlertTitleProps = {
 
 export const AlertTitle = component<AlertTitleProps>('ui-alert-title', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() =>
     cn('col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight', className.value),
   );
 
-  const root = ref<HTMLHeadingElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
   return html`<div
-    ref="${root}"
     data-slot="alert-title"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  attrs: {
+    className: 'string',
+  },
 });
 
 export type AlertDescriptionProps = {
@@ -121,22 +108,20 @@ export const AlertDescription = component<AlertDescriptionProps>(
   'ui-alert-description',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() =>
       cn('col-start-2 grid justify-items-start gap-1 text-sm text-muted-foreground [&_p]:leading-relaxed', className.value),
     );
 
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<div
-      ref="${root}"
       data-slot="alert-description"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
+  },
+  {
+    attrs: {
+      className: 'string',
+    },
   },
 );

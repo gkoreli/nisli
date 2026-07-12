@@ -14,20 +14,13 @@
  */
 
 import {
+  children,
   component,
   computed,
   html,
-  onMount,
-  ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 export const labelVariants =
   'flex items-center gap-2 text-sm leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50';
@@ -42,22 +35,24 @@ export type LabelProps = {
 
 export const Label = component<LabelProps>('ui-label', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const htmlFor = attr(props.htmlFor, host, 'for');
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
 
   const classes = computed(() => cn(labelVariants, className.value));
 
-  const root = ref<HTMLLabelElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
+  // ADR 0025 item 1: children() owns projection. ADR 0025 item 3: attribute
+  // fallbacks are declared via the `attrs` option below and delivered as live
+  // prop signals. `htmlFor` maps to the native `for` attribute via the v1.1
+  // name override ({ type: 'string', attr: 'for' }) — the auto-kebab default
+  // would be `html-for`, but native label association requires `for`.
   return html`<label
-    ref="${root}"
     data-slot="label"
     class="${classes}"
-    for="${htmlFor}"
-  >${props.children}</label>`;
+    for="${props.htmlFor}"
+  >${children()}</label>`;
+}, {
+  attrs: {
+    htmlFor: { type: 'string', attr: 'for' },
+    className: 'string',
+  },
 });

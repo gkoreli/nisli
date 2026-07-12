@@ -9,21 +9,13 @@
  */
 
 import {
+  children,
   component,
   computed,
   html,
-  onMount,
-  ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  cv,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, cv, transparentHost } from '../lib/utils.js';
 
 export const badgeVariants = cv(
   'inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3',
@@ -64,24 +56,24 @@ export type BadgeProps = {
 
 export const Badge = component<BadgeProps>('ui-badge', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-
-  const variant = attr(props.variant, host, 'variant');
-  const className = attr(props.className, host, 'class-name');
 
   const classes = computed(() =>
-    cn(badgeVariants({ variant: variant.value }), className.value),
+    cn(badgeVariants({ variant: props.variant.value }), props.className.value),
   );
 
-  const root = ref<HTMLSpanElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
+  // ADR 0025 item 1: children() owns projection — light-DOM children AND the
+  // factory `children` prop route through the one slot. The
+  // captureChildren/projectChildren + onMount dance is gone.
   return html`<span
-    ref="${root}"
     data-slot="badge"
-    data-variant="${computed(() => variant.value ?? 'default')}"
+    data-variant="${computed(() => props.variant.value ?? 'default')}"
     class="${classes}"
-  >${props.children}</span>`;
+  >${children()}</span>`;
+}, {
+  // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
+  // (className → class-name); values delivered as live prop signals.
+  attrs: {
+    variant: 'string',
+    className: 'string',
+  },
 });

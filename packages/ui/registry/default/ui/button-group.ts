@@ -11,22 +11,14 @@
  */
 
 import {
+  children,
   component,
   computed,
   html,
-  onMount,
-  ref,
   type TemplateResult,
 } from '@nisli/core';
 import type { SeparatorOrientation } from './separator.js';
-import {
-  attr,
-  captureChildren,
-  cn,
-  cv,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, cv, transparentHost } from '../lib/utils.js';
 
 export const buttonGroupVariants = cv(
   "flex w-fit items-stretch has-[>[data-slot=button-group]]:gap-2 [&>*]:focus-visible:relative [&>*]:focus-visible:z-10 has-[select[aria-hidden=true]:last-child]:[&>[data-slot=select-trigger]:last-of-type]:rounded-r-md [&>[data-slot=select-trigger]:not([class*='w-'])]:w-fit [&>input]:flex-1",
@@ -53,23 +45,20 @@ export type ButtonGroupProps = {
 
 export const ButtonGroup = component<ButtonGroupProps>('ui-button-group', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const orientation = attr(props.orientation, host, 'orientation');
-  const className = attr(props.className, host, 'class-name');
   const classes = computed(() =>
-    cn(buttonGroupVariants({ orientation: orientation.value }), className.value),
+    cn(buttonGroupVariants({ orientation: props.orientation.value }), props.className.value),
   );
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
   return html`<div
-    ref="${root}"
     role="group"
     data-slot="button-group"
-    data-orientation="${orientation}"
+    data-orientation="${props.orientation}"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  attrs: {
+    orientation: 'string',
+    className: 'string',
+  },
 });
 
 export const buttonGroupTextClasses =
@@ -84,18 +73,16 @@ export const ButtonGroupText = component<ButtonGroupTextProps>(
   'ui-button-group-text',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(buttonGroupTextClasses, className.value));
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
+    const classes = computed(() => cn(buttonGroupTextClasses, props.className.value));
     return html`<div
-      ref="${root}"
       data-slot="button-group-text"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
+  },
+  {
+    attrs: {
+      className: 'string',
+    },
   },
 );
 
@@ -113,13 +100,11 @@ export const ButtonGroupSeparator = component<ButtonGroupSeparatorProps>(
   'ui-button-group-separator',
   (props, host) => {
     transparentHost(host);
-    const orientationAttr = attr(props.orientation, host, 'orientation');
     const orientation = computed<SeparatorOrientation>(
-      () => orientationAttr.value ?? 'vertical',
+      () => props.orientation.value ?? 'vertical',
     );
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
-      cn(separatorClasses, buttonGroupSeparatorClasses, className.value),
+      cn(separatorClasses, buttonGroupSeparatorClasses, props.className.value),
     );
     return html`<div
       data-slot="button-group-separator"
@@ -127,5 +112,11 @@ export const ButtonGroupSeparator = component<ButtonGroupSeparatorProps>(
       role="none"
       class="${classes}"
     ></div>`;
+  },
+  {
+    attrs: {
+      orientation: 'string',
+      className: 'string',
+    },
   },
 );

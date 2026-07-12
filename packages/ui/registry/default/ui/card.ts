@@ -25,20 +25,13 @@
  */
 
 import {
+  children,
   component,
   computed,
   html,
-  onMount,
-  ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 /** Every card region shares the same shape: className merge + children. */
 export type CardSectionProps = {
@@ -54,21 +47,15 @@ export type CardSectionProps = {
 function cardSection(tag: string, slot: string, base: string) {
   return component<CardSectionProps>(tag, (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(base, className.value));
-
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
+    const classes = computed(() => cn(base, props.className.value));
 
     return html`<div
-      ref="${root}"
       data-slot="${slot}"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
+  }, {
+    attrs: { className: 'string' },
   });
 }
 
