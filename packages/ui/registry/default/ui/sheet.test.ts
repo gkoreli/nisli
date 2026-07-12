@@ -211,6 +211,41 @@ describe('Sheet — portal', () => {
 });
 
 describe('Sheet — attribute-as-truth (PATTERN A)', () => {
+  it('does not feed the transparent host style back onto plain-HTML content', async () => {
+    document.body.innerHTML =
+      '<ui-sheet open>' +
+      '<ui-sheet-content portal="false">' +
+      '<ui-sheet-title>Title</ui-sheet-title>' +
+      '</ui-sheet-content>' +
+      '</ui-sheet>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const host = document.querySelector('ui-sheet-content') as HTMLElement;
+    const content = q(document, 'sheet-content');
+    expect(host.style.display).toBe('contents');
+    expect(content.style.display).toBe('');
+    expect(content.getAttribute('style')).toBeNull();
+    expect(content.hasAttribute('hidden')).toBe(false);
+    expect(content.classList.contains('fixed')).toBe(true);
+    expect(content.classList.contains('flex')).toBe(true);
+  });
+
+  it('preserves factory-only style passthrough onto the content panel', () => {
+    mount(html`${Sheet({
+      defaultOpen: true,
+      children: SheetContent({
+        portal: false,
+        style: '--sidebar-width:18rem;color:red',
+        children: SheetTitle({ children: 'Title' }),
+      }),
+    })}`);
+
+    const content = q(document, 'sheet-content');
+    expect(content.style.getPropertyValue('--sidebar-width')).toBe('18rem');
+    expect(content.style.color).toBe('red');
+  });
+
   it('mounts open from literal `open` markup, then the close button closes it', async () => {
     // The `open` attribute is present at PARSE, so the SEED-AT-CONNECT path (not
     // attributeChangedCallback) must render the content OPEN at connect.

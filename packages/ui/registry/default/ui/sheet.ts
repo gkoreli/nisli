@@ -231,7 +231,8 @@ const sheetContentAttrs = {
   side: 'string',
   showCloseButton: { type: 'boolean', default: true },
   portal: { type: 'boolean', default: true },
-  style: 'string',
+  // `style` is intentionally factory-only: transparentHost writes the host's
+  // display:contents implementation style, which must never feed into props.
   className: 'string',
 } satisfies ComponentAttrs<SheetContentProps>;
 

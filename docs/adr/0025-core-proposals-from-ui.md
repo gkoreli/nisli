@@ -661,6 +661,35 @@ factory and plain-element tests assert the SVG/class contract and portal
 cleanup. The production www browser proof opens the real hydrated tooltip and
 checks compiled size/background/rotation plus edge and anchor geometry.
 
+### 16. Transparent-host style attribute feedback — RESOLVED (UI-54, 2026-07-12)
+
+`transparentHost(host)` writes `host.style.display = 'contents'`. SheetContent
+both called that helper and declared `style: 'string'` as a live attribute.
+During plain-HTML upgrade, the helper's implementation write therefore flowed
+back through the observed `style` attribute into `props.style`; SheetContent's
+intended style passthrough then copied `display: contents` onto the inner dialog
+panel, destroying its box.
+
+**Resolution**: `SheetContentProps.style` remains a supported factory prop and
+is still bound onto `[data-slot="sheet-content"]`, but `style` is removed from
+`sheetContentAttrs`. Plain HTML can no longer feed the transparent host's own
+style into the panel. The framework skill and `transparentHost` documentation
+now state the invariant: a transparent-host component must never declare
+`style` in its attrs map; inner-node style passthrough is factory-only.
+
+Registry-wide disposition:
+
+| Search result | Disposition |
+| --- | --- |
+| `SheetContent` (`sheetContentAttrs`) | **FIXED** — removed the sole `style` attr declaration. |
+| Sidebar mobile `SheetContent({ style: ... })` call | **VALID** — factory-only panel CSS-variable passthrough, not an attrs declaration. |
+| All other `transparentHost` components | **CLEAR** — no attrs map declares `style`. |
+
+**Proof**: plain authored open SheetContent keeps `display: contents` only on
+the host, while the visible inner panel has no inline display override and
+retains its fixed/flex box classes. Factory-authored panel CSS variables and
+ordinary inline styles still reach the inner panel.
+
 ## Process
 
 New friction found while building ui/www lands here first (PR review may

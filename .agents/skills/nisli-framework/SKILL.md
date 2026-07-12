@@ -58,6 +58,7 @@ Reference these guidelines when:
 - `comp-attrs-boolean` - Declared booleans: bare/any attribute → `true`, literal `"false"` → `false`, absent → declared default; use `{ type: 'boolean', default: true }` for opt-out flags. Declared-default booleans are runtime-guaranteed non-undefined
 - `comp-attrs-forward` - `'forward'` relocates `id`/`name` off the layout-transparent host onto the inner control (native form participation) — replaces `forwardedAttr()`
 - `comp-attrs-prop-pins` - An explicit DEFINED prop wins over its attribute; passing `undefined` does NOT pin (falls back to the attribute/default) — so spreading an unset optional prop stays attribute-driven
+- `comp-transparent-host-no-style-attr` - NEVER declare `style` in the `attrs` map of a component that calls `transparentHost(host)`. `transparentHost` writes `display: contents` on the host; observing `style` feeds that implementation value back into `props.style`, so forwarding the prop paints `display:contents` onto the inner box. Keep inner-node style passthrough factory-only (UI-54)
 
 **Content projection (ADR 0025 item 1) — prefer over `captureChildren()`/`projectChildren()`:**
 - `comp-children-slot` - Project content with `children(fallback?)`, interpolated as a slot: `html`<button>${children()}</button>``. It folds the factory `children` prop + captured light-DOM children + late parser children into ONE slot; no `captureChildren`/`projectChildren`/`onMount` dance
