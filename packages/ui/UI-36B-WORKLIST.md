@@ -192,3 +192,39 @@ VERIFIED, not merely fixed/deployed):**
 = 26 wave-B surfaces. Planned fixes, landings, and deploys close NOTHING
 here — only performed rechecks flip a term. (Wave A's parallel equation:
 27 ☑ + avatar-batch-2 visual + 2 recaptures + sidebar mobile, per 0c64b71.)
+
+## Recheck round 1 — vs payoff deploy bca6c5d1 / origin 5f0a76d (arch, 2026-07-12)
+
+Method: headless-chromium computed values + screenshots per term (evidence in
+session scratchpad `recheck/`).
+
+- **sheet ☑** — UI-54 verified live: `[data-slot=sheet-content]` fixed to the
+  right edge (x=1056..1440, full height), `w-3/4` capped by `max-width:384px`,
+  opaque bg, hairline left border, close X inside the panel at top-4/right-4;
+  `getAttribute('style')` = null (no display:contents), computed `flex`.
+- **table ☑** — UI-55 verified live: row borders `oklch(0.922 0 0)` =
+  rgb(229,229,229) 1px hairline (our token, exact).
+- **resizable ☑** — frame/handle borders + bg-border all rgb(229,229,229).
+- **tooltip ☑** — UI-46/UI-51 verified live: opens ~67ms after hover (no 700ms),
+  arrow present (`size-2.5 rotate-45 bg-foreground`, 45° matrix, ~9.7px) at the
+  trigger-facing edge, content above trigger.
+- **scroll-area — separators ☑, scrollbar term RE-SCOPED:** border rgb(229,229,229)
+  ✓; the thin themed scrollbar is INJECTED AT RUNTIME by the component
+  (scroll-area.ts once-per-document stylesheet) and the static preview never
+  runs the injector — registry correct, preview needs hydration → **WWW-14**.
+- **toast ✗ RE-SCOPED — live demo INERT:** `ui-button`/`ui-toaster` never
+  defined on /ui/toast (sidebar-* defined; hydrate.js 200; zero errors; 4 clicks
+  → zero DOM change). Root class: the RC3 curation gave toast an interactive
+  example WITHOUT hydrate-set membership. UI-50 icons therefore UNVERIFIABLE
+  this generation → **WWW-14** (hydrated toast example + the inert-island guard
+  extension: every ui-* element present in a preview must be DEFINED
+  post-hydration — toast passed 67/67 while dead, a guard class-miss now named).
+
+**Equation after recheck round 1:**
+17 ☑ (13 + sheet + table + resizable + tooltip; scroll-area counts at 13's
+side with its scrollbar sub-term moved out)
++ 1 popover → UI-56 landed, recheck vs the WWW-14 generation
++ 2 re-scoped (toast icons, scroll-area scrollbar) → WWW-14 generation
++ 6 curation → WWW-14 generation
+= 26. Every remaining wave-B term closes against exactly ONE event: the
+WWW-14 deploy. (Wave A: closed at 75d77da, avatar residual also on WWW-14.)
