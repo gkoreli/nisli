@@ -49,6 +49,57 @@ TypeScript, and each file re-implements the lookup + error.
 typed tokens) alongside the existing app-global DI — the Radix-context
 equivalent, but standards-consumable.
 
+**Prototype (UI-27, 2026-07-11, eng2 — NOT landed, design gate)**:
+`core/src/element-context.ts` exports `createContext<T>(name)` →
+`{ name, provide(host, value), inject(host?), inject.optional(host?) }`.
+
+- **Identity-keyed, typed end-to-end.** Each `createContext` mints a private
+  `Symbol` as the storage key; userland references the context object, never a
+  string. `provide` sets that symbol on the provider host; `inject` walks
+  `parentElement` (inclusive) to the nearest host carrying the key. Same-named
+  contexts stay distinct. `inject()` returns `T` (throws into the error boundary
+  when absent, with a named message); `inject.optional()` returns `T | undefined`.
+- **Capture at setup = portal-safe (constraint a).** `inject()` resolves during
+  setup, while the injecting host is still a DOM descendant of its provider, and
+  returns the value *once*. Provider values carry signals, so reactivity flows
+  through them with no further walks (constraint c) — and because the value is
+  already held, a subtree later reparented to `<body>` keeps resolving its
+  ORIGINAL provider (a fresh walk from the portaled host would find nothing).
+  This is the exact analogue of the UI-25 ui-select "dispatch on the captured
+  root host" fix. Enforced: `inject()`/`inject.optional()` with no `host` require
+  an active setup context (else they throw / return undefined). `parentElement`
+  transparently crosses `display: contents` hosts.
+- **Zero cost for non-users (constraint b).** Providing sets one symbol property;
+  injecting is a bounded ancestor walk. No global registry; components that use
+  neither pay nothing (verified: a provide adds exactly one own symbol, non-users
+  gain none).
+
+**Proof**: `element-context.test.ts` (13 cases: ancestor/nearest/display-contents
+resolution, same-name distinctness, throw + optional, setup-default-host, reactive
+pass-through, error boundary, and the reparent/portal-safe-capture case) + `tabs`
+migrated as the smallest `__ui` family (`host.__uiTabs`/`closest('ui-tabs')` →
+`TabsContext.provide`/`.inject()`; all 15 tabs tests green, full ui suite 744 green).
+
+**Open design questions for the 9-family review** (arch's gate):
+1. *Inclusive vs exclusive walk.* Prototype is inclusive (a provider that injects
+   its own context resolves itself), matching the old `closest` semantics. No
+   current family injects a same-context ancestor from within a provider, but the
+   menu families provide one context (menu state) while injecting another (bar /
+   sub state) — different contexts, so unaffected. Flagging in case a future
+   same-context nesting wants exclusive-from-parent.
+2. *Multi-context providers.* Menubar publishes `MenubarState` (bar) and each
+   menu publishes `MenubarMenuState` — two contexts on different hosts, resolved
+   independently. Confirmed fine, but the migration touches more provide/inject
+   sites than tabs; worth a spot-check before committing the API.
+3. *Value vs signal storage.* We store the value object (which holds signals),
+   not a signal-of-value. Providers never swap the whole state object mid-life, so
+   this matches every family; if any needs a replaceable provider value, that
+   would want a signal wrapper (not in scope here).
+4. *Naming.* `createContext` + `provide`/`inject` methods sit next to the existing
+   app-global `provide`/`inject` free functions (injector.ts). No collision
+   (methods vs free functions), but the doc pairing (`Context` = DOM subtree,
+   injector = app singleton) should be explicit in core docs.
+
 ### 3. Opt-in attribute reactivity / reflection — MEDIUM
 
 `attr()`/`boolAttr()`/`forwardedAttr()` are parse-time-only userland

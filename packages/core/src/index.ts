@@ -40,7 +40,7 @@ export {
 // ── Typed event emitters ────────────────────────────────────────────
 export { Emitter } from './emitter.js';
 
-// ── Dependency injection ────────────────────────────────────────────
+// ── Dependency injection (app-global) ───────────────────────────────
 export {
   inject,
   provide,
@@ -49,6 +49,13 @@ export {
   type Constructor,
   type InjectionToken,
 } from './injector.js';
+
+// ── Subtree-scoped context (DOM provide/inject) ─────────────────────
+export {
+  createContext,
+  type Context,
+  type Inject,
+} from './element-context.js';
 
 // ── Component model ─────────────────────────────────────────────────
 export {

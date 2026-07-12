@@ -16,9 +16,11 @@
  *   </ui-tabs>
  *
  * Usable via typed factories (`Tabs({...})`) or as plain custom elements.
- * The parent `<ui-tabs>` exposes its state on `host.__uiTabs`; children
- * locate it with `host.closest('ui-tabs')` and render an error fallback if
- * used outside a `<ui-tabs>`.
+ * The parent `<ui-tabs>` publishes its state via a subtree-scoped
+ * `createContext` (`TabsContext.provide`); children resolve it with
+ * `TabsContext.inject()` during setup and render an error fallback if used
+ * outside a `<ui-tabs>`. The value is captured at setup, so it keeps resolving
+ * the original provider even if the subtree is later reparented (portal-safe).
  *
  * State changes dispatch a bubbling `ui-value-change` CustomEvent
  * (`detail: { value }`) from the `<ui-tabs>` host — consumable anywhere via
@@ -30,6 +32,7 @@
 import {
   component,
   computed,
+  createContext,
   html,
   onMount,
   ref,
@@ -62,19 +65,10 @@ export interface TabsState {
   baseId: string;
 }
 
-type TabsHost = HTMLElement & { __uiTabs?: TabsState };
+/** Subtree-scoped channel from <ui-tabs> to its list/trigger/content parts. */
+const TabsContext = createContext<TabsState>('Tabs');
 
 let uid = 0;
-
-/** Locate the owning `<ui-tabs>` state, or throw (setup error boundary). */
-function useTabsState(host: HTMLElement, tag: string): TabsState {
-  const parent = host.closest('ui-tabs') as TabsHost | null;
-  const state = parent?.__uiTabs;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-tabs>.`);
-  }
-  return state;
-}
 
 // ── ui-tabs (root, owns state) ───────────────────────────────────────
 
@@ -120,7 +114,7 @@ export const Tabs = component<TabsProps>('ui-tabs', (props, host) => {
     orientation,
     baseId: `ui-tabs-${++uid}`,
   };
-  (host as TabsHost).__uiTabs = state;
+  TabsContext.provide(host, state);
 
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() =>
@@ -164,7 +158,7 @@ export type TabsListProps = {
 };
 
 export const TabsList = component<TabsListProps>('ui-tabs-list', (props, host) => {
-  const state = useTabsState(host, 'ui-tabs-list');
+  const state = TabsContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
 
@@ -236,7 +230,7 @@ export type TabsTriggerProps = {
 export const TabsTrigger = component<TabsTriggerProps>(
   'ui-tabs-trigger',
   (props, host) => {
-    const state = useTabsState(host, 'ui-tabs-trigger');
+    const state = TabsContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -291,7 +285,7 @@ export type TabsContentProps = {
 export const TabsContent = component<TabsContentProps>(
   'ui-tabs-content',
   (props, host) => {
-    const state = useTabsState(host, 'ui-tabs-content');
+    const state = TabsContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
