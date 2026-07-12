@@ -79,15 +79,22 @@ any shadcn theme drops in.
 - [x] input, textarea, checkbox, switch, radio-group, select (native), form-field wiring
 
 **Wave 3 — behavior (needs lib primitives)**
-- [x] lib: roving-focus, dismissable-layer, focus trap/restore, floating, typeahead
+- [x] lib: roving-focus, dismissable-layer, focus trap/restore, floating, typeahead, portal
 - [x] tabs, accordion, dialog (+ standalone dialog-close)
-- [ ] collapsible, alert-dialog, tooltip, popover *(in flight — UI-7)*
-- [ ] dropdown-menu *(UI-8, needs submenu design)*
+- [x] collapsible, alert-dialog, tooltip, popover
+- [x] dropdown-menu (incl. submenus), context-menu, menubar
 
 **Wave 4 — surfaces & feedback**
 - [x] table, avatar
-- [ ] progress, breadcrumb, pagination *(in flight — UI-6)*
-- [ ] slider, toast (sonner-style), sheet
+- [x] progress, breadcrumb, pagination
+- [x] slider, toast (sonner-style), sheet
+
+**Beyond the waves (shipped)** — the registry now carries **58 `ui` items**,
+all tested: the waves above plus calendar, carousel, combobox, command,
+drawer, hover-card, input-otp, navigation-menu, resizable, scroll-area,
+select (custom), sidebar, toggle/toggle-group, and the chat/composition set
+(attachment, bubble, empty, item, kbd, marker, message, message-scroller,
+spinner, button-group, input-group, direction).
 
 **Not ported (by design)**
 - `form` — upstream's form.tsx is react-hook-form context wiring with no
@@ -97,9 +104,11 @@ any shadcn theme drops in.
   is a potential post-v1 initiative (original, dataviz-first), not a port.
 
 **Later / explicitly deferred**
-- Portal primitive; live attribute observation (MutationObserver); calendar /
-  date-picker; combobox/command; charts; a docs site built with `@nisli/ssg`
-  (the dogfood milestone).
+- Charts (original, dataviz-first — post-v1); named/multiple projection slots;
+  SVG/namespaced tags in `el()`. *(Formerly deferred, since shipped: portal →
+  `lib/portal.ts` + all 8 overlay families; live attribute observation →
+  `attrs{}` declarations, ADR 0025 §3; calendar; combobox/command; the docs
+  site → `packages/www`, live at nisli.dev.)*
 
 ## "v1 done" milestone
 
@@ -116,6 +125,16 @@ any shadcn theme drops in.
    for every registry item in CI (superseded the duplicate consumer fixture on
    2026-07-11).
 5. README documents install, theming, and attribution (shadcn/ui, Radix).
+
+**Status (audited 2026-07-11, `@nisli/ui@0.2.0` on npm):** Waves 1–4 all
+hold. (1) open — `pack-e2e.mjs` proves the tarball, not the published
+package in a real Vite + Tailwind v4 app (UI-38). (2) open — keyboard/ARIA
+tests, `data-slot`/`data-state`, and dual factory/plain-HTML use are done;
+the systematic side-by-side visual parity sweep vs `shadcn-ref` is in
+flight (UI-36A/B). (3) open — true by convention, unenforced; a
+bare-npm-import guard is in flight (UI-37). (4) done — www installs all 58
+and the WWW-6 preview guard runs in the suite; CI now also runs on push to
+main (WWW-11 verifies). (5) done.
 
 ## Attribution
 

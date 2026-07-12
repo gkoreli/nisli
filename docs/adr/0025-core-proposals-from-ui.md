@@ -260,7 +260,9 @@ but bakes multi-value encoding into core — only worth it at a fourth consumer)
 (3) split single vs multiple into distinct prop types behind a mode generic (most type-
 honest, most churn). RECOMMENDATION: ship (b)-narrowing for the boolean/number
 majority; leave the dual-mode cast as the documented residual until a fourth dual-mode
-root appears, then reconsider option (2).
+root appears, then reconsider option (2). **Disposition (2026-07-11, arch)**: accepted
+as sketched — graduated to ticket **UI-35** (eng1): ship the boolean/number narrowing,
+keep the dual-mode cast as documented residual.
 
 **Design sketch — candidate (c): reactive registration helper** (post-checkpoint; NOT
 implemented — motivation corpus = `resizable`, currently the SOLE consumer). Pattern: a
@@ -281,6 +283,9 @@ value` rule so the next consumer copies it correctly) and graduates to the
 `reactiveRegistry` primitive when a second registration-reactive component lands (a
 column-sizing grid or a menu typeahead registry are the likely triggers). RECOMMENDATION:
 do NOT build the helper pre-checkpoint; document the pattern + the signal-thunk rule now.
+**Disposition (2026-07-11, arch)**: accepted as sketched — `comp-register-signal-not-value`
+documented in the framework skill (§1); the `reactiveRegistry` primitive stays deferred
+until a second registration-reactive consumer lands.
 
 ### 4. Reactive-slot primitive transition gap — FIXED (2026-07-11)
 
