@@ -114,6 +114,11 @@ export function cv<V extends VariantShape>(
  * Make the custom-element host layout-transparent. Every @nisli/ui
  * component calls this first in setup: the host (`<ui-button>`) carries
  * no box; all styling lives on the component's inner root element.
+ *
+ * Never declare `style` in this component's `attrs` map. This helper writes
+ * `display: contents` onto the host; a live style declaration would feed that
+ * implementation style back through props and paint it onto the inner box.
+ * Inner style passthrough must remain factory-only.
  */
 export function transparentHost(host: HTMLElement): void {
   host.style.display = 'contents';

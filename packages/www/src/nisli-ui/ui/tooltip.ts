@@ -21,10 +21,14 @@
  * (pass `portal={false}` / `portal="false"` to render inline). Positioning
  * (floating), Escape-to-close, and the provider manager all operate by
  * reference, so they survive the move.
+ * Trigger `data-state` matches Radix's `closed | delayed-open | instant-open`
+ * contract, and `aria-describedby` references the tooltip only while it is
+ * exposed as open.
  *
- * v1 limits: no arrow (the floating lib has no arrow positioning — upstream's
- * TooltipArrow is omitted). SSG note: the portaled content escapes the static
- * snapshot (client-only, matching upstream); use `portal={false}` if needed.
+ * The upstream arrow is rendered and positioned by the shared floating helper,
+ * including collision flips and cross-axis clamping. SSG note: the portaled
+ * content escapes the static snapshot (client-only, matching upstream); use
+ * `portal={false}` if needed.
  *
  * This file was copied into your project by `nisli-ui` — you own it.
  */
@@ -61,13 +65,15 @@ let skipTimer: ReturnType<typeof setTimeout> | undefined;
 let skipActive = false;
 let activeClose: (() => void) | null = null;
 
+type TooltipOpenState = 'instant-open' | 'delayed-open';
+
 /** Schedule a show after `delay`, or immediately during the skip window. */
-function scheduleOpen(delay: number, show: () => void): void {
+function scheduleOpen(delay: number, show: (state: TooltipOpenState) => void): void {
   clearTimeout(openTimer);
   if (skipActive || delay <= 0) {
-    show();
+    show('instant-open');
   } else {
-    openTimer = setTimeout(show, delay);
+    openTimer = setTimeout(() => show('delayed-open'), delay);
   }
 }
 
@@ -95,6 +101,7 @@ function notifyClosed(close: () => void): void {
 
 export interface TooltipState {
   open: ReadonlySignal<boolean>;
+  triggerState: ReadonlySignal<'closed' | TooltipOpenState>;
   requestOpen(): void;
   requestClose(): void;
   baseId: string;
@@ -106,7 +113,7 @@ const TooltipContext = createContext<TooltipState>('Tooltip', { providerTag: 'ui
 
 let uid = 0;
 
-const stateAttr = (open: boolean) => (open ? 'open' : 'closed');
+const contentState = (open: boolean) => (open ? 'open' : 'closed');
 
 // ── ui-tooltip (root, owns state) ────────────────────────────────────
 
@@ -131,7 +138,11 @@ export const Tooltip = component<TooltipProps, typeof tooltipAttrs>('ui-tooltip'
   // its user-facing open is NOT attribute-backed (there is no `open`/`default-open`
   // attribute read on the root), so `open` stays a controlled-only factory prop.
   const internal = signal<boolean>(false);
+  const openState = signal<TooltipOpenState>('instant-open');
   const open = computed<boolean>(() => props.open.value ?? internal.value);
+  const triggerState = computed<'closed' | TooltipOpenState>(() =>
+    open.value ? openState.value : 'closed',
+  );
   const delay = computed<number>(() => props.delayDuration.value ?? DEFAULT_DELAY);
   const anchor = ref<HTMLElement>();
 
@@ -139,8 +150,9 @@ export const Tooltip = component<TooltipProps, typeof tooltipAttrs>('ui-tooltip'
   // active tooltip by callback identity, so a fresh closure per setOpen call
   // made a re-opening tooltip "close the previous one" — itself.
   const close = (): void => setOpen(false);
-  const setOpen = (next: boolean): void => {
+  const setOpen = (next: boolean, nextState: TooltipOpenState = 'instant-open'): void => {
     if (next === open.value) return;
+    if (next) openState.value = nextState;
     internal.value = next;
     if (next) notifyOpened(close);
     else notifyClosed(close);
@@ -151,7 +163,8 @@ export const Tooltip = component<TooltipProps, typeof tooltipAttrs>('ui-tooltip'
 
   const state: TooltipState = {
     open,
-    requestOpen: () => scheduleOpen(delay.value, () => setOpen(true)),
+    triggerState,
+    requestOpen: () => scheduleOpen(delay.value, (nextState) => setOpen(true, nextState)),
     requestClose: () => {
       cancelScheduledOpen();
       setOpen(false);
@@ -191,6 +204,7 @@ export const TooltipTrigger = component<TooltipTriggerProps, typeof tooltipTrigg
 
     const className = props.className;
     const classes = computed(() => cn(className.value));
+    const describedBy = computed(() => state.open.value ? `${state.baseId}-content` : undefined);
 
     // Ref kept for the floating anchor (positioning reads it by reference),
     // not for projection — children() renders the slot directly.
@@ -203,8 +217,8 @@ export const TooltipTrigger = component<TooltipTriggerProps, typeof tooltipTrigg
       ref="${root}"
       type="button"
       data-slot="tooltip-trigger"
-      aria-describedby="${`${state.baseId}-content`}"
-      data-state="${computed(() => stateAttr(state.open.value))}"
+      aria-describedby="${describedBy}"
+      data-state="${state.triggerState}"
       class="${classes}"
       @pointerenter=${() => state.requestOpen()}
       @focus=${() => state.requestOpen()}
@@ -220,6 +234,8 @@ export const TooltipTrigger = component<TooltipTriggerProps, typeof tooltipTrigg
 
 const contentClasses =
   'z-50 w-fit origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md bg-foreground px-3 py-1.5 text-xs text-balance text-background fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95';
+const arrowClasses =
+  'z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-foreground fill-foreground';
 
 export type TooltipContentProps = {
   side?: Side;
@@ -256,6 +272,7 @@ export const TooltipContent = component<TooltipContentProps, typeof tooltipConte
     const contentId = `${state.baseId}-content`;
 
     const content = ref<HTMLDivElement>();
+    const arrow = ref<SVGSVGElement>();
 
     // Portal the content to <body> (default on) so its fixed positioning
     // escapes transformed ancestors. Floating positioning and Escape handling
@@ -265,11 +282,16 @@ export const TooltipContent = component<TooltipContentProps, typeof tooltipConte
     portal(content, { enabled: portalEnabled });
 
     let disposePosition: (() => void) | null = null;
+    let positionFrame: number | null = null;
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') state.requestClose();
     };
 
     const stopPositioning = (): void => {
+      if (positionFrame !== null) {
+        cancelAnimationFrame(positionFrame);
+        positionFrame = null;
+      }
       if (disposePosition) {
         disposePosition();
         disposePosition = null;
@@ -283,14 +305,20 @@ export const TooltipContent = component<TooltipContentProps, typeof tooltipConte
         // Position after the `hidden` binding clears so the element is measurable.
         queueMicrotask(() => {
           if (!state.open.value) return;
-          const anchor = state.anchor.current;
-          if (anchor && content.current) {
-            disposePosition?.();
-            disposePosition = positionFloating(anchor, content.current, {
-              side: side.value,
-              sideOffset: sideOffset.value,
-            });
-          }
+          positionFrame = requestAnimationFrame(() => {
+            positionFrame = null;
+            if (!state.open.value) return;
+            const anchor = state.anchor.current;
+            const arrowElement = arrow.current;
+            if (anchor && content.current && arrowElement) {
+              disposePosition?.();
+              disposePosition = positionFloating(anchor, content.current, {
+                side: side.value,
+                sideOffset: sideOffset.value,
+                arrow: arrowElement,
+              });
+            }
+          });
         });
       } else {
         stopPositioning();
@@ -304,10 +332,18 @@ export const TooltipContent = component<TooltipContentProps, typeof tooltipConte
       role="tooltip"
       data-slot="tooltip-content"
       id="${contentId}"
-      data-state="${computed(() => stateAttr(state.open.value))}"
+      data-state="${computed(() => contentState(state.open.value))}"
       hidden="${floatingHidden(state.open, content)}"
       class="${classes}"
-    >${children()}</div>`;
+    >${children()}<svg
+      ref="${arrow}"
+      data-slot="tooltip-arrow"
+      aria-hidden="true"
+      viewBox="0 0 30 10"
+      preserveAspectRatio="none"
+      style="position:absolute"
+      class="${arrowClasses}"
+    ><polygon points="0,0 30,0 15,10"></polygon></svg></div>`;
   },
   { attrs: tooltipContentAttrs },
 );

@@ -4,7 +4,8 @@
  * shadcn/ui-compatible token layer, mirroring upstream's `neutral` theme
  * (MIT — https://github.com/shadcn-ui/ui, apps/v4/registry/themes.ts):
  * theme by overriding the CSS variables; dark mode via a `.dark` class on
- * any ancestor. Import this after `@import "tailwindcss";` in your CSS.
+ * any ancestor. Import this after `@import "tailwindcss";` and
+ * `@import "tw-animate-css";` in your CSS.
  *
  * This file was copied into your project by `nisli-ui` — you own it.
  */
@@ -144,6 +145,10 @@
 }
 
 @layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
   body {
     background-color: var(--background);
     color: var(--foreground);
