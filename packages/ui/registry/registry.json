@@ -359,7 +359,8 @@
         "utils",
         "floating",
         "dismissable-layer",
-        "focus"
+        "focus",
+        "portal"
       ]
     },
     {

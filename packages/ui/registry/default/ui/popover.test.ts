@@ -51,7 +51,7 @@ function mountPopover(
 
 const q = (root: ParentNode, slot: string) =>
   root.querySelector<HTMLElement>(`[data-slot="${slot}"]`)!;
-const isOpen = (root: ParentNode) => !q(root, 'popover-content').hasAttribute('hidden');
+const isOpen = (_root: ParentNode) => !q(document, 'popover-content').hasAttribute('hidden');
 function flush2(): void {
   flushEffects();
   flushEffects();
@@ -65,7 +65,7 @@ describe('Popover — structure and ARIA', () => {
   it('wires trigger to a role=dialog panel, closed by default', () => {
     const c = mountPopover();
     const trigger = q(c, 'popover-trigger');
-    const content = q(c, 'popover-content');
+    const content = q(document, 'popover-content');
     expect(trigger.getAttribute('aria-haspopup')).toBe('dialog');
     expect(content.getAttribute('role')).toBe('dialog');
     expect(content.id).toBeTruthy();
@@ -76,10 +76,10 @@ describe('Popover — structure and ARIA', () => {
 
   it('renders header/title/description slots with ported classes', () => {
     const c = mountPopover({ defaultOpen: true });
-    expect(q(c, 'popover-header').className).toContain('flex flex-col gap-1 text-sm');
-    expect(q(c, 'popover-title').className).toContain('font-medium');
-    expect(q(c, 'popover-description').tagName).toBe('P');
-    expect(q(c, 'popover-description').className).toContain('text-muted-foreground');
+    expect(q(document, 'popover-header').className).toContain('flex flex-col gap-1 text-sm');
+    expect(q(document, 'popover-title').className).toContain('font-medium');
+    expect(q(document, 'popover-description').tagName).toBe('P');
+    expect(q(document, 'popover-description').className).toContain('text-muted-foreground');
   });
 });
 
@@ -125,7 +125,7 @@ describe('Popover — dismissal', () => {
 
   it('stays open on pointerdown inside the content', () => {
     const c = mountPopover({ defaultOpen: true });
-    pointerDown(q(c, 'popover-content'));
+    pointerDown(q(document, 'popover-content'));
     expect(isOpen(c)).toBe(true);
   });
 
@@ -145,7 +145,7 @@ describe('Popover — focus management', () => {
     trigger.click();
     flush2();
     await Promise.resolve(); // trap.activate in microtask
-    expect(q(c, 'popover-content').contains(document.activeElement)).toBe(true);
+    expect(q(document, 'popover-content').contains(document.activeElement)).toBe(true);
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     flush2();
@@ -162,6 +162,48 @@ describe('Popover — controlled', () => {
     open.value = true;
     flush2();
     expect(isOpen(c)).toBe(true);
+  });
+});
+
+describe('Popover — portal', () => {
+  it('moves the content to <body> by default, trigger stays put', () => {
+    const c = mountPopover({ defaultOpen: true });
+    const content = q(document, 'popover-content');
+    expect(content.parentElement).toBe(document.body);
+    expect(c.contains(content)).toBe(false);
+    expect(c.contains(q(c, 'popover-trigger'))).toBe(true);
+  });
+
+  it('portal={false} keeps the content inline', () => {
+    const c = mount(
+      html`${Popover({
+        defaultOpen: true,
+        children: html`${PopoverTrigger({ children: 'Open' })}
+        ${PopoverContent({ portal: false, children: 'Body' })}`,
+      })}`,
+    );
+    flushEffects();
+    const content = q(document, 'popover-content');
+    expect(content.parentElement).not.toBe(document.body);
+    expect(c.contains(content)).toBe(true);
+  });
+
+  it('Escape + outside-pointer dismissal still work from the portaled content', () => {
+    const c = mountPopover({ defaultOpen: true });
+    expect(isOpen(c)).toBe(true);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    flushEffects();
+    flushEffects();
+    expect(isOpen(c)).toBe(false);
+  });
+
+  it('removes the portaled content when the popover is disconnected (no leak)', async () => {
+    const c = mountPopover({ defaultOpen: true });
+    expect(document.querySelector('[data-slot="popover-content"]')).not.toBeNull();
+    c.querySelector('ui-popover')!.remove();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.querySelector('[data-slot="popover-content"]')).toBeNull();
   });
 });
 
@@ -185,8 +227,8 @@ describe('Popover — plain custom element usage', () => {
     await Promise.resolve();
     const root = document.querySelector('ui-popover')!;
     expect(root.querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(1);
-    expect(root.querySelectorAll('[data-slot="popover-content"]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-slot="popover-content"]')).toHaveLength(1);
     expect(q(root, 'popover-trigger').textContent).toBe('Open');
-    expect(q(root, 'popover-content').textContent).toBe('Body');
+    expect(q(document, 'popover-content').textContent).toBe('Body');
   });
 });
