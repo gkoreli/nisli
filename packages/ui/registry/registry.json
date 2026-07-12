@@ -737,6 +737,17 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "message-scroller",
+      "type": "ui",
+      "description": "A scroll container for chat messages with stick-to-bottom autoscroll and a scroll-to-end button. Port of shadcn/ui message-scroller.",
+      "files": [
+        "ui/message-scroller.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }
