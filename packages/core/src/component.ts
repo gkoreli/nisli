@@ -471,6 +471,20 @@ export function component<P extends object = Record<string, never>>(
     _propSignal(key: string): Signal<unknown> {
       return (this._propsProxy!.props as Record<string, Signal<unknown>>)[key]!;
     }
+
+    /**
+     * Whether a prop is currently pinned by a defined factory/property write
+     * (framework-internal, like _propSignal). The attribute-as-truth open-state
+     * pattern needs this as its controlled-mode discriminator: a declared
+     * 'boolean' prop is never undefined (absent → false), so pin state is the
+     * ONLY way a component can tell "parent drives this" from "the attribute
+     * drives this" — e.g. setOpen() must not write the open attribute while a
+     * controlled parent has it pinned, or the DOM attribute diverges from the
+     * pinned state until the next prop write.
+     */
+    _isPinned(key: string): boolean {
+      return this._pinned.has(key);
+    }
   }
 
   // Register the custom element (if not already registered)

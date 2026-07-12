@@ -427,3 +427,29 @@ describe('attrs v1.1: forward unpin (rev audit fix)', () => {
     expect(props.id.value).toBeUndefined(); // not pinned, no stale value
   });
 });
+
+// ── _isPinned — controlled-mode discriminator (attribute-as-truth) ──
+
+describe('_isPinned', () => {
+  it('tracks defined-write pinning; attribute writes never pin', () => {
+    const tag = uniqueTag('pin-query');
+    component<{ open: boolean }>(tag, () => html`<div></div>`, {
+      attrs: { open: 'boolean' },
+    });
+    const el = document.createElement(tag) as any;
+    document.body.appendChild(el);
+
+    // Attribute-driven: never pinned.
+    expect(el._isPinned('open')).toBe(false);
+    el.setAttribute('open', '');
+    expect(el._isPinned('open')).toBe(false);
+
+    // Defined factory/property write pins…
+    el._setProp('open', true);
+    expect(el._isPinned('open')).toBe(true);
+
+    // …and an undefined write (spread-of-unset) unpins.
+    el._setProp('open', undefined);
+    expect(el._isPinned('open')).toBe(false);
+  });
+});
