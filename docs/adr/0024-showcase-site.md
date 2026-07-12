@@ -28,18 +28,19 @@ vitest runner, Tailwind CLI, wrangler static assets) carries over unchanged.
 
 ## Decision
 
-- **Location: a new private workspace package, now `packages/www`** — not an
-  extension of `packages/ui/demo`. The demo is a byte-locked CLI-output
-  fixture (its files must equal the registry exactly, enforced in CI); a
+- **Location: a new private workspace package, now `packages/www`** — a
   showcase site needs editorial freedom, its own sections and copy, and a
-  deploy pipeline. Both remain honest consumers: the site installs its own
-  component copies through the real CLI (`pnpm --filter @nisli/site sync`).
+  deploy pipeline. The site remains an honest consumer by installing its own
+  component copies through the real CLI (`pnpm --filter @nisli/www sync`).
+  **Update 2026-07-11**: www superseded the former duplicate UI consumer and
+  its registry-copy equality check; CI now requires complete registry preview
+  coverage in this single dogfood consumer.
 - **Pipeline**: `src/render.test.ts` drives `buildSite()` (vitest is the
   repo's TS runner on Node 20) → `@nisli/ssg` renders `src/pages/home.ts`
   → `src/shell.ts` wraps it in a full document → Tailwind CLI
   (`@tailwindcss/cli`, a site-only devDependency; the zero-runtime-deps rule
   applies to registry code, not site tooling) compiles `dist/assets/site.css`
-  from the rendered HTML + our theme tokens. `pnpm --filter @nisli/site
+  from the rendered HTML + our theme tokens. `pnpm --filter @nisli/www
   build` produces a complete `dist/`.
 - **Deploy**: `wrangler.toml` with `[assets] directory = "./dist"`
   (Cloudflare Workers Static Assets; `npx wrangler deploy`). `dist/` is plain
@@ -56,7 +57,7 @@ vitest runner, Tailwind CLI, wrangler static assets) carries over unchanged.
 - The site doubles as an end-to-end regression: `pnpm test` renders the whole
   page from real installed component copies.
 - Site component copies can drift from the registry between syncs — refresh
-  with `pnpm --filter @nisli/site sync` (deliberate: a real consumer's copies
+  with `pnpm --filter @nisli/www sync` (deliberate: a real consumer's copies
   don't auto-update either).
 - First non-published workspace package; root `pnpm build/test/typecheck`
   now include it.

@@ -112,8 +112,9 @@ any shadcn theme drops in.
    ARIA tests under happy-dom, carries `data-slot`/`data-state` hooks, and
    visually matches shadcn's default style side by side.
 3. Zero runtime npm dependencies in every copied file.
-4. A kitchen-sink demo page (rendered with `@nisli/ssg`) exists in-repo and is
-   part of CI.
+4. `packages/www` installs the complete registry and enforces preview coverage
+   for every registry item in CI (superseded the duplicate consumer fixture on
+   2026-07-11).
 5. README documents install, theming, and attribution (shadcn/ui, Radix).
 
 ## Attribution

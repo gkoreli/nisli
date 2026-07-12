@@ -341,11 +341,12 @@ Shipped with this ADR (branch `arch/ui`):
 - Tests: Button rendering/interop, `cn`/`cv` unit tests, CLI copy round-trip
   into a temp dir.
 
-**Update 2026-07-11**: the registry has grown to 25 items (7 lib primitives,
-18 component files through dialog/table/avatar), all verified against the
-canonical shadcn checkout, plus the committed SSG kitchen-sink demo fixture
-(`packages/ui/demo`) enforcing registry↔fixture byte-equality in CI. Current
-roadmap state lives in `packages/ui/NORTH-STAR.md`.
+**Update 2026-07-11**: the registry has grown beyond its initial 25 items, all
+verified against the canonical shadcn checkout. The former duplicate consumer
+fixture and registry-copy equality check were superseded on 2026-07-11 by
+`packages/www`, which installs the complete registry and enforces preview
+coverage for every registry item in CI. Current roadmap state lives in
+`packages/ui/NORTH-STAR.md`.
 
 The component roadmap and v1 milestone live in
 [`packages/ui/NORTH-STAR.md`](../../packages/ui/NORTH-STAR.md).
