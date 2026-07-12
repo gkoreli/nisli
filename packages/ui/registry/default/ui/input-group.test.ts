@@ -148,3 +148,63 @@ describe('InputGroupTextarea — live rows attribute', () => {
     expect(ta.getAttribute('rows')).toBe('8');
   });
 });
+
+// ── UI-58: transparent-host composition-selector translation ────────
+//
+// The group's direct children are projected custom-element HOSTS (display:contents),
+// so upstream's direct-child layout selectors are dead and were translated to
+// descendant form. happy-dom has no layout engine, so these prove the STRUCTURAL
+// prerequisites (the applicability regression) + the class-form (built-CSS check);
+// the actual painted geometry is browser-verify-gated.
+describe('UI-58 — dead direct-child composition selectors translated to descendant', () => {
+  const g = (root: ParentNode) => bySlot('input-group', root);
+
+  it('the control input is a DESCENDANT, not a direct child, of the group (why [&>input] was dead)', () => {
+    const c = mount(
+      html`${InputGroup({
+        children: html`${InputGroupAddon({ align: 'inline-start', children: '🔍' })}
+        ${InputGroupInput({ placeholder: 'Search…' })}`,
+      })}`,
+    );
+    const group = g(c);
+    // Direct children are the transparent hosts, NOT the input / the [data-align] div.
+    expect(group.querySelector(':scope > input')).toBeNull();
+    expect(group.querySelector(':scope > [data-align]')).toBeNull();
+    expect(group.querySelector(':scope > ui-input-group-input')).not.toBeNull();
+    expect(group.querySelector(':scope > ui-input-group-addon')).not.toBeNull();
+    // The real nodes live one host-level deeper — exactly what the translated
+    // `[&>*>input]` and `has-[[data-align=…]]` selectors target.
+    const control = group.querySelector('[data-slot="input-group-control"]') as HTMLInputElement;
+    expect(control.tagName).toBe('INPUT');
+    expect(control.parentElement?.tagName.toLowerCase()).toBe('ui-input-group-input');
+    const addon = group.querySelector('[data-slot="input-group-addon"]') as HTMLElement;
+    expect(addon.getAttribute('data-align')).toBe('inline-start');
+    expect(addon.parentElement?.tagName.toLowerCase()).toBe('ui-input-group-addon');
+  });
+
+  it('built-CSS class forms: translated descendant selectors present, dead child forms gone', () => {
+    // Root: has-[textarea], has-[[data-align=…]], [&>*>input] — NOT the dead child forms.
+    expect(inputGroupClasses).toContain('has-[textarea]:h-auto');
+    expect(inputGroupClasses).toContain('has-[[data-align=inline-start]]:[&>*>input]:pl-2');
+    expect(inputGroupClasses).toContain('has-[[data-align=block-start]]:flex-col');
+    expect(inputGroupClasses).not.toContain('has-[>textarea]');
+    expect(inputGroupClasses).not.toContain('has-[>[data-align');
+    expect(inputGroupClasses).not.toContain('[&>input]');
+    // The already-descendant control tokens are untouched.
+    expect(inputGroupClasses).toContain('has-[[data-slot=input-group-control]:focus-visible]:border-ring');
+
+    // Addon: has-[button]/has-[kbd]/[&_kbd]/group-has-[input] — NOT the child forms;
+    // native `[&>svg]` icon token kept verbatim.
+    const addon = inputGroupAddonVariants({ align: 'inline-start' });
+    expect(addon).toContain('has-[button]:ml-[-0.45rem]');
+    expect(addon).toContain('has-[kbd]:ml-[-0.35rem]');
+    expect(addon).not.toContain('has-[>button]');
+    expect(addon).not.toContain('has-[>kbd]');
+    const base = inputGroupAddonVariants({ align: 'block-start' });
+    expect(base).toContain('group-has-[input]/input-group:pt-2.5');
+    expect(base).not.toContain('group-has-[>input]');
+    expect(base).toContain('[&_kbd]:rounded-'); // kbd → descendant (covers ui-kbd + native)
+    expect(base).toContain("[&>svg:not([class*='size-'])]:size-4"); // native svg kept
+    expect(base).not.toContain('[&>kbd]');
+  });
+});
