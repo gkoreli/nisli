@@ -36,6 +36,43 @@ Route render functions may return either an existing HTML string or a normal
 internally at build time, so application templates should use the same `html`
 authoring API as browser components.
 
+## Application router builds
+
+Pass an `AppRouter` from `@nisli/router` instead of a separate route array to
+share path matching, parameter decoding, query codecs, page rendering, and
+metadata with browser and Vite navigation.
+
+```typescript
+import { html } from '@nisli/core';
+import { buildStaticSite } from '@nisli/ssg';
+import { defineRouter, notFound, route } from '@nisli/router';
+
+const AppRouter = defineRouter({
+  home: route('/', { render: () => html`<h1>Home</h1>` }),
+  post: route('/posts/:slug', {
+    entries: () => [{ slug: 'hello' }, { slug: 'second' }],
+    render: ({ params }) => html`<article>${params.slug}</article>`,
+  }),
+  notFound: notFound({ render: () => html`<h1>Not found</h1>` }),
+});
+
+await buildStaticSite({
+  outDir: 'dist',
+  router: AppRouter,
+  shell: ({ content, metadata }) => html`
+    <!doctype html>
+    <title>${metadata?.title}</title>
+    <main>${content}</main>
+  `,
+});
+```
+
+Dynamic routes must provide `entries()`. Each entry is expanded with its typed
+`href()` and re-matched before rendering, so a build fails rather than silently
+using different URL rules. A configured not-found route is emitted as root
+`404.html`. The optional `shell` receives the shared
+`{ title, meta: Record<string, string> }` metadata contract.
+
 ## Output Helpers
 
 Use the output helpers when adopting `@nisli/ssg` incrementally inside an

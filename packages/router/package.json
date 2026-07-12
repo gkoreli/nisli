@@ -14,7 +14,8 @@
     "@nisli/core": ">=0.51.0"
   },
   "devDependencies": {
-    "@nisli/core": "workspace:*"
+    "@nisli/core": "workspace:*",
+    "@types/node": "^22.0.0"
   },
   "exports": {
     ".": "./src/index.ts",

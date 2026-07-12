@@ -23,7 +23,8 @@
     "@nisli/core": ">=0.48.0"
   },
   "devDependencies": {
-    "@nisli/core": "workspace:*"
+    "@nisli/core": "workspace:*",
+    "@nisli/router": "workspace:*"
   },
   "exports": {
     ".": "./src/index.ts"

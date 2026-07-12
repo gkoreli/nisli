@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { component, html, signal, ref, onMount } from '@nisli/core';
+import { defineRouter, notFound, numberParam, route } from '@nisli/router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildStaticSite } from './index.js';
 
@@ -219,5 +220,92 @@ describe('buildStaticSite', () => {
 
     expect(readFileSync(join(outDir, 'stale.txt'), 'utf-8')).toBe('stale');
     expect(readFileSync(join(outDir, 'index.html'), 'utf-8')).toBe('fresh');
+  });
+
+  it('expands router entries and reuses matched render contexts', async () => {
+    const outDir = tempDir();
+    const seen: Array<{ slug: string; page: number; pathname: string }> = [];
+    const AppRouter = defineRouter({
+      home: route('/', { render: () => html`<h1>Home</h1>` }),
+      post: route('/posts/:slug', {
+        query: { page: numberParam().default(1) },
+        entries: async () => [{ slug: 'hello world' }, { slug: 'second' }],
+        render: ({ params, query, url }) => {
+          seen.push({ slug: params.slug, page: query.page, pathname: url.pathname });
+          return html`<article>${params.slug}:${query.page}</article>`;
+        },
+      }),
+    }, { base: '/docs' });
+
+    const result = await buildStaticSite({ outDir, router: AppRouter });
+
+    expect(readFileSync(join(outDir, 'docs', 'index.html'), 'utf8')).toContain('Home');
+    expect(readFileSync(join(outDir, 'docs', 'posts', 'hello%20world', 'index.html'), 'utf8'))
+      .toContain('hello world:1');
+    expect(result.pages.map((page) => page.path)).toEqual([
+      '/docs/', '/docs/posts/hello%20world', '/docs/posts/second',
+    ]);
+    expect(seen).toEqual([
+      { slug: 'hello world', page: 1, pathname: '/docs/posts/hello%20world' },
+      { slug: 'second', page: 1, pathname: '/docs/posts/second' },
+    ]);
+  });
+
+  it('emits root 404.html and passes shared metadata through shell', async () => {
+    const outDir = tempDir();
+    const shellPages: Array<{ path: string; title?: string; description?: string; notFound: boolean }> = [];
+    const AppRouter = defineRouter({
+      home: route('/', {
+        render: () => html`<h1>Home</h1>`,
+        metadata: { title: 'Home', meta: { description: 'Start' } },
+      }),
+      notFound: notFound({
+        render: () => html`<h1>Missing</h1>`,
+        metadata: { title: 'Not Found', meta: { description: 'Missing page' } },
+      }),
+    });
+
+    const result = await buildStaticSite({
+      outDir,
+      router: AppRouter,
+      shell: (page) => {
+        shellPages.push({
+          path: page.path,
+          title: page.metadata?.title,
+          description: page.metadata?.meta?.description,
+          notFound: page.notFound,
+        });
+        return html`<!doctype html><title>${page.metadata?.title}</title><main>${page.content}</main>`;
+      },
+    });
+
+    expect(readFileSync(join(outDir, 'index.html'), 'utf8')).toContain('<title>Home</title>');
+    expect(readFileSync(join(outDir, '404.html'), 'utf8')).toContain('<title>Not Found</title>');
+    expect(readFileSync(join(outDir, '404.html'), 'utf8')).toContain('<h1>Missing</h1>');
+    expect(result.pages.map((page) => page.path)).toEqual(['/', '/404.html']);
+    expect(shellPages).toEqual([
+      { path: '/', title: 'Home', description: 'Start', notFound: false },
+      { path: '/404.html', title: 'Not Found', description: 'Missing page', notFound: true },
+    ]);
+  });
+
+  it('rejects dynamic application routes without entries', async () => {
+    const AppRouter = defineRouter({
+      post: route('/posts/:slug', { render: () => html`` }),
+    });
+    await expect(buildStaticSite({ outDir: tempDir(), router: AppRouter }))
+      .rejects.toThrow('requires entries()');
+  });
+
+  it('rejects generated URLs that do not re-match their source route', async () => {
+    const AppRouter = defineRouter({
+      page: route('/page', {
+        query: { page: numberParam() },
+        render: () => html``,
+      }),
+      notFound: notFound({ render: () => html`` }),
+    });
+    await expect(buildStaticSite({ outDir: tempDir(), router: AppRouter }))
+      .rejects.toThrow('did not match its generated static URL');
   });
 });

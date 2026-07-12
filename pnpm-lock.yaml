@@ -32,6 +32,9 @@ importers:
       '@nisli/core':
         specifier: workspace:*
         version: link:../core
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.17
 
   packages/ssg:
     dependencies:
@@ -42,6 +45,9 @@ importers:
       '@nisli/core':
         specifier: workspace:*
         version: link:../core
+      '@nisli/router':
+        specifier: workspace:*
+        version: link:../router
 
   packages/ui:
     devDependencies:

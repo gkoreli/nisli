@@ -44,6 +44,27 @@ renders the current route. Route matching itself is pure and
 environment-neutral, leaving stable seams for `@nisli/router/vite` and Nisli's
 SSG integration to consume the exact same application definition.
 
+## Vite direct routes
+
+The dev-only route fallback matches HTML requests with the application router
+before returning Vite's transformed shell. It composes with core HMR and does
+not add a second transform or hot-update protocol.
+
+```ts
+import { defineConfig } from 'vite';
+import { nisliHmr } from '@nisli/core/vite-hmr';
+import { nisliRoutes } from '@nisli/router/vite';
+import { AppRouter } from './src/app-router.js';
+
+export default defineConfig({
+  plugins: [nisliHmr(), nisliRoutes(AppRouter)],
+});
+```
+
+Static builds pass the same `AppRouter` to `buildStaticSite({ router })` from
+`@nisli/ssg`; dynamic routes expand their typed `entries()` through the same
+`href()` and matcher used by browser and Vite navigation.
+
 The package progressively enhances eligible same-origin anchors while
 preserving native external, modifier-key, target, download, hash-only, and
 opt-out navigation behavior.
