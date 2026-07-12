@@ -53,9 +53,11 @@ function mountMenu(items?: TemplateResult): HTMLElement {
 
 const q = (root: ParentNode, slot: string) =>
   root.querySelector<HTMLElement>(`[data-slot="${slot}"]`)!;
-const isOpen = (root: ParentNode) => !q(root, 'context-menu-content').hasAttribute('hidden');
+const contentFor = (root: ParentNode): HTMLElement =>
+  document.getElementById(q(root, 'context-menu-trigger').getAttribute('aria-controls')!)!;
+const isOpen = (root: ParentNode) => !contentFor(root).hasAttribute('hidden');
 const items = (root: ParentNode) =>
-  Array.from(root.querySelectorAll<HTMLElement>('[role^="menuitem"]'));
+  Array.from(contentFor(root).querySelectorAll<HTMLElement>('[role^="menuitem"]'));
 function flush2(): void {
   flushEffects();
   flushEffects();
@@ -78,14 +80,14 @@ function press(key: string): void {
 describe('ContextMenu — open on right-click', () => {
   it('is closed until a contextmenu event, then opens focused on the first item', async () => {
     const c = mountMenu();
-    expect(q(c, 'context-menu-content').getAttribute('role')).toBe('menu');
+    expect(contentFor(c).getAttribute('role')).toBe('menu');
     expect(isOpen(c)).toBe(false);
 
     await rightClick(c);
     expect(isOpen(c)).toBe(true);
     expect(document.activeElement).toBe(items(c)[0]);
     // positioned as a fixed floating layer at the cursor
-    expect(q(c, 'context-menu-content').style.position).toBe('fixed');
+    expect(contentFor(c).style.position).toBe('fixed');
   });
 
   it('preventDefault stops the native browser menu', async () => {
@@ -162,9 +164,9 @@ describe('ContextMenu — checkbox + labels/separator', () => {
       ${ContextMenuCheckboxItem({ value: 'grid', children: 'Grid' })}`,
     );
     await rightClick(c);
-    expect(q(c, 'context-menu-label').textContent).toBe('View');
-    expect(q(c, 'context-menu-separator').getAttribute('role')).toBe('separator');
-    const box = q(c, 'context-menu-checkbox-item');
+    expect(q(document, 'context-menu-label').textContent).toBe('View');
+    expect(q(document, 'context-menu-separator').getAttribute('role')).toBe('separator');
+    const box = q(document, 'context-menu-checkbox-item');
     expect(box.getAttribute('aria-checked')).toBe('false');
     box.click();
     flush2();
@@ -196,16 +198,58 @@ describe('ContextMenu — submenu', () => {
     // Parent roving sees Item A + sub-trigger only, not Sub X.
     expect(document.activeElement).toBe(items(c)[0]);
     press('ArrowDown');
-    expect(document.activeElement).toBe(q(c, 'context-menu-sub-trigger'));
+    expect(document.activeElement).toBe(q(document, 'context-menu-sub-trigger'));
 
     press('ArrowRight');
     await Promise.resolve();
     flush2();
-    expect(q(c, 'context-menu-sub-content').hasAttribute('hidden')).toBe(false);
+    expect(q(document, 'context-menu-sub-content').hasAttribute('hidden')).toBe(false);
 
     press('ArrowLeft');
-    expect(q(c, 'context-menu-sub-content').hasAttribute('hidden')).toBe(true);
-    expect(document.activeElement).toBe(q(c, 'context-menu-sub-trigger'));
+    expect(q(document, 'context-menu-sub-content').hasAttribute('hidden')).toBe(true);
+    expect(document.activeElement).toBe(q(document, 'context-menu-sub-trigger'));
+  });
+});
+
+describe('ContextMenu — portal', () => {
+  it('moves the content to <body> by default, trigger stays put', () => {
+    const c = mountMenu();
+    const content = contentFor(c);
+    expect(content.parentElement).toBe(document.body);
+    expect(c.contains(content)).toBe(false);
+    expect(c.contains(q(c, 'context-menu-trigger'))).toBe(true);
+  });
+
+  it('portal={false} keeps the content inline', () => {
+    const c = mount(
+      html`${ContextMenu({
+        children: html`${ContextMenuTrigger({ children: 'area' })}
+        ${ContextMenuContent({ portal: false, children: ContextMenuItem({ value: 'a', children: 'A' }) })}`,
+      })}`,
+    );
+    flush2();
+    const content = contentFor(c);
+    expect(content.parentElement).not.toBe(document.body);
+    expect(c.contains(content)).toBe(true);
+  });
+
+  it('ui-select still reaches a listener on <ui-context-menu> from portaled items', async () => {
+    const c = mountMenu();
+    const onSelect = vi.fn();
+    c.querySelector('ui-context-menu')!.addEventListener('ui-select', onSelect as EventListener);
+    await rightClick(c);
+    items(c)[0].click();
+    flush2();
+    expect(onSelect).toHaveBeenCalled();
+  });
+
+  it('removes the portaled content when the menu is disconnected (no leak)', async () => {
+    const c = mountMenu();
+    expect(document.querySelector('[data-slot="context-menu-content"]')).not.toBeNull();
+    c.querySelector('ui-context-menu')!.remove();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.querySelector('[data-slot="context-menu-content"]')).toBeNull();
   });
 });
 

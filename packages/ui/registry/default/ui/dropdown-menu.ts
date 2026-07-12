@@ -15,9 +15,16 @@
  * cancelable bubbling `ui-select` CustomEvent — unless a listener calls
  * preventDefault, the whole menu then closes.
  *
- * v1 limits (documented): no portal (position:fixed, same transformed-ancestor
- * caveat as ui-dialog); focus is contained (Tab wraps) rather than closing the
- * menu as Radix does.
+ * By default the content and sub-content are moved to `document.body` on mount
+ * via the `portal` lib item, so their `position: fixed` escapes transformed
+ * ancestors (pass `portal={false}` / `portal="false"` per surface to render
+ * inline). Floating placement, dismissal, roving focus, and typeahead all
+ * operate by reference, so they survive the move. SSG note: portaled content
+ * escapes the static snapshot (client-only, matching upstream); use
+ * `portal={false}` if needed.
+ *
+ * v1 limits (documented): focus is contained (Tab wraps) rather than closing
+ * the menu as Radix does.
  *
  * This file was copied into your project by `nisli-ui` — you own it.
  */
@@ -45,6 +52,7 @@ import {
   transparentHost,
 } from '../lib/utils.js';
 import { positionFloating, type Align, type Side } from '../lib/floating.js';
+import { portal } from '../lib/portal.js';
 import { dismissableLayer } from '../lib/dismissable-layer.js';
 import { focusTrap } from '../lib/focus.js';
 import { rovingFocus } from '../lib/roving-focus.js';
@@ -62,6 +70,9 @@ export interface DropdownMenuState {
   setOpen(open: boolean): void;
   baseId: string;
   trigger: Ref<HTMLElement>;
+  /** The <ui-dropdown-menu> host — the stable dispatch anchor for ui-select
+   * once the (portaled) content no longer bubbles through it. */
+  rootHost: HTMLElement;
   /** Where the content should place focus when it next opens. */
   focusIntent: 'first' | 'last';
 }
@@ -119,6 +130,7 @@ export const DropdownMenu = component<DropdownMenuProps>(
       setOpen,
       baseId: `ui-dropdown-menu-${++uid}`,
       trigger: ref<HTMLElement>(),
+      rootHost: host,
       focusIntent: 'first',
     };
     (host as DropdownMenuHost).__uiDropdownMenu = state;
@@ -204,6 +216,11 @@ export type DropdownMenuContentProps = {
   side?: Side;
   align?: Align;
   sideOffset?: number;
+  /**
+   * Move the content to `document.body` so `position: fixed` escapes
+   * transformed ancestors. Defaults to true; pass false to render inline.
+   */
+  portal?: boolean;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -366,6 +383,11 @@ export const DropdownMenuContent = component<DropdownMenuContentProps>(
     const contentId = `${state.baseId}-content`;
 
     const content = ref<HTMLElement>();
+    // Portal the menu surface to <body> (default on) so its fixed positioning
+    // escapes transformed ancestors; the wired behavior operates by reference.
+    const portalEnabled =
+      props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
+    portal(content, { enabled: portalEnabled });
     const { onKeyDown, onPointerOver } = wireMenuSurface({
       content,
       open: state.open,
@@ -403,17 +425,17 @@ export const DropdownMenuContent = component<DropdownMenuContentProps>(
 // ── Item selection helper ────────────────────────────────────────────
 
 /** Dispatch a cancelable `ui-select`; close the whole menu unless prevented. */
-function emitSelect(host: HTMLElement, el: HTMLElement, value: string | undefined): void {
+function emitSelect(state: DropdownMenuState, value: string | undefined): void {
   const event = new CustomEvent('ui-select', {
     detail: { value },
     bubbles: true,
     cancelable: true,
   });
-  el.dispatchEvent(event);
-  if (!event.defaultPrevented) {
-    const root = host.closest('ui-dropdown-menu') as DropdownMenuHost | null;
-    root?.__uiDropdownMenu?.setOpen(false);
-  }
+  // Dispatch on the root host, not the item: once the content is portaled to
+  // <body> the item no longer bubbles through <ui-dropdown-menu>, so a
+  // consumer listening there would miss it.
+  state.rootHost.dispatchEvent(event);
+  if (!event.defaultPrevented) state.setOpen(false);
 }
 
 // ── ui-dropdown-menu-item ────────────────────────────────────────────
@@ -434,7 +456,7 @@ export type DropdownMenuItemProps = {
 export const DropdownMenuItem = component<DropdownMenuItemProps>(
   'ui-dropdown-menu-item',
   (props, host) => {
-    useMenuState(host, 'ui-dropdown-menu-item');
+    const state = useMenuState(host, 'ui-dropdown-menu-item');
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -453,7 +475,7 @@ export const DropdownMenuItem = component<DropdownMenuItemProps>(
 
     const onClick = (): void => {
       if (disabled.value || !root.current) return;
-      emitSelect(host, root.current, value.value);
+      emitSelect(state, value.value);
     };
 
     return html`<div
@@ -489,7 +511,7 @@ export type DropdownMenuCheckboxItemProps = {
 export const DropdownMenuCheckboxItem = component<DropdownMenuCheckboxItemProps>(
   'ui-dropdown-menu-checkbox-item',
   (props, host) => {
-    useMenuState(host, 'ui-dropdown-menu-checkbox-item');
+    const state = useMenuState(host, 'ui-dropdown-menu-checkbox-item');
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -511,7 +533,7 @@ export const DropdownMenuCheckboxItem = component<DropdownMenuCheckboxItemProps>
     const onClick = (): void => {
       if (disabled.value || !item.current) return;
       internal.value = !checked.value;
-      emitSelect(host, item.current, value.value);
+      emitSelect(state, value.value);
     };
 
     return html`<div
@@ -580,7 +602,7 @@ export type DropdownMenuRadioItemProps = {
 export const DropdownMenuRadioItem = component<DropdownMenuRadioItemProps>(
   'ui-dropdown-menu-radio-item',
   (props, host) => {
-    useMenuState(host, 'ui-dropdown-menu-radio-item');
+    const state = useMenuState(host, 'ui-dropdown-menu-radio-item');
     const group = (host.closest('ui-dropdown-menu-radio-group') as RadioGroupHost | null)
       ?.__uiDropdownMenuRadioGroup;
     transparentHost(host);
@@ -602,7 +624,7 @@ export const DropdownMenuRadioItem = component<DropdownMenuRadioItemProps>(
     const onClick = (): void => {
       if (disabled.value || !item.current) return;
       group?.setValue(value.value ?? '');
-      emitSelect(host, item.current, value.value);
+      emitSelect(state, value.value);
     };
 
     return html`<div
@@ -876,6 +898,11 @@ const subContentClasses =
 
 export type DropdownMenuSubContentProps = {
   sideOffset?: number;
+  /**
+   * Move the sub-content to `document.body` so `position: fixed` escapes
+   * transformed ancestors. Defaults to true; pass false to render inline.
+   */
+  portal?: boolean;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -893,6 +920,9 @@ export const DropdownMenuSubContent = component<DropdownMenuSubContentProps>(
     const contentId = `${sub.baseId}-content`;
 
     const content = ref<HTMLElement>();
+    const portalEnabled =
+      props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
+    portal(content, { enabled: portalEnabled });
     const closeAndFocusTrigger = (): void => {
       sub.setOpen(false);
       sub.trigger.current?.focus();

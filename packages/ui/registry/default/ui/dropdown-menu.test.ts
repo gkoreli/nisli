@@ -48,9 +48,9 @@ function mountMenu(items?: TemplateResult): HTMLElement {
 
 const q = (root: ParentNode, slot: string) =>
   root.querySelector<HTMLElement>(`[data-slot="${slot}"]`)!;
-const isOpen = (root: ParentNode) => !q(root, 'dropdown-menu-content').hasAttribute('hidden');
-const items = (root: ParentNode) =>
-  Array.from(root.querySelectorAll<HTMLElement>('[role^="menuitem"]'));
+const isOpen = (_root: ParentNode) => !q(document, 'dropdown-menu-content').hasAttribute('hidden');
+const items = (_root: ParentNode) =>
+  Array.from(document.querySelectorAll<HTMLElement>('[role^="menuitem"]'));
 function flush2(): void {
   flushEffects();
   flushEffects();
@@ -72,7 +72,7 @@ describe('DropdownMenu — structure and open', () => {
   it('wires the trigger to a role=menu content, closed by default', () => {
     const c = mountMenu();
     const trigger = q(c, 'dropdown-menu-trigger');
-    const content = q(c, 'dropdown-menu-content');
+    const content = q(document, 'dropdown-menu-content');
     expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
     expect(content.getAttribute('role')).toBe('menu');
     expect(trigger.getAttribute('aria-controls')).toBe(content.id);
@@ -190,7 +190,7 @@ describe('DropdownMenu — checkbox + radio items', () => {
       html`${DropdownMenuCheckboxItem({ value: 'wrap', children: 'Word wrap' })}`,
     );
     await openMenu(c);
-    const box = q(c, 'dropdown-menu-checkbox-item');
+    const box = q(document, 'dropdown-menu-checkbox-item');
     expect(box.getAttribute('aria-checked')).toBe('false');
     box.click();
     flush2();
@@ -208,7 +208,7 @@ describe('DropdownMenu — checkbox + radio items', () => {
       }),
     );
     await openMenu(c);
-    const radios = c.querySelectorAll('[role="menuitemradio"]');
+    const radios = document.querySelectorAll('[role="menuitemradio"]');
     expect(radios[0].getAttribute('aria-checked')).toBe('true');
     expect(radios[1].getAttribute('aria-checked')).toBe('false');
   });
@@ -225,10 +225,10 @@ describe('DropdownMenu — inset/variant/static slots', () => {
       })}`,
     );
     await openMenu(c);
-    expect(q(c, 'dropdown-menu-label').hasAttribute('data-inset')).toBe(true);
-    expect(q(c, 'dropdown-menu-separator').getAttribute('role')).toBe('separator');
-    expect(q(c, 'dropdown-menu-shortcut').textContent).toBe('⌘S');
-    const item = q(c, 'dropdown-menu-item');
+    expect(q(document, 'dropdown-menu-label').hasAttribute('data-inset')).toBe(true);
+    expect(q(document, 'dropdown-menu-separator').getAttribute('role')).toBe('separator');
+    expect(q(document, 'dropdown-menu-shortcut').textContent).toBe('⌘S');
+    const item = q(document, 'dropdown-menu-item');
     expect(item.hasAttribute('data-inset')).toBe(true);
     expect(item.getAttribute('data-variant')).toBe('default');
   });
@@ -254,6 +254,50 @@ describe('DropdownMenu — dismissal + focus restore', () => {
     );
     flush2();
     expect(isOpen(c)).toBe(true);
+  });
+});
+
+describe('DropdownMenu — portal', () => {
+  it('moves the content to <body> by default, trigger stays put', () => {
+    const c = mountMenu();
+    const content = q(document, 'dropdown-menu-content');
+    expect(content.parentElement).toBe(document.body);
+    expect(c.contains(content)).toBe(false);
+    expect(c.contains(q(c, 'dropdown-menu-trigger'))).toBe(true);
+  });
+
+  it('portal={false} keeps the content inline', () => {
+    const c = mount(
+      html`${DropdownMenu({
+        children: html`${DropdownMenuTrigger({ children: 'Open' })}
+        ${DropdownMenuContent({ portal: false, children: DropdownMenuItem({ children: 'X' }) })}`,
+      })}`,
+    );
+    flush2();
+    const content = q(document, 'dropdown-menu-content');
+    expect(content.parentElement).not.toBe(document.body);
+    expect(c.contains(content)).toBe(true);
+  });
+
+  it('dismissal + focus restore still work from the portaled content', async () => {
+    const c = mountMenu();
+    const trigger = q(c, 'dropdown-menu-trigger') as HTMLButtonElement;
+    trigger.focus();
+    await openMenu(c);
+    expect(isOpen(c)).toBe(true);
+    press('Escape');
+    await Promise.resolve();
+    expect(isOpen(c)).toBe(false);
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('removes the portaled content when the menu is disconnected (no leak)', async () => {
+    const c = mountMenu();
+    expect(document.querySelector('[data-slot="dropdown-menu-content"]')).not.toBeNull();
+    c.querySelector('ui-dropdown-menu')!.remove();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.querySelector('[data-slot="dropdown-menu-content"]')).toBeNull();
   });
 });
 

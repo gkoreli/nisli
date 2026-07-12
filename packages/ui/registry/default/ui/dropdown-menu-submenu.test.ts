@@ -54,8 +54,8 @@ function mountNested(): HTMLElement {
 
 const q = (root: ParentNode, slot: string) =>
   root.querySelector<HTMLElement>(`[data-slot="${slot}"]`)!;
-const rootOpen = (c: ParentNode) => !q(c, 'dropdown-menu-content').hasAttribute('hidden');
-const subOpen = (c: ParentNode) => !q(c, 'dropdown-menu-sub-content').hasAttribute('hidden');
+const rootOpen = (_c: ParentNode) => !q(document, 'dropdown-menu-content').hasAttribute('hidden');
+const subOpen = (_c: ParentNode) => !q(document, 'dropdown-menu-sub-content').hasAttribute('hidden');
 function flush2(): void {
   flushEffects();
   flushEffects();
@@ -79,11 +79,11 @@ function press(key: string): void {
 describe('DropdownMenu submenu — structure', () => {
   it('sub-trigger is a menuitem announcing a submenu; sub-content hidden until open', () => {
     const c = mountNested();
-    const subTrigger = q(c, 'dropdown-menu-sub-trigger');
+    const subTrigger = q(document, 'dropdown-menu-sub-trigger');
     expect(subTrigger.getAttribute('role')).toBe('menuitem');
     expect(subTrigger.getAttribute('aria-haspopup')).toBe('menu');
     expect(subTrigger.getAttribute('aria-expanded')).toBe('false');
-    expect(q(c, 'dropdown-menu-sub-content').getAttribute('role')).toBe('menu');
+    expect(q(document, 'dropdown-menu-sub-content').getAttribute('role')).toBe('menu');
     expect(subOpen(c)).toBe(false);
   });
 });
@@ -92,11 +92,14 @@ describe('DropdownMenu submenu — item scoping', () => {
   it('parent roving visits only the parent menu items, not submenu items', async () => {
     const c = mountNested();
     await openRoot(c);
-    const itemA = c.querySelectorAll('[role="menuitem"]')[0]; // Item A
-    const subTrigger = q(c, 'dropdown-menu-sub-trigger');
-    const itemB = [...c.querySelectorAll('[data-slot="dropdown-menu-item"]')].find(
-      (el) => el.textContent === 'Item B',
-    )!;
+    // Scope to the root content (both it and the sub-content are portaled to
+    // <body>, so plain document order is no longer reliable).
+    const rootItems = [
+      ...q(document, 'dropdown-menu-content').querySelectorAll('[data-slot="dropdown-menu-item"]'),
+    ];
+    const itemA = rootItems.find((el) => el.textContent === 'Item A')!;
+    const subTrigger = q(document, 'dropdown-menu-sub-trigger');
+    const itemB = rootItems.find((el) => el.textContent === 'Item B')!;
 
     expect(document.activeElement).toBe(itemA);
     press('ArrowDown');
@@ -113,29 +116,29 @@ describe('DropdownMenu submenu — open/close', () => {
     const c = mountNested();
     await openRoot(c);
     press('ArrowDown'); // focus sub-trigger
-    expect(document.activeElement).toBe(q(c, 'dropdown-menu-sub-trigger'));
+    expect(document.activeElement).toBe(q(document, 'dropdown-menu-sub-trigger'));
     press('ArrowRight');
     await microtask();
     expect(subOpen(c)).toBe(true);
-    const subX = q(c, 'dropdown-menu-sub-content').querySelector('[role="menuitem"]');
+    const subX = q(document, 'dropdown-menu-sub-content').querySelector('[role="menuitem"]');
     expect(document.activeElement).toBe(subX);
   });
 
   it('ArrowLeft in the submenu closes it and returns focus to the sub-trigger', async () => {
     const c = mountNested();
     await openRoot(c);
-    q(c, 'dropdown-menu-sub-trigger').click();
+    q(document, 'dropdown-menu-sub-trigger').click();
     await microtask();
     expect(subOpen(c)).toBe(true);
     press('ArrowLeft');
     expect(subOpen(c)).toBe(false);
-    expect(document.activeElement).toBe(q(c, 'dropdown-menu-sub-trigger'));
+    expect(document.activeElement).toBe(q(document, 'dropdown-menu-sub-trigger'));
   });
 
   it('opens on hover after the delay and closes on leave after the delay', async () => {
     const c = mountNested();
     await openRoot(c);
-    const subTrigger = q(c, 'dropdown-menu-sub-trigger');
+    const subTrigger = q(document, 'dropdown-menu-sub-trigger');
     subTrigger.dispatchEvent(new Event('pointerenter', { bubbles: true }));
     flush2();
     expect(subOpen(c)).toBe(false); // within the 100ms delay
@@ -155,7 +158,7 @@ describe('DropdownMenu submenu — dismissal', () => {
   it('Escape closes the innermost (submenu) first, leaving the root open', async () => {
     const c = mountNested();
     await openRoot(c);
-    q(c, 'dropdown-menu-sub-trigger').click();
+    q(document, 'dropdown-menu-sub-trigger').click();
     await microtask();
     expect(subOpen(c)).toBe(true);
 
@@ -167,7 +170,7 @@ describe('DropdownMenu submenu — dismissal', () => {
   it('closing the root collapses the submenu', async () => {
     const c = mountNested();
     await openRoot(c);
-    q(c, 'dropdown-menu-sub-trigger').click();
+    q(document, 'dropdown-menu-sub-trigger').click();
     await microtask();
     expect(subOpen(c)).toBe(true);
 
@@ -188,9 +191,9 @@ describe('DropdownMenu submenu — dismissal', () => {
     const onSelect = vi.fn();
     c.querySelector('ui-dropdown-menu')!.addEventListener('ui-select', onSelect as EventListener);
     await openRoot(c);
-    q(c, 'dropdown-menu-sub-trigger').click();
+    q(document, 'dropdown-menu-sub-trigger').click();
     await microtask();
-    const subX = q(c, 'dropdown-menu-sub-content').querySelector<HTMLElement>('[role="menuitem"]')!;
+    const subX = q(document, 'dropdown-menu-sub-content').querySelector<HTMLElement>('[role="menuitem"]')!;
     subX.click();
     flush2();
     expect((onSelect.mock.calls[0][0] as CustomEvent).detail).toEqual({ value: 'x' });

@@ -50,8 +50,9 @@ function mountBar(): HTMLElement {
 
 const triggers = (c: ParentNode) =>
   Array.from(c.querySelectorAll<HTMLElement>('[data-slot="menubar-trigger"]'));
-const contents = (c: ParentNode) =>
-  Array.from(c.querySelectorAll<HTMLElement>('[data-slot="menubar-content"]'));
+// Content is portaled to <body>, so it's no longer under the bar container.
+const contents = (_c: ParentNode) =>
+  Array.from(document.querySelectorAll<HTMLElement>('[data-slot="menubar-content"]'));
 const openContents = (c: ParentNode) => contents(c).filter((el) => !el.hasAttribute('hidden'));
 function flush2(): void {
   flushEffects();
@@ -155,6 +156,40 @@ describe('Menubar — selection + dismissal', () => {
     await Promise.resolve();
     expect(openContents(c)).toHaveLength(0);
     expect(document.activeElement).toBe(triggers(c)[0]);
+  });
+});
+
+describe('Menubar — portal', () => {
+  it('moves an opened menu content to <body>, triggers stay in the bar', async () => {
+    const c = mountBar();
+    triggers(c)[0].click();
+    await settle();
+    const content = openContents(c)[0];
+    expect(content.parentElement).toBe(document.body);
+    expect(c.contains(content)).toBe(false);
+    expect(c.contains(triggers(c)[0])).toBe(true);
+  });
+
+  it('ui-select still reaches a listener on <ui-menubar> from portaled items', async () => {
+    const c = mountBar();
+    const onSelect = vi.fn();
+    c.querySelector('ui-menubar')!.addEventListener('ui-select', onSelect as EventListener);
+    triggers(c)[0].click();
+    await settle();
+    openContents(c)[0].querySelector<HTMLElement>('[role="menuitem"]')!.click();
+    flush2();
+    expect(onSelect).toHaveBeenCalled();
+  });
+
+  it('removes the portaled content when the bar is disconnected (no leak)', async () => {
+    const c = mountBar();
+    triggers(c)[0].click();
+    await settle();
+    expect(document.querySelector('[data-slot="menubar-content"]')).not.toBeNull();
+    c.querySelector('ui-menubar')!.remove();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.querySelector('[data-slot="menubar-content"]')).toBeNull();
   });
 });
 

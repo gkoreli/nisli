@@ -450,7 +450,8 @@
         "dismissable-layer",
         "focus",
         "roving-focus",
-        "typeahead"
+        "typeahead",
+        "portal"
       ]
     },
     {
@@ -513,7 +514,8 @@
         "dismissable-layer",
         "focus",
         "roving-focus",
-        "typeahead"
+        "typeahead",
+        "portal"
       ]
     },
     {
@@ -529,7 +531,8 @@
         "dismissable-layer",
         "focus",
         "roving-focus",
-        "typeahead"
+        "typeahead",
+        "portal"
       ]
     },
     {
