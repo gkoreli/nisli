@@ -177,6 +177,12 @@ touch point is the virtual anchor; movement beyond 10px, release, cancellation,
 scroll, or teardown cancels the timer, and synthetic follow-up activation is
 suppressed after a successful long press.
 
+**Carousel drag settle (UI-65):** the zero-dependency Embla translation uses
+pointer identity, an 8px axis lock, bounded velocity/distance projection, and
+mandatory snap cleanup. Step size comes from rendered slide-to-slide geometry
+so upstream spacing utilities cannot accumulate drift. The settled index is
+the single source for active/hidden/current ARIA and navigation state.
+
 ### 3. Styling and theming: Tailwind v4 + shadcn token layer
 
 - Consumers are expected to use **Tailwind CSS v4** (CSS-first config). The

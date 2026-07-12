@@ -162,6 +162,16 @@ click/native-menu follow-ups are suppressed. Unit and actual-component CDP
 touch proofs cover positive duration plus short-tap/move/cancel negatives and
 desktop right-click at 390px.
 
+**Carousel touch settle parity (UI-65):** pointer identity/capture plus document
+fallback now owns the complete drag lifecycle. An 8px axis lock yields
+cross-axis scrolling; distance and velocity project to the nearest bounded
+slide; edge offsets clamp; up/cancel/scroll/disconnect always snap. Slide step
+uses actual rendered item spacing (the upstream `-ml-4` / `pl-4` geometry), not
+viewport width, eliminating cumulative 16px drift. `data-active`, `aria-hidden`,
+`aria-current`, and navigation controls update with the settled index. An actual
+compiled registry component at 390px proves CDP swipe/tap/cross-axis negatives,
+painted-slide bounds, track clamp, buttons, and keyboard.
+
 Mechanical audit of registry class lists for direct-child arbitrary variants,
 `*:` variants, positional first/last rules, and `divide-x/y` utilities. The
 classification is about the actual rendered target, not token similarity.

@@ -58,12 +58,13 @@ export interface CarouselState {
   scrollPrev(): void;
   scrollNext(): void;
   scrollTo(index: number): void;
-  registerItem(): void;
+  registerItem(el: HTMLElement): void;
+  unregisterItem(el: HTMLElement): void;
   setViewport(el: HTMLElement): void;
   setTrack(el: HTMLElement): void;
   beginDrag(): void;
   dragTo(offset: number): void;
-  endDrag(delta: number): void;
+  endDrag(delta: number, velocity?: number): void;
 }
 
 /** Subtree-scoped channel from the Carousel provider to its parts. */
@@ -94,15 +95,27 @@ export const Carousel = component<CarouselProps>('ui-carousel', (props, host) =>
 
   let viewportEl: HTMLElement | null = null;
   let trackEl: HTMLElement | null = null;
+  const itemEls: HTMLElement[] = [];
 
   const slideSize = (): number => {
+    if (itemEls.length > 1) {
+      const first = itemEls[0]!.getBoundingClientRect();
+      const second = itemEls[1]!.getBoundingClientRect();
+      const step = orientation.value === 'vertical'
+        ? Math.abs(second.top - first.top)
+        : Math.abs(second.left - first.left);
+      if (step > 0) return step;
+    }
     if (!viewportEl) return 0;
     const rect = viewportEl.getBoundingClientRect();
     return orientation.value === 'vertical' ? rect.height : rect.width;
   };
   const applyTransform = (offset = 0): void => {
     if (!trackEl) return;
-    const px = -index.value * slideSize() + offset;
+    const size = slideSize();
+    const minOffset = -(Math.max(0, count.value - 1 - index.value) * size);
+    const maxOffset = index.value * size;
+    const px = -index.value * size + Math.max(minOffset, Math.min(maxOffset, offset));
     trackEl.style.transform =
       orientation.value === 'vertical'
         ? `translate3d(0, ${px}px, 0)`
@@ -110,7 +123,7 @@ export const Carousel = component<CarouselProps>('ui-carousel', (props, host) =>
   };
 
   const scrollTo = (i: number): void => {
-    const clamped = Math.max(0, Math.min(count.value - 1, i));
+    const clamped = Math.max(0, Math.min(Math.max(0, count.value - 1), i));
     if (clamped !== index.value) {
       index.value = clamped;
       host.dispatchEvent(
@@ -129,8 +142,15 @@ export const Carousel = component<CarouselProps>('ui-carousel', (props, host) =>
     scrollPrev: () => scrollTo(index.value - 1),
     scrollNext: () => scrollTo(index.value + 1),
     scrollTo,
-    registerItem: () => {
-      count.value += 1;
+    registerItem: (el) => {
+      if (!itemEls.includes(el)) itemEls.push(el);
+      count.value = itemEls.length;
+    },
+    unregisterItem: (el) => {
+      const at = itemEls.indexOf(el);
+      if (at >= 0) itemEls.splice(at, 1);
+      count.value = itemEls.length;
+      if (index.value >= count.value) scrollTo(Math.max(0, count.value - 1));
     },
     setViewport: (el) => {
       viewportEl = el;
@@ -142,12 +162,15 @@ export const Carousel = component<CarouselProps>('ui-carousel', (props, host) =>
       if (trackEl) trackEl.style.transition = 'none';
     },
     dragTo: (offset) => applyTransform(offset),
-    endDrag: (delta) => {
+    endDrag: (delta, velocity = 0) => {
       if (trackEl) trackEl.style.transition = '';
-      const threshold = Math.max(slideSize() * 0.2, DRAG_THRESHOLD_MIN);
-      if (delta < -threshold) scrollTo(index.value + 1);
-      else if (delta > threshold) scrollTo(index.value - 1);
-      else applyTransform(); // settle back to the current slide
+      const size = slideSize();
+      const threshold = Math.max(size * 0.2, DRAG_THRESHOLD_MIN);
+      const projected = delta + velocity * 180;
+      if (Math.abs(delta) >= threshold || Math.abs(projected) >= threshold) {
+        const slides = size > 0 ? Math.max(1, Math.round(Math.abs(projected) / size)) : 1;
+        scrollTo(index.value + (projected < 0 ? slides : -slides));
+      } else applyTransform(); // settle back to the current slide
     },
   };
   CarouselContext.provide(host, state);
@@ -155,8 +178,16 @@ export const Carousel = component<CarouselProps>('ui-carousel', (props, host) =>
   // Re-settle the track whenever the selected slide or orientation changes.
   effect(() => {
     index.value;
+    count.value;
     orientation.value;
     applyTransform();
+    itemEls.forEach((item, itemIndex) => {
+      const active = itemIndex === index.value;
+      item.toggleAttribute('data-active', active);
+      item.setAttribute('aria-hidden', active ? 'false' : 'true');
+      if (active) item.setAttribute('aria-current', 'true');
+      else item.removeAttribute('aria-current');
+    });
   });
 
   const onKeyDown = (event: KeyboardEvent): void => {
@@ -213,30 +244,73 @@ export const CarouselContent = component<CarouselContentProps>(
 
     // ── Drag ──
     let dragging = false;
-    let startPos = 0;
+    let pointerId = -1;
+    let startPrimary = 0;
+    let startCross = 0;
+    let lastPrimary = 0;
+    let lastTime = 0;
+    let velocity = 0;
+    let axisLocked = false;
     let delta = 0;
     const axisPos = (event: MouseEvent): number =>
       state.orientation.value === 'vertical' ? event.clientY : event.clientX;
+    const crossPos = (event: MouseEvent): number =>
+      state.orientation.value === 'vertical' ? event.clientX : event.clientY;
 
-    const onPointerMove = (event: PointerEvent): void => {
-      if (!dragging) return;
-      delta = axisPos(event) - startPos;
-      state.dragTo(delta);
-    };
-    const endDrag = (): void => {
-      if (!dragging) return;
-      dragging = false;
+    const removeDocumentListeners = (): void => {
       document.removeEventListener('pointermove', onPointerMove);
       document.removeEventListener('pointerup', endDrag);
-      document.removeEventListener('pointercancel', endDrag);
-      state.endDrag(delta);
+      document.removeEventListener('pointercancel', cancelDrag);
+      window.removeEventListener('scroll', cancelDrag, true);
     };
+
+    const finishDrag = (cancelled = false): void => {
+      if (!dragging) return;
+      dragging = false;
+      removeDocumentListeners();
+      state.endDrag(cancelled || !axisLocked ? 0 : delta, cancelled ? 0 : velocity);
+      pointerId = -1;
+    };
+
+    const onPointerMove = (event: PointerEvent): void => {
+      if (!dragging || (event.pointerId != null && pointerId >= 0 && event.pointerId !== pointerId)) return;
+      const primary = axisPos(event);
+      const primaryDelta = primary - startPrimary;
+      const crossDelta = crossPos(event) - startCross;
+      if (!axisLocked) {
+        if (Math.max(Math.abs(primaryDelta), Math.abs(crossDelta)) < 8) return;
+        if (Math.abs(crossDelta) > Math.abs(primaryDelta)) {
+          finishDrag(true);
+          return;
+        }
+        axisLocked = true;
+        state.beginDrag();
+      }
+      event.preventDefault();
+      const now = performance.now();
+      const elapsed = now - lastTime;
+      velocity = elapsed >= 8 ? (primary - lastPrimary) / elapsed : 0;
+      lastPrimary = primary;
+      lastTime = now;
+      delta = primaryDelta;
+      state.dragTo(delta);
+    };
+    const endDrag = (event: Event): void => {
+      if ('pointerId' in event && event.pointerId != null && pointerId >= 0 && event.pointerId !== pointerId) return;
+      finishDrag(false);
+    };
+    const cancelDrag = (): void => finishDrag(true);
     const onPointerDown = (event: PointerEvent): void => {
-      if (state.count.value <= 1) return;
+      if (state.count.value <= 1 || event.isPrimary === false || event.button !== 0) return;
       dragging = true;
-      startPos = axisPos(event);
+      pointerId = event.pointerId ?? -1;
+      startPrimary = axisPos(event);
+      startCross = crossPos(event);
+      lastPrimary = startPrimary;
+      lastTime = performance.now();
+      velocity = 0;
+      axisLocked = false;
       delta = 0;
-      state.beginDrag();
       try {
         if (event.pointerId != null) viewport.current?.setPointerCapture?.(event.pointerId);
       } catch {
@@ -244,7 +318,8 @@ export const CarouselContent = component<CarouselContentProps>(
       }
       document.addEventListener('pointermove', onPointerMove);
       document.addEventListener('pointerup', endDrag);
-      document.addEventListener('pointercancel', endDrag);
+      document.addEventListener('pointercancel', cancelDrag);
+      window.addEventListener('scroll', cancelDrag, true);
     };
 
     onMount(() => {
@@ -252,15 +327,14 @@ export const CarouselContent = component<CarouselContentProps>(
       if (viewport.current) state.setViewport(viewport.current);
     });
     onCleanup(() => {
-      document.removeEventListener('pointermove', onPointerMove);
-      document.removeEventListener('pointerup', endDrag);
-      document.removeEventListener('pointercancel', endDrag);
+      finishDrag(true);
+      removeDocumentListeners();
     });
 
     return html`<div
       ref="${viewport}"
       data-slot="carousel-content"
-      class="overflow-hidden"
+      class="overflow-hidden ${computed(() => state.orientation.value === 'horizontal' ? 'touch-pan-y' : 'touch-pan-x')}"
       @pointerdown=${onPointerDown}
     ><div ref="${track}" class="${trackClasses}" style="will-change:transform">${children()}</div></div>`;
   },
@@ -291,11 +365,16 @@ export const CarouselItem = component<CarouselItemProps>('ui-carousel-item', (pr
     ),
   );
 
+  const item = ref<HTMLDivElement>();
   onMount(() => {
-    state.registerItem();
+    if (item.current) state.registerItem(item.current);
+  });
+  onCleanup(() => {
+    if (item.current) state.unregisterItem(item.current);
   });
 
   return html`<div
+    ref="${item}"
     role="group"
     aria-roledescription="slide"
     data-slot="carousel-item"

@@ -52,6 +52,16 @@ const next = (c: ParentNode) => q(c, 'carousel-next') as HTMLButtonElement;
 function flush2(): void {
   flush();
 }
+function pointer(target: EventTarget, type: string, x: number, y: number, pointerId = 1): void {
+  const event = new MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    pointerId: { value: pointerId },
+    isPrimary: { value: true },
+    pointerType: { value: 'touch' },
+  });
+  target.dispatchEvent(event);
+  flush2();
+}
 
 describe('Carousel — structure and ARIA', () => {
   it('is a carousel region with slide items and labeled nav buttons', () => {
@@ -63,6 +73,11 @@ describe('Carousel — structure and ARIA', () => {
     const items = c.querySelectorAll('[data-slot="carousel-item"]');
     expect(items).toHaveLength(3);
     expect(items[0]!.getAttribute('aria-roledescription')).toBe('slide');
+    expect(items[0]!.hasAttribute('data-active')).toBe(true);
+    expect(items[0]!.getAttribute('aria-hidden')).toBe('false');
+    expect(items[0]!.getAttribute('aria-current')).toBe('true');
+    expect(items[1]!.getAttribute('aria-hidden')).toBe('true');
+    expect(items[1]!.hasAttribute('aria-current')).toBe(false);
     expect(prev(c).getAttribute('aria-label')).toBe('Previous slide');
     expect(next(c).getAttribute('aria-label')).toBe('Next slide');
   });
@@ -145,6 +160,58 @@ describe('Carousel — drag', () => {
     document.dispatchEvent(new MouseEvent('pointerup', { clientX: 90 }));
     flush2();
     expect(prev(c).disabled).toBe(true); // still on the first slide
+  });
+
+  it('tap and cross-axis touch yield without moving the selected slide', () => {
+    const c = mountCarousel();
+    const viewport = q(c, 'carousel-content');
+    pointer(viewport, 'pointerdown', 200, 100);
+    pointer(document, 'pointerup', 200, 100);
+    expect(prev(c).disabled).toBe(true);
+
+    pointer(viewport, 'pointerdown', 200, 100);
+    pointer(document, 'pointermove', 196, 120);
+    pointer(document, 'pointerup', 196, 120);
+    expect(prev(c).disabled).toBe(true);
+    expect(q(c, 'carousel-content').firstElementChild?.getAttribute('style')).toContain('translate3d(0px');
+  });
+
+  it('ignores competing pointer ids and clamps edge overscroll', () => {
+    const c = mountCarousel();
+    const viewport = q(c, 'carousel-content');
+    const track = viewport.firstElementChild as HTMLElement;
+    pointer(viewport, 'pointerdown', 200, 100, 1);
+    pointer(document, 'pointermove', 20, 100, 2); // competing contact
+    expect(track.style.transform).toContain('translate3d(0px');
+    pointer(document, 'pointermove', 260, 100, 1); // overscroll before first
+    expect(track.style.transform).toContain('translate3d(0px');
+    pointer(document, 'pointerup', 260, 100, 1);
+    expect(prev(c).disabled).toBe(true);
+  });
+
+  it('disconnect mid-drag settles and removes document listeners', async () => {
+    const c = mountCarousel();
+    const root = c.querySelector('ui-carousel') as HTMLElement;
+    const viewport = q(c, 'carousel-content');
+    pointer(viewport, 'pointerdown', 200, 100);
+    pointer(document, 'pointermove', 100, 100);
+    root.remove();
+    await Promise.resolve();
+    pointer(document, 'pointermove', 20, 100);
+    pointer(document, 'pointerup', 20, 100);
+    expect(root.hasAttribute('open')).toBe(false);
+  });
+
+  it('vertical orientation locks to Y and snaps active/ARIA state atomically', () => {
+    const c = mountCarousel({ orientation: 'vertical' });
+    const viewport = q(c, 'carousel-content');
+    pointer(viewport, 'pointerdown', 100, 200);
+    pointer(document, 'pointermove', 100, 80);
+    pointer(document, 'pointerup', 100, 80);
+    const slides = c.querySelectorAll('[data-slot="carousel-item"]');
+    expect(slides[0]!.getAttribute('aria-hidden')).toBe('true');
+    expect(slides[1]!.hasAttribute('data-active')).toBe(true);
+    expect(slides[1]!.getAttribute('aria-hidden')).toBe('false');
   });
 });
 

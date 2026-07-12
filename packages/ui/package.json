@@ -63,6 +63,8 @@
     "e2e:toast-row": "node scripts/toast-row-e2e.mjs",
     "e2e:toast-row:cleanup": "node scripts/toast-row-e2e.mjs --self-test-cleanup",
     "e2e:context-touch": "node scripts/context-menu-touch-e2e.mjs",
-    "e2e:context-touch:cleanup": "node scripts/context-menu-touch-e2e.mjs --self-test-cleanup"
+    "e2e:context-touch:cleanup": "node scripts/context-menu-touch-e2e.mjs --self-test-cleanup",
+    "e2e:carousel-touch": "node scripts/carousel-touch-e2e.mjs",
+    "e2e:carousel-touch:cleanup": "node scripts/carousel-touch-e2e.mjs --self-test-cleanup"
   }
 }
