@@ -191,3 +191,25 @@ describe('RadioGroupItem outside a group', () => {
     spy.mockRestore();
   });
 });
+
+describe('RadioGroupItem — aria-invalid forwarding', () => {
+  const invalidGroup = (ariaInvalid?: boolean): HTMLElement => mount(html`${RadioGroup({
+    children: RadioGroupItem({ value: 'a', ariaInvalid }),
+  })}`);
+
+  it('forwards factory ariaInvalid to the inner class-bearing radio', () => {
+    expect(radios(invalidGroup(true))[0].getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('reacts to live item-host aria-invalid changes', () => {
+    const c = invalidGroup();
+    const host = c.querySelector('ui-radio-group-item') as HTMLElement;
+    const radio = c.querySelector('input[type="radio"]') as HTMLInputElement;
+    host.setAttribute('aria-invalid', 'true');
+    flushEffects();
+    expect(radio.getAttribute('aria-invalid')).toBe('true');
+    host.setAttribute('aria-invalid', 'false');
+    flushEffects();
+    expect(radio.getAttribute('aria-invalid')).toBeNull();
+  });
+});

@@ -83,6 +83,11 @@ describe('Toggle via factory', () => {
     expect(btn.getAttribute('data-state')).toBe('off');
     expect(btn.hasAttribute('disabled')).toBe(true);
   });
+
+  it('forwards the ariaInvalid factory prop onto the inner button', () => {
+    const c = mount(html`${Toggle({ ariaInvalid: true, children: 'B' })}`);
+    expect(getToggle(c).getAttribute('aria-invalid')).toBe('true');
+  });
 });
 
 describe('Toggle as a plain custom element', () => {
@@ -115,6 +120,22 @@ describe('Toggle as a plain custom element', () => {
     flushEffects();
     expect(btn.getAttribute('data-state')).toBe('off');
     expect(btn.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('live aria-invalid reaches the inner class-bearing button', () => {
+    const host = document.createElement('ui-toggle');
+    host.append('B');
+    document.body.appendChild(host);
+    const btn = getToggle(host);
+    expect(btn.getAttribute('aria-invalid')).toBeNull();
+
+    host.setAttribute('aria-invalid', 'true');
+    flushEffects();
+    expect(btn.getAttribute('aria-invalid')).toBe('true');
+
+    host.setAttribute('aria-invalid', 'false');
+    flushEffects();
+    expect(btn.getAttribute('aria-invalid')).toBeNull();
   });
 
   it('seeds from the default-pressed attribute', () => {

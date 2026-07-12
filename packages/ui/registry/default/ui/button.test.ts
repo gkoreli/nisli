@@ -203,3 +203,21 @@ describe('Button — live attribute reactivity', () => {
     expect(btn.getAttribute('data-variant')).toBe('outline');
   });
 });
+
+describe('Button — aria-invalid forwarding', () => {
+  it('forwards factory ariaInvalid to the inner class-bearing button', () => {
+    expect(getButton(mount(html`${Button({ ariaInvalid: true })}`)).getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('reacts to live host aria-invalid changes', () => {
+    const c = mount(html`${Button({})}`);
+    const host = c.querySelector('ui-button') as HTMLElement;
+    const button = getButton(host);
+    host.setAttribute('aria-invalid', 'true');
+    flushEffects();
+    expect(button.getAttribute('aria-invalid')).toBe('true');
+    host.setAttribute('aria-invalid', 'false');
+    flushEffects();
+    expect(button.getAttribute('aria-invalid')).toBeNull();
+  });
+});

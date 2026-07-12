@@ -526,6 +526,32 @@ suites verify the shared helper integration. A real-browser animation check is
 required before the UI-45 landing verdict; happy-dom intentionally exercises
 only the no-CSS fallback unless inline animation properties are supplied.
 
+### 14. Registry `aria-invalid` reachability — RESOLVED (UI-44, 2026-07-12)
+
+Tailwind's `aria-invalid:*` variants only activate when `aria-invalid` is on the
+same rendered node that carries the class list. Layout-transparent component
+hosts therefore cannot own the attribute implicitly. UI-44 inventoried every
+registry class owner and applied this disposition:
+
+| Owner | Disposition | Inner class-bearing node | Public invalid-state contract |
+| --- | --- | --- | --- |
+| `Badge` | **FIX** | `[data-slot="badge"]` span | `BadgeProps.ariaInvalid`; live host `aria-invalid` forwards to the span. |
+| `Button` | **FIX** | `[data-slot="button"]` button | `ButtonProps.ariaInvalid`; live host attribute forwards to the button. |
+| `Calendar` day and nav button classes | **INTENTIONAL-NONAPPLICABLE** | Individual day buttons and previous/next buttons | Calendar exposes no per-day or per-nav invalid state. Fanning one root value across unrelated controls would assert false ARIA semantics. The tokens come from generic upstream button styling; a future per-day validity API must bind only the affected day button. |
+| `Checkbox` | **FIX** | `[data-slot="checkbox"]` native checkbox | `CheckboxProps.ariaInvalid`; live host attribute forwards to the input. |
+| `Input` | **FIX** | `[data-slot="input"]` native input | `InputProps.ariaInvalid`; live host attribute forwards to the input. |
+| `InputOTPSlot` | **REACHABLE** | `[data-slot="input-otp-slot"]` div | Existing `InputOTPSlotProps.ariaInvalid` reference implementation already forwards factory and live host state. |
+| `RadioGroupItem` | **FIX** | `[data-slot="radio-group-item"]` native radio | Item-level `ariaInvalid`; the group root does not mark every option invalid. |
+| `Select` | **FIX** | `[data-slot="native-select"]` native select | `SelectProps.ariaInvalid`; live host attribute forwards to the select. |
+| `Textarea` | **FIX** | `[data-slot="textarea"]` native textarea | `TextareaProps.ariaInvalid`; live host attribute forwards to the textarea. |
+| `Toggle` | **FIX** | `[data-slot="toggle"]` button | `ToggleProps.ariaInvalid`; live host attribute forwards to the button. |
+| `ToggleGroupItem` (inherits `toggleVariants`) | **FIX** | `[data-slot="toggle-group-item"]` button | Item-level `ariaInvalid` only. The group root has no invalid-state context and does not fan out or override item state. |
+
+Every fixed prop uses a declared boolean `ariaInvalid` attribute fallback and
+binds `aria-invalid="true"` (or omits it when false/absent) on the inner owner.
+Factory-prop and post-mount `setAttribute` regressions cover every fixed public
+surface, including the item-vs-root toggle-group boundary.
+
 ## Process
 
 New friction found while building ui/www lands here first (PR review may

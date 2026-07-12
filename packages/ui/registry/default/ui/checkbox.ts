@@ -48,6 +48,8 @@ export type CheckboxProps = {
   name?: string;
   disabled?: boolean;
   required?: boolean;
+  /** Invalid state forwarded to the inner checkbox that owns aria-invalid:* classes. */
+  ariaInvalid?: boolean;
   /** Merged last into the inner <input>'s class list via cn(). */
   className?: string;
 };
@@ -109,6 +111,7 @@ export const Checkbox = component<CheckboxProps>('ui-checkbox', (props, host) =>
     value="${value}"
     disabled="${disabled}"
     required="${required}"
+    aria-invalid="${computed(() => (props.ariaInvalid.value ? 'true' : undefined))}"
     @change=${syncState}
   />`;
 }, {
@@ -122,5 +125,6 @@ export const Checkbox = component<CheckboxProps>('ui-checkbox', (props, host) =>
     checked: 'boolean',
     disabled: 'boolean',
     required: 'boolean',
+    ariaInvalid: 'boolean',
   },
 });

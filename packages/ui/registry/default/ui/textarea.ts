@@ -44,6 +44,8 @@ export type TextareaProps = {
   disabled?: boolean;
   required?: boolean;
   readOnly?: boolean;
+  /** Invalid state forwarded to the inner textarea that owns aria-invalid:* classes. */
+  ariaInvalid?: boolean;
   /** Merged last into the inner <textarea>'s class list via cn(). */
   className?: string;
 };
@@ -123,6 +125,7 @@ export const Textarea = component<TextareaProps>('ui-textarea', (props, host) =>
     disabled="${disabled}"
     required="${required}"
     readonly="${readOnly}"
+    aria-invalid="${computed(() => (props.ariaInvalid.value ? 'true' : undefined))}"
   ></textarea>`;
 }, {
   // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
@@ -138,6 +141,7 @@ export const Textarea = component<TextareaProps>('ui-textarea', (props, host) =>
     disabled: 'boolean',
     required: 'boolean',
     readOnly: { type: 'boolean', attr: 'readonly' },
+    ariaInvalid: 'boolean',
     rows: 'number',
   },
 });

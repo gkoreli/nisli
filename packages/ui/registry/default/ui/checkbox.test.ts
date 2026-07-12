@@ -190,3 +190,21 @@ describe('Checkbox data-state reflection', () => {
     expect(box.getAttribute('data-state')).toBe('checked');
   });
 });
+
+describe('Checkbox — aria-invalid forwarding', () => {
+  it('forwards factory ariaInvalid to the inner class-bearing checkbox', () => {
+    expect(getBox(mount(html`${Checkbox({ ariaInvalid: true })}`)).getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('reacts to live host aria-invalid changes', () => {
+    const c = mount(html`${Checkbox({})}`);
+    const host = c.querySelector('ui-checkbox') as HTMLElement;
+    const box = getBox(host);
+    host.setAttribute('aria-invalid', 'true');
+    flushEffects();
+    expect(box.getAttribute('aria-invalid')).toBe('true');
+    host.setAttribute('aria-invalid', 'false');
+    flushEffects();
+    expect(box.getAttribute('aria-invalid')).toBeNull();
+  });
+});

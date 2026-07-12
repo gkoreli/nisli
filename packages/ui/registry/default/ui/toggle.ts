@@ -56,6 +56,8 @@ export type ToggleProps = {
   variant?: ToggleVariant;
   size?: ToggleSize;
   disabled?: boolean;
+  /** Invalid state forwarded to the inner button that owns aria-invalid:* classes. */
+  ariaInvalid?: boolean;
   /** Merged last into the inner <button>'s class list via cn(). */
   className?: string;
   children?: string | TemplateResult;
@@ -116,6 +118,7 @@ export const Toggle = component<ToggleProps>('ui-toggle', (props, host) => {
     aria-pressed="${computed(() => (pressed.value ? 'true' : 'false'))}"
     data-state="${computed(() => (pressed.value ? 'on' : 'off'))}"
     disabled="${disabled}"
+    aria-invalid="${computed(() => (props.ariaInvalid.value ? 'true' : undefined))}"
     class="${classes}"
     @click=${toggle}
   >${children()}</button>`;
@@ -127,6 +130,7 @@ export const Toggle = component<ToggleProps>('ui-toggle', (props, host) => {
     variant: 'string',
     size: 'string',
     disabled: 'boolean',
+    ariaInvalid: 'boolean',
     className: 'string',
   },
 });

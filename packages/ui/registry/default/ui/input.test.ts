@@ -156,3 +156,21 @@ describe('Input native form participation', () => {
     expect(getInput(host).id).toBe('from-prop');
   });
 });
+
+describe('Input — aria-invalid forwarding', () => {
+  it('forwards factory ariaInvalid to the inner class-bearing input', () => {
+    expect(getInput(mount(html`${Input({ ariaInvalid: true })}`)).getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('reacts to live host aria-invalid changes', () => {
+    const c = mount(html`${Input({})}`);
+    const host = c.querySelector('ui-input') as HTMLElement;
+    const input = getInput(host);
+    host.setAttribute('aria-invalid', 'true');
+    flushEffects();
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    host.setAttribute('aria-invalid', 'false');
+    flushEffects();
+    expect(input.getAttribute('aria-invalid')).toBeNull();
+  });
+});

@@ -69,6 +69,11 @@ describe('Textarea via factory', () => {
     expect(ta.className.endsWith('resize-none')).toBe(true);
   });
 
+  it('forwards the ariaInvalid factory prop onto the inner textarea', () => {
+    const c = mount(html`${Textarea({ ariaInvalid: true })}`);
+    expect(getTextarea(c).getAttribute('aria-invalid')).toBe('true');
+  });
+
   it('uses the value prop as the initial value and reset target', () => {
     const c = mount(html`${Textarea({ value: 'hello' })}`);
     const ta = getTextarea(c);
@@ -171,5 +176,22 @@ describe('Textarea — live rows attribute', () => {
     (document.body.querySelector('ui-textarea') as HTMLElement).setAttribute('rows', '8');
     flushEffects();
     expect(ta.getAttribute('rows')).toBe('8');
+  });
+});
+
+describe('Textarea — live aria-invalid forwarding', () => {
+  it('host aria-invalid updates the inner class-bearing textarea', () => {
+    document.body.innerHTML = '<ui-textarea></ui-textarea>';
+    const host = document.querySelector('ui-textarea') as HTMLElement;
+    const ta = getTextarea(host);
+    expect(ta.getAttribute('aria-invalid')).toBeNull();
+
+    host.setAttribute('aria-invalid', 'true');
+    flushEffects();
+    expect(ta.getAttribute('aria-invalid')).toBe('true');
+
+    host.setAttribute('aria-invalid', 'false');
+    flushEffects();
+    expect(ta.getAttribute('aria-invalid')).toBeNull();
   });
 });

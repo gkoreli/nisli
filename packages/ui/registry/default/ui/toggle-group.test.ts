@@ -258,3 +258,30 @@ describe('ToggleGroup parity (UI-36B)', () => {
     expect(i2.className).toContain('border-input');
   });
 });
+
+describe('ToggleGroupItem — aria-invalid forwarding', () => {
+  it('forwards the item factory prop, while the root has no invalid-state fan-out', () => {
+    const c = mount(html`${ToggleGroup({
+      children: html`${ToggleGroupItem({ value: 'a', ariaInvalid: true, children: 'A' })}${ToggleGroupItem({ value: 'b', children: 'B' })}`,
+    })}`);
+    expect(item(c, 0).getAttribute('aria-invalid')).toBe('true');
+    expect(item(c, 1).getAttribute('aria-invalid')).toBeNull();
+
+    const groupHost = c.querySelector('ui-toggle-group') as HTMLElement;
+    groupHost.setAttribute('aria-invalid', 'true');
+    flushEffects();
+    expect(item(c, 1).getAttribute('aria-invalid')).toBeNull();
+  });
+
+  it('reacts to live item-host aria-invalid changes', () => {
+    const c = mountGroup();
+    const host = c.querySelector('ui-toggle-group-item') as HTMLElement;
+    const button = item(c, 0);
+    host.setAttribute('aria-invalid', 'true');
+    flushEffects();
+    expect(button.getAttribute('aria-invalid')).toBe('true');
+    host.setAttribute('aria-invalid', 'false');
+    flushEffects();
+    expect(button.getAttribute('aria-invalid')).toBeNull();
+  });
+});

@@ -121,3 +121,21 @@ describe('Badge as a plain custom element', () => {
     expect(badge.className).not.toContain('text-foreground');
   });
 });
+
+describe('Badge — aria-invalid forwarding', () => {
+  it('forwards factory ariaInvalid to the inner class-bearing span', () => {
+    expect(getBadge(mount(html`${Badge({ ariaInvalid: true })}`)).getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('reacts to live host aria-invalid changes', () => {
+    const c = mount(html`${Badge({})}`);
+    const host = c.querySelector('ui-badge') as HTMLElement;
+    const badge = getBadge(host);
+    host.setAttribute('aria-invalid', 'true');
+    flushEffects();
+    expect(badge.getAttribute('aria-invalid')).toBe('true');
+    host.setAttribute('aria-invalid', 'false');
+    flushEffects();
+    expect(badge.getAttribute('aria-invalid')).toBeNull();
+  });
+});

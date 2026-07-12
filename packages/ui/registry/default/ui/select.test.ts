@@ -163,3 +163,21 @@ describe('Select native form participation', () => {
     expect(select.value).toBe('a');
   });
 });
+
+describe('Select — aria-invalid forwarding', () => {
+  it('forwards factory ariaInvalid to the inner class-bearing select', () => {
+    expect(getSelect(mount(html`${Select({ ariaInvalid: true, children: options })}`)).getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('reacts to live host aria-invalid changes', () => {
+    const c = mount(html`${Select({ children: options })}`);
+    const host = c.querySelector('ui-select') as HTMLElement;
+    const select = getSelect(host);
+    host.setAttribute('aria-invalid', 'true');
+    flushEffects();
+    expect(select.getAttribute('aria-invalid')).toBe('true');
+    host.setAttribute('aria-invalid', 'false');
+    flushEffects();
+    expect(select.getAttribute('aria-invalid')).toBeNull();
+  });
+});

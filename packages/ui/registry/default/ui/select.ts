@@ -62,6 +62,8 @@ export type SelectProps = {
   name?: string;
   disabled?: boolean;
   required?: boolean;
+  /** Invalid state forwarded to the inner select that owns aria-invalid:* classes. */
+  ariaInvalid?: boolean;
   /** Merged last into the inner <select>'s class list via cn(). */
   className?: string;
   /** The <option> elements. */
@@ -125,6 +127,7 @@ export const Select = component<SelectProps>('ui-select', (props, host) => {
       name="${name}"
       disabled="${disabled}"
       required="${required}"
+      aria-invalid="${computed(() => (props.ariaInvalid.value ? 'true' : undefined))}"
     >${children()}</select>
     <svg
       data-slot="native-select-icon"
@@ -152,5 +155,6 @@ export const Select = component<SelectProps>('ui-select', (props, host) => {
     name: 'forward',
     disabled: 'boolean',
     required: 'boolean',
+    ariaInvalid: 'boolean',
   },
 });
