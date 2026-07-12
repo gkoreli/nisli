@@ -704,6 +704,17 @@
         "utils",
         "button"
       ]
+    },
+    {
+      "name": "message",
+      "type": "ui",
+      "description": "A chat message row with avatar/content/header/footer. Port of shadcn/ui message.",
+      "files": [
+        "ui/message.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }

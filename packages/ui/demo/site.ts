@@ -251,6 +251,13 @@ import {
   SidebarMenuButton,
 } from './src/nisli-ui/ui/sidebar.js';
 
+import {
+  MessageGroup,
+  Message,
+  MessageContent,
+  MessageHeader,
+} from './src/nisli-ui/ui/message.js';
+
 function section(title: string, body: TemplateResult): TemplateResult {
   return html`<section class="space-y-3">
     <h2 class="text-xl font-semibold tracking-tight">${title}</h2>
@@ -756,6 +763,26 @@ export function renderKitchenSink(): TemplateResult {
               <p class="text-sm text-muted-foreground">Main content area.</p>
             </div>
           </div>`,
+        })}
+      </div>`,
+    )}
+
+    ${section(
+      'Message',
+      html`<div class="max-w-md rounded-lg border p-4">
+        ${MessageGroup({
+          children: html`${Message({
+            children: MessageContent({
+              children: html`${MessageHeader({ children: 'Ada' })}
+              <div class="rounded-xl bg-muted px-3 py-2">Hey, how's the port going?</div>`,
+            }),
+          })}
+          ${Message({
+            align: 'end',
+            children: MessageContent({
+              children: html`<div class="rounded-xl bg-primary px-3 py-2 text-primary-foreground">Almost done — chat family next.</div>`,
+            }),
+          })}`,
         })}
       </div>`,
     )}
