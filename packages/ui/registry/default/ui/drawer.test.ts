@@ -209,3 +209,109 @@ describe('Drawer — plain custom element usage', () => {
     expect(q(c, 'drawer-title').textContent).toBe('Menu');
   });
 });
+
+describe('Drawer — attribute-as-truth (open state)', () => {
+  async function mountPlain(markup: string): Promise<HTMLElement> {
+    document.body.innerHTML = markup;
+    await Promise.resolve();
+    await Promise.resolve();
+    return document.querySelector<HTMLElement>('ui-drawer')!;
+  }
+
+  it('mounts open from literal `open` markup, then DrawerClose closes it', async () => {
+    // The `open` attribute is present at PARSE, so the SEED-AT-CONNECT path (not
+    // attributeChangedCallback) must render the content OPEN at connect.
+    const c = await mountPlain(
+      '<ui-drawer open>' +
+        '<ui-drawer-content>' +
+        '<ui-drawer-title>Menu</ui-drawer-title>' +
+        '<ui-drawer-close>Cancel</ui-drawer-close>' +
+        '</ui-drawer-content>' +
+        '</ui-drawer>',
+    );
+    const content = q(c, 'drawer-content');
+    expect(content.hasAttribute('hidden')).toBe(false);
+    expect(content.getAttribute('data-state')).toBe('open');
+
+    // Close via the COMPONENT path (the DrawerClose button).
+    q(c, 'drawer-close').click();
+    flush2();
+    expect(content.hasAttribute('hidden')).toBe(true);
+    expect(content.getAttribute('data-state')).toBe('closed');
+  });
+
+  it('setAttribute("open") opens the drawer, removeAttribute closes it', async () => {
+    const c = await mountPlain(
+      '<ui-drawer>' +
+        '<ui-drawer-content>' +
+        '<ui-drawer-title>Menu</ui-drawer-title>' +
+        '</ui-drawer-content>' +
+        '</ui-drawer>',
+    );
+    const content = q(c, 'drawer-content');
+    const trigger = q(c, 'drawer-trigger') as HTMLElement | null;
+    expect(content.hasAttribute('hidden')).toBe(true);
+
+    c.setAttribute('open', '');
+    flush2();
+    expect(content.hasAttribute('hidden')).toBe(false);
+    expect(content.getAttribute('data-state')).toBe('open');
+    if (trigger) expect(trigger.getAttribute('aria-expanded')).toBe('true');
+
+    c.removeAttribute('open');
+    flush2();
+    expect(content.hasAttribute('hidden')).toBe(true);
+    expect(content.getAttribute('data-state')).toBe('closed');
+  });
+
+  it('default-open seeds the open state', async () => {
+    const c = await mountPlain(
+      '<ui-drawer default-open>' +
+        '<ui-drawer-content>' +
+        '<ui-drawer-title>Menu</ui-drawer-title>' +
+        '</ui-drawer-content>' +
+        '</ui-drawer>',
+    );
+    expect(c.hasAttribute('open')).toBe(true);
+    expect(q(c, 'drawer-content').hasAttribute('hidden')).toBe(false);
+  });
+
+  it('explicit open="false" beats default-open (stays closed)', async () => {
+    const c = await mountPlain(
+      '<ui-drawer default-open open="false">' +
+        '<ui-drawer-content>' +
+        '<ui-drawer-title>Menu</ui-drawer-title>' +
+        '</ui-drawer-content>' +
+        '</ui-drawer>',
+    );
+    expect(c.hasAttribute('open')).toBe(false);
+    expect(q(c, 'drawer-content').hasAttribute('hidden')).toBe(true);
+  });
+
+  it('controlled (factory open signal): setOpen is guarded, the parent stays in control', () => {
+    const open = signal<boolean | undefined>(true);
+    const c = mountDrawer({ open });
+    const host = c.querySelector('ui-drawer') as HTMLElement;
+    const onChange = vi.fn();
+    host.addEventListener('ui-open-change', onChange as EventListener);
+    flush2();
+    // The reflect effect mirrors the pinned signal onto the attribute.
+    expect(host.hasAttribute('open')).toBe(true);
+    expect(isOpen(c)).toBe(true);
+
+    // A close-button click calls state.setOpen(false). Because `open` is a pinned
+    // factory prop (controlled), the guard skips the attribute write — the parent
+    // stays in control (attr NOT cleared) and only the event fires.
+    q(c, 'drawer-close').click();
+    flush2();
+    expect(host.hasAttribute('open')).toBe(true); // guard held
+    expect(isOpen(c)).toBe(true);
+    expect((onChange.mock.calls.at(-1)![0] as CustomEvent).detail).toEqual({ open: false });
+
+    // The parent responds by updating the signal → reflect effect closes it.
+    open.value = false;
+    flush2();
+    expect(host.hasAttribute('open')).toBe(false);
+    expect(isOpen(c)).toBe(false);
+  });
+});

@@ -302,6 +302,119 @@ describe('Dialog — portal', () => {
   });
 });
 
+describe('Dialog — attribute-as-truth (PATTERN A)', () => {
+  it('mounts open from literal `open` markup, then the close button closes it', async () => {
+    // The `open` attribute is present at PARSE, so the SEED-AT-CONNECT path (not
+    // attributeChangedCallback) must render the content OPEN at connect.
+    document.body.innerHTML =
+      '<ui-dialog open>' +
+      '<ui-dialog-trigger>Open</ui-dialog-trigger>' +
+      '<ui-dialog-content portal="false">' +
+      '<ui-dialog-title>Title</ui-dialog-title>' +
+      '</ui-dialog-content>' +
+      '</ui-dialog>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const content = q(document, 'dialog-content');
+    expect(content.hasAttribute('hidden')).toBe(false);
+    expect(content.getAttribute('data-state')).toBe('open');
+
+    // Close via the COMPONENT path (the built-in close button).
+    q(document, 'dialog-close').click();
+    flush2();
+    expect(content.hasAttribute('hidden')).toBe(true);
+    expect(content.getAttribute('data-state')).toBe('closed');
+  });
+
+  it('plain-HTML setAttribute("open") opens; removeAttribute closes', async () => {
+    document.body.innerHTML =
+      '<ui-dialog>' +
+      '<ui-dialog-trigger>Open</ui-dialog-trigger>' +
+      '<ui-dialog-content portal="false">' +
+      '<ui-dialog-title>Title</ui-dialog-title>' +
+      '</ui-dialog-content>' +
+      '</ui-dialog>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const host = document.querySelector('ui-dialog')!;
+    const content = q(document, 'dialog-content');
+    const trigger = q(document, 'dialog-trigger');
+    // closed by default
+    expect(content.hasAttribute('hidden')).toBe(true);
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+
+    host.setAttribute('open', '');
+    flush2();
+    expect(content.hasAttribute('hidden')).toBe(false);
+    expect(content.getAttribute('data-state')).toBe('open');
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+
+    host.removeAttribute('open');
+    flush2();
+    expect(content.hasAttribute('hidden')).toBe(true);
+    expect(content.getAttribute('data-state')).toBe('closed');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('renders open when the default-open attribute is present', async () => {
+    document.body.innerHTML =
+      '<ui-dialog default-open>' +
+      '<ui-dialog-content portal="false">' +
+      '<ui-dialog-title>Title</ui-dialog-title>' +
+      '</ui-dialog-content>' +
+      '</ui-dialog>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const host = document.querySelector('ui-dialog')!;
+    expect(host.hasAttribute('open')).toBe(true); // seeded from default-open
+    expect(q(document, 'dialog-content').hasAttribute('hidden')).toBe(false);
+  });
+
+  it('explicit open="false" beats default-open (stays closed)', async () => {
+    document.body.innerHTML =
+      '<ui-dialog default-open open="false">' +
+      '<ui-dialog-content portal="false">' +
+      '<ui-dialog-title>Title</ui-dialog-title>' +
+      '</ui-dialog-content>' +
+      '</ui-dialog>';
+    await Promise.resolve();
+    await Promise.resolve();
+    // hasAttribute('open') is present-but-"false" → the seed is skipped, so the
+    // explicit closed state wins over default-open.
+    expect(q(document, 'dialog-content').hasAttribute('hidden')).toBe(true);
+  });
+
+  it('controlled (factory open signal): setOpen is guarded, the parent stays in control', () => {
+    const open = signal<boolean | undefined>(true);
+    const c = mountDialog({ open });
+    const host = c.querySelector('ui-dialog') as HTMLElement;
+    const onChange = vi.fn();
+    host.addEventListener('ui-open-change', onChange as EventListener);
+    flush2();
+    // The reflect effect mirrors the pinned signal onto the attribute.
+    expect(host.hasAttribute('open')).toBe(true);
+    expect(q(document, 'dialog-content').hasAttribute('hidden')).toBe(false);
+
+    // A close-button click calls state.setOpen(false). Because `open` is a pinned
+    // factory prop (controlled), the guard skips the attribute write — the parent
+    // stays in control (attr NOT cleared) and only the event fires.
+    q(document, 'dialog-close').click();
+    flush2();
+    expect(host.hasAttribute('open')).toBe(true); // guard held
+    expect(q(document, 'dialog-content').hasAttribute('hidden')).toBe(false);
+    expect((onChange.mock.calls.at(-1)![0] as CustomEvent).detail).toEqual({ open: false });
+
+    // The parent responds by updating the signal → reflect effect closes it.
+    open.value = false;
+    flush2();
+    expect(host.hasAttribute('open')).toBe(false);
+    expect(q(document, 'dialog-content').hasAttribute('hidden')).toBe(true);
+  });
+});
+
 describe('Dialog — misuse', () => {
   it('content used outside <ui-dialog> renders an error fallback', () => {
     const __err = vi.spyOn(console, 'error').mockImplementation(() => {});

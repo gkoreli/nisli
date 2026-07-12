@@ -210,6 +210,123 @@ describe('Sheet — portal', () => {
   });
 });
 
+describe('Sheet — attribute-as-truth (PATTERN A)', () => {
+  it('mounts open from literal `open` markup, then the close button closes it', async () => {
+    // The `open` attribute is present at PARSE, so the SEED-AT-CONNECT path (not
+    // attributeChangedCallback) must render the content OPEN at connect.
+    document.body.innerHTML =
+      '<ui-sheet open>' +
+      '<ui-sheet-trigger>Open</ui-sheet-trigger>' +
+      '<ui-sheet-content portal="false">' +
+      '<ui-sheet-title>Title</ui-sheet-title>' +
+      '</ui-sheet-content>' +
+      '</ui-sheet>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const content = q(document, 'sheet-content');
+    expect(content.hasAttribute('hidden')).toBe(false);
+    expect(content.getAttribute('data-state')).toBe('open');
+
+    // Close via the COMPONENT path (the built-in close button).
+    content
+      .querySelector<HTMLButtonElement>('[data-slot="sheet-close"][aria-label="Close"]')!
+      .click();
+    flush2();
+    expect(content.hasAttribute('hidden')).toBe(true);
+    expect(content.getAttribute('data-state')).toBe('closed');
+  });
+
+  it('plain-HTML setAttribute("open") opens; removeAttribute closes', async () => {
+    document.body.innerHTML =
+      '<ui-sheet>' +
+      '<ui-sheet-trigger>Open</ui-sheet-trigger>' +
+      '<ui-sheet-content portal="false">' +
+      '<ui-sheet-title>Title</ui-sheet-title>' +
+      '</ui-sheet-content>' +
+      '</ui-sheet>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const host = document.querySelector('ui-sheet')!;
+    const content = q(document, 'sheet-content');
+    const trigger = q(document, 'sheet-trigger');
+    // closed by default
+    expect(content.hasAttribute('hidden')).toBe(true);
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+
+    host.setAttribute('open', '');
+    flush2();
+    expect(content.hasAttribute('hidden')).toBe(false);
+    expect(content.getAttribute('data-state')).toBe('open');
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+
+    host.removeAttribute('open');
+    flush2();
+    expect(content.hasAttribute('hidden')).toBe(true);
+    expect(content.getAttribute('data-state')).toBe('closed');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('renders open when the default-open attribute is present', async () => {
+    document.body.innerHTML =
+      '<ui-sheet default-open>' +
+      '<ui-sheet-content portal="false">' +
+      '<ui-sheet-title>Title</ui-sheet-title>' +
+      '</ui-sheet-content>' +
+      '</ui-sheet>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const host = document.querySelector('ui-sheet')!;
+    expect(host.hasAttribute('open')).toBe(true); // seeded from default-open
+    expect(q(document, 'sheet-content').hasAttribute('hidden')).toBe(false);
+  });
+
+  it('explicit open="false" beats default-open (stays closed)', async () => {
+    document.body.innerHTML =
+      '<ui-sheet default-open open="false">' +
+      '<ui-sheet-content portal="false">' +
+      '<ui-sheet-title>Title</ui-sheet-title>' +
+      '</ui-sheet-content>' +
+      '</ui-sheet>';
+    await Promise.resolve();
+    await Promise.resolve();
+    // hasAttribute('open') is present-but-"false" → the seed is skipped, so the
+    // explicit closed state wins over default-open.
+    expect(q(document, 'sheet-content').hasAttribute('hidden')).toBe(true);
+  });
+
+  it('controlled (factory open signal): setOpen is guarded, the parent stays in control', () => {
+    const open = signal<boolean | undefined>(true);
+    const c = mountSheet({ open });
+    const host = c.querySelector('ui-sheet') as HTMLElement;
+    const onChange = vi.fn();
+    host.addEventListener('ui-open-change', onChange as EventListener);
+    flush2();
+    // The reflect effect mirrors the pinned signal onto the attribute.
+    expect(host.hasAttribute('open')).toBe(true);
+    expect(q(document, 'sheet-content').hasAttribute('hidden')).toBe(false);
+
+    // A close-button click calls state.setOpen(false). Because `open` is a pinned
+    // factory prop (controlled), the guard skips the attribute write — the parent
+    // stays in control (attr NOT cleared) and only the event fires.
+    q(document, 'sheet-content')
+      .querySelector<HTMLButtonElement>('[aria-label="Close"]')!
+      .click();
+    flush2();
+    expect(host.hasAttribute('open')).toBe(true); // guard held
+    expect(q(document, 'sheet-content').hasAttribute('hidden')).toBe(false);
+    expect((onChange.mock.calls.at(-1)![0] as CustomEvent).detail).toEqual({ open: false });
+
+    // The parent responds by updating the signal → reflect effect closes it.
+    open.value = false;
+    flush2();
+    expect(host.hasAttribute('open')).toBe(false);
+    expect(q(document, 'sheet-content').hasAttribute('hidden')).toBe(true);
+  });
+});
+
 describe('Sheet — misuse', () => {
   it('renders the setup error boundary for a trigger outside a sheet', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});

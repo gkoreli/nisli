@@ -206,6 +206,111 @@ describe('Popover — portal', () => {
   });
 });
 
+describe('Popover — attribute-as-truth (PATTERN A)', () => {
+  it('mounts open from literal `open` markup, then the trigger closes it', async () => {
+    // The `open` attribute is present at PARSE, so the SEED-AT-CONNECT path (not
+    // attributeChangedCallback) must render the content OPEN at connect.
+    document.body.innerHTML =
+      '<ui-popover open>' +
+      '<ui-popover-trigger>Open</ui-popover-trigger>' +
+      '<ui-popover-content portal="false">Body</ui-popover-content>' +
+      '</ui-popover>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const content = q(document, 'popover-content');
+    expect(content.hasAttribute('hidden')).toBe(false);
+    expect(content.getAttribute('data-state')).toBe('open');
+
+    // Close via the COMPONENT path (the trigger toggles it closed).
+    q(document, 'popover-trigger').click();
+    flush2();
+    expect(content.hasAttribute('hidden')).toBe(true);
+    expect(content.getAttribute('data-state')).toBe('closed');
+  });
+
+  it('plain-HTML setAttribute("open") opens; removeAttribute closes', async () => {
+    document.body.innerHTML =
+      '<ui-popover>' +
+      '<ui-popover-trigger>Open</ui-popover-trigger>' +
+      '<ui-popover-content portal="false">Body</ui-popover-content>' +
+      '</ui-popover>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const host = document.querySelector('ui-popover')!;
+    const content = q(document, 'popover-content');
+    const trigger = q(document, 'popover-trigger');
+    // closed by default
+    expect(content.hasAttribute('hidden')).toBe(true);
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+
+    host.setAttribute('open', '');
+    flush2();
+    expect(content.hasAttribute('hidden')).toBe(false);
+    expect(content.getAttribute('data-state')).toBe('open');
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+
+    host.removeAttribute('open');
+    flush2();
+    expect(content.hasAttribute('hidden')).toBe(true);
+    expect(content.getAttribute('data-state')).toBe('closed');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('renders open when the default-open attribute is present', async () => {
+    document.body.innerHTML =
+      '<ui-popover default-open>' +
+      '<ui-popover-content portal="false">Body</ui-popover-content>' +
+      '</ui-popover>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const host = document.querySelector('ui-popover')!;
+    expect(host.hasAttribute('open')).toBe(true); // seeded from default-open
+    expect(q(document, 'popover-content').hasAttribute('hidden')).toBe(false);
+  });
+
+  it('explicit open="false" beats default-open (stays closed)', async () => {
+    document.body.innerHTML =
+      '<ui-popover default-open open="false">' +
+      '<ui-popover-content portal="false">Body</ui-popover-content>' +
+      '</ui-popover>';
+    await Promise.resolve();
+    await Promise.resolve();
+    // hasAttribute('open') is present-but-"false" → the seed is skipped, so the
+    // explicit closed state wins over default-open.
+    expect(q(document, 'popover-content').hasAttribute('hidden')).toBe(true);
+  });
+
+  it('controlled (factory open signal): setOpen is guarded, the parent stays in control', () => {
+    const open = signal<boolean | undefined>(true);
+    const c = mountPopover({ open });
+    const host = c.querySelector('ui-popover') as HTMLElement;
+    const onChange = vi.fn();
+    host.addEventListener('ui-open-change', onChange as EventListener);
+    flush2();
+    // The reflect effect mirrors the pinned signal onto the attribute.
+    expect(host.hasAttribute('open')).toBe(true);
+    expect(isOpen(c)).toBe(true);
+
+    // A trigger click calls state.setOpen(false). Because `open` is a pinned
+    // factory prop (controlled), the guard skips the attribute write — the parent
+    // stays in control (attr NOT cleared) and only the event fires.
+    q(c, 'popover-trigger').click();
+    flush2();
+    expect(host.hasAttribute('open')).toBe(true); // guard held
+    expect(isOpen(c)).toBe(true);
+    expect((onChange.mock.calls.at(-1)![0] as CustomEvent).detail).toEqual({ open: false });
+
+    // The parent responds by updating the signal → reflect effect closes it.
+    open.value = false;
+    flush2();
+    expect(host.hasAttribute('open')).toBe(false);
+    expect(isOpen(c)).toBe(false);
+  });
+});
+
 describe('Popover — misuse', () => {
   it('content used outside <ui-popover> renders an error fallback', () => {
     const __err = vi.spyOn(console, 'error').mockImplementation(() => {});

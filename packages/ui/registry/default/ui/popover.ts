@@ -21,33 +21,27 @@
  * (`focusTrap(..., { trapped: false })`) — Radix's non-modal Popover default,
  * so Tab can leave the panel.
  *
- * Open state is signal-driven (controlled `open` prop; default-open / attr
- * fallback) and dispatches a bubbling `ui-open-change` CustomEvent.
+ * Open state is attribute-as-truth (the `open` ATTRIBUTE is the uncontrolled
+ * state, like native <dialog open>; `defaultOpen` seeds it; a controlled `open`
+ * factory prop overrides) and dispatches a bubbling `ui-open-change` CustomEvent.
  *
  * This file was copied into your project by `nisli-ui` — you own it.
  */
 
 import {
+  children,
   component,
   createContext,
   computed,
   effect,
   html,
   onCleanup,
-  onMount,
   ref,
-  signal,
   type ReadonlySignal,
   type Ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, isPinned, transparentHost } from '../lib/utils.js';
 import { positionFloating, type Align, type Side } from '../lib/floating.js';
 import { dismissableLayer } from '../lib/dismissable-layer.js';
 import { focusTrap } from '../lib/focus.js';
@@ -83,22 +77,37 @@ export type PopoverProps = {
 
 export const Popover = component<PopoverProps>('ui-popover', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const initialOpen =
-    props.defaultOpen.value ??
-    props.open.value ??
-    (host.hasAttribute('open') || host.hasAttribute('default-open'));
-  const internal = signal<boolean>(Boolean(initialOpen));
-  const open = computed<boolean>(() => props.open.value ?? internal.value);
+  // PATTERN A (ADR 0025 item 3): the `open` ATTRIBUTE is the uncontrolled state
+  // (like native <dialog open>/<details open>). The attribute IS the truth.
+  const open = computed<boolean>(() => props.open.value ?? false);
 
   const setOpen = (next: boolean): void => {
     if (next === open.value) return;
-    internal.value = next;
+    // Uncontrolled → the attribute IS the state, so write it. Controlled (a
+    // pinned factory `open` signal) → don't; the parent drives and the reflect
+    // effect re-syncs the attr. isPinned('open') is the discriminator (a declared
+    // 'boolean' is never undefined, so pin state is the only controlled signal).
+    if (!isPinned(host, 'open')) host.toggleAttribute('open', next);
     host.dispatchEvent(
       new CustomEvent('ui-open-change', { detail: { open: next }, bubbles: true }),
     );
   };
+
+  // defaultOpen is INIT-SEED-ONLY: seed the open attribute once, but only when
+  // `open` is neither controlled (pinned — else the reflect effect would revert
+  // it, a pointless flicker) nor explicitly authored. host.hasAttribute('open')
+  // is a SANCTIONED read of a DECLARED attribute: it distinguishes 'absent' from
+  // 'present-false' so an explicit open="false" beats defaultOpen (stays closed).
+  if (props.defaultOpen.value && !isPinned(host, 'open') && !host.hasAttribute('open')) {
+    host.toggleAttribute('open', true);
+  }
+
+  // Reflect the resolved state to the attribute so CONTROLLED (factory) usage
+  // also reflects (CSS [open] selectors + native parity); dedupe makes it cheap.
+  effect(() => {
+    host.toggleAttribute('open', open.value);
+  });
 
   const state: PopoverState = {
     open,
@@ -109,20 +118,21 @@ export const Popover = component<PopoverProps>('ui-popover', (props, host) => {
   };
   PopoverContext.provide(host, state);
 
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn(className.value));
 
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
   return html`<div
-    ref="${root}"
     data-slot="popover"
     style="display:contents"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  // PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
+  attrs: {
+    open: 'boolean',
+    defaultOpen: 'boolean',
+    className: 'string',
+  },
 });
 
 // ── ui-popover-trigger ───────────────────────────────────────────────
@@ -137,21 +147,12 @@ export const PopoverTrigger = component<PopoverTriggerProps>(
   (props, host) => {
     const state = PopoverContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(className.value));
 
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) {
-        projectChildren(host, root.current, projected);
-        state.trigger.current = root.current;
-      }
-    });
-
     return html`<button
-      ref="${root}"
+      ref="${state.trigger}"
       type="button"
       data-slot="popover-trigger"
       aria-haspopup="dialog"
@@ -160,8 +161,9 @@ export const PopoverTrigger = component<PopoverTriggerProps>(
       data-state="${computed(() => stateAttr(state.open.value))}"
       class="${classes}"
       @click=${() => state.setOpen(!state.open.value)}
-    >${props.children}</button>`;
+    >${children()}</button>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-popover-anchor (optional positioning anchor) ──────────────────
@@ -176,21 +178,13 @@ export const PopoverAnchor = component<PopoverAnchorProps>(
   (props, host) => {
     const state = PopoverContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(className.value));
 
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) {
-        projectChildren(host, root.current, projected);
-        state.anchor.current = root.current;
-      }
-    });
-
-    return html`<div ref="${root}" data-slot="popover-anchor" style="display:contents" class="${classes}">${props.children}</div>`;
+    return html`<div ref="${state.anchor}" data-slot="popover-anchor" style="display:contents" class="${classes}">${children()}</div>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-popover-content ───────────────────────────────────────────────
@@ -218,16 +212,13 @@ export const PopoverContent = component<PopoverContentProps>(
   (props, host) => {
     const state = PopoverContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const sideAttr = attr(props.side, host, 'side');
-    const alignAttr = attr(props.align, host, 'align');
-    const side = computed<Side>(() => (sideAttr.value as Side) ?? 'bottom');
-    const align = computed<Align>(() => (alignAttr.value as Align) ?? 'center');
+    const side = computed<Side>(() => (props.side.value as Side) ?? 'bottom');
+    const align = computed<Align>(() => (props.align.value as Align) ?? 'center');
     const sideOffset = computed<number>(() => props.sideOffset.value ?? 4);
     const alignOffset = computed<number>(() => props.alignOffset.value ?? 0);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(contentClasses, className.value));
     const contentId = `${state.baseId}-content`;
 
@@ -236,9 +227,9 @@ export const PopoverContent = component<PopoverContentProps>(
 
     // Portal the content to <body> (default on) so its fixed positioning
     // escapes transformed ancestors. Floating, dismissable-layer (document),
-    // focus trap, and projection all operate on `content` by reference.
-    const portalEnabled =
-      props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
+    // and focus trap all operate on `content` by reference. PATTERN B: `portal`
+    // is a default-true boolean — absent → on, "false" → off.
+    const portalEnabled = props.portal.value as boolean;
     portal(content, { enabled: portalEnabled });
 
     const layer = dismissableLayer(content, {
@@ -283,9 +274,6 @@ export const PopoverContent = component<PopoverContentProps>(
       }
     });
 
-    onMount(() => {
-      if (content.current) projectChildren(host, content.current, projected);
-    });
     onCleanup(stopPositioning);
 
     return html`<div
@@ -297,7 +285,16 @@ export const PopoverContent = component<PopoverContentProps>(
       hidden="${computed(() => !state.open.value)}"
       tabindex="-1"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
+  },
+  {
+    // PATTERN B: `portal` is a default-true boolean (absent → true, "false" → false).
+    attrs: {
+      side: 'string',
+      align: 'string',
+      portal: { type: 'boolean', default: true },
+      className: 'string',
+    },
   },
 );
 
@@ -311,17 +308,12 @@ export type PopoverSectionProps = {
 function popoverSection(tag: string, slot: string, base: string, element: 'div' | 'p') {
   return component<PopoverSectionProps>(tag, (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(base, className.value));
-    const root = ref<HTMLElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return element === 'p'
-      ? html`<p ref="${root}" data-slot="${slot}" class="${classes}">${props.children}</p>`
-      : html`<div ref="${root}" data-slot="${slot}" class="${classes}">${props.children}</div>`;
-  });
+      ? html`<p data-slot="${slot}" class="${classes}">${children()}</p>`
+      : html`<div data-slot="${slot}" class="${classes}">${children()}</div>`;
+  }, { attrs: { className: 'string' } });
 }
 
 export const PopoverHeader = popoverSection(

@@ -198,6 +198,26 @@ attribute, so a defined→undefined unpin (or a spread-of-undefined) left the
 stale pinned `id`/`name` on the inner control; the unpinned/absent path now
 resolves the value (undefined) through the prop signal.
 
+**Open-state pattern** (attribute-as-truth; ruled during UI-30 batch 3A/batch 2
+for every overlay + menu root that owns an `open` state). The `open` ATTRIBUTE
+is the uncontrolled state, matching native `<dialog open>`/`<details open>` so
+plain-HTML authors get platform semantics: `open`/`defaultOpen` declared
+`'boolean'`; `open = computed(() => props.open.value ?? false)` (no `internal`
+signal); `setOpen(next)` writes the attribute ONLY when uncontrolled —
+`if (!isPinned(host, 'open')) host.toggleAttribute('open', next)` — and always
+dispatches the open-change event. Controlled factory usage works via
+defined-write-pins (a factory `open` signal pins the prop → the attribute is
+ignored → the parent drives); a reflect `effect(() => host.toggleAttribute('open',
+open.value))` mirrors the resolved state back to the attribute (CSS `[open]` +
+native parity, dedupe-cheap). `defaultOpen` is INIT-SEED-ONLY, seeded once and
+guarded twice — skip when pinned (avoids a seed→reflect flicker) and when
+`host.hasAttribute('open')` (a SANCTIONED read of a DECLARED attribute that
+distinguishes absent from present-`"false"`, so explicit `open="false"` beats
+default). The controlled discriminator is core's `_isPinned(key)` (a declared
+`'boolean'` is never `undefined`, so pin state is the only controlled signal),
+surfaced to the registry as `isPinned(host, key)` in `lib/utils.ts`. Nested/
+submenu open states are NOT attribute-backed — only the single root `open`.
+
 ### 4. Reactive-slot primitive transition gap — FIXED (2026-07-11)
 
 `template.ts`: a slot whose signal is initially `null`/`undefined` becomes

@@ -219,6 +219,110 @@ describe('AlertDialog — portal', () => {
   });
 });
 
+describe('AlertDialog — attribute-as-truth (live regressions)', () => {
+  it('mounts open from literal `open` markup, then Cancel closes it', async () => {
+    // The `open` attribute is present at PARSE, so the SEED-AT-CONNECT path (not
+    // attributeChangedCallback) must render the content OPEN at connect.
+    document.body.innerHTML =
+      '<ui-alert-dialog open>' +
+      '<ui-alert-dialog-content portal="false">' +
+      '<ui-alert-dialog-title>Sure?</ui-alert-dialog-title>' +
+      '<ui-alert-dialog-cancel>Cancel</ui-alert-dialog-cancel>' +
+      '</ui-alert-dialog-content>' +
+      '</ui-alert-dialog>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const content = q(document, 'alert-dialog-content');
+    expect(content.hasAttribute('hidden')).toBe(false);
+    expect(content.getAttribute('data-state')).toBe('open');
+
+    // Close via the COMPONENT path (the Cancel button).
+    q(document, 'alert-dialog-cancel').click();
+    flush2();
+    expect(content.hasAttribute('hidden')).toBe(true);
+    expect(content.getAttribute('data-state')).toBe('closed');
+  });
+
+  it('toggles open when a plain element gains/loses the open attribute', async () => {
+    document.body.innerHTML =
+      '<ui-alert-dialog>' +
+      '<ui-alert-dialog-trigger>Delete</ui-alert-dialog-trigger>' +
+      '<ui-alert-dialog-content>' +
+      '<ui-alert-dialog-title>Sure?</ui-alert-dialog-title>' +
+      '</ui-alert-dialog-content>' +
+      '</ui-alert-dialog>';
+    await Promise.resolve();
+    await Promise.resolve();
+    const root = document.querySelector('ui-alert-dialog') as HTMLElement;
+    expect(isOpen(root)).toBe(false);
+
+    root.setAttribute('open', '');
+    flush2();
+    expect(isOpen(root)).toBe(true);
+
+    root.removeAttribute('open');
+    flush2();
+    expect(isOpen(root)).toBe(false);
+  });
+
+  it('default-open seeds the open attribute (uncontrolled)', async () => {
+    document.body.innerHTML =
+      '<ui-alert-dialog default-open>' +
+      '<ui-alert-dialog-trigger>Delete</ui-alert-dialog-trigger>' +
+      '<ui-alert-dialog-content>' +
+      '<ui-alert-dialog-title>Sure?</ui-alert-dialog-title>' +
+      '</ui-alert-dialog-content>' +
+      '</ui-alert-dialog>';
+    await Promise.resolve();
+    await Promise.resolve();
+    const root = document.querySelector('ui-alert-dialog') as HTMLElement;
+    expect(root.hasAttribute('open')).toBe(true);
+    expect(isOpen(root)).toBe(true);
+  });
+
+  it('explicit open="false" beats default-open (stays closed)', async () => {
+    document.body.innerHTML =
+      '<ui-alert-dialog default-open open="false">' +
+      '<ui-alert-dialog-trigger>Delete</ui-alert-dialog-trigger>' +
+      '<ui-alert-dialog-content>' +
+      '<ui-alert-dialog-title>Sure?</ui-alert-dialog-title>' +
+      '</ui-alert-dialog-content>' +
+      '</ui-alert-dialog>';
+    await Promise.resolve();
+    await Promise.resolve();
+    const root = document.querySelector('ui-alert-dialog') as HTMLElement;
+    expect(isOpen(root)).toBe(false);
+  });
+
+  it('controlled: setOpen(false) is guarded — attr not clobbered, event fires, parent signal drives', () => {
+    const open = signal<boolean | undefined>(true);
+    const c = mountAlertDialog({ open });
+    const host = c.querySelector('ui-alert-dialog') as HTMLElement;
+    flush2();
+    expect(isOpen(c)).toBe(true);
+    expect(host.hasAttribute('open')).toBe(true); // reflect effect mirrors the parent signal
+
+    const onChange = vi.fn();
+    host.addEventListener('ui-open-change', onChange as EventListener);
+
+    // Cancel calls setOpen(false): controlled (pinned) → attr NOT clobbered and
+    // open stays true (parent still true), but the event STILL fires.
+    within(c, 'alert-dialog-cancel').click();
+    flush2();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect((onChange.mock.calls[0]![0] as CustomEvent).detail).toEqual({ open: false });
+    expect(isOpen(c)).toBe(true);
+    expect(host.hasAttribute('open')).toBe(true);
+
+    // The parent signal drives close.
+    open.value = false;
+    flush2();
+    expect(isOpen(c)).toBe(false);
+    expect(host.hasAttribute('open')).toBe(false);
+  });
+});
+
 describe('AlertDialog — misuse', () => {
   it('content used outside <ui-alert-dialog> renders an error fallback', () => {
     const __err = vi.spyOn(console, 'error').mockImplementation(() => {});

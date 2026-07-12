@@ -18,34 +18,29 @@
  * snapshot (client-only, matching upstream); use `portal={false}` if needed.
  * Focus is trapped + restored via the focus lib.
  *
- * Open state is signal-driven (controlled `open` prop; default-open / attr
- * fallback) and dispatches a bubbling `ui-open-change` CustomEvent. Action and
- * Cancel both close the dialog; their native click still bubbles, so a consumer
- * can `addEventListener` on the action button to run the confirmed operation.
+ * PATTERN A (ADR 0025 item 3): the `open` ATTRIBUTE is the uncontrolled state
+ * (like native <dialog open>/<details open>); `defaultOpen` seeds it once. A
+ * controlled factory `open` signal pins the prop and drives it instead. Action
+ * and Cancel both close the dialog; their native click still bubbles, so a
+ * consumer can `addEventListener` on the action button to run the confirmed
+ * operation. Open/close changes dispatch a bubbling `ui-open-change`
+ * CustomEvent (`detail: { open }`) from the `<ui-alert-dialog>` host.
  *
  * This file was copied into your project by `nisli-ui` — you own it.
  */
 
 import {
+  children,
   component,
   createContext,
   computed,
   effect,
   html,
-  onCleanup,
-  onMount,
   ref,
-  signal,
   type ReadonlySignal,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, isPinned, transparentHost } from '../lib/utils.js';
 import { dismissableLayer } from '../lib/dismissable-layer.js';
 import { focusTrap } from '../lib/focus.js';
 import { portal } from '../lib/portal.js';
@@ -69,7 +64,9 @@ const stateAttr = (open: boolean) => (open ? 'open' : 'closed');
 // ── ui-alert-dialog (root, owns state) ───────────────────────────────
 
 export type AlertDialogProps = {
+  /** Controlled open state. */
   open?: boolean;
+  /** Initial open state when uncontrolled. */
   defaultOpen?: boolean;
   className?: string;
   children?: string | TemplateResult;
@@ -77,40 +74,56 @@ export type AlertDialogProps = {
 
 export const AlertDialog = component<AlertDialogProps>('ui-alert-dialog', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const initialOpen =
-    props.defaultOpen.value ??
-    props.open.value ??
-    (host.hasAttribute('open') || host.hasAttribute('default-open'));
-  const internal = signal<boolean>(Boolean(initialOpen));
-  const open = computed<boolean>(() => props.open.value ?? internal.value);
+  // PATTERN A (ADR 0025 item 3): the `open` ATTRIBUTE is the uncontrolled state
+  // (like native <dialog open>/<details open>). The attribute IS the truth.
+  const open = computed<boolean>(() => props.open.value ?? false);
 
   const setOpen = (next: boolean): void => {
     if (next === open.value) return;
-    internal.value = next;
+    // Uncontrolled → the attribute IS the state, so write it. Controlled (a
+    // pinned factory `open` signal) → don't; the parent drives and the reflect
+    // effect re-syncs the attr. isPinned('open') is the discriminator (a declared
+    // 'boolean' is never undefined, so pin state is the only controlled signal).
+    if (!isPinned(host, 'open')) host.toggleAttribute('open', next);
     host.dispatchEvent(
       new CustomEvent('ui-open-change', { detail: { open: next }, bubbles: true }),
     );
   };
 
+  // defaultOpen is INIT-SEED-ONLY: seed the open attribute once, but only when
+  // `open` is neither controlled (pinned — else the reflect effect would revert
+  // it, a pointless flicker) nor explicitly authored. host.hasAttribute('open')
+  // is a SANCTIONED read of a DECLARED attribute: it distinguishes 'absent' from
+  // 'present-false' so an explicit open="false" beats defaultOpen (stays closed).
+  if (props.defaultOpen.value && !isPinned(host, 'open') && !host.hasAttribute('open')) {
+    host.toggleAttribute('open', true);
+  }
+
+  // Reflect the resolved state to the attribute so CONTROLLED (factory) usage
+  // also reflects (CSS [open] selectors + native parity); dedupe makes it cheap.
+  effect(() => {
+    host.toggleAttribute('open', open.value);
+  });
+
   const state: AlertDialogState = { open, setOpen, baseId: `ui-alert-dialog-${++uid}` };
   AlertDialogContext.provide(host, state);
 
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn(className.value));
 
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
   return html`<div
-    ref="${root}"
     data-slot="alert-dialog"
     style="display:contents"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  // PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
+  attrs: {
+    open: 'boolean',
+    defaultOpen: 'boolean',
+    className: 'string',
+  },
 });
 
 // ── ui-alert-dialog-trigger ──────────────────────────────────────────
@@ -125,18 +138,11 @@ export const AlertDialogTrigger = component<AlertDialogTriggerProps>(
   (props, host) => {
     const state = AlertDialogContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(className.value));
 
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<button
-      ref="${root}"
       type="button"
       data-slot="alert-dialog-trigger"
       aria-haspopup="dialog"
@@ -145,8 +151,9 @@ export const AlertDialogTrigger = component<AlertDialogTriggerProps>(
       data-state="${computed(() => stateAttr(state.open.value))}"
       class="${classes}"
       @click=${() => state.setOpen(true)}
-    >${props.children}</button>`;
+    >${children()}</button>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-alert-dialog-content (overlay + panel) ────────────────────────
@@ -173,15 +180,13 @@ export const AlertDialogContent = component<AlertDialogContentProps>(
   (props, host) => {
     const state = AlertDialogContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const sizeAttr = attr(props.size, host, 'size');
-    const size = computed(() => sizeAttr.value ?? 'default');
+    const size = computed(() => props.size.value ?? 'default');
     const dataState = computed(() => stateAttr(state.open.value));
     const hidden = computed(() => !state.open.value);
     const contentId = `${state.baseId}-content`;
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(contentClasses, className.value));
 
     const portalRef = ref<HTMLDivElement>();
@@ -189,10 +194,11 @@ export const AlertDialogContent = component<AlertDialogContentProps>(
     const contentRef = ref<HTMLElement>();
 
     // Portal the overlay + content wrapper to <body> (default on) so fixed
-    // positioning escapes transformed ancestors. Escape dismissal (document
-    // listener) and the focus trap (by ref) keep working after the move.
-    const portalEnabled =
-      props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
+    // positioning escapes transformed ancestors. Static setup-time decision
+    // (PATTERN B): `portal` is a default-true boolean — absent → on, "false" →
+    // off. Escape dismissal (document listener) and the focus trap (by ref)
+    // keep working after the move.
+    const portalEnabled = props.portal.value as boolean;
     portal(portalRef, { enabled: portalEnabled });
 
     // Escape closes (Radix default); outside-pointer never dismisses an alert
@@ -213,10 +219,6 @@ export const AlertDialogContent = component<AlertDialogContentProps>(
         trap.deactivate();
         layer.deactivate();
       }
-    });
-
-    onMount(() => {
-      if (contentRef.current) projectChildren(host, contentRef.current, projected);
     });
 
     return html`<div ref="${portalRef}" data-slot="alert-dialog-portal" style="display:contents">
@@ -240,8 +242,16 @@ export const AlertDialogContent = component<AlertDialogContentProps>(
         hidden="${hidden}"
         tabindex="-1"
         class="${classes}"
-      >${props.children}</div>
+      >${children()}</div>
     </div>`;
+  },
+  {
+    // PATTERN B: `portal` is a default-true boolean (absent → true, "false" → false).
+    attrs: {
+      size: 'string',
+      portal: { type: 'boolean', default: true },
+      className: 'string',
+    },
   },
 );
 
@@ -255,15 +265,10 @@ export type AlertDialogSectionProps = {
 function alertDialogSection(tag: string, slot: string, base: string) {
   return component<AlertDialogSectionProps>(tag, (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(base, className.value));
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<div ref="${root}" data-slot="${slot}" class="${classes}">${props.children}</div>`;
-  });
+    return html`<div data-slot="${slot}" class="${classes}">${children()}</div>`;
+  }, { attrs: { className: 'string' } });
 }
 
 export const AlertDialogHeader = alertDialogSection(
@@ -296,25 +301,20 @@ export const AlertDialogTitle = component<AlertDialogTitleProps>(
   (props, host) => {
     const state = AlertDialogContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() =>
       cn(
         'text-lg font-semibold sm:group-data-[size=default]/alert-dialog-content:group-has-data-[slot=alert-dialog-media]/alert-dialog-content:col-start-2',
         className.value,
       ),
     );
-    const root = ref<HTMLHeadingElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<h2
-      ref="${root}"
       data-slot="alert-dialog-title"
       id="${`${state.baseId}-title`}"
       class="${classes}"
-    >${props.children}</h2>`;
+    >${children()}</h2>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export type AlertDialogDescriptionProps = {
@@ -327,20 +327,15 @@ export const AlertDialogDescription = component<AlertDialogDescriptionProps>(
   (props, host) => {
     const state = AlertDialogContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn('text-sm text-muted-foreground', className.value));
-    const root = ref<HTMLParagraphElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<p
-      ref="${root}"
       data-slot="alert-dialog-description"
       id="${`${state.baseId}-description`}"
       class="${classes}"
-    >${props.children}</p>`;
+    >${children()}</p>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-alert-dialog-action / -cancel ─────────────────────────────────
@@ -358,11 +353,10 @@ export const AlertDialogAction = component<AlertDialogActionProps>(
   (props, host) => {
     const state = AlertDialogContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const variant = attr(props.variant, host, 'variant');
-    const size = attr(props.size, host, 'size');
-    const className = attr(props.className, host, 'class-name');
+    const variant = props.variant;
+    const size = props.size;
+    const className = props.className;
     const classes = computed(() =>
       cn(
         buttonVariants({ variant: variant.value ?? 'default', size: size.value ?? 'default' }),
@@ -370,19 +364,14 @@ export const AlertDialogAction = component<AlertDialogActionProps>(
       ),
     );
 
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<button
-      ref="${root}"
       type="button"
       data-slot="alert-dialog-action"
       class="${classes}"
       @click=${() => state.setOpen(false)}
-    >${props.children}</button>`;
+    >${children()}</button>`;
   },
+  { attrs: { variant: 'string', size: 'string', className: 'string' } },
 );
 
 export type AlertDialogCancelProps = {
@@ -398,11 +387,10 @@ export const AlertDialogCancel = component<AlertDialogCancelProps>(
   (props, host) => {
     const state = AlertDialogContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const variant = attr(props.variant, host, 'variant');
-    const size = attr(props.size, host, 'size');
-    const className = attr(props.className, host, 'class-name');
+    const variant = props.variant;
+    const size = props.size;
+    const className = props.className;
     const classes = computed(() =>
       cn(
         buttonVariants({ variant: variant.value ?? 'outline', size: size.value ?? 'default' }),
@@ -410,17 +398,12 @@ export const AlertDialogCancel = component<AlertDialogCancelProps>(
       ),
     );
 
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<button
-      ref="${root}"
       type="button"
       data-slot="alert-dialog-cancel"
       class="${classes}"
       @click=${() => state.setOpen(false)}
-    >${props.children}</button>`;
+    >${children()}</button>`;
   },
+  { attrs: { variant: 'string', size: 'string', className: 'string' } },
 );

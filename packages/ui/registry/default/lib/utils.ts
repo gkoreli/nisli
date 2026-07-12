@@ -122,6 +122,18 @@ export function transparentHost(host: HTMLElement): void {
 }
 
 /**
+ * Read a component's internal pin-state — the controlled-vs-uncontrolled
+ * discriminator for the attribute-as-truth open pattern (ADR 0025 item 3). A
+ * declared `'boolean'` prop is never `undefined`, so pin state is the only
+ * signal of whether a factory prop is driving (controlled) vs the attribute
+ * (uncontrolled). Used by overlay roots so `setOpen` skips the attribute write
+ * under controlled usage and the `defaultOpen` seed skips a pinned prop.
+ */
+export function isPinned(host: HTMLElement, key: string): boolean {
+  return (host as unknown as { _isPinned?(k: string): boolean })._isPinned?.(key) ?? false;
+}
+
+/**
  * Resolve a prop with a host-attribute fallback, for plain-HTML usage
  * (`<ui-button variant="outline">`). The attribute is read once at
  * setup; an explicitly set prop always wins. Use kebab-case attribute

@@ -153,4 +153,97 @@ describe('Collapsible — plain custom element usage', () => {
     expect(q(root, 'collapsible-content').textContent).toBe('Body');
     expect(q(root, 'collapsible-content').hasAttribute('hidden')).toBe(false); // default-open
   });
+
+  it('mounts open from literal `open` markup, then the trigger closes it', async () => {
+    // The `open` attribute is present at PARSE, so the SEED-AT-CONNECT path (not
+    // attributeChangedCallback) must render the content OPEN at connect.
+    document.body.innerHTML =
+      '<ui-collapsible open>' +
+      '<ui-collapsible-trigger>Toggle</ui-collapsible-trigger>' +
+      '<ui-collapsible-content>Body</ui-collapsible-content>' +
+      '</ui-collapsible>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const root = document.querySelector('ui-collapsible')!;
+    const content = q(root, 'collapsible-content');
+    expect(content.hasAttribute('hidden')).toBe(false);
+    expect(content.getAttribute('data-state')).toBe('open');
+
+    // Close via the COMPONENT path (the trigger toggles it closed).
+    click(q(root, 'collapsible-trigger'));
+    expect(content.hasAttribute('hidden')).toBe(true);
+    expect(content.getAttribute('data-state')).toBe('closed');
+  });
+
+  it('setAttribute("open") on a plain host opens it; removeAttribute closes it', async () => {
+    document.body.innerHTML =
+      '<ui-collapsible>' +
+      '<ui-collapsible-trigger>Toggle</ui-collapsible-trigger>' +
+      '<ui-collapsible-content>Body</ui-collapsible-content>' +
+      '</ui-collapsible>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const root = document.querySelector('ui-collapsible')!;
+    expect(q(root, 'collapsible-content').hasAttribute('hidden')).toBe(true);
+    expect(q(root, 'collapsible-trigger').getAttribute('aria-expanded')).toBe('false');
+
+    root.setAttribute('open', '');
+    flushEffects();
+    flushEffects();
+    expect(q(root, 'collapsible-content').hasAttribute('hidden')).toBe(false);
+    expect(q(root, 'collapsible-trigger').getAttribute('aria-expanded')).toBe('true');
+    expect(q(root, 'collapsible').getAttribute('data-state')).toBe('open');
+
+    root.removeAttribute('open');
+    flushEffects();
+    flushEffects();
+    expect(q(root, 'collapsible-content').hasAttribute('hidden')).toBe(true);
+    expect(q(root, 'collapsible-trigger').getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('explicit open="false" beats default-open (stays closed)', async () => {
+    document.body.innerHTML =
+      '<ui-collapsible default-open open="false">' +
+      '<ui-collapsible-trigger>Toggle</ui-collapsible-trigger>' +
+      '<ui-collapsible-content>Body</ui-collapsible-content>' +
+      '</ui-collapsible>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const root = document.querySelector('ui-collapsible')!;
+    expect(q(root, 'collapsible-content').hasAttribute('hidden')).toBe(true);
+    expect(q(root, 'collapsible').getAttribute('data-state')).toBe('closed');
+  });
+});
+
+describe('Collapsible — controlled guard', () => {
+  it('controlled (factory open signal): setOpen is guarded, the parent stays in control', () => {
+    const open = signal<boolean | undefined>(true);
+    const c = mountCollapsible({ open });
+    const host = c.querySelector('ui-collapsible') as HTMLElement;
+    const content = q(c, 'collapsible-content');
+    const onChange = vi.fn();
+    host.addEventListener('ui-open-change', onChange as EventListener);
+    flushEffects();
+    // The reflect effect mirrors the pinned signal onto the attribute.
+    expect(host.hasAttribute('open')).toBe(true);
+    expect(content.hasAttribute('hidden')).toBe(false);
+
+    // A trigger click calls state.setOpen(false). Because `open` is a pinned
+    // factory prop (controlled), the guard skips the attribute write — the parent
+    // stays in control (attr NOT cleared) and only the event fires.
+    click(q(c, 'collapsible-trigger'));
+    expect(host.hasAttribute('open')).toBe(true); // guard held
+    expect(content.hasAttribute('hidden')).toBe(false);
+    expect((onChange.mock.calls.at(-1)![0] as CustomEvent).detail).toEqual({ open: false });
+
+    // The parent responds by updating the signal → reflect effect closes it.
+    open.value = false;
+    flushEffects();
+    flushEffects();
+    expect(host.hasAttribute('open')).toBe(false);
+    expect(content.hasAttribute('hidden')).toBe(true);
+  });
 });

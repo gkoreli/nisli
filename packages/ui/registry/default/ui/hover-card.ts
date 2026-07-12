@@ -27,6 +27,7 @@
  */
 
 import {
+  children,
   component,
   createContext,
   computed,
@@ -40,13 +41,7 @@ import {
   type Ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 import { positionFloating, type Align, type Side } from '../lib/floating.js';
 
 const DEFAULT_OPEN_DELAY = 700;
@@ -88,7 +83,6 @@ export type HoverCardProps = {
 
 export const HoverCard = component<HoverCardProps>('ui-hover-card', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
   const internal = signal<boolean>(false);
   const open = computed<boolean>(() => props.open.value ?? internal.value);
@@ -135,23 +129,17 @@ export const HoverCard = component<HoverCardProps>('ui-hover-card', (props, host
   };
   HoverCardContext.provide(host, state);
 
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn(className.value));
-
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
 
   onCleanup(clearTimers);
 
   return html`<div
-    ref="${root}"
     data-slot="hover-card"
     style="display:contents"
     class="${classes}"
-  >${props.children}</div>`;
-});
+  >${children()}</div>`;
+}, { attrs: { className: 'string' } });
 
 // ── ui-hover-card-trigger ────────────────────────────────────────────
 
@@ -165,17 +153,13 @@ export const HoverCardTrigger = component<HoverCardTriggerProps>(
   (props, host) => {
     const state = HoverCardContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(className.value));
 
     const root = ref<HTMLElement>();
     onMount(() => {
-      if (root.current) {
-        projectChildren(host, root.current, projected);
-        state.anchor.current = root.current;
-      }
+      if (root.current) state.anchor.current = root.current;
     });
 
     return html`<span
@@ -185,8 +169,9 @@ export const HoverCardTrigger = component<HoverCardTriggerProps>(
       class="${classes}"
       @pointerenter=${() => state.scheduleOpen()}
       @pointerleave=${() => state.scheduleClose()}
-    >${props.children}</span>`;
+    >${children()}</span>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-hover-card-content ────────────────────────────────────────────
@@ -208,15 +193,12 @@ export const HoverCardContent = component<HoverCardContentProps>(
   (props, host) => {
     const state = HoverCardContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const sideAttr = attr(props.side, host, 'side');
-    const side = computed<Side>(() => (sideAttr.value as Side) ?? 'bottom');
-    const alignAttr = attr(props.align, host, 'align');
-    const align = computed<Align>(() => (alignAttr.value as Align) ?? 'center');
+    const side = computed<Side>(() => (props.side.value as Side) ?? 'bottom');
+    const align = computed<Align>(() => (props.align.value as Align) ?? 'center');
     const sideOffset = computed<number>(() => props.sideOffset.value ?? 4);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(contentClasses, className.value));
     const contentId = `${state.baseId}-content`;
 
@@ -250,9 +232,6 @@ export const HoverCardContent = component<HoverCardContentProps>(
       }
     });
 
-    onMount(() => {
-      if (content.current) projectChildren(host, content.current, projected);
-    });
     onCleanup(stopPositioning);
 
     return html`<div
@@ -264,6 +243,7 @@ export const HoverCardContent = component<HoverCardContentProps>(
       class="${classes}"
       @pointerenter=${() => state.keepOpen()}
       @pointerleave=${() => state.scheduleClose()}
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { side: 'string', align: 'string', className: 'string' } },
 );

@@ -216,6 +216,22 @@ describe('Tooltip — portal', () => {
     expect(c.contains(content)).toBe(true);
   });
 
+  it('portal="false" attribute keeps the content inline (declared boolean)', async () => {
+    document.body.innerHTML =
+      '<ui-tooltip>' +
+      '<ui-tooltip-trigger>Hover</ui-tooltip-trigger>' +
+      '<ui-tooltip-content portal="false">Tip</ui-tooltip-content>' +
+      '</ui-tooltip>';
+    await Promise.resolve();
+    await Promise.resolve();
+    flushEffects();
+
+    const root = document.querySelector('ui-tooltip')!;
+    const content = q(document, 'tooltip-content');
+    expect(content.parentElement).not.toBe(document.body);
+    expect(root.contains(content)).toBe(true);
+  });
+
   it('removes the portaled content when the tooltip is disconnected (no leak)', async () => {
     const c = mountTooltip();
     expect(document.querySelector('[data-slot="tooltip-content"]')).not.toBeNull();
