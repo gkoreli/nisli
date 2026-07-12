@@ -35,13 +35,7 @@ import {
   ref,
   signal,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  cn,
-  forwardedAttr,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 export const checkboxClasses =
   'peer size-4 shrink-0 appearance-none rounded-[4px] border border-input shadow-xs transition-shadow outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 checked:border-primary checked:bg-primary checked:text-primary-foreground dark:bg-input/30 dark:aria-invalid:ring-destructive/40 dark:checked:bg-primary checked:bg-[length:0.875rem] checked:bg-center checked:bg-no-repeat checked:bg-[url("data:image/svg+xml,%3Csvg%20xmlns=\'http://www.w3.org/2000/svg\'%20viewBox=\'0%200%2024%2024\'%20fill=\'none\'%20stroke=\'white\'%20stroke-width=\'2\'%20stroke-linecap=\'round\'%20stroke-linejoin=\'round\'%3E%3Cpath%20d=\'M20%206%209%2017l-5-5\'/%3E%3C/svg%3E")]';
@@ -61,13 +55,17 @@ export type CheckboxProps = {
 export const Checkbox = component<CheckboxProps>('ui-checkbox', (props, host) => {
   transparentHost(host);
 
-  const value = attr(props.value, host, 'value');
-  const id = forwardedAttr(props.id, host, 'id');
-  const name = forwardedAttr(props.name, host, 'name');
-  const checked = boolAttr(props.checked, host, 'checked');
-  const disabled = boolAttr(props.disabled, host, 'disabled');
-  const required = boolAttr(props.required, host, 'required');
-  const className = attr(props.className, host, 'class-name');
+  // Attribute fallbacks are declared in the `attrs` option below (ADR 0025
+  // item 3) — no userland attr()/boolAttr()/forwardedAttr(). Declared-default
+  // booleans are runtime-guaranteed non-undefined (`as boolean` is the typing
+  // stopgap until ReactiveProps carries the declared type).
+  const value = props.value;
+  const id = props.id;
+  const name = props.name;
+  const checked = computed<boolean>(() => props.checked.value as boolean);
+  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const required = computed<boolean>(() => props.required.value as boolean);
+  const className = props.className;
 
   const classes = computed(() => cn(checkboxClasses, className.value));
 
@@ -113,4 +111,16 @@ export const Checkbox = component<CheckboxProps>('ui-checkbox', (props, host) =>
     required="${required}"
     @change=${syncState}
   />`;
+}, {
+  // ADR 0025 item 3: opt-in attribute reactivity. 'forward' relocates id/name
+  // onto the inner control (native form participation).
+  attrs: {
+    value: 'string',
+    className: 'string',
+    id: 'forward',
+    name: 'forward',
+    checked: 'boolean',
+    disabled: 'boolean',
+    required: 'boolean',
+  },
 });

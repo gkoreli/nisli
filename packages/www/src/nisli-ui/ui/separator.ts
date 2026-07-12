@@ -17,7 +17,7 @@
  */
 
 import { component, computed, html } from '@nisli/core';
-import { attr, boolAttr, cn, transparentHost } from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 export type SeparatorOrientation = 'horizontal' | 'vertical';
 
@@ -32,16 +32,13 @@ export type SeparatorProps = {
 export const Separator = component<SeparatorProps>('ui-separator', (props, host) => {
   transparentHost(host);
 
-  const orientationAttr = attr(props.orientation, host, 'orientation');
   const orientation = computed<SeparatorOrientation>(
-    () => orientationAttr.value ?? 'horizontal',
+    () => props.orientation.value ?? 'horizontal',
   );
-
-  const className = attr(props.className, host, 'class-name');
 
   // decorative defaults to true; plain-HTML consumers opt into a semantic
   // separator with `decorative="false"`. An explicit prop always wins.
-  const decorative = boolAttr(props.decorative, host, 'decorative', true);
+  const decorative = computed<boolean>(() => props.decorative.value as boolean);
 
   const role = computed(() => (decorative.value ? 'none' : 'separator'));
   const ariaOrientation = computed(() =>
@@ -52,7 +49,7 @@ export const Separator = component<SeparatorProps>('ui-separator', (props, host)
   const classes = computed(() =>
     cn(
       'shrink-0 bg-border data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px',
-      className.value,
+      props.className.value,
     ),
   );
 
@@ -63,4 +60,4 @@ export const Separator = component<SeparatorProps>('ui-separator', (props, host)
     aria-orientation="${ariaOrientation}"
     class="${classes}"
   ></div>`;
-});
+}, { attrs: { orientation: 'string', decorative: { type: 'boolean', default: true }, className: 'string' } });

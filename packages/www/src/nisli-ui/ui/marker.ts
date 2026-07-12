@@ -10,21 +10,13 @@
  */
 
 import {
+  children,
   component,
   computed,
   html,
-  onMount,
-  ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  cv,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, cv, transparentHost } from '../lib/utils.js';
 
 export const markerVariants = cv(
   "group/marker relative flex min-h-4 w-full items-center gap-2 text-left text-sm text-muted-foreground [&_svg:not([class*='size-'])]:size-4 [a]:underline [a]:underline-offset-3 [a]:hover:text-foreground",
@@ -50,22 +42,19 @@ export type MarkerProps = {
 
 export const Marker = component<MarkerProps>('ui-marker', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const variant = attr(props.variant, host, 'variant');
-  const className = attr(props.className, host, 'class-name');
   const classes = computed(() =>
-    cn(markerVariants({ variant: variant.value ?? 'default' }), className.value),
+    cn(markerVariants({ variant: props.variant.value ?? 'default' }), props.className.value),
   );
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
   return html`<div
-    ref="${root}"
     data-slot="marker"
-    data-variant="${computed(() => variant.value ?? 'default')}"
+    data-variant="${computed(() => props.variant.value ?? 'default')}"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  attrs: {
+    variant: 'string',
+    className: 'string',
+  },
 });
 
 export type MarkerPartProps = {
@@ -75,43 +64,38 @@ export type MarkerPartProps = {
 
 export const MarkerIcon = component<MarkerPartProps>('ui-marker-icon', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const className = attr(props.className, host, 'class-name');
   const classes = computed(() =>
-    cn("size-4 shrink-0 [&_svg:not([class*='size-'])]:size-4", className.value),
+    cn("size-4 shrink-0 [&_svg:not([class*='size-'])]:size-4", props.className.value),
   );
-  const root = ref<HTMLSpanElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
   return html`<span
-    ref="${root}"
     data-slot="marker-icon"
     aria-hidden="true"
     class="${classes}"
-  >${props.children}</span>`;
+  >${children()}</span>`;
+}, {
+  attrs: {
+    className: 'string',
+  },
 });
 
 export const MarkerContent = component<MarkerPartProps>(
   'ui-marker-content',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
       cn(
         'min-w-0 wrap-break-word group-data-[variant=separator]/marker:flex-none group-data-[variant=separator]/marker:text-center *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground',
-        className.value,
+        props.className.value,
       ),
     );
-    const root = ref<HTMLSpanElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<span
-      ref="${root}"
       data-slot="marker-content"
       class="${classes}"
-    >${props.children}</span>`;
+    >${children()}</span>`;
+  },
+  {
+    attrs: {
+      className: 'string',
+    },
   },
 );

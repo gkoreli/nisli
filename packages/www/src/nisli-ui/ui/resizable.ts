@@ -27,7 +27,9 @@
  */
 
 import {
+  children,
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -39,7 +41,7 @@ import {
   type Ref,
   type TemplateResult,
 } from '@nisli/core';
-import { attr, boolAttr, captureChildren, cn, projectChildren, transparentHost } from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 export type ResizableDirection = 'horizontal' | 'vertical';
 
@@ -51,14 +53,21 @@ const KEYBOARD_STEP = 10;
 
 interface PanelReg {
   el: HTMLElement;
-  minSize: number;
+  /** LIVE default-size (percent) — reactive so post-mount attr changes reflow. */
+  defaultSize: ReadonlySignal<number | undefined>;
+  /** LIVE min-size (percent) — reactive so post-mount attr changes clamp/aria. */
+  minSize: ReadonlySignal<number>;
 }
 
 export interface ResizableGroupState {
   direction: ReadonlySignal<ResizableDirection>;
   layout: ReadonlySignal<number[]>;
   root: Ref<HTMLElement>;
-  registerPanel(el: HTMLElement, defaultSize: number | undefined, minSize: number): void;
+  registerPanel(
+    el: HTMLElement,
+    defaultSize: ReadonlySignal<number | undefined>,
+    minSize: ReadonlySignal<number>,
+  ): void;
   /** Register a handle; returns the gap index (between panel i and i+1). */
   registerHandle(): number;
   /** Move `deltaPercent` from the panel after the gap into the one before it. */
@@ -69,15 +78,8 @@ export interface ResizableGroupState {
   emitResize(): void;
 }
 
-type GroupHost = HTMLElement & { __uiResizableGroup?: ResizableGroupState };
-
-function useGroup(host: HTMLElement, tag: string): ResizableGroupState {
-  const group = (host.closest('ui-resizable-panel-group') as GroupHost | null)?.__uiResizableGroup;
-  if (!group) {
-    throw new Error(`<${tag}> must be used inside <ui-resizable-panel-group>.`);
-  }
-  return group;
-}
+/** Subtree-scoped channel from the Resizable provider to its parts. */
+const ResizableContext = createContext<ResizableGroupState>('Resizable', { providerTag: 'ui-resizable-panel-group' });
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(Math.max(v, lo), hi);
 
@@ -93,25 +95,29 @@ export const ResizablePanelGroup = component<ResizablePanelGroupProps>(
   'ui-resizable-panel-group',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const directionAttr = attr(props.direction, host, 'direction');
+    // ADR 0025 items 1 + 3: attribute fallbacks (direction/class-name) come from
+    // the `attrs` option below as LIVE prop signals — no userland attribute
+    // helpers, and children() owns projection (no hand-rolled capture/project).
     const direction = computed<ResizableDirection>(() =>
-      directionAttr.value === 'vertical' ? 'vertical' : 'horizontal',
+      props.direction.value === 'vertical' ? 'vertical' : 'horizontal',
     );
 
     const panels: PanelReg[] = [];
-    const defaults: (number | undefined)[] = [];
     const layout = signal<number[]>([]);
     const root = ref<HTMLElement>();
+    // Bumped whenever a panel (re)registers, so the reflow effect below re-reads
+    // the panel list and re-subscribes to each panel's LIVE default-size signal.
+    const reflowVersion = signal(0);
 
     const finalize = (): void => {
       const n = panels.length;
       if (n === 0) return;
-      const specified = defaults.reduce<number>((s, d) => s + (d ?? 0), 0);
-      const missing = defaults.filter((d) => d == null).length;
+      const defs = panels.map((p) => p.defaultSize.value);
+      const specified = defs.reduce<number>((s, d) => s + (d ?? 0), 0);
+      const missing = defs.filter((d) => d == null).length;
       const per = missing > 0 ? Math.max(0, 100 - specified) / missing : 0;
-      let sizes = defaults.map((d) => (d == null ? per : d));
+      let sizes = defs.map((d) => (d == null ? per : d));
       const total = sizes.reduce((a, b) => a + b, 0) || 1;
       sizes = sizes.map((s) => (s * 100) / total);
       layout.value = sizes;
@@ -122,8 +128,8 @@ export const ResizablePanelGroup = component<ResizablePanelGroupProps>(
       layout,
       root,
       registerPanel: (el, defaultSize, minSize) => {
-        panels.push({ el, minSize });
-        defaults.push(defaultSize);
+        panels.push({ el, defaultSize, minSize });
+        reflowVersion.value += 1;
       },
       registerHandle: () => panels.length - 1,
       groupSize: () => {
@@ -138,8 +144,8 @@ export const ResizablePanelGroup = component<ResizablePanelGroupProps>(
         const a = gap;
         const b = gap + 1;
         if (cur[a] == null || cur[b] == null) return;
-        const minA = panels[a]?.minSize ?? 0;
-        const minB = panels[b]?.minSize ?? 0;
+        const minA = panels[a]?.minSize.value ?? 0;
+        const minB = panels[b]?.minSize.value ?? 0;
         const d = clamp(deltaPercent, -(cur[a]! - minA), cur[b]! - minB);
         if (d === 0) return;
         cur[a]! += d;
@@ -148,8 +154,8 @@ export const ResizablePanelGroup = component<ResizablePanelGroupProps>(
       },
       ariaValues: (gap) => {
         const sizes = layout.value;
-        const minA = panels[gap]?.minSize ?? 0;
-        const minB = panels[gap + 1]?.minSize ?? 0;
+        const minA = panels[gap]?.minSize.value ?? 0;
+        const minB = panels[gap + 1]?.minSize.value ?? 0;
         return { now: Math.round(sizes[gap] ?? 0), min: minA, max: 100 - minB };
       },
       emitResize: () => {
@@ -158,7 +164,7 @@ export const ResizablePanelGroup = component<ResizablePanelGroupProps>(
         );
       },
     };
-    (host as GroupHost).__uiResizableGroup = state;
+    ResizableContext.provide(host, state);
 
     // Apply the layout as flex-grow on each panel's inner element.
     effect(() => {
@@ -170,16 +176,19 @@ export const ResizablePanelGroup = component<ResizablePanelGroupProps>(
       });
     });
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() =>
       cn('flex h-full w-full aria-[orientation=vertical]:flex-col', className.value),
     );
 
-    onMount(() => {
-      if (root.current) {
-        projectChildren(host, root.current, projected);
-        finalize();
-      }
+    // Reactive (re)layout: runs once panels register (reflowVersion bump) and
+    // again whenever a panel's LIVE default-size signal changes, so post-mount
+    // setAttribute('default-size', …) flows through to the flex layout. Reads
+    // no `layout`, so setting it here is loop-free.
+    effect(() => {
+      reflowVersion.value;
+      panels.forEach((p) => p.defaultSize.value);
+      finalize();
     });
 
     return html`<div
@@ -187,7 +196,13 @@ export const ResizablePanelGroup = component<ResizablePanelGroupProps>(
       data-slot="resizable-panel-group"
       aria-orientation="${direction}"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
+  },
+  {
+    attrs: {
+      direction: 'string',
+      className: 'string',
+    },
   },
 );
 
@@ -200,26 +215,25 @@ export type ResizablePanelProps = {
   children?: string | TemplateResult;
 };
 
-const numAttr = (host: HTMLElement, name: string): number | undefined =>
-  host.hasAttribute(name) ? Number(host.getAttribute(name)) : undefined;
-
 export const ResizablePanel = component<ResizablePanelProps>('ui-resizable-panel', (props, host) => {
-  const group = useGroup(host, 'ui-resizable-panel');
+  const group = ResizableContext.inject();
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const defaultSize = props.defaultSize.value ?? numAttr(host, 'default-size');
-  const minSize = props.minSize.value ?? numAttr(host, 'min-size') ?? 0;
+  // ADR 0025 items 1 + 3 (+ v1.1 'number' kind): default-size/min-size are
+  // declared 'number' below (absent → undefined; the `?? 0` also covers garbage
+  // → undefined), delivered as LIVE prop signals — no raw host attribute reads.
+  // They register with the group as SIGNALS so a post-mount setAttribute flows
+  // through (default-size reflows the layout; min-size re-clamps + updates aria).
+  // class-name is a LIVE 'string' signal, and children() owns projection.
+  const defaultSize = computed<number | undefined>(() => props.defaultSize.value);
+  const minSize = computed<number>(() => props.minSize.value ?? 0);
 
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn(className.value));
 
   const root = ref<HTMLDivElement>();
   onMount(() => {
-    if (root.current) {
-      projectChildren(host, root.current, projected);
-      group.registerPanel(root.current, defaultSize, minSize);
-    }
+    if (root.current) group.registerPanel(root.current, defaultSize, minSize);
   });
 
   return html`<div
@@ -227,7 +241,13 @@ export const ResizablePanel = component<ResizablePanelProps>('ui-resizable-panel
     data-slot="resizable-panel"
     style="overflow:hidden"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  attrs: {
+    defaultSize: 'number',
+    minSize: 'number',
+    className: 'string',
+  },
 });
 
 // ── ui-resizable-handle ──────────────────────────────────────────────
@@ -246,11 +266,15 @@ export type ResizableHandleProps = {
 export const ResizableHandle = component<ResizableHandleProps>(
   'ui-resizable-handle',
   (props, host) => {
-    const group = useGroup(host, 'ui-resizable-handle');
+    const group = ResizableContext.inject();
     transparentHost(host);
 
-    const withHandle = props.withHandle.value ?? host.hasAttribute('with-handle');
-    const className = attr(props.className, host, 'class-name');
+    // ADR 0025 item 3: with-handle is a declared 'boolean' (runtime-guaranteed
+    // non-undefined; the `as boolean` is the typing stopgap) and class-name a
+    // LIVE 'string' — both come from the `attrs` option below as prop signals,
+    // so post-mount setAttribute flows through. No raw host attribute reads.
+    const withHandle = computed<boolean>(() => props.withHandle.value as boolean);
+    const className = props.className;
     const classes = computed(() => cn(handleClasses, className.value));
 
     // A horizontal group's divider is a vertical separator, and vice versa.
@@ -330,6 +354,12 @@ export const ResizableHandle = component<ResizableHandleProps>(
       class="${classes}"
       @pointerdown=${onPointerDown}
       @keydown=${onKeyDown}
-    >${withHandle ? html`<div class="${gripBox}">${gripIcon}</div>` : ''}</div>`;
+    >${computed(() => (withHandle.value ? html`<div class="${gripBox}">${gripIcon}</div>` : null))}</div>`;
+  },
+  {
+    attrs: {
+      withHandle: 'boolean',
+      className: 'string',
+    },
   },
 );

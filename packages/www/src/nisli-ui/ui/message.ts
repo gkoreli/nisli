@@ -12,8 +12,8 @@
  * This file was copied into your project by `nisli-ui` — you own it.
  */
 
-import { component, computed, html, onMount, ref, type TemplateResult } from '@nisli/core';
-import { attr, captureChildren, cn, projectChildren, transparentHost } from '../lib/utils.js';
+import { children, component, computed, html, type TemplateResult } from '@nisli/core';
+import { cn, transparentHost } from '../lib/utils.js';
 
 export type MessageSectionProps = {
   className?: string;
@@ -21,17 +21,15 @@ export type MessageSectionProps = {
 };
 
 function messageSection(tag: string, slot: string, base: string) {
-  return component<MessageSectionProps>(tag, (props, host) => {
-    transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(base, className.value));
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<div ref="${root}" data-slot="${slot}" class="${classes}">${props.children}</div>`;
-  });
+  return component<MessageSectionProps>(
+    tag,
+    (props, host) => {
+      transparentHost(host);
+      const classes = computed(() => cn(base, props.className.value));
+      return html`<div data-slot="${slot}" class="${classes}">${children()}</div>`;
+    },
+    { attrs: { className: 'string' } },
+  );
 }
 
 export const MessageGroup = messageSection(
@@ -72,25 +70,21 @@ export type MessageProps = {
   children?: string | TemplateResult;
 };
 
-export const Message = component<MessageProps>('ui-message', (props, host) => {
-  transparentHost(host);
-  const projected = captureChildren(host);
-  const align = attr(props.align, host, 'align');
-  const className = attr(props.className, host, 'class-name');
-  const classes = computed(() =>
-    cn(
-      'group/message relative flex w-full min-w-0 gap-2 text-sm data-[align=end]:flex-row-reverse',
-      className.value,
-    ),
-  );
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-  return html`<div
-    ref="${root}"
+export const Message = component<MessageProps>(
+  'ui-message',
+  (props, host) => {
+    transparentHost(host);
+    const classes = computed(() =>
+      cn(
+        'group/message relative flex w-full min-w-0 gap-2 text-sm data-[align=end]:flex-row-reverse',
+        props.className.value,
+      ),
+    );
+    return html`<div
     data-slot="message"
-    data-align="${computed(() => align.value ?? 'start')}"
+    data-align="${computed(() => props.align.value ?? 'start')}"
     class="${classes}"
-  >${props.children}</div>`;
-});
+  >${children()}</div>`;
+  },
+  { attrs: { align: 'string', className: 'string' } },
+);

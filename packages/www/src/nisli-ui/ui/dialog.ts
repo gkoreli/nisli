@@ -41,23 +41,17 @@
  */
 
 import {
+  children,
   component,
+  createContext,
   computed,
   effect,
   html,
-  onMount,
   ref,
-  signal,
   type ReadonlySignal,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, isPinned, transparentHost } from '../lib/utils.js';
 import { dismissableLayer } from '../lib/dismissable-layer.js';
 import { focusTrap } from '../lib/focus.js';
 import { portal } from '../lib/portal.js';
@@ -70,18 +64,10 @@ export interface DialogState {
   baseId: string;
 }
 
-type DialogHost = HTMLElement & { __uiDialog?: DialogState };
+/** Subtree-scoped channel from <ui-dialog> to its parts. */
+const DialogContext = createContext<DialogState>('Dialog', { providerTag: 'ui-dialog' });
 
 let uid = 0;
-
-function useDialogState(host: HTMLElement, tag: string): DialogState {
-  const parent = host.closest('ui-dialog') as DialogHost | null;
-  const state = parent?.__uiDialog;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-dialog>.`);
-  }
-  return state;
-}
 
 // ── ui-dialog (root, owns state) ─────────────────────────────────────
 
@@ -96,36 +82,53 @@ export type DialogProps = {
 
 export const Dialog = component<DialogProps>('ui-dialog', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const initialOpen =
-    props.defaultOpen.value ??
-    props.open.value ??
-    (host.hasAttribute('open') || host.hasAttribute('default-open'));
-  const internal = signal<boolean>(Boolean(initialOpen));
-  const open = computed<boolean>(() => props.open.value ?? internal.value);
+  // PATTERN A (ADR 0025 item 3): the `open` ATTRIBUTE is the uncontrolled state
+  // (like native <dialog open>/<details open>). The attribute IS the truth.
+  const open = computed<boolean>(() => props.open.value ?? false);
 
   const setOpen = (next: boolean): void => {
     if (next === open.value) return;
-    internal.value = next;
+    // Uncontrolled → the attribute IS the state, so write it. Controlled (a
+    // pinned factory `open` signal) → don't; the parent drives and the reflect
+    // effect re-syncs the attr. isPinned('open') is the discriminator (a declared
+    // 'boolean' is never undefined, so pin state is the only controlled signal).
+    if (!isPinned(host, 'open')) host.toggleAttribute('open', next);
     host.dispatchEvent(
       new CustomEvent('ui-open-change', { detail: { open: next }, bubbles: true }),
     );
   };
 
-  const state: DialogState = { open, setOpen, baseId: `ui-dialog-${++uid}` };
-  (host as DialogHost).__uiDialog = state;
+  // defaultOpen is INIT-SEED-ONLY: seed the open attribute once, but only when
+  // `open` is neither controlled (pinned — else the reflect effect would revert
+  // it, a pointless flicker) nor explicitly authored. host.hasAttribute('open')
+  // is a SANCTIONED read of a DECLARED attribute: it distinguishes 'absent' from
+  // 'present-false' so an explicit open="false" beats defaultOpen (stays closed).
+  if (props.defaultOpen.value && !isPinned(host, 'open') && !host.hasAttribute('open')) {
+    host.toggleAttribute('open', true);
+  }
 
-  const className = attr(props.className, host, 'class-name');
-  const classes = computed(() => cn(className.value));
-
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
+  // Reflect the resolved state to the attribute so CONTROLLED (factory) usage
+  // also reflects (CSS [open] selectors + native parity); dedupe makes it cheap.
+  effect(() => {
+    host.toggleAttribute('open', open.value);
   });
 
+  const state: DialogState = { open, setOpen, baseId: `ui-dialog-${++uid}` };
+  DialogContext.provide(host, state);
+
+  const className = props.className;
+  const classes = computed(() => cn(className.value));
+
   // The root is layout-transparent (shadcn's Dialog root renders no box).
-  return html`<div ref="${root}" data-slot="dialog" style="display:contents" class="${classes}">${props.children}</div>`;
+  return html`<div data-slot="dialog" style="display:contents" class="${classes}">${children()}</div>`;
+}, {
+  // PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
+  attrs: {
+    open: 'boolean',
+    defaultOpen: 'boolean',
+    className: 'string',
+  },
 });
 
 // ── ui-dialog-trigger ────────────────────────────────────────────────
@@ -138,20 +141,13 @@ export type DialogTriggerProps = {
 export const DialogTrigger = component<DialogTriggerProps>(
   'ui-dialog-trigger',
   (props, host) => {
-    const state = useDialogState(host, 'ui-dialog-trigger');
+    const state = DialogContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(className.value));
 
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<button
-      ref="${root}"
       type="button"
       data-slot="dialog-trigger"
       aria-haspopup="dialog"
@@ -160,8 +156,9 @@ export const DialogTrigger = component<DialogTriggerProps>(
       data-state="${computed(() => (state.open.value ? 'open' : 'closed'))}"
       class="${classes}"
       @click=${() => state.setOpen(true)}
-    >${props.children}</button>`;
+    >${children()}</button>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-dialog-close (standalone, for footer composition) ─────────────
@@ -177,26 +174,19 @@ export type DialogCloseProps = {
  * mirrors upstream's exported `DialogClose`.
  */
 export const DialogClose = component<DialogCloseProps>('ui-dialog-close', (props, host) => {
-  const state = useDialogState(host, 'ui-dialog-close');
+  const state = DialogContext.inject();
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn(className.value));
 
-  const root = ref<HTMLButtonElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
   return html`<button
-    ref="${root}"
     type="button"
     data-slot="dialog-close"
     class="${classes}"
     @click=${() => state.setOpen(false)}
-  >${props.children}</button>`;
-});
+  >${children()}</button>`;
+}, { attrs: { className: 'string' } });
 
 // ── ui-dialog-content (overlay + panel + close) ──────────────────────
 
@@ -224,16 +214,15 @@ export type DialogContentProps = {
 export const DialogContent = component<DialogContentProps>(
   'ui-dialog-content',
   (props, host) => {
-    const state = useDialogState(host, 'ui-dialog-content');
+    const state = DialogContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const withClose = props.showCloseButton.value ?? true;
+    const withClose = props.showCloseButton.value as boolean;
     const dataState = computed(() => (state.open.value ? 'open' : 'closed'));
     const hidden = computed(() => !state.open.value);
     const contentId = `${state.baseId}-content`;
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(contentClasses, className.value));
 
     const portalRef = ref<HTMLDivElement>();
@@ -241,12 +230,11 @@ export const DialogContent = component<DialogContentProps>(
     const contentRef = ref<HTMLElement>();
 
     // Portal the overlay + content wrapper to <body> (default on) so fixed
-    // positioning escapes any transformed ancestor. Static setup-time decision:
-    // the factory prop wins, else the `portal` attribute (absent → on;
-    // "false" → off). The dismissable-layer (document listeners) and focus trap
-    // (operates by ref) keep working after the move — verified in tests.
-    const portalEnabled =
-      props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
+    // positioning escapes any transformed ancestor. Static setup-time decision
+    // (PATTERN B): `portal` is a default-true boolean — absent → on, "false" →
+    // off. The dismissable-layer (document listeners) and focus trap (operates
+    // by ref) keep working after the move — verified in tests.
+    const portalEnabled = props.portal.value as boolean;
     portal(portalRef, { enabled: portalEnabled });
 
     // Escape / outside-pointer dismissal and modal focus trap, active only
@@ -268,10 +256,6 @@ export const DialogContent = component<DialogContentProps>(
         trap.deactivate();
         layer.deactivate();
       }
-    });
-
-    onMount(() => {
-      if (contentRef.current) projectChildren(host, contentRef.current, projected);
     });
 
     const closeButton = html`<button
@@ -311,8 +295,16 @@ export const DialogContent = component<DialogContentProps>(
         hidden="${hidden}"
         tabindex="-1"
         class="${classes}"
-      >${props.children}${withClose ? closeButton : ''}</div>
+      >${children()}${withClose ? closeButton : ''}</div>
     </div>`;
+  },
+  {
+    // PATTERN B: default-true booleans (absent → true, "false" → false).
+    attrs: {
+      showCloseButton: { type: 'boolean', default: true },
+      portal: { type: 'boolean', default: true },
+      className: 'string',
+    },
   },
 );
 
@@ -326,15 +318,10 @@ export type DialogSectionProps = {
 function dialogSection(tag: string, slot: string, base: string) {
   return component<DialogSectionProps>(tag, (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(base, className.value));
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<div ref="${root}" data-slot="${slot}" class="${classes}">${props.children}</div>`;
-  });
+    return html`<div data-slot="${slot}" class="${classes}">${children()}</div>`;
+  }, { attrs: { className: 'string' } });
 }
 
 export const DialogHeader = dialogSection(
@@ -357,22 +344,16 @@ export type DialogTitleProps = {
 };
 
 export const DialogTitle = component<DialogTitleProps>('ui-dialog-title', (props, host) => {
-  const state = useDialogState(host, 'ui-dialog-title');
+  const state = DialogContext.inject();
   transparentHost(host);
-  const projected = captureChildren(host);
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn('text-lg leading-none font-semibold', className.value));
-  const root = ref<HTMLHeadingElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
   return html`<h2
-    ref="${root}"
     data-slot="dialog-title"
     id="${`${state.baseId}-title`}"
     class="${classes}"
-  >${props.children}</h2>`;
-});
+  >${children()}</h2>`;
+}, { attrs: { className: 'string' } });
 
 export type DialogDescriptionProps = {
   className?: string;
@@ -382,20 +363,15 @@ export type DialogDescriptionProps = {
 export const DialogDescription = component<DialogDescriptionProps>(
   'ui-dialog-description',
   (props, host) => {
-    const state = useDialogState(host, 'ui-dialog-description');
+    const state = DialogContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn('text-sm text-muted-foreground', className.value));
-    const root = ref<HTMLParagraphElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<p
-      ref="${root}"
       data-slot="dialog-description"
       id="${`${state.baseId}-description`}"
       class="${classes}"
-    >${props.children}</p>`;
+    >${children()}</p>`;
   },
+  { attrs: { className: 'string' } },
 );

@@ -30,7 +30,9 @@
  */
 
 import {
+  children,
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -43,14 +45,7 @@ import {
   type Ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, isPinned, transparentHost } from '../lib/utils.js';
 import { positionFloating, type Align, type Side } from '../lib/floating.js';
 import { portal } from '../lib/portal.js';
 import { dismissableLayer } from '../lib/dismissable-layer.js';
@@ -77,18 +72,10 @@ export interface DropdownMenuState {
   focusIntent: 'first' | 'last';
 }
 
-type DropdownMenuHost = HTMLElement & { __uiDropdownMenu?: DropdownMenuState };
+/** Menu state — trigger/content/items/sub resolve it. */
+const DropdownMenuContext = createContext<DropdownMenuState>('DropdownMenu', { providerTag: 'ui-dropdown-menu' });
 
 let uid = 0;
-
-function useMenuState(host: HTMLElement, tag: string): DropdownMenuState {
-  const parent = host.closest('ui-dropdown-menu') as DropdownMenuHost | null;
-  const state = parent?.__uiDropdownMenu;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-dropdown-menu>.`);
-  }
-  return state;
-}
 
 const stateAttr = (open: boolean) => (open ? 'open' : 'closed');
 
@@ -108,22 +95,37 @@ export const DropdownMenu = component<DropdownMenuProps>(
   'ui-dropdown-menu',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const initialOpen =
-      props.defaultOpen.value ??
-      props.open.value ??
-      (host.hasAttribute('open') || host.hasAttribute('default-open'));
-    const internal = signal<boolean>(Boolean(initialOpen));
-    const open = computed<boolean>(() => props.open.value ?? internal.value);
+    // PATTERN A (ADR 0025 item 3): the `open` ATTRIBUTE is the uncontrolled state
+    // (like native <dialog open>/<details open>). The attribute IS the truth.
+    const open = computed<boolean>(() => props.open.value ?? false);
 
     const setOpen = (next: boolean): void => {
       if (next === open.value) return;
-      internal.value = next;
+      // Uncontrolled → the attribute IS the state, so write it. Controlled (a
+      // pinned factory `open` signal) → don't; the parent drives and the reflect
+      // effect re-syncs the attr. isPinned('open') is the discriminator (a declared
+      // 'boolean' is never undefined, so pin state is the only controlled signal).
+      if (!isPinned(host, 'open')) host.toggleAttribute('open', next);
       host.dispatchEvent(
         new CustomEvent('ui-open-change', { detail: { open: next }, bubbles: true }),
       );
     };
+
+    // defaultOpen is INIT-SEED-ONLY: seed the open attribute once, but only when
+    // `open` is neither controlled (pinned — else the reflect effect would revert
+    // it, a pointless flicker) nor explicitly authored. host.hasAttribute('open')
+    // is a SANCTIONED read of a DECLARED attribute: it distinguishes 'absent' from
+    // 'present-false' so an explicit open="false" beats defaultOpen (stays closed).
+    if (props.defaultOpen.value && !isPinned(host, 'open') && !host.hasAttribute('open')) {
+      host.toggleAttribute('open', true);
+    }
+
+    // Reflect the resolved state to the attribute so CONTROLLED (factory) usage
+    // also reflects (CSS [open] selectors + native parity); dedupe makes it cheap.
+    effect(() => {
+      host.toggleAttribute('open', open.value);
+    });
 
     const state: DropdownMenuState = {
       open,
@@ -133,23 +135,17 @@ export const DropdownMenu = component<DropdownMenuProps>(
       rootHost: host,
       focusIntent: 'first',
     };
-    (host as DropdownMenuHost).__uiDropdownMenu = state;
+    DropdownMenuContext.provide(host, state);
 
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(className.value));
-
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
+    const classes = computed(() => cn(props.className.value));
 
     return html`<div
-      ref="${root}"
       data-slot="dropdown-menu"
       style="display:contents"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { open: 'boolean', defaultOpen: 'boolean', className: 'string' } },
 );
 
 // ── ui-dropdown-menu-trigger ─────────────────────────────────────────
@@ -162,19 +158,14 @@ export type DropdownMenuTriggerProps = {
 export const DropdownMenuTrigger = component<DropdownMenuTriggerProps>(
   'ui-dropdown-menu-trigger',
   (props, host) => {
-    const state = useMenuState(host, 'ui-dropdown-menu-trigger');
+    const state = DropdownMenuContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(className.value));
+    const classes = computed(() => cn(props.className.value));
 
     const root = ref<HTMLButtonElement>();
     onMount(() => {
-      if (root.current) {
-        projectChildren(host, root.current, projected);
-        state.trigger.current = root.current;
-      }
+      if (root.current) state.trigger.current = root.current;
     });
 
     const openWith = (intent: 'first' | 'last'): void => {
@@ -203,8 +194,9 @@ export const DropdownMenuTrigger = component<DropdownMenuTriggerProps>(
       class="${classes}"
       @click=${() => state.setOpen(!state.open.value)}
       @keydown=${onKeyDown}
-    >${props.children}</button>`;
+    >${children()}</button>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-dropdown-menu-content ─────────────────────────────────────────
@@ -368,26 +360,20 @@ function wireMenuSurface(cfg: MenuSurfaceConfig): {
 export const DropdownMenuContent = component<DropdownMenuContentProps>(
   'ui-dropdown-menu-content',
   (props, host) => {
-    const state = useMenuState(host, 'ui-dropdown-menu-content');
+    const state = DropdownMenuContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const sideAttr = attr(props.side, host, 'side');
-    const alignAttr = attr(props.align, host, 'align');
-    const side = computed<Side>(() => (sideAttr.value as Side) ?? 'bottom');
-    const align = computed<Align>(() => (alignAttr.value as Align) ?? 'start');
+    const side = computed<Side>(() => (props.side.value as Side) ?? 'bottom');
+    const align = computed<Align>(() => (props.align.value as Align) ?? 'start');
     const sideOffset = computed<number>(() => props.sideOffset.value ?? 4);
 
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(contentClasses, className.value));
+    const classes = computed(() => cn(contentClasses, props.className.value));
     const contentId = `${state.baseId}-content`;
 
     const content = ref<HTMLElement>();
     // Portal the menu surface to <body> (default on) so its fixed positioning
     // escapes transformed ancestors; the wired behavior operates by reference.
-    const portalEnabled =
-      props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
-    portal(content, { enabled: portalEnabled });
+    portal(content, { enabled: props.portal.value as boolean });
     const { onKeyDown, onPointerOver } = wireMenuSurface({
       content,
       open: state.open,
@@ -403,10 +389,6 @@ export const DropdownMenuContent = component<DropdownMenuContentProps>(
       triggerExclude: () => state.trigger.current,
     });
 
-    onMount(() => {
-      if (content.current) projectChildren(host, content.current, projected);
-    });
-
     return html`<div
       ref="${content}"
       role="menu"
@@ -418,8 +400,9 @@ export const DropdownMenuContent = component<DropdownMenuContentProps>(
       class="${classes}"
       @keydown=${onKeyDown}
       @pointerover=${onPointerOver}
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { side: 'string', align: 'string', sideOffset: 'number', portal: { type: 'boolean', default: true }, className: 'string' } },
 );
 
 // ── Item selection helper ────────────────────────────────────────────
@@ -456,41 +439,33 @@ export type DropdownMenuItemProps = {
 export const DropdownMenuItem = component<DropdownMenuItemProps>(
   'ui-dropdown-menu-item',
   (props, host) => {
-    const state = useMenuState(host, 'ui-dropdown-menu-item');
+    const state = DropdownMenuContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const inset = boolAttr(props.inset, host, 'inset');
-    const variant = attr(props.variant, host, 'variant');
-    const disabled = boolAttr(props.disabled, host, 'disabled');
-    const value = attr(props.value, host, 'value');
-
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(itemClasses, className.value));
+    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const classes = computed(() => cn(itemClasses, props.className.value));
 
     const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
 
     const onClick = (): void => {
       if (disabled.value || !root.current) return;
-      emitSelect(state, value.value);
+      emitSelect(state, props.value.value);
     };
 
     return html`<div
       ref="${root}"
       role="menuitem"
       data-slot="dropdown-menu-item"
-      data-inset="${computed(() => (inset.value ? '' : undefined))}"
-      data-variant="${computed(() => variant.value ?? 'default')}"
+      data-inset="${computed(() => (props.inset.value ? '' : undefined))}"
+      data-variant="${computed(() => props.variant.value ?? 'default')}"
       data-disabled="${computed(() => (disabled.value ? '' : undefined))}"
       aria-disabled="${computed(() => (disabled.value ? 'true' : undefined))}"
       tabindex="-1"
       class="${classes}"
       @click=${onClick}
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { inset: 'boolean', variant: 'string', disabled: 'boolean', value: 'string', className: 'string' } },
 );
 
 // ── ui-dropdown-menu-checkbox-item ───────────────────────────────────
@@ -511,29 +486,26 @@ export type DropdownMenuCheckboxItemProps = {
 export const DropdownMenuCheckboxItem = component<DropdownMenuCheckboxItemProps>(
   'ui-dropdown-menu-checkbox-item',
   (props, host) => {
-    const state = useMenuState(host, 'ui-dropdown-menu-checkbox-item');
+    const state = DropdownMenuContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const disabled = boolAttr(props.disabled, host, 'disabled');
-    const value = attr(props.value, host, 'value');
-    const controlled = props.checked;
-    const internal = signal<boolean>(Boolean(props.checked.value ?? host.hasAttribute('checked')));
-    const checked = computed<boolean>(() => controlled.value ?? internal.value);
+    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    // Controlled when the factory PINS `checked`; else uncontrolled internal
+    // state (a declared 'boolean' is false-when-absent, so pin state — not
+    // `?? undefined` — is the discriminator).
+    const internal = signal<boolean>(Boolean(props.checked.value));
+    const checked = computed<boolean>(() =>
+      isPinned(host, 'checked') ? Boolean(props.checked.value) : internal.value,
+    );
 
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(checkboxItemClasses, className.value));
+    const classes = computed(() => cn(checkboxItemClasses, props.className.value));
 
     const item = ref<HTMLDivElement>();
-    const label = ref<HTMLSpanElement>();
-    onMount(() => {
-      if (label.current) projectChildren(host, label.current, projected);
-    });
 
     const onClick = (): void => {
       if (disabled.value || !item.current) return;
       internal.value = !checked.value;
-      emitSelect(state, value.value);
+      emitSelect(state, props.value.value);
     };
 
     return html`<div
@@ -546,8 +518,9 @@ export const DropdownMenuCheckboxItem = component<DropdownMenuCheckboxItemProps>
       tabindex="-1"
       class="${classes}"
       @click=${onClick}
-    ><span class="${indicatorSpan}">${when(checked, () => checkIcon)}</span><span ref="${label}" style="display:contents">${props.children}</span></div>`;
+    ><span class="${indicatorSpan}">${when(checked, () => checkIcon)}</span><span style="display:contents">${children()}</span></div>`;
   },
+  { attrs: { checked: 'boolean', disabled: 'boolean', value: 'string', className: 'string' } },
 );
 
 // ── ui-dropdown-menu-radio-group + radio-item ────────────────────────
@@ -556,7 +529,8 @@ export interface DropdownMenuRadioGroupState {
   value: ReadonlySignal<string>;
   setValue(value: string): void;
 }
-type RadioGroupHost = HTMLElement & { __uiDropdownMenuRadioGroup?: DropdownMenuRadioGroupState };
+/** Radio-group value scope — its radio items resolve it. */
+const DropdownMenuRadioGroupContext = createContext<DropdownMenuRadioGroupState>('DropdownMenuRadioGroup', { providerTag: 'ui-dropdown-menu-radio-group' });
 
 export type DropdownMenuRadioGroupProps = {
   value?: string;
@@ -569,25 +543,19 @@ export const DropdownMenuRadioGroup = component<DropdownMenuRadioGroupProps>(
   'ui-dropdown-menu-radio-group',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const internal = signal<string>(props.defaultValue.value ?? host.getAttribute('default-value') ?? '');
+    const internal = signal<string>(props.defaultValue.value ?? '');
     const value = computed<string>(() => props.value.value ?? internal.value);
     const setValue = (v: string): void => {
       internal.value = v;
     };
-    (host as RadioGroupHost).__uiDropdownMenuRadioGroup = { value, setValue };
+    DropdownMenuRadioGroupContext.provide(host, { value, setValue });
 
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(className.value));
+    const classes = computed(() => cn(props.className.value));
 
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
-    return html`<div ref="${root}" role="group" data-slot="dropdown-menu-radio-group" style="display:contents" class="${classes}">${props.children}</div>`;
+    return html`<div role="group" data-slot="dropdown-menu-radio-group" style="display:contents" class="${classes}">${children()}</div>`;
   },
+  { attrs: { value: 'string', defaultValue: 'string', className: 'string' } },
 );
 
 const radioItemClasses = checkboxItemClasses;
@@ -602,29 +570,23 @@ export type DropdownMenuRadioItemProps = {
 export const DropdownMenuRadioItem = component<DropdownMenuRadioItemProps>(
   'ui-dropdown-menu-radio-item',
   (props, host) => {
-    const state = useMenuState(host, 'ui-dropdown-menu-radio-item');
-    const group = (host.closest('ui-dropdown-menu-radio-group') as RadioGroupHost | null)
-      ?.__uiDropdownMenuRadioGroup;
+    const state = DropdownMenuContext.inject();
+    const group = DropdownMenuRadioGroupContext.inject.optional();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const disabled = boolAttr(props.disabled, host, 'disabled');
-    const value = attr(props.value, host, 'value');
-    const checked = computed<boolean>(() => group != null && group.value.value === (value.value ?? ''));
+    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const checked = computed<boolean>(
+      () => group != null && group.value.value === (props.value.value ?? ''),
+    );
 
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(radioItemClasses, className.value));
+    const classes = computed(() => cn(radioItemClasses, props.className.value));
 
     const item = ref<HTMLDivElement>();
-    const label = ref<HTMLSpanElement>();
-    onMount(() => {
-      if (label.current) projectChildren(host, label.current, projected);
-    });
 
     const onClick = (): void => {
       if (disabled.value || !item.current) return;
-      group?.setValue(value.value ?? '');
-      emitSelect(state, value.value);
+      group?.setValue(props.value.value ?? '');
+      emitSelect(state, props.value.value);
     };
 
     return html`<div
@@ -637,8 +599,9 @@ export const DropdownMenuRadioItem = component<DropdownMenuRadioItemProps>(
       tabindex="-1"
       class="${classes}"
       @click=${onClick}
-    ><span class="${indicatorSpan}">${when(checked, () => circleIcon)}</span><span ref="${label}" style="display:contents">${props.children}</span></div>`;
+    ><span class="${indicatorSpan}">${when(checked, () => circleIcon)}</span><span style="display:contents">${children()}</span></div>`;
   },
+  { attrs: { value: 'string', disabled: 'boolean', className: 'string' } },
 );
 
 // ── ui-dropdown-menu-label / -separator / -shortcut / -group ─────────
@@ -653,23 +616,16 @@ export const DropdownMenuLabel = component<DropdownMenuLabelProps>(
   'ui-dropdown-menu-label',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const inset = boolAttr(props.inset, host, 'inset');
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
-      cn('px-2 py-1.5 text-sm font-medium data-[inset]:pl-8', className.value),
+      cn('px-2 py-1.5 text-sm font-medium data-[inset]:pl-8', props.className.value),
     );
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<div
-      ref="${root}"
       data-slot="dropdown-menu-label"
-      data-inset="${computed(() => (inset.value ? '' : undefined))}"
+      data-inset="${computed(() => (props.inset.value ? '' : undefined))}"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { inset: 'boolean', className: 'string' } },
 );
 
 export type DropdownMenuSeparatorProps = { className?: string };
@@ -678,10 +634,10 @@ export const DropdownMenuSeparator = component<DropdownMenuSeparatorProps>(
   'ui-dropdown-menu-separator',
   (props, host) => {
     transparentHost(host);
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn('-mx-1 my-1 h-px bg-border', className.value));
+    const classes = computed(() => cn('-mx-1 my-1 h-px bg-border', props.className.value));
     return html`<div role="separator" aria-orientation="horizontal" data-slot="dropdown-menu-separator" class="${classes}"></div>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export type DropdownMenuShortcutProps = {
@@ -693,17 +649,12 @@ export const DropdownMenuShortcut = component<DropdownMenuShortcutProps>(
   'ui-dropdown-menu-shortcut',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
-      cn('ml-auto text-xs tracking-widest text-muted-foreground', className.value),
+      cn('ml-auto text-xs tracking-widest text-muted-foreground', props.className.value),
     );
-    const root = ref<HTMLSpanElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<span ref="${root}" data-slot="dropdown-menu-shortcut" class="${classes}">${props.children}</span>`;
+    return html`<span data-slot="dropdown-menu-shortcut" class="${classes}">${children()}</span>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export type DropdownMenuGroupProps = {
@@ -715,15 +666,10 @@ export const DropdownMenuGroup = component<DropdownMenuGroupProps>(
   'ui-dropdown-menu-group',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(className.value));
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<div ref="${root}" role="group" data-slot="dropdown-menu-group" style="display:contents" class="${classes}">${props.children}</div>`;
+    const classes = computed(() => cn(props.className.value));
+    return html`<div role="group" data-slot="dropdown-menu-group" style="display:contents" class="${classes}">${children()}</div>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── Submenu: ui-dropdown-menu-sub / -sub-trigger / -sub-content ──────
@@ -742,21 +688,16 @@ export interface DropdownMenuSubState {
   hoverClose(): void;
   hoverCancel(): void;
 }
-type SubHost = HTMLElement & { __uiDropdownMenuSub?: DropdownMenuSubState };
-
-function useSubState(host: HTMLElement, tag: string): DropdownMenuSubState {
-  const sub = (host.closest('ui-dropdown-menu-sub') as SubHost | null)?.__uiDropdownMenuSub;
-  if (!sub) throw new Error(`<${tag}> must be used inside <ui-dropdown-menu-sub>.`);
-  return sub;
-}
+/** Submenu state — sub-trigger/sub-content resolve it. */
+const DropdownMenuSubContext = createContext<DropdownMenuSubState>('DropdownMenuSub', { providerTag: 'ui-dropdown-menu-sub' });
 
 /** Nearest ancestor scope open signal (enclosing submenu, else the root menu). */
 function resolveParentOpen(host: HTMLElement): ReadonlySignal<boolean> {
   let el: HTMLElement | null = host.parentElement;
   while (el) {
-    const sub = (el as SubHost).__uiDropdownMenuSub;
+    const sub = DropdownMenuSubContext.peek(el);
     if (sub) return sub.open;
-    const root = (el as DropdownMenuHost).__uiDropdownMenu;
+    const root = DropdownMenuContext.peek(el);
     if (root) return root.open;
     el = el.parentElement;
   }
@@ -773,14 +714,13 @@ export type DropdownMenuSubProps = {
 export const DropdownMenuSub = component<DropdownMenuSubProps>(
   'ui-dropdown-menu-sub',
   (props, host) => {
-    useMenuState(host, 'ui-dropdown-menu-sub');
+    DropdownMenuContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
     const parentOpen = resolveParentOpen(host);
-    const internal = signal<boolean>(
-      Boolean(props.defaultOpen.value ?? host.hasAttribute('default-open')),
-    );
+    // Submenu open is INTERNAL (root-only attribute-as-truth rule): plain signal
+    // seeded from the declared default-open; `open` stays a factory-only control.
+    const internal = signal<boolean>(Boolean(props.defaultOpen.value));
     const desired = computed<boolean>(() => props.open.value ?? internal.value);
     // A submenu is open only while its parent scope is — closing the root
     // collapses every nested submenu.
@@ -812,18 +752,14 @@ export const DropdownMenuSub = component<DropdownMenuSubProps>(
       },
       hoverCancel: clearTimers,
     };
-    (host as SubHost).__uiDropdownMenuSub = state;
+    DropdownMenuSubContext.provide(host, state);
     onCleanup(clearTimers);
 
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(className.value));
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
+    const classes = computed(() => cn(props.className.value));
 
-    return html`<div ref="${root}" data-slot="dropdown-menu-sub" style="display:contents" class="${classes}">${props.children}</div>`;
+    return html`<div data-slot="dropdown-menu-sub" style="display:contents" class="${classes}">${children()}</div>`;
   },
+  { attrs: { defaultOpen: 'boolean', className: 'string' } },
 );
 
 const subTriggerClasses =
@@ -839,19 +775,14 @@ export type DropdownMenuSubTriggerProps = {
 export const DropdownMenuSubTrigger = component<DropdownMenuSubTriggerProps>(
   'ui-dropdown-menu-sub-trigger',
   (props, host) => {
-    const sub = useSubState(host, 'ui-dropdown-menu-sub-trigger');
+    const sub = DropdownMenuSubContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const inset = boolAttr(props.inset, host, 'inset');
-    const disabled = boolAttr(props.disabled, host, 'disabled');
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(subTriggerClasses, className.value));
+    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const classes = computed(() => cn(subTriggerClasses, props.className.value));
 
     const item = ref<HTMLDivElement>();
-    const label = ref<HTMLSpanElement>();
     onMount(() => {
-      if (label.current) projectChildren(host, label.current, projected);
       if (item.current) sub.trigger.current = item.current;
     });
 
@@ -873,7 +804,7 @@ export const DropdownMenuSubTrigger = component<DropdownMenuSubTriggerProps>(
       aria-expanded="${computed(() => (sub.open.value ? 'true' : 'false'))}"
       aria-controls="${`${sub.baseId}-content`}"
       data-state="${computed(() => stateAttr(sub.open.value))}"
-      data-inset="${computed(() => (inset.value ? '' : undefined))}"
+      data-inset="${computed(() => (props.inset.value ? '' : undefined))}"
       data-disabled="${computed(() => (disabled.value ? '' : undefined))}"
       aria-disabled="${computed(() => (disabled.value ? 'true' : undefined))}"
       tabindex="-1"
@@ -889,8 +820,9 @@ export const DropdownMenuSubTrigger = component<DropdownMenuSubTriggerProps>(
       }}
       @pointerleave=${() => sub.hoverClose()}
       @keydown=${onKeyDown}
-    ><span ref="${label}" style="display:contents">${props.children}</span>${chevronRightIcon}</div>`;
+    ><span style="display:contents">${children()}</span>${chevronRightIcon}</div>`;
   },
+  { attrs: { inset: 'boolean', disabled: 'boolean', className: 'string' } },
 );
 
 const subContentClasses =
@@ -910,19 +842,15 @@ export type DropdownMenuSubContentProps = {
 export const DropdownMenuSubContent = component<DropdownMenuSubContentProps>(
   'ui-dropdown-menu-sub-content',
   (props, host) => {
-    const sub = useSubState(host, 'ui-dropdown-menu-sub-content');
+    const sub = DropdownMenuSubContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
     const sideOffset = computed<number>(() => props.sideOffset.value ?? 0);
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(subContentClasses, className.value));
+    const classes = computed(() => cn(subContentClasses, props.className.value));
     const contentId = `${sub.baseId}-content`;
 
     const content = ref<HTMLElement>();
-    const portalEnabled =
-      props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
-    portal(content, { enabled: portalEnabled });
+    portal(content, { enabled: props.portal.value as boolean });
     const closeAndFocusTrigger = (): void => {
       sub.setOpen(false);
       sub.trigger.current?.focus();
@@ -939,10 +867,6 @@ export const DropdownMenuSubContent = component<DropdownMenuSubContentProps>(
       onArrowLeft: closeAndFocusTrigger,
     });
 
-    onMount(() => {
-      if (content.current) projectChildren(host, content.current, projected);
-    });
-
     return html`<div
       ref="${content}"
       role="menu"
@@ -956,6 +880,7 @@ export const DropdownMenuSubContent = component<DropdownMenuSubContentProps>(
       @pointerover=${onPointerOver}
       @pointerenter=${() => sub.hoverCancel()}
       @pointerleave=${() => sub.hoverClose()}
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { sideOffset: 'number', portal: { type: 'boolean', default: true }, className: 'string' } },
 );

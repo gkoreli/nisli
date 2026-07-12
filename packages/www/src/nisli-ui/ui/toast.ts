@@ -30,7 +30,7 @@ import {
   signal,
   type ReadonlySignal,
 } from '@nisli/core';
-import { attr, cn, transparentHost } from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 // ── Store (module-level, shared by toast() and <ui-toaster>) ─────────
 
@@ -118,13 +118,14 @@ export type ToasterProps = {
 export const Toaster = component<ToasterProps>('ui-toaster', (props, host) => {
   transparentHost(host);
 
-  const positionAttr = attr(props.position, host, 'position');
+  // ADR 0025 item 3: attribute fallbacks declared via the `attrs` option below
+  // and delivered as plain, LIVE prop signals — no userland attr()/boolAttr().
   const position = computed<ToasterPosition>(() =>
-    positionAttr.value && positionAttr.value in positionClasses
-      ? positionAttr.value
+    props.position.value && props.position.value in positionClasses
+      ? (props.position.value as ToasterPosition)
       : 'bottom-right',
   );
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const limit = computed(() => props.visibleToasts.value ?? 3);
   const visible = computed(() => items.value.slice(-limit.value));
 
@@ -191,4 +192,11 @@ export const Toaster = component<ToasterProps>('ui-toaster', (props, host) => {
       </li>`;
     },
   )}</ol>`;
+}, {
+  // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr
+  // names (className → class-name).
+  attrs: {
+    position: 'string',
+    className: 'string',
+  },
 });

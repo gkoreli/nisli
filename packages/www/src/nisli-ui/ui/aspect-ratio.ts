@@ -11,21 +11,8 @@
  * This file was copied into your project by `nisli-ui` — you own it.
  */
 
-import {
-  component,
-  computed,
-  html,
-  onMount,
-  ref,
-  type TemplateResult,
-} from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { children, component, computed, html, type TemplateResult } from '@nisli/core';
+import { cn, transparentHost } from '../lib/utils.js';
 
 export const aspectRatioClasses = 'relative w-full';
 
@@ -39,26 +26,14 @@ export type AspectRatioProps = {
 
 export const AspectRatio = component<AspectRatioProps>('ui-aspect-ratio', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const parsedRatio = host.hasAttribute('ratio')
-    ? Number(host.getAttribute('ratio'))
-    : 1;
-  const ratioFallback = Number.isFinite(parsedRatio) ? parsedRatio : 1;
-  const ratio = computed(() => props.ratio.value ?? ratioFallback);
-  const className = attr(props.className, host, 'class-name');
-  const classes = computed(() => cn(aspectRatioClasses, className.value));
+  const ratio = computed(() => props.ratio.value ?? 1);
+  const classes = computed(() => cn(aspectRatioClasses, props.className.value));
   const style = computed(() => `aspect-ratio: ${ratio.value}`);
 
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
   return html`<div
-    ref="${root}"
     data-slot="aspect-ratio"
     class="${classes}"
     style="${style}"
-  >${props.children}</div>`;
-});
+  >${children()}</div>`;
+}, { attrs: { ratio: { type: 'number', default: 1 }, className: 'string' } });

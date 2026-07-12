@@ -12,18 +12,14 @@
  */
 
 import {
+  children,
   component,
   computed,
   html,
-  onMount,
-  ref,
   type TemplateResult,
 } from '@nisli/core';
 import {
-  attr,
-  captureChildren,
   cn,
-  projectChildren,
   transparentHost,
 } from '../lib/utils.js';
 
@@ -55,62 +51,43 @@ export type BreadcrumbPartProps = {
 
 export const Breadcrumb = component<BreadcrumbPartProps>('ui-breadcrumb', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const className = attr(props.className, host, 'class-name');
-  const classes = computed(() => cn(className.value));
-  const root = ref<HTMLElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
+  const classes = computed(() => cn(props.className.value));
   return html`<nav
-    ref="${root}"
     data-slot="breadcrumb"
     aria-label="breadcrumb"
     class="${classes}"
-  >${props.children}</nav>`;
-});
+  >${children()}</nav>`;
+}, { attrs: { className: 'string' } });
 
 export const BreadcrumbList = component<BreadcrumbPartProps>(
   'ui-breadcrumb-list',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
       cn(
         'flex flex-wrap items-center gap-1.5 text-sm break-words text-muted-foreground sm:gap-2.5',
-        className.value,
+        props.className.value,
       ),
     );
-    const root = ref<HTMLOListElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<ol
-      ref="${root}"
       data-slot="breadcrumb-list"
       class="${classes}"
-    >${props.children}</ol>`;
+    >${children()}</ol>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export const BreadcrumbItem = component<BreadcrumbPartProps>(
   'ui-breadcrumb-item',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn('inline-flex items-center gap-1.5', className.value));
-    const root = ref<HTMLLIElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
+    const classes = computed(() => cn('inline-flex items-center gap-1.5', props.className.value));
     return html`<li
-      ref="${root}"
       data-slot="breadcrumb-item"
       class="${classes}"
-    >${props.children}</li>`;
+    >${children()}</li>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export type BreadcrumbLinkProps = BreadcrumbPartProps & { href?: string };
@@ -119,79 +96,56 @@ export const BreadcrumbLink = component<BreadcrumbLinkProps>(
   'ui-breadcrumb-link',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const href = attr(props.href, host, 'href');
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
-      cn('transition-colors hover:text-foreground', className.value),
+      cn('transition-colors hover:text-foreground', props.className.value),
     );
-    const root = ref<HTMLAnchorElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<a
-      ref="${root}"
       data-slot="breadcrumb-link"
-      href="${href}"
+      href="${props.href}"
       class="${classes}"
-    >${props.children}</a>`;
+    >${children()}</a>`;
   },
+  { attrs: { href: 'string', className: 'string' } },
 );
 
 export const BreadcrumbPage = component<BreadcrumbPartProps>(
   'ui-breadcrumb-page',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn('font-normal text-foreground', className.value));
-    const root = ref<HTMLSpanElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
+    const classes = computed(() => cn('font-normal text-foreground', props.className.value));
     return html`<span
-      ref="${root}"
       data-slot="breadcrumb-page"
       role="link"
       aria-disabled="true"
       aria-current="page"
       class="${classes}"
-    >${props.children}</span>`;
+    >${children()}</span>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export const BreadcrumbSeparator = component<BreadcrumbPartProps>(
   'ui-breadcrumb-separator',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn('[&>svg]:size-3.5', className.value));
-    const root = ref<HTMLLIElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
+    const classes = computed(() => cn('[&>svg]:size-3.5', props.className.value));
     // Default to a chevron when no explicit content is supplied.
-    const content = computed(() =>
-      props.children.value ?? (projected.length === 0 ? chevronRight() : undefined),
-    );
     return html`<li
-      ref="${root}"
       data-slot="breadcrumb-separator"
       role="presentation"
       aria-hidden="true"
       class="${classes}"
-    >${content}</li>`;
+    >${children(chevronRight())}</li>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export const BreadcrumbEllipsis = component<BreadcrumbPartProps>(
   'ui-breadcrumb-ellipsis',
   (props, host) => {
     transparentHost(host);
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
-      cn('flex size-9 items-center justify-center', className.value),
+      cn('flex size-9 items-center justify-center', props.className.value),
     );
     return html`<span
       data-slot="breadcrumb-ellipsis"
@@ -200,4 +154,5 @@ export const BreadcrumbEllipsis = component<BreadcrumbPartProps>(
       class="${classes}"
     >${moreHorizontal()}<span class="sr-only">More</span></span>`;
   },
+  { attrs: { className: 'string' } },
 );

@@ -39,6 +39,7 @@
  */
 
 import {
+  children,
   component,
   computed,
   effect,
@@ -49,12 +50,8 @@ import {
   type TemplateResult,
 } from '@nisli/core';
 import {
-  attr,
-  boolAttr,
-  captureChildren,
   cn,
   cv,
-  projectChildren,
   transparentHost,
 } from '../lib/utils.js';
 
@@ -90,14 +87,16 @@ export type FormFieldProps = {
 
 export const FormField = component<FormFieldProps>('ui-form-field', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const orientationRaw = attr(props.orientation, host, 'orientation');
+  // ADR 0025 item 3: attribute fallbacks are declared via the `attrs` option
+  // below and delivered as live prop signals — no userland attr()/boolAttr().
+  // Declared booleans are runtime-guaranteed non-undefined; `as boolean` is the
+  // typing stopgap.
   const orientation = computed<FieldOrientation>(() =>
-    orientationRaw.value === 'horizontal' ? 'horizontal' : 'vertical',
+    props.orientation.value === 'horizontal' ? 'horizontal' : 'vertical',
   );
-  const invalid = boolAttr(props.invalid, host, 'invalid');
-  const className = attr(props.className, host, 'class-name');
+  const invalid = computed<boolean>(() => props.invalid.value as boolean);
+  const className = props.className;
 
   const classes = computed(() =>
     cn(fieldVariants({ orientation: orientation.value }), className.value),
@@ -107,6 +106,11 @@ export const FormField = component<FormFieldProps>('ui-form-field', (props, host
   const itemId = `${base}-control`;
   const descId = `${base}-description`;
   const errId = `${base}-message`;
+
+  // ADR 0025 item 1: children() owns projection. Hoisted above this
+  // component's own onMount so its late-parser sweep registers FIRST — the
+  // wire() re-run below is thereby queued AFTER projection settles.
+  const slot = children();
 
   const root = ref<HTMLDivElement>();
   let controlEl: HTMLElement | null = null;
@@ -146,9 +150,8 @@ export const FormField = component<FormFieldProps>('ui-form-field', (props, host
   });
 
   onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
     wire();
-    // Re-wire after projectChildren's microtask sweep for streaming children.
+    // Re-wire after the projection microtask sweep for streaming children.
     queueMicrotask(wire);
   });
 
@@ -159,7 +162,15 @@ export const FormField = component<FormFieldProps>('ui-form-field', (props, host
     data-orientation="${orientation}"
     data-invalid="${computed(() => (invalid.value ? 'true' : undefined))}"
     class="${classes}"
-  >${props.children}</div>`;
+  >${slot}</div>`;
+}, {
+  // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
+  // (className → class-name).
+  attrs: {
+    orientation: 'string',
+    className: 'string',
+    invalid: 'boolean',
+  },
 });
 
 // ── ui-form-field-description ───────────────────────────────────────
@@ -176,22 +187,16 @@ export const FieldDescription = component<FieldTextProps>(
   'ui-form-field-description',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(fieldDescriptionClasses, className.value));
 
-    const root = ref<HTMLParagraphElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<p
-      ref="${root}"
       data-slot="field-description"
       class="${classes}"
-    >${props.children}</p>`;
+    >${children()}</p>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-form-field-error ─────────────────────────────────────────────
@@ -202,21 +207,15 @@ export const FieldError = component<FieldTextProps>(
   'ui-form-field-error',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(fieldErrorClasses, className.value));
 
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<div
-      ref="${root}"
       role="alert"
       data-slot="field-error"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { className: 'string' } },
 );

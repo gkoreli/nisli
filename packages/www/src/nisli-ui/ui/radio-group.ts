@@ -20,10 +20,10 @@
  * </ui-radio-group>
  * ```
  *
- * Parent↔child convention (matches ui-tabs): the `<ui-radio-group>` publishes
- * its state on `host.__uiRadioGroup`; items locate it with
- * `host.closest('ui-radio-group')` and throw (setup error boundary) if used
- * outside a group. Items share the group's `name` so the browser treats them
+ * Parent↔child channel (matches ui-tabs): the `<ui-radio-group>` publishes its
+ * state via a subtree-scoped context (`RadioGroupContext`); items resolve it
+ * with `RadioGroupContext.inject()`, which throws into the setup error boundary
+ * if used outside a group. Items share the group's `name` so the browser treats them
  * as one radio set. Selection changes dispatch a bubbling `ui-value-change`
  * CustomEvent (`detail: { value }`) from the group host.
  *
@@ -36,6 +36,8 @@
 
 import {
   component,
+  createContext,
+  children,
   computed,
   effect,
   html,
@@ -45,15 +47,7 @@ import {
   type ReadonlySignal,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  captureChildren,
-  cn,
-  forwardedAttr,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 // ── Shared parent state (published on the <ui-radio-group> host) ─────
 
@@ -68,19 +62,10 @@ export interface RadioGroupState {
   disabled: ReadonlySignal<boolean>;
 }
 
-type RadioGroupHost = HTMLElement & { __uiRadioGroup?: RadioGroupState };
+/** Subtree-scoped channel from the RadioGroup provider to its parts. */
+const RadioGroupContext = createContext<RadioGroupState>('RadioGroup', { providerTag: 'ui-radio-group' });
 
 let uid = 0;
-
-/** Locate the owning `<ui-radio-group>` state, or throw (setup error boundary). */
-function useRadioGroupState(host: HTMLElement, tag: string): RadioGroupState {
-  const parent = host.closest('ui-radio-group') as RadioGroupHost | null;
-  const state = parent?.__uiRadioGroup;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-radio-group>.`);
-  }
-  return state;
-}
 
 // ── ui-radio-group (root, owns state) ───────────────────────────────
 
@@ -98,17 +83,18 @@ export type RadioGroupProps = {
 
 export const RadioGroup = component<RadioGroupProps>('ui-radio-group', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const valueAttr = attr(props.value, host, 'value');
-  const defaultAttr = attr(props.defaultValue, host, 'default-value');
-  const disabled = boolAttr(props.disabled, host, 'disabled');
-  // name belongs on the inner radios, not the transparent host.
-  const nameAttr = forwardedAttr(props.name, host, 'name');
-  const name = nameAttr.value ?? `ui-radio-group-${++uid}`;
+  // ADR 0025 item 3: attribute fallbacks are declared via the `attrs` option
+  // below and delivered as plain, LIVE prop signals — no userland
+  // attr()/boolAttr()/forwardedAttr() at setup. Declared-default booleans are
+  // runtime-guaranteed non-undefined (the `as boolean` is the typing stopgap).
+  // 'forward' relocates `name` off the transparent host so it lives only on the
+  // inner radios.
+  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const name = props.name.value ?? `ui-radio-group-${++uid}`;
 
   // Uncontrolled state, seeded from default-value (or a parse-time value attr).
-  const internal = signal<string>(defaultAttr.value ?? valueAttr.value ?? '');
+  const internal = signal<string>(props.defaultValue.value ?? props.value.value ?? '');
   // A controlled `value` prop always wins and stays reactively in sync; when
   // absent, the selection is our own internal state.
   const current = computed<string>(() => props.value.value ?? internal.value);
@@ -122,23 +108,27 @@ export const RadioGroup = component<RadioGroupProps>('ui-radio-group', (props, h
   };
 
   const state: RadioGroupState = { value: current, setValue, name, disabled };
-  (host as RadioGroupHost).__uiRadioGroup = state;
+  RadioGroupContext.provide(host, state);
 
-  const className = attr(props.className, host, 'class-name');
-  const classes = computed(() => cn('grid gap-3', className.value));
-
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
+  const classes = computed(() => cn('grid gap-3', props.className.value));
 
   return html`<div
-    ref="${root}"
     role="radiogroup"
     data-slot="radio-group"
     aria-disabled="${computed(() => (disabled.value ? 'true' : undefined))}"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
+  // (className → class-name, defaultValue → default-value). 'forward' relocates
+  // `name` off the transparent host onto the inner radios.
+  attrs: {
+    value: 'string',
+    defaultValue: 'string',
+    name: 'forward',
+    className: 'string',
+    disabled: 'boolean',
+  },
 });
 
 // ── ui-radio-group-item ─────────────────────────────────────────────
@@ -162,17 +152,19 @@ export type RadioGroupItemProps = {
 export const RadioGroupItem = component<RadioGroupItemProps>(
   'ui-radio-group-item',
   (props, host) => {
-    const group = useRadioGroupState(host, 'ui-radio-group-item');
+    const group = RadioGroupContext.inject();
     transparentHost(host);
 
-    const valueAttr = attr(props.value, host, 'value');
-    const own = computed(() => valueAttr.value ?? '');
-    const id = forwardedAttr(props.id, host, 'id');
-    const ownDisabled = boolAttr(props.disabled, host, 'disabled');
+    // ADR 0025 item 3: attribute fallbacks declared via the `attrs` option
+    // below and delivered as LIVE prop signals — no userland
+    // attr()/boolAttr()/forwardedAttr() at setup. 'forward' relocates `id` off
+    // the transparent host onto the inner radio (native label association).
+    const own = computed(() => props.value.value ?? '');
+    const id = props.id;
+    const ownDisabled = computed<boolean>(() => props.disabled.value as boolean);
     const disabled = computed(() => ownDisabled.value || group.disabled.value);
     const checked = computed(() => own.value !== '' && group.value.value === own.value);
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(radioItemClasses, className.value));
+    const classes = computed(() => cn(radioItemClasses, props.className.value));
 
     const root = ref<HTMLInputElement>();
 
@@ -207,5 +199,16 @@ export const RadioGroupItem = component<RadioGroupItemProps>(
       disabled="${disabled}"
       @change=${onChange}
     />`;
+  },
+  {
+    // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
+    // (className → class-name). 'forward' relocates `id` off the transparent
+    // host onto the inner radio (native form participation + label binding).
+    attrs: {
+      value: 'string',
+      id: 'forward',
+      className: 'string',
+      disabled: 'boolean',
+    },
   },
 );

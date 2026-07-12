@@ -379,9 +379,7 @@ export const examples: Record<string, () => TemplateResult> = {
         })}
         ${TableFooter({
           children: TableRow({
-            // TableCell has no colSpan prop (a gap vs shadcn); a raw <td colspan>
-            // matching its classes spans the first three columns.
-            children: html`<td colspan="3" class="p-2 align-middle font-medium">Total</td>${TableCell({
+            children: html`${TableCell({ colSpan: 3, className: 'font-medium', children: 'Total' })}${TableCell({
               className: 'text-right',
               children: '$2,500.00',
             })}`,

@@ -35,19 +35,19 @@
 
 import {
   component,
+  createContext,
   computed,
+  effect,
   html,
   onMount,
-  ref,
   signal,
   useHostEvent,
   type ReadonlySignal,
   type TemplateResult,
 } from '@nisli/core';
 import {
-  attr,
-  boolAttr,
   cn,
+  isPinned,
   transparentHost,
 } from '../lib/utils.js';
 import { buttonVariants } from './button.js';
@@ -63,18 +63,10 @@ export interface ComboboxState {
   baseId: string;
 }
 
-type ComboboxHost = HTMLElement & { __uiCombobox?: ComboboxState };
+/** Subtree-scoped channel from <ui-combobox> to its parts. */
+const ComboboxContext = createContext<ComboboxState>('Combobox', { providerTag: 'ui-combobox' });
 
 let uid = 0;
-
-function useComboboxState(host: HTMLElement, tag: string): ComboboxState {
-  const parent = host.closest('ui-combobox') as ComboboxHost | null;
-  const state = parent?.__uiCombobox;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-combobox>.`);
-  }
-  return state;
-}
 
 // ── ui-combobox (root: owns selection + open, composes popover+command) ─
 
@@ -106,26 +98,82 @@ export type ComboboxProps = {
 export const Combobox = component<ComboboxProps>('ui-combobox', (props, host) => {
   transparentHost(host);
 
-  const multiple = props.multiple.value ?? host.hasAttribute('multiple');
+  // `multiple` is a declared 'boolean' attr (runtime-guaranteed non-undefined),
+  // read ONCE at setup — it selects the value-state shape (string vs array).
+  const multiple = props.multiple.value as boolean;
 
-  const initial = ((): string[] => {
-    const v =
-      props.value.value ??
-      props.defaultValue.value ??
-      host.getAttribute('value') ??
-      host.getAttribute('default-value') ??
-      undefined;
-    if (v == null || v === '') return [];
-    return multiple ? v.split(',').map((s) => s.trim()).filter(Boolean) : [v];
-  })();
-  const selected = signal<string[]>(initial);
   const open = signal<boolean>(false);
   const labelText = signal<string>('');
 
-  const placeholder = attr(props.placeholder, host, 'placeholder');
-  const searchPlaceholder = attr(props.searchPlaceholder, host, 'search-placeholder');
-  const emptyText = attr(props.emptyText, host, 'empty-text');
-  const className = attr(props.className, host, 'class-name');
+  // VALUE-STATE (ADR 0025 item 3): the `value` ATTRIBUTE is the uncontrolled
+  // selection. `defaultValue` seeds it once; a pinned factory `value` is the
+  // controlled discriminator (isPinned). Single mode uses the string shape,
+  // multiple the array shape. `selectedArray` is the read-side both parts share
+  // (isSelected + label); `select` toggles/sets through `setValue`.
+  let selectedArray: ReadonlySignal<string[]>;
+  let select: (value: string) => void;
+
+  if (multiple) {
+    // Encoding limit: comma-separated attribute — values containing commas are unsupported (upstream values are slugs).
+    const normalize = (v: unknown): string[] =>
+      Array.isArray(v) ? v : typeof v === 'string' && v ? v.split(',') : [];
+    const current = computed<string[]>(() => normalize(props.value.value));
+    const setValue = (next: string[]): void => {
+      if (next.join(',') === current.value.join(',')) return;
+      if (!isPinned(host, 'value')) {
+        if (next.length) host.setAttribute('value', next.join(','));
+        else host.removeAttribute('value');
+      }
+      host.dispatchEvent(
+        new CustomEvent('ui-value-change', { detail: { value: next }, bubbles: true }),
+      );
+    };
+    // defaultValue INIT-SEED-ONLY, double-guarded. host.hasAttribute('value') is
+    // a SANCTIONED read of a DECLARED attribute (absent vs present).
+    if (props.defaultValue.value != null && !isPinned(host, 'value') && !host.hasAttribute('value')) {
+      const seed = normalize(props.defaultValue.value);
+      if (seed.length) host.setAttribute('value', seed.join(','));
+    }
+    effect(() => {
+      const v = current.value;
+      if (v.length) host.setAttribute('value', v.join(','));
+      else host.removeAttribute('value');
+    });
+    selectedArray = current;
+    select = (value) => {
+      const set = new Set(current.value);
+      if (set.has(value)) set.delete(value);
+      else set.add(value);
+      setValue([...set]);
+    };
+  } else {
+    const current = computed<string>(() => props.value.value ?? '');
+    const setValue = (v: string): void => {
+      if (v === current.value) return;
+      if (!isPinned(host, 'value')) {
+        if (v) host.setAttribute('value', v);
+        else host.removeAttribute('value');
+      }
+      host.dispatchEvent(
+        new CustomEvent('ui-value-change', { detail: { value: v }, bubbles: true }),
+      );
+    };
+    // defaultValue INIT-SEED-ONLY (see multiple branch); hasAttribute('value')
+    // is the SANCTIONED declared-attribute read.
+    if (props.defaultValue.value && !isPinned(host, 'value') && !host.hasAttribute('value')) {
+      host.setAttribute('value', props.defaultValue.value);
+    }
+    effect(() => {
+      const v = current.value;
+      if (v) host.setAttribute('value', v);
+      else host.removeAttribute('value');
+    });
+    selectedArray = computed<string[]>(() => (current.value ? [current.value] : []));
+    select = (value) => {
+      setValue(value);
+      open.value = false; // single-select closes the popup
+    };
+  }
 
   const items = (): HTMLElement[] =>
     Array.from(host.querySelectorAll<HTMLElement>('[data-slot="command-item"]'));
@@ -134,40 +182,26 @@ export const Combobox = component<ComboboxProps>('ui-combobox', (props, host) =>
     return el ? (el.textContent ?? '').trim() : value;
   };
   const updateLabel = (): void => {
-    const sel = selected.value;
+    const sel = selectedArray.value;
     if (sel.length === 0) labelText.value = '';
     else if (multiple) labelText.value = `${sel.length} selected`;
     else labelText.value = labelFor(sel[0]!);
   };
-
-  const emit = (): void => {
-    host.dispatchEvent(
-      new CustomEvent('ui-value-change', {
-        detail: { value: multiple ? [...selected.value] : selected.value[0] ?? '' },
-        bubbles: true,
-      }),
-    );
-  };
+  // Re-derive the trigger label whenever the resolved selection changes (incl.
+  // external/plain-HTML value writes). Item labels settle a microtask after
+  // mount, so onMount re-runs it once the projected options exist.
+  effect(() => {
+    selectedArray.value;
+    updateLabel();
+  });
 
   const state: ComboboxState = {
     multiple,
-    isSelected: (value) => selected.value.includes(value),
-    select: (value) => {
-      if (multiple) {
-        const set = new Set(selected.value);
-        if (set.has(value)) set.delete(value);
-        else set.add(value);
-        selected.value = [...set];
-      } else {
-        selected.value = [value];
-        open.value = false; // single-select closes the popup
-      }
-      updateLabel();
-      emit();
-    },
+    isSelected: (value) => selectedArray.value.includes(value),
+    select,
     baseId: `ui-combobox-${++uid}`,
   };
-  (host as ComboboxHost).__uiCombobox = state;
+  ComboboxContext.provide(host, state);
 
   // Match the popup width to the trigger (Radix's --radix-popover-trigger-width
   // equivalent), measured locally — lib/floating is untouched.
@@ -203,10 +237,10 @@ export const Combobox = component<ComboboxProps>('ui-combobox', (props, host) =>
     buttonVariants({ variant: 'outline' }),
     'w-[200px] justify-between font-normal',
   );
-  const labelDisplay = computed(() => labelText.value || (placeholder.value ?? 'Select…'));
+  const labelDisplay = computed(() => labelText.value || (props.placeholder.value ?? 'Select…'));
   const isEmpty = computed(() => labelText.value === '');
 
-  return html`<div data-slot="combobox" style="display:contents" class="${computed(() => cn(className.value))}">${Popover({
+  return html`<div data-slot="combobox" style="display:contents" class="${computed(() => cn(props.className.value))}">${Popover({
     open,
     children: html`${PopoverTrigger({
       className: triggerClasses,
@@ -223,13 +257,25 @@ export const Combobox = component<ComboboxProps>('ui-combobox', (props, host) =>
       // the popover's default body-portal to preserve that self-contained model.
       portal: false,
       children: Command({
-        children: html`${CommandInput({ placeholder: searchPlaceholder.value ?? 'Search…' })}
+        children: html`${CommandInput({ placeholder: props.searchPlaceholder.value ?? 'Search…' })}
         ${CommandList({
-          children: html`${CommandEmpty({ children: emptyText.value ?? 'No results found.' })}${props.children}`,
+          children: html`${CommandEmpty({ children: props.emptyText.value ?? 'No results found.' })}${props.children}`,
         })}`,
       }),
     })}`,
   })}</div>`;
+}, {
+  // VALUE-STATE: `value` is the attribute-as-truth selection; `defaultValue`
+  // seeds it. `multiple` selects the value shape. The rest are plain strings.
+  attrs: {
+    value: 'string',
+    defaultValue: 'string',
+    multiple: 'boolean',
+    placeholder: 'string',
+    searchPlaceholder: 'string',
+    emptyText: 'string',
+    className: 'string',
+  },
 });
 
 // ── ui-combobox-item ─────────────────────────────────────────────────
@@ -247,17 +293,14 @@ export type ComboboxItemProps = {
 };
 
 export const ComboboxItem = component<ComboboxItemProps>('ui-combobox-item', (props, host) => {
-  const combo = useComboboxState(host, 'ui-combobox-item');
+  const combo = ComboboxContext.inject();
   transparentHost(host);
 
-  const value = attr(props.value, host, 'value');
-  const keywords = attr(props.keywords, host, 'keywords');
-  const disabled = boolAttr(props.disabled, host, 'disabled');
-  const className = attr(props.className, host, 'class-name');
-  const own = computed(() => value.value ?? '');
+  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const own = computed(() => props.value.value ?? '');
   const chosen = computed(() => combo.isSelected(own.value));
 
-  const classes = computed(() => cn(comboboxItemClasses, className.value));
+  const classes = computed(() => cn(comboboxItemClasses, props.className.value));
   const checkClasses = computed(() =>
     cn(
       'pointer-events-none absolute right-2 flex size-4 items-center justify-center transition-opacity',
@@ -273,8 +316,8 @@ export const ComboboxItem = component<ComboboxItemProps>('ui-combobox-item', (pr
     data-slot="command-item"
     cmdk-item=""
     role="option"
-    data-value="${value}"
-    data-keywords="${keywords}"
+    data-value="${props.value}"
+    data-keywords="${props.keywords}"
     data-disabled="${computed(() => (disabled.value ? 'true' : 'false'))}"
     data-selected="false"
     aria-selected="${computed(() => (chosen.value ? 'true' : 'false'))}"
@@ -291,4 +334,11 @@ export const ComboboxItem = component<ComboboxItemProps>('ui-combobox-item', (pr
         class="size-4"
         aria-hidden="true"
       ><path d="M20 6 9 17l-5-5"></path></svg></span></div>`;
+}, {
+  attrs: {
+    value: 'string',
+    keywords: 'string',
+    disabled: 'boolean',
+    className: 'string',
+  },
 });

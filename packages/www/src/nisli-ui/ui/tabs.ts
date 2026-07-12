@@ -16,9 +16,11 @@
  *   </ui-tabs>
  *
  * Usable via typed factories (`Tabs({...})`) or as plain custom elements.
- * The parent `<ui-tabs>` exposes its state on `host.__uiTabs`; children
- * locate it with `host.closest('ui-tabs')` and render an error fallback if
- * used outside a `<ui-tabs>`.
+ * The parent `<ui-tabs>` publishes its state via a subtree-scoped
+ * `createContext` (`TabsContext.provide`); children resolve it with
+ * `TabsContext.inject()` during setup and render an error fallback if used
+ * outside a `<ui-tabs>`. The value is captured at setup, so it keeps resolving
+ * the original provider even if the subtree is later reparented (portal-safe).
  *
  * State changes dispatch a bubbling `ui-value-change` CustomEvent
  * (`detail: { value }`) from the `<ui-tabs>` host — consumable anywhere via
@@ -28,25 +30,18 @@
  */
 
 import {
+  children,
   component,
   computed,
+  createContext,
+  effect,
   html,
-  onMount,
   ref,
-  signal,
   type ReadonlySignal,
   type TemplateResult,
   type TypedEventHandler,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  captureChildren,
-  cn,
-  cv,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, cv, isPinned, transparentHost } from '../lib/utils.js';
 import { rovingFocus, type Orientation } from '../lib/roving-focus.js';
 
 // ── Shared parent state (published on the <ui-tabs> host) ────────────
@@ -62,19 +57,10 @@ export interface TabsState {
   baseId: string;
 }
 
-type TabsHost = HTMLElement & { __uiTabs?: TabsState };
+/** Subtree-scoped channel from <ui-tabs> to its list/trigger/content parts. */
+const TabsContext = createContext<TabsState>('Tabs', { providerTag: 'ui-tabs' });
 
 let uid = 0;
-
-/** Locate the owning `<ui-tabs>` state, or throw (setup error boundary). */
-function useTabsState(host: HTMLElement, tag: string): TabsState {
-  const parent = host.closest('ui-tabs') as TabsHost | null;
-  const state = parent?.__uiTabs;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-tabs>.`);
-  }
-  return state;
-}
 
 // ── ui-tabs (root, owns state) ───────────────────────────────────────
 
@@ -90,29 +76,45 @@ export type TabsProps = {
 
 export const Tabs = component<TabsProps>('ui-tabs', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const valueAttr = attr(props.value, host, 'value');
-  const defaultAttr = attr(props.defaultValue, host, 'default-value');
-  const orientationRaw = attr(props.orientation, host, 'orientation');
   const orientation = computed<Orientation>(() =>
-    orientationRaw.value === 'vertical' ? 'vertical' : 'horizontal',
+    props.orientation.value === 'vertical' ? 'vertical' : 'horizontal',
   );
 
-  // Uncontrolled state, seeded from default-value (or a parse-time value attr).
-  const internal = signal<string>(defaultAttr.value ?? valueAttr.value ?? '');
-  // A controlled `value` prop always wins and stays reactively in sync; when
-  // absent, the selection is our own internal state. Deriving (not mirroring
-  // via an effect) keeps controlled updates a single reactive hop.
-  const current = computed<string>(() => props.value.value ?? internal.value);
+  // VALUE-STATE (ADR 0025): the `value` ATTRIBUTE is the uncontrolled selection
+  // (the string analog of native <details open>). The attribute IS the truth.
+  const current = computed<string>(() => props.value.value ?? '');
 
   const setValue = (v: string): void => {
     if (v === current.value) return;
-    internal.value = v;
+    // Uncontrolled → the attribute IS the state, so write it (empty = removed).
+    // Controlled (a pinned factory `value` signal) → don't; the parent drives
+    // and the reflect effect re-syncs the attr. isPinned('value') discriminates.
+    if (!isPinned(host, 'value')) {
+      if (v) host.setAttribute('value', v);
+      else host.removeAttribute('value');
+    }
     host.dispatchEvent(
       new CustomEvent('ui-value-change', { detail: { value: v }, bubbles: true }),
     );
   };
+
+  // defaultValue is INIT-SEED-ONLY: seed the value attribute once, but only when
+  // `value` is neither controlled (pinned — else the reflect effect would revert
+  // it) nor explicitly authored. host.hasAttribute('value') is a SANCTIONED read
+  // of a DECLARED attribute: it distinguishes 'absent' from 'present' so an
+  // explicit value beats defaultValue.
+  if (props.defaultValue.value && !isPinned(host, 'value') && !host.hasAttribute('value')) {
+    host.setAttribute('value', props.defaultValue.value);
+  }
+
+  // Reflect the resolved value to the attribute so CONTROLLED (factory) usage
+  // also reflects (CSS + parity); empty selection removes it; dedupe makes it cheap.
+  effect(() => {
+    const v = current.value;
+    if (v) host.setAttribute('value', v);
+    else host.removeAttribute('value');
+  });
 
   const state: TabsState = {
     value: current,
@@ -120,24 +122,26 @@ export const Tabs = component<TabsProps>('ui-tabs', (props, host) => {
     orientation,
     baseId: `ui-tabs-${++uid}`,
   };
-  (host as TabsHost).__uiTabs = state;
+  TabsContext.provide(host, state);
 
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() =>
     cn('group/tabs flex gap-2 data-[orientation=horizontal]:flex-col', className.value),
   );
 
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
   return html`<div
-    ref="${root}"
     data-slot="tabs"
     data-orientation="${orientation}"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  // VALUE-STATE: `value` is the attribute-as-truth selection; `defaultValue` seeds it.
+  attrs: {
+    value: 'string',
+    defaultValue: 'string',
+    orientation: 'string',
+    className: 'string',
+  },
 });
 
 // ── ui-tabs-list ─────────────────────────────────────────────────────
@@ -164,15 +168,13 @@ export type TabsListProps = {
 };
 
 export const TabsList = component<TabsListProps>('ui-tabs-list', (props, host) => {
-  const state = useTabsState(host, 'ui-tabs-list');
+  const state = TabsContext.inject();
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const variantAttr = attr(props.variant, host, 'variant');
   const variant = computed<TabsListVariant>(() =>
-    variantAttr.value === 'line' ? 'line' : 'default',
+    props.variant.value === 'line' ? 'line' : 'default',
   );
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() =>
     cn(tabsListVariants({ variant: variant.value }), className.value),
   );
@@ -196,10 +198,6 @@ export const TabsList = component<TabsListProps>('ui-tabs-list', (props, host) =
     },
   );
 
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
   const onKeydown: TypedEventHandler<'keydown'> = (event) => {
     roving.onKeydown(event);
   };
@@ -213,8 +211,8 @@ export const TabsList = component<TabsListProps>('ui-tabs-list', (props, host) =
     data-orientation="${state.orientation}"
     class="${classes}"
     @keydown=${onKeydown}
-  >${props.children}</div>`;
-});
+  >${children()}</div>`;
+}, { attrs: { variant: 'string', className: 'string' } });
 
 // ── ui-tabs-trigger ──────────────────────────────────────────────────
 
@@ -236,33 +234,25 @@ export type TabsTriggerProps = {
 export const TabsTrigger = component<TabsTriggerProps>(
   'ui-tabs-trigger',
   (props, host) => {
-    const state = useTabsState(host, 'ui-tabs-trigger');
+    const state = TabsContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const valueAttr = attr(props.value, host, 'value');
-    const own = computed(() => valueAttr.value ?? '');
-    const disabled = boolAttr(props.disabled, host, 'disabled');
+    const own = computed(() => props.value.value ?? '');
+    const disabled = computed<boolean>(() => props.disabled.value as boolean);
     const selected = computed(
       () => own.value !== '' && state.value.value === own.value,
     );
     const triggerId = computed(() => `${state.baseId}-trigger-${own.value}`);
     const contentId = computed(() => `${state.baseId}-content-${own.value}`);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(triggerClasses, className.value));
-
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
 
     const select = (): void => {
       if (!disabled.value) state.setValue(own.value);
     };
 
     return html`<button
-      ref="${root}"
       type="button"
       role="tab"
       data-slot="tabs-trigger"
@@ -275,8 +265,9 @@ export const TabsTrigger = component<TabsTriggerProps>(
       disabled="${disabled}"
       class="${classes}"
       @click=${select}
-    >${props.children}</button>`;
+    >${children()}</button>`;
   },
+  { attrs: { value: 'string', disabled: 'boolean', className: 'string' } },
 );
 
 // ── ui-tabs-content ──────────────────────────────────────────────────
@@ -291,28 +282,20 @@ export type TabsContentProps = {
 export const TabsContent = component<TabsContentProps>(
   'ui-tabs-content',
   (props, host) => {
-    const state = useTabsState(host, 'ui-tabs-content');
+    const state = TabsContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const valueAttr = attr(props.value, host, 'value');
-    const own = computed(() => valueAttr.value ?? '');
+    const own = computed(() => props.value.value ?? '');
     const selected = computed(
       () => own.value !== '' && state.value.value === own.value,
     );
     const triggerId = computed(() => `${state.baseId}-trigger-${own.value}`);
     const contentId = computed(() => `${state.baseId}-content-${own.value}`);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn('flex-1 outline-none', className.value));
 
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<div
-      ref="${root}"
       role="tabpanel"
       data-slot="tabs-content"
       id="${contentId}"
@@ -321,6 +304,7 @@ export const TabsContent = component<TabsContentProps>(
       hidden="${computed(() => !selected.value)}"
       tabindex="0"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { value: 'string', className: 'string' } },
 );

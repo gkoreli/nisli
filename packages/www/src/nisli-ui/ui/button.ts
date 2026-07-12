@@ -10,22 +10,13 @@
  */
 
 import {
+  children,
   component,
   computed,
   html,
-  onMount,
-  ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  captureChildren,
-  cn,
-  cv,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, cv, transparentHost } from '../lib/utils.js';
 
 export const buttonVariants = cv(
   "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -91,30 +82,34 @@ export type ButtonProps = {
 
 export const Button = component<ButtonProps>('ui-button', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const variant = attr(props.variant, host, 'variant');
-  const size = attr(props.size, host, 'size');
-  const type = attr(props.type, host, 'type');
-  const className = attr(props.className, host, 'class-name');
-  const disabled = boolAttr(props.disabled, host, 'disabled');
+  const variant = props.variant;
+  const size = props.size;
+  const type = props.type;
+  const className = props.className;
+  const disabled = computed<boolean>(() => props.disabled.value as boolean);
 
   const classes = computed(() =>
     cn(buttonVariants({ variant: variant.value, size: size.value }), className.value),
   );
 
-  const root = ref<HTMLButtonElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
+  // ADR 0025 item 1: children() owns projection — light-DOM
+  // children AND the factory `children` prop route through the one slot. The
+  // captureChildren/projectChildren + onMount dance is gone.
   return html`<button
-    ref="${root}"
     data-slot="button"
     data-variant="${computed(() => variant.value ?? 'default')}"
     data-size="${computed(() => size.value ?? 'default')}"
     class="${classes}"
     type="${computed(() => type.value ?? 'button')}"
     disabled="${disabled}"
-  >${props.children}</button>`;
+  >${children()}</button>`;
+}, {
+  attrs: {
+    variant: 'string',
+    size: 'string',
+    type: 'string',
+    className: 'string',
+    disabled: 'boolean',
+  },
 });

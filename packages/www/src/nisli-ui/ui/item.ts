@@ -15,19 +15,15 @@
  */
 
 import {
+  children,
   component,
   computed,
   html,
-  onMount,
-  ref,
   type TemplateResult,
 } from '@nisli/core';
 import {
-  attr,
-  captureChildren,
   cn,
   cv,
-  projectChildren,
   transparentHost,
 } from '../lib/utils.js';
 
@@ -40,19 +36,15 @@ export type ItemPartProps = {
 function itemPart(tag: string, slot: string, base: string, role?: string) {
   return component<ItemPartProps>(tag, (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(base, className.value));
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<div
-      ref="${root}"
       data-slot="${slot}"
       role="${role}"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
+  }, {
+    attrs: { className: 'string' },
   });
 }
 
@@ -67,7 +59,7 @@ export const ItemGroup = itemPart(
 
 export const ItemSeparator = component<ItemPartProps>('ui-item-separator', (props, host) => {
   transparentHost(host);
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn('h-px w-full shrink-0 bg-border my-0', className.value));
   return html`<div
     data-slot="item-separator"
@@ -75,6 +67,8 @@ export const ItemSeparator = component<ItemPartProps>('ui-item-separator', (prop
     data-orientation="horizontal"
     class="${classes}"
   ></div>`;
+}, {
+  attrs: { className: 'string' },
 });
 
 // ── ui-item (variant + size) ─────────────────────────────────────────
@@ -112,24 +106,20 @@ export type ItemProps = {
 
 export const Item = component<ItemProps>('ui-item', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const variant = attr(props.variant, host, 'variant');
-  const size = attr(props.size, host, 'size');
-  const className = attr(props.className, host, 'class-name');
+  const variant = props.variant;
+  const size = props.size;
+  const className = props.className;
   const classes = computed(() =>
     cn(itemVariants({ variant: variant.value, size: size.value }), className.value),
   );
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
   return html`<div
-    ref="${root}"
     data-slot="item"
     data-variant="${computed(() => variant.value ?? 'default')}"
     data-size="${computed(() => size.value ?? 'default')}"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  attrs: { variant: 'string', size: 'string', className: 'string' },
 });
 
 // ── ui-item-media (variant) ──────────────────────────────────────────
@@ -160,22 +150,18 @@ export type ItemMediaProps = {
 
 export const ItemMedia = component<ItemMediaProps>('ui-item-media', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const variant = attr(props.variant, host, 'variant');
-  const className = attr(props.className, host, 'class-name');
+  const variant = props.variant;
+  const className = props.className;
   const classes = computed(() =>
     cn(itemMediaVariants({ variant: variant.value }), className.value),
   );
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
   return html`<div
-    ref="${root}"
     data-slot="item-media"
     data-variant="${computed(() => variant.value ?? 'default')}"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  attrs: { variant: 'string', className: 'string' },
 });
 
 // ── ui-item-content / -title / -actions / -header / -footer ──────────
@@ -216,22 +202,19 @@ export const ItemDescription = component<ItemPartProps>(
   'ui-item-description',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() =>
       cn(
         'line-clamp-2 text-sm leading-normal font-normal text-balance text-muted-foreground [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary',
         className.value,
       ),
     );
-    const root = ref<HTMLParagraphElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<p
-      ref="${root}"
       data-slot="item-description"
       class="${classes}"
-    >${props.children}</p>`;
+    >${children()}</p>`;
+  },
+  {
+    attrs: { className: 'string' },
   },
 );

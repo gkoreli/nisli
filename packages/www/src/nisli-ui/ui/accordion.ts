@@ -13,11 +13,11 @@
  *     </ui-accordion-item>
  *   </ui-accordion>
  *
- * Usable via typed factories or as plain custom elements. The parent
- * `<ui-accordion>` publishes its open-state on `host.__uiAccordion`; each
- * `<ui-accordion-item>` publishes its value on `host.__uiAccordionItem`.
- * Triggers/content locate both via `host.closest(...)` and render the setup
- * error fallback when used outside an accordion. Open/close changes dispatch a
+ * Usable via typed factories or as plain custom elements. Two subtree-scoped
+ * contexts: `<ui-accordion>` publishes its open-state via `AccordionContext`
+ * and each `<ui-accordion-item>` publishes its value via `AccordionItemContext`;
+ * triggers/content resolve both with `.inject()` and render the setup error
+ * fallback when used outside an accordion. Open/close changes dispatch a
  * bubbling `ui-value-change` CustomEvent from the `<ui-accordion>` host.
  *
  * The trigger carries the shadcn chevron (a literal `<svg>` in the html
@@ -28,7 +28,9 @@
  */
 
 import {
+  children,
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -38,14 +40,7 @@ import {
   type ReadonlySignal,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, isPinned, transparentHost } from '../lib/utils.js';
 import { rovingFocus } from '../lib/roving-focus.js';
 
 // ── Shared state (published on the <ui-accordion> host) ──────────────
@@ -61,40 +56,12 @@ export interface AccordionState {
   baseId: string;
 }
 
-type AccordionHost = HTMLElement & { __uiAccordion?: AccordionState };
-type AccordionItemHost = HTMLElement & { __uiAccordionItem?: { value: string } };
+/** Root accordion state (open-set, type) shared with items/triggers/content. */
+const AccordionContext = createContext<AccordionState>('Accordion', { providerTag: 'ui-accordion' });
+/** Per-item value, published by each <ui-accordion-item> for its trigger/content. */
+const AccordionItemContext = createContext<{ value: string }>('AccordionItem', { providerTag: 'ui-accordion-item' });
 
 let uid = 0;
-
-function useAccordionState(host: HTMLElement, tag: string): AccordionState {
-  const parent = host.closest('ui-accordion') as AccordionHost | null;
-  const state = parent?.__uiAccordion;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-accordion>.`);
-  }
-  return state;
-}
-
-function useItemValue(host: HTMLElement, tag: string): string {
-  const item = host.closest('ui-accordion-item') as AccordionItemHost | null;
-  const value = item?.__uiAccordionItem?.value;
-  if (value == null) {
-    throw new Error(`<${tag}> must be used inside <ui-accordion-item>.`);
-  }
-  return value;
-}
-
-/** Normalize a controlled value (string | string[]) into a Set. */
-function toSet(value: string | string[] | undefined): Set<string> {
-  if (value == null || value === '') return new Set();
-  return new Set(Array.isArray(value) ? value : [value]);
-}
-
-function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
-  if (a.size !== b.size) return false;
-  for (const v of a) if (!b.has(v)) return false;
-  return true;
-}
 
 // ── ui-accordion (root, owns state) ──────────────────────────────────
 
@@ -113,59 +80,92 @@ export type AccordionProps = {
 
 export const Accordion = component<AccordionProps>('ui-accordion', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const typeAttr = attr(props.type, host, 'type');
-  const type = computed<AccordionType>(() =>
-    typeAttr.value === 'multiple' ? 'multiple' : 'single',
-  );
-  const collapsible = boolAttr(props.collapsible, host, 'collapsible');
+  // VALUE-STATE (ADR 0025 item 3): the `value` ATTRIBUTE is the uncontrolled
+  // selection state; `defaultValue` seeds it once. The `type` is fixed at setup,
+  // so the state shape branches on it: single uses the string shape, multiple
+  // the comma-separated array shape. The consumer contract (`openValues` set +
+  // `toggle`) is unchanged.
+  const isMultiple = props.type.value === 'multiple';
+  const collapsible = computed<boolean>(() => props.collapsible.value as boolean);
 
-  const defaultAttr = attr(props.defaultValue as ReadonlySignal<string | undefined>, host, 'default-value');
-  const internal = signal<ReadonlySet<string>>(
-    toSet(props.defaultValue.value ?? defaultAttr.value ?? props.value.value),
-  );
-  const current = computed<ReadonlySet<string>>(() => {
-    const controlled = props.value.value;
-    return controlled != null ? toSet(controlled) : internal.value;
-  });
+  let openValues: ReadonlySignal<ReadonlySet<string>>;
+  let toggle: (value: string) => void;
 
-  const emit = (next: ReadonlySet<string>): void => {
-    const list = [...next];
-    host.dispatchEvent(
-      new CustomEvent('ui-value-change', {
-        detail: { value: type.value === 'multiple' ? list : (list[0] ?? '') },
-        bubbles: true,
-      }),
-    );
-  };
-
-  const toggle = (value: string): void => {
-    const cur = current.value;
-    const isOpen = cur.has(value);
-    let next: Set<string>;
-    if (type.value === 'multiple') {
-      next = new Set(cur);
-      if (isOpen) next.delete(value);
-      else next.add(value);
-    } else {
-      // single
-      if (isOpen) next = collapsible.value ? new Set() : new Set(cur);
-      else next = new Set([value]);
+  if (isMultiple) {
+    // Encoding limit: comma-separated attribute — values containing commas are unsupported (upstream values are slugs).
+    const normalize = (v: unknown): string[] =>
+      Array.isArray(v) ? v : typeof v === 'string' && v ? v.split(',') : [];
+    const current = computed<string[]>(() => normalize(props.value.value));
+    const setValue = (next: string[]): void => {
+      if (next.join(',') === current.value.join(',')) return;
+      if (!isPinned(host, 'value')) {
+        if (next.length) host.setAttribute('value', next.join(','));
+        else host.removeAttribute('value');
+      }
+      host.dispatchEvent(
+        new CustomEvent('ui-value-change', { detail: { value: next }, bubbles: true }),
+      );
+    };
+    // defaultValue INIT-SEED-ONLY, double-guarded. host.hasAttribute('value') is a
+    // SANCTIONED read of a DECLARED attribute (absent vs present).
+    if (props.defaultValue.value != null && !isPinned(host, 'value') && !host.hasAttribute('value')) {
+      const seed = normalize(props.defaultValue.value);
+      if (seed.length) host.setAttribute('value', seed.join(','));
     }
-    if (sameSet(next, cur)) return;
-    internal.value = next;
-    emit(next);
-  };
+    effect(() => {
+      const v = current.value;
+      if (v.length) host.setAttribute('value', v.join(','));
+      else host.removeAttribute('value');
+    });
+
+    openValues = computed<ReadonlySet<string>>(() => new Set(current.value));
+    toggle = (value: string): void => {
+      const cur = current.value;
+      const next = cur.includes(value) ? cur.filter((v) => v !== value) : [...cur, value];
+      setValue(next);
+    };
+  } else {
+    const current = computed<string>(() => (props.value.value as string | undefined) ?? '');
+    const setValue = (v: string): void => {
+      if (v === current.value) return;
+      if (!isPinned(host, 'value')) {
+        if (v) host.setAttribute('value', v);
+        else host.removeAttribute('value');
+      }
+      host.dispatchEvent(
+        new CustomEvent('ui-value-change', { detail: { value: v }, bubbles: true }),
+      );
+    };
+    // defaultValue INIT-SEED-ONLY, double-guarded. host.hasAttribute('value') is a
+    // SANCTIONED read of a DECLARED attribute (absent vs present).
+    if (props.defaultValue.value && !isPinned(host, 'value') && !host.hasAttribute('value')) {
+      host.setAttribute('value', props.defaultValue.value as string);
+    }
+    effect(() => {
+      const v = current.value;
+      if (v) host.setAttribute('value', v);
+      else host.removeAttribute('value');
+    });
+
+    openValues = computed<ReadonlySet<string>>(() =>
+      current.value ? new Set([current.value]) : new Set<string>(),
+    );
+    toggle = (value: string): void => {
+      if (current.value === value) {
+        if (collapsible.value) setValue('');
+      } else setValue(value);
+    };
+  }
 
   const state: AccordionState = {
-    openValues: current,
+    openValues,
     toggle,
     baseId: `ui-accordion-${++uid}`,
   };
-  (host as AccordionHost).__uiAccordion = state;
+  AccordionContext.provide(host, state);
 
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn(className.value));
 
   const root = ref<HTMLDivElement>();
@@ -182,17 +182,23 @@ export const Accordion = component<AccordionProps>('ui-accordion', (props, host)
     { orientation: 'vertical', loop: false },
   );
 
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
   return html`<div
     ref="${root}"
     data-slot="accordion"
     data-orientation="vertical"
     class="${classes}"
     @keydown=${(e: KeyboardEvent) => roving.onKeydown(e)}
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  // VALUE-STATE: `value` is the attribute-as-truth selection; `defaultValue`
+  // seeds it. For type='multiple' the attribute is a comma-separated list.
+  attrs: {
+    type: 'string',
+    collapsible: 'boolean',
+    value: 'string',
+    defaultValue: 'string',
+    className: 'string',
+  },
 });
 
 // ── ui-accordion-item ────────────────────────────────────────────────
@@ -207,31 +213,24 @@ export type AccordionItemProps = {
 export const AccordionItem = component<AccordionItemProps>(
   'ui-accordion-item',
   (props, host) => {
-    const state = useAccordionState(host, 'ui-accordion-item');
+    const state = AccordionContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const valueAttr = attr(props.value, host, 'value');
-    const value = valueAttr.value ?? '';
-    (host as AccordionItemHost).__uiAccordionItem = { value };
+    const value = props.value.value ?? '';
+    AccordionItemContext.provide(host, { value });
 
     const open = computed(() => value !== '' && state.openValues.value.has(value));
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn('border-b last:border-b-0', className.value));
 
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<div
-      ref="${root}"
       data-slot="accordion-item"
       data-state="${computed(() => (open.value ? 'open' : 'closed'))}"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { value: 'string', className: 'string' } },
 );
 
 // ── ui-accordion-trigger ─────────────────────────────────────────────
@@ -248,23 +247,17 @@ export type AccordionTriggerProps = {
 export const AccordionTrigger = component<AccordionTriggerProps>(
   'ui-accordion-trigger',
   (props, host) => {
-    const state = useAccordionState(host, 'ui-accordion-trigger');
-    const value = useItemValue(host, 'ui-accordion-trigger');
+    const state = AccordionContext.inject();
+    const value = AccordionItemContext.inject().value;
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const disabled = boolAttr(props.disabled, host, 'disabled');
+    const disabled = computed<boolean>(() => props.disabled.value as boolean);
     const open = computed(() => state.openValues.value.has(value));
     const triggerId = `${state.baseId}-trigger-${value}`;
     const contentId = `${state.baseId}-content-${value}`;
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(triggerClasses, className.value));
-
-    const label = ref<HTMLSpanElement>();
-    onMount(() => {
-      if (label.current) projectChildren(host, label.current, projected);
-    });
 
     const onToggle = (): void => {
       if (!disabled.value) state.toggle(value);
@@ -281,7 +274,7 @@ export const AccordionTrigger = component<AccordionTriggerProps>(
         disabled="${disabled}"
         class="${classes}"
         @click=${onToggle}
-      ><span ref="${label}">${props.children}</span><svg
+      ><span>${children()}</span><svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
           fill="none"
@@ -294,6 +287,7 @@ export const AccordionTrigger = component<AccordionTriggerProps>(
         ><path d="m6 9 6 6 6-6"></path></svg></button>
     </h3>`;
   },
+  { attrs: { disabled: 'boolean', className: 'string' } },
 );
 
 // ── ui-accordion-content ─────────────────────────────────────────────
@@ -306,16 +300,15 @@ export type AccordionContentProps = {
 export const AccordionContent = component<AccordionContentProps>(
   'ui-accordion-content',
   (props, host) => {
-    const state = useAccordionState(host, 'ui-accordion-content');
-    const value = useItemValue(host, 'ui-accordion-content');
+    const state = AccordionContext.inject();
+    const value = AccordionItemContext.inject().value;
     transparentHost(host);
-    const projected = captureChildren(host);
 
     const open = computed(() => state.openValues.value.has(value));
     const triggerId = `${state.baseId}-trigger-${value}`;
     const contentId = `${state.baseId}-content-${value}`;
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const innerClasses = computed(() => cn('pt-0 pb-4', className.value));
 
     const outer = ref<HTMLDivElement>();
@@ -369,7 +362,6 @@ export const AccordionContent = component<AccordionContentProps>(
     });
 
     onMount(() => {
-      if (inner.current) projectChildren(host, inner.current, projected);
       // Initially-open items never see `open` change, so measure here too.
       if (open.value) queueMicrotask(measure);
     });
@@ -383,6 +375,7 @@ export const AccordionContent = component<AccordionContentProps>(
       data-state="${computed(() => (open.value ? 'open' : 'closed'))}"
       hidden="${computed(() => !present.value)}"
       class="overflow-hidden text-sm data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down"
-    ><div ref="${inner}" class="${innerClasses}">${props.children}</div></div>`;
+    ><div ref="${inner}" class="${innerClasses}">${children()}</div></div>`;
   },
+  { attrs: { className: 'string' } },
 );

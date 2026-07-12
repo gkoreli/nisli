@@ -30,7 +30,9 @@
  */
 
 import {
+  children,
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -42,13 +44,7 @@ import {
   type Ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 import { positionFloating, type Side } from '../lib/floating.js';
 import { portal } from '../lib/portal.js';
 
@@ -102,18 +98,10 @@ export interface TooltipState {
   anchor: Ref<HTMLElement>;
 }
 
-type TooltipHost = HTMLElement & { __uiTooltip?: TooltipState };
+/** Subtree-scoped channel from <ui-tooltip> to its parts. */
+const TooltipContext = createContext<TooltipState>('Tooltip', { providerTag: 'ui-tooltip' });
 
 let uid = 0;
-
-function useTooltipState(host: HTMLElement, tag: string): TooltipState {
-  const parent = host.closest('ui-tooltip') as TooltipHost | null;
-  const state = parent?.__uiTooltip;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-tooltip>.`);
-  }
-  return state;
-}
 
 const stateAttr = (open: boolean) => (open ? 'open' : 'closed');
 
@@ -130,8 +118,10 @@ export type TooltipProps = {
 
 export const Tooltip = component<TooltipProps>('ui-tooltip', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
+  // NOTE: no PATTERN A here. Tooltip opens on hover/focus via internal state;
+  // its user-facing open is NOT attribute-backed (there is no `open`/`default-open`
+  // attribute read on the root), so `open` stays a controlled-only factory prop.
   const internal = signal<boolean>(false);
   const open = computed<boolean>(() => props.open.value ?? internal.value);
   const delay = computed<number>(() => props.delayDuration.value ?? DEFAULT_DELAY);
@@ -157,26 +147,20 @@ export const Tooltip = component<TooltipProps>('ui-tooltip', (props, host) => {
     baseId: `ui-tooltip-${++uid}`,
     anchor,
   };
-  (host as TooltipHost).__uiTooltip = state;
+  TooltipContext.provide(host, state);
 
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn(className.value));
-
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
 
   // Cancel any pending open if the tooltip is torn down mid-hover.
   onCleanup(() => state.requestClose());
 
   return html`<div
-    ref="${root}"
     data-slot="tooltip"
     style="display:contents"
     class="${classes}"
-  >${props.children}</div>`;
-});
+  >${children()}</div>`;
+}, { attrs: { className: 'string' } });
 
 // ── ui-tooltip-trigger ───────────────────────────────────────────────
 
@@ -188,19 +172,17 @@ export type TooltipTriggerProps = {
 export const TooltipTrigger = component<TooltipTriggerProps>(
   'ui-tooltip-trigger',
   (props, host) => {
-    const state = useTooltipState(host, 'ui-tooltip-trigger');
+    const state = TooltipContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(className.value));
 
+    // Ref kept for the floating anchor (positioning reads it by reference),
+    // not for projection — children() renders the slot directly.
     const root = ref<HTMLButtonElement>();
     onMount(() => {
-      if (root.current) {
-        projectChildren(host, root.current, projected);
-        state.anchor.current = root.current;
-      }
+      if (root.current) state.anchor.current = root.current;
     });
 
     return html`<button
@@ -215,8 +197,9 @@ export const TooltipTrigger = component<TooltipTriggerProps>(
       @pointerleave=${() => state.requestClose()}
       @blur=${() => state.requestClose()}
       @pointerdown=${() => state.requestClose()}
-    >${props.children}</button>`;
+    >${children()}</button>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-tooltip-content ───────────────────────────────────────────────
@@ -240,25 +223,23 @@ export type TooltipContentProps = {
 export const TooltipContent = component<TooltipContentProps>(
   'ui-tooltip-content',
   (props, host) => {
-    const state = useTooltipState(host, 'ui-tooltip-content');
+    const state = TooltipContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const sideAttr = attr(props.side, host, 'side');
-    const side = computed<Side>(() => (sideAttr.value as Side) ?? 'top');
+    const side = computed<Side>(() => (props.side.value as Side) ?? 'top');
     const sideOffset = computed<number>(() => props.sideOffset.value ?? 0);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(contentClasses, className.value));
     const contentId = `${state.baseId}-content`;
 
     const content = ref<HTMLDivElement>();
 
     // Portal the content to <body> (default on) so its fixed positioning
-    // escapes transformed ancestors. Floating positioning, Escape handling,
-    // and projection all operate on `content` by reference — move-safe.
-    const portalEnabled =
-      props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
+    // escapes transformed ancestors. Floating positioning and Escape handling
+    // operate on `content` by reference — move-safe. PATTERN B: `portal` is a
+    // default-true boolean (absent → on, "false" → off).
+    const portalEnabled = props.portal.value as boolean;
     portal(content, { enabled: portalEnabled });
 
     let disposePosition: (() => void) | null = null;
@@ -294,9 +275,6 @@ export const TooltipContent = component<TooltipContentProps>(
       }
     });
 
-    onMount(() => {
-      if (content.current) projectChildren(host, content.current, projected);
-    });
     onCleanup(stopPositioning);
 
     return html`<div
@@ -307,6 +285,14 @@ export const TooltipContent = component<TooltipContentProps>(
       data-state="${computed(() => stateAttr(state.open.value))}"
       hidden="${computed(() => !state.open.value)}"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
+  },
+  {
+    // PATTERN B: `portal` is a default-true boolean (absent → true, "false" → false).
+    attrs: {
+      side: 'string',
+      portal: { type: 'boolean', default: true },
+      className: 'string',
+    },
   },
 );

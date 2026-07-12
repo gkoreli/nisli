@@ -15,16 +15,19 @@
  * </ui-avatar>
  * ```
  *
- * The `<ui-avatar>` publishes its status on `host.__uiAvatar`; the image and
- * fallback locate it with `host.closest('ui-avatar')` (setup-boundary error if
- * used outside one). The image is hidden until it loads; the fallback is shown
+ * The `<ui-avatar>` publishes its status via a subtree-scoped context
+ * (`AvatarContext`); the image and fallback resolve it with
+ * `AvatarContext.inject()` (setup-boundary error if used outside one). The
+ * image is hidden until it loads; the fallback is shown
  * whenever the status is not `loaded`.
  *
  * This file was copied into your project by `nisli-ui` — you own it.
  */
 
 import {
+  children,
   component,
+  createContext,
   computed,
   html,
   onMount,
@@ -33,13 +36,7 @@ import {
   type ReadonlySignal,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 export type AvatarStatus = 'idle' | 'loaded' | 'error';
 
@@ -48,16 +45,8 @@ export interface AvatarState {
   setStatus(status: AvatarStatus): void;
 }
 
-type AvatarHost = HTMLElement & { __uiAvatar?: AvatarState };
-
-function useAvatarState(host: HTMLElement, tag: string): AvatarState {
-  const parent = host.closest('ui-avatar') as AvatarHost | null;
-  const state = parent?.__uiAvatar;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-avatar>.`);
-  }
-  return state;
-}
+/** Subtree-scoped channel from the Avatar provider to its parts. */
+const AvatarContext = createContext<AvatarState>('Avatar', { providerTag: 'ui-avatar' });
 
 // ── ui-avatar (root, owns loading status) ───────────────────────────
 
@@ -71,10 +60,9 @@ export type AvatarProps = {
 
 export const Avatar = component<AvatarProps>('ui-avatar', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const size = attr(props.size, host, 'size');
-  const className = attr(props.className, host, 'class-name');
+  const size = props.size;
+  const className = props.className;
 
   const status = signal<AvatarStatus>('idle');
   const state: AvatarState = {
@@ -83,7 +71,7 @@ export const Avatar = component<AvatarProps>('ui-avatar', (props, host) => {
       status.value = s;
     },
   };
-  (host as AvatarHost).__uiAvatar = state;
+  AvatarContext.provide(host, state);
 
   const classes = computed(() =>
     cn(
@@ -92,17 +80,16 @@ export const Avatar = component<AvatarProps>('ui-avatar', (props, host) => {
     ),
   );
 
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
   return html`<div
-    ref="${root}"
     data-slot="avatar"
     data-size="${computed(() => size.value ?? 'default')}"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  attrs: {
+    size: 'string',
+    className: 'string',
+  },
 });
 
 // ── ui-avatar-image ─────────────────────────────────────────────────
@@ -114,12 +101,12 @@ export type AvatarImageProps = {
 };
 
 export const AvatarImage = component<AvatarImageProps>('ui-avatar-image', (props, host) => {
-  const state = useAvatarState(host, 'ui-avatar-image');
+  const state = AvatarContext.inject();
   transparentHost(host);
 
-  const src = attr(props.src, host, 'src');
-  const alt = attr(props.alt, host, 'alt');
-  const className = attr(props.className, host, 'class-name');
+  const src = props.src;
+  const alt = props.alt;
+  const className = props.className;
   const classes = computed(() => cn('aspect-square size-full', className.value));
 
   // Hidden until the image has actually loaded (avoids a broken/blank flash;
@@ -142,6 +129,12 @@ export const AvatarImage = component<AvatarImageProps>('ui-avatar-image', (props
     @load=${() => state.setStatus('loaded')}
     @error=${() => state.setStatus('error')}
   />`;
+}, {
+  attrs: {
+    src: 'string',
+    alt: 'string',
+    className: 'string',
+  },
 });
 
 // ── ui-avatar-fallback ──────────────────────────────────────────────
@@ -154,11 +147,10 @@ export type AvatarFallbackProps = {
 export const AvatarFallback = component<AvatarFallbackProps>(
   'ui-avatar-fallback',
   (props, host) => {
-    const state = useAvatarState(host, 'ui-avatar-fallback');
+    const state = AvatarContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() =>
       cn(
         'flex size-full items-center justify-center rounded-full bg-muted text-sm text-muted-foreground group-data-[size=sm]/avatar:text-xs',
@@ -169,16 +161,15 @@ export const AvatarFallback = component<AvatarFallbackProps>(
     // Shown whenever the image has not loaded.
     const hidden = computed(() => state.status.value === 'loaded');
 
-    const root = ref<HTMLSpanElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<span
-      ref="${root}"
       data-slot="avatar-fallback"
       class="${classes}"
       hidden="${hidden}"
-    >${props.children}</span>`;
+    >${children()}</span>`;
+  },
+  {
+    attrs: {
+      className: 'string',
+    },
   },
 );

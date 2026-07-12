@@ -17,20 +17,13 @@
  */
 
 import {
+  children,
   component,
   computed,
   html,
-  onMount,
-  ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 const SCROLLBAR_STYLE_ID = 'ui-scroll-area-style';
 
@@ -59,23 +52,20 @@ export type ScrollAreaProps = {
 
 export const ScrollArea = component<ScrollAreaProps>('ui-scroll-area', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
   ensureScrollbarStyles(host.ownerDocument);
 
-  const className = attr(props.className, host, 'class-name');
-  const classes = computed(() => cn('relative', className.value));
-
-  const viewport = ref<HTMLDivElement>();
-  onMount(() => {
-    if (viewport.current) projectChildren(host, viewport.current, projected);
-  });
+  const classes = computed(() => cn('relative', props.className.value));
 
   return html`<div data-slot="scroll-area" class="${classes}">
     <div
-      ref="${viewport}"
       data-slot="scroll-area-viewport"
       tabindex="0"
       class="size-full overflow-auto rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
-    >${props.children}</div>
+    >${children()}</div>
   </div>`;
+}, {
+  // ADR 0025 item 3: opt-in attribute reactivity (className → class-name).
+  attrs: {
+    className: 'string',
+  },
 });

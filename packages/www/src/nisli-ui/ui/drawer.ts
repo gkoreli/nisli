@@ -10,7 +10,8 @@
  * dismiss axis, dismiss past a distance/velocity threshold, snap back
  * otherwise) and an overlay whose opacity tracks drag progress.
  *
- * Built on the same machinery as dialog/sheet: shared `__uiDrawer` state, the
+ * Built on the same machinery as dialog/sheet: shared state via a
+ * subtree-scoped `DrawerContext`, the
  * dismissable-layer + focus lib items, inline fixed overlay. Open/close
  * dispatches a bubbling `ui-open-change` CustomEvent from the `<ui-drawer>`
  * host.
@@ -22,24 +23,18 @@
  */
 
 import {
+  children,
   component,
+  createContext,
   computed,
   effect,
   html,
   onCleanup,
-  onMount,
   ref,
-  signal,
   type ReadonlySignal,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, isPinned, transparentHost } from '../lib/utils.js';
 import { dismissableLayer } from '../lib/dismissable-layer.js';
 import { focusTrap } from '../lib/focus.js';
 
@@ -54,18 +49,10 @@ export interface DrawerState {
   baseId: string;
 }
 
-type DrawerHost = HTMLElement & { __uiDrawer?: DrawerState };
+/** Subtree-scoped channel from the Drawer provider to its parts. */
+const DrawerContext = createContext<DrawerState>('Drawer', { providerTag: 'ui-drawer' });
 
 let uid = 0;
-
-function useDrawerState(host: HTMLElement, tag: string): DrawerState {
-  const parent = host.closest('ui-drawer') as DrawerHost | null;
-  const state = parent?.__uiDrawer;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-drawer>.`);
-  }
-  return state;
-}
 
 // ── ui-drawer (root, owns state) ─────────────────────────────────────
 
@@ -79,40 +66,57 @@ export type DrawerProps = {
 
 export const Drawer = component<DrawerProps>('ui-drawer', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const initialOpen =
-    props.defaultOpen.value ??
-    props.open.value ??
-    (host.hasAttribute('open') || host.hasAttribute('default-open'));
-  const internal = signal<boolean>(Boolean(initialOpen));
-  const open = computed<boolean>(() => props.open.value ?? internal.value);
-
-  const directionAttr = attr(props.direction, host, 'direction');
-  const direction = computed<DrawerDirection>(
-    () => (directionAttr.value as DrawerDirection) ?? 'bottom',
-  );
+  // PATTERN A (ADR 0025 item 3): the `open` ATTRIBUTE is the uncontrolled state
+  // (like native <dialog open>/<details open>). The attribute IS the truth.
+  const open = computed<boolean>(() => props.open.value ?? false);
 
   const setOpen = (next: boolean): void => {
     if (next === open.value) return;
-    internal.value = next;
+    // Uncontrolled → the attribute IS the state, so write it. Controlled (a
+    // pinned factory `open` signal) → don't; the parent drives and the reflect
+    // effect re-syncs the attr. isPinned('open') is the discriminator (a declared
+    // 'boolean' is never undefined, so pin state is the only controlled signal).
+    if (!isPinned(host, 'open')) host.toggleAttribute('open', next);
     host.dispatchEvent(
       new CustomEvent('ui-open-change', { detail: { open: next }, bubbles: true }),
     );
   };
 
-  const state: DrawerState = { open, setOpen, direction, baseId: `ui-drawer-${++uid}` };
-  (host as DrawerHost).__uiDrawer = state;
+  // defaultOpen is INIT-SEED-ONLY: seed the open attribute once, but only when
+  // `open` is neither controlled (pinned — else the reflect effect would revert
+  // it, a pointless flicker) nor explicitly authored. host.hasAttribute('open')
+  // is a SANCTIONED read of a DECLARED attribute: it distinguishes 'absent' from
+  // 'present-false' so an explicit open="false" beats defaultOpen (stays closed).
+  if (props.defaultOpen.value && !isPinned(host, 'open') && !host.hasAttribute('open')) {
+    host.toggleAttribute('open', true);
+  }
 
-  const className = attr(props.className, host, 'class-name');
-  const classes = computed(() => cn(className.value));
-
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
+  // Reflect the resolved state to the attribute so CONTROLLED (factory) usage
+  // also reflects (CSS [open] selectors + native parity); dedupe makes it cheap.
+  effect(() => {
+    host.toggleAttribute('open', open.value);
   });
 
-  return html`<div ref="${root}" data-slot="drawer" style="display:contents" class="${classes}">${props.children}</div>`;
+  const direction = computed<DrawerDirection>(
+    () => (props.direction.value as DrawerDirection) ?? 'bottom',
+  );
+
+  const state: DrawerState = { open, setOpen, direction, baseId: `ui-drawer-${++uid}` };
+  DrawerContext.provide(host, state);
+
+  const className = props.className;
+  const classes = computed(() => cn(className.value));
+
+  return html`<div data-slot="drawer" style="display:contents" class="${classes}">${children()}</div>`;
+}, {
+  // PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
+  attrs: {
+    open: 'boolean',
+    defaultOpen: 'boolean',
+    direction: 'string',
+    className: 'string',
+  },
 });
 
 // ── ui-drawer-trigger / -close ───────────────────────────────────────
@@ -123,17 +127,11 @@ export type DrawerTriggerProps = {
 };
 
 export const DrawerTrigger = component<DrawerTriggerProps>('ui-drawer-trigger', (props, host) => {
-  const state = useDrawerState(host, 'ui-drawer-trigger');
+  const state = DrawerContext.inject();
   transparentHost(host);
-  const projected = captureChildren(host);
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn(className.value));
-  const root = ref<HTMLButtonElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
   return html`<button
-    ref="${root}"
     type="button"
     data-slot="drawer-trigger"
     aria-haspopup="dialog"
@@ -142,8 +140,8 @@ export const DrawerTrigger = component<DrawerTriggerProps>('ui-drawer-trigger', 
     data-state="${computed(() => (state.open.value ? 'open' : 'closed'))}"
     class="${classes}"
     @click=${() => state.setOpen(true)}
-  >${props.children}</button>`;
-});
+  >${children()}</button>`;
+}, { attrs: { className: 'string' } });
 
 export type DrawerCloseProps = {
   className?: string;
@@ -151,23 +149,17 @@ export type DrawerCloseProps = {
 };
 
 export const DrawerClose = component<DrawerCloseProps>('ui-drawer-close', (props, host) => {
-  const state = useDrawerState(host, 'ui-drawer-close');
+  const state = DrawerContext.inject();
   transparentHost(host);
-  const projected = captureChildren(host);
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn(className.value));
-  const root = ref<HTMLButtonElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
   return html`<button
-    ref="${root}"
     type="button"
     data-slot="drawer-close"
     class="${classes}"
     @click=${() => state.setOpen(false)}
-  >${props.children}</button>`;
-});
+  >${children()}</button>`;
+}, { attrs: { className: 'string' } });
 
 // ── ui-drawer-content (overlay + draggable panel) ────────────────────
 
@@ -195,15 +187,14 @@ export type DrawerContentProps = {
 };
 
 export const DrawerContent = component<DrawerContentProps>('ui-drawer-content', (props, host) => {
-  const state = useDrawerState(host, 'ui-drawer-content');
+  const state = DrawerContext.inject();
   transparentHost(host);
-  const projected = captureChildren(host);
 
   const dataState = computed(() => (state.open.value ? 'open' : 'closed'));
   const hidden = computed(() => !state.open.value);
   const contentId = `${state.baseId}-content`;
 
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn(contentClasses, className.value));
 
   const overlayRef = ref<HTMLDivElement>();
@@ -303,9 +294,6 @@ export const DrawerContent = component<DrawerContentProps>('ui-drawer-content', 
     document.addEventListener('pointercancel', endDrag);
   };
 
-  onMount(() => {
-    if (contentRef.current) projectChildren(host, contentRef.current, projected);
-  });
   onCleanup(() => {
     document.removeEventListener('pointermove', onPointerMove);
     document.removeEventListener('pointerup', endDrag);
@@ -334,9 +322,9 @@ export const DrawerContent = component<DrawerContentProps>('ui-drawer-content', 
       tabindex="-1"
       class="${classes}"
       @pointerdown=${onPointerDown}
-    ><div data-slot="drawer-handle" class="${handleClasses}"></div>${props.children}</div>
+    ><div data-slot="drawer-handle" class="${handleClasses}"></div>${children()}</div>
   </div>`;
-});
+}, { attrs: { className: 'string' } });
 
 // ── ui-drawer-header / -footer / -title / -description ───────────────
 
@@ -348,15 +336,10 @@ export type DrawerSectionProps = {
 function drawerSection(tag: string, slot: string, base: string) {
   return component<DrawerSectionProps>(tag, (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(base, className.value));
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<div ref="${root}" data-slot="${slot}" class="${classes}">${props.children}</div>`;
-  });
+    return html`<div data-slot="${slot}" class="${classes}">${children()}</div>`;
+  }, { attrs: { className: 'string' } });
 }
 
 export const DrawerHeader = drawerSection(
@@ -377,22 +360,16 @@ export type DrawerTitleProps = {
 };
 
 export const DrawerTitle = component<DrawerTitleProps>('ui-drawer-title', (props, host) => {
-  const state = useDrawerState(host, 'ui-drawer-title');
+  const state = DrawerContext.inject();
   transparentHost(host);
-  const projected = captureChildren(host);
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn('font-semibold text-foreground', className.value));
-  const root = ref<HTMLHeadingElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
   return html`<h2
-    ref="${root}"
     data-slot="drawer-title"
     id="${`${state.baseId}-title`}"
     class="${classes}"
-  >${props.children}</h2>`;
-});
+  >${children()}</h2>`;
+}, { attrs: { className: 'string' } });
 
 export type DrawerDescriptionProps = {
   className?: string;
@@ -402,20 +379,15 @@ export type DrawerDescriptionProps = {
 export const DrawerDescription = component<DrawerDescriptionProps>(
   'ui-drawer-description',
   (props, host) => {
-    const state = useDrawerState(host, 'ui-drawer-description');
+    const state = DrawerContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn('text-sm text-muted-foreground', className.value));
-    const root = ref<HTMLParagraphElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<p
-      ref="${root}"
       data-slot="drawer-description"
       id="${`${state.baseId}-description`}"
       class="${classes}"
-    >${props.children}</p>`;
+    >${children()}</p>`;
   },
+  { attrs: { className: 'string' } },
 );

@@ -34,25 +34,18 @@
  */
 
 import {
+  children,
   component,
+  createContext,
   computed,
   html,
   onCleanup,
-  onMount,
   ref,
   signal,
   type ReadonlySignal,
-  type Ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  cv,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, cv, transparentHost } from '../lib/utils.js';
 import { rovingFocus } from '../lib/roving-focus.js';
 
 const CLOSE_DELAY = 150;
@@ -75,18 +68,10 @@ export interface NavigationMenuState {
   baseId: string;
 }
 
-type NavigationMenuHost = HTMLElement & { __uiNavigationMenu?: NavigationMenuState };
+/** Subtree-scoped channel from the NavigationMenu provider to its parts. */
+const NavigationMenuContext = createContext<NavigationMenuState>('NavigationMenu', { providerTag: 'ui-navigation-menu' });
 
 let uid = 0;
-
-function useNavigationMenuState(host: HTMLElement, tag: string): NavigationMenuState {
-  const parent = host.closest('ui-navigation-menu') as NavigationMenuHost | null;
-  const state = parent?.__uiNavigationMenu;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-navigation-menu>.`);
-  }
-  return state;
-}
 
 // ── ui-navigation-menu (root, owns state) ────────────────────────────
 
@@ -99,8 +84,10 @@ export const NavigationMenu = component<NavigationMenuProps>(
   'ui-navigation-menu',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
 
+    // The root's `value` (which submenu is open) is EPHEMERAL interaction state —
+    // there is no `value` attribute/prop on the root, so it stays an internal
+    // signal (the value-state attribute-as-truth shape does not apply here).
     const value = signal<string>('');
     let closeTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -133,9 +120,9 @@ export const NavigationMenu = component<NavigationMenuProps>(
       },
       baseId: `ui-navigation-menu-${++uid}`,
     };
-    (host as NavigationMenuHost).__uiNavigationMenu = state;
+    NavigationMenuContext.provide(host, state);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() =>
       cn(
         'group/navigation-menu relative flex max-w-max flex-1 items-center justify-center',
@@ -143,19 +130,15 @@ export const NavigationMenu = component<NavigationMenuProps>(
       ),
     );
 
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     onCleanup(() => clearTimeout(closeTimer));
 
     return html`<div
-      ref="${root}"
       data-slot="navigation-menu"
       data-viewport="false"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-navigation-menu-list ──────────────────────────────────────────
@@ -168,11 +151,10 @@ export type NavigationMenuListProps = {
 export const NavigationMenuList = component<NavigationMenuListProps>(
   'ui-navigation-menu-list',
   (props, host) => {
-    const state = useNavigationMenuState(host, 'ui-navigation-menu-list');
+    const state = NavigationMenuContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() =>
       cn('group flex flex-1 list-none items-center justify-center gap-1', className.value),
     );
@@ -201,17 +183,14 @@ export const NavigationMenuList = component<NavigationMenuListProps>(
       roving.onKeydown(event);
     };
 
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<ul
       ref="${root}"
       data-slot="navigation-menu-list"
       class="${classes}"
       @keydown=${onKeydown}
-    >${props.children}</ul>`;
+    >${children()}</ul>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-navigation-menu-item ──────────────────────────────────────────
@@ -224,24 +203,18 @@ export type NavigationMenuItemProps = {
 export const NavigationMenuItem = component<NavigationMenuItemProps>(
   'ui-navigation-menu-item',
   (props, host) => {
-    useNavigationMenuState(host, 'ui-navigation-menu-item');
+    NavigationMenuContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn('relative', className.value));
 
-    const root = ref<HTMLLIElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<li
-      ref="${root}"
       data-slot="navigation-menu-item"
       class="${classes}"
-    >${props.children}</li>`;
+    >${children()}</li>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-navigation-menu-trigger ───────────────────────────────────────
@@ -260,26 +233,18 @@ export type NavigationMenuTriggerProps = {
 export const NavigationMenuTrigger = component<NavigationMenuTriggerProps>(
   'ui-navigation-menu-trigger',
   (props, host) => {
-    const state = useNavigationMenuState(host, 'ui-navigation-menu-trigger');
+    const state = NavigationMenuContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const valueAttr = attr(props.value, host, 'value');
-    const own = computed(() => valueAttr.value ?? '');
+    const own = computed(() => props.value.value ?? '');
     const isOpen = computed(() => own.value !== '' && state.value.value === own.value);
     const triggerId = computed(() => `${state.baseId}-trigger-${own.value}`);
     const contentId = computed(() => `${state.baseId}-content-${own.value}`);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(navigationMenuTriggerStyle(), className.value));
 
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<button
-      ref="${root}"
       type="button"
       data-slot="navigation-menu-trigger"
       id="${triggerId}"
@@ -290,7 +255,7 @@ export const NavigationMenuTrigger = component<NavigationMenuTriggerProps>(
       @pointerenter=${() => state.open(own.value)}
       @pointerleave=${() => state.scheduleClose()}
       @click=${() => state.toggle(own.value)}
-    >${props.children}<svg
+    >${children()}<svg
         class="relative top-[1px] ml-1 size-3 transition duration-300 group-data-[state=open]:rotate-180"
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 24 24"
@@ -302,6 +267,7 @@ export const NavigationMenuTrigger = component<NavigationMenuTriggerProps>(
         aria-hidden="true"
       ><path d="m6 9 6 6 6-6"></path></svg></button>`;
   },
+  { attrs: { value: 'string', className: 'string' } },
 );
 
 // ── ui-navigation-menu-content ───────────────────────────────────────
@@ -319,26 +285,18 @@ export type NavigationMenuContentProps = {
 export const NavigationMenuContent = component<NavigationMenuContentProps>(
   'ui-navigation-menu-content',
   (props, host) => {
-    const state = useNavigationMenuState(host, 'ui-navigation-menu-content');
+    const state = NavigationMenuContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const valueAttr = attr(props.value, host, 'value');
-    const own = computed(() => valueAttr.value ?? '');
+    const own = computed(() => props.value.value ?? '');
     const isOpen = computed(() => own.value !== '' && state.value.value === own.value);
     const triggerId = computed(() => `${state.baseId}-trigger-${own.value}`);
     const contentId = computed(() => `${state.baseId}-content-${own.value}`);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(contentClasses, className.value));
 
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<div
-      ref="${root}"
       data-slot="navigation-menu-content"
       id="${contentId}"
       aria-labelledby="${triggerId}"
@@ -347,8 +305,9 @@ export const NavigationMenuContent = component<NavigationMenuContentProps>(
       class="${classes}"
       @pointerenter=${() => state.keepOpen()}
       @pointerleave=${() => state.scheduleClose()}
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { value: 'string', className: 'string' } },
 );
 
 // ── ui-navigation-menu-link ──────────────────────────────────────────
@@ -364,11 +323,12 @@ export const NavigationMenuLink = component<NavigationMenuLinkProps>(
   'ui-navigation-menu-link',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const href = attr(props.href, host, 'href');
-    const active = computed(() => props.active.value ?? host.hasAttribute('active'));
-    const className = attr(props.className, host, 'class-name');
+    const href = props.href;
+    // `active` is a declared boolean attribute — its presence IS the truth, so
+    // props.active reads it directly (no separate host.hasAttribute fallback).
+    const active = computed<boolean>(() => props.active.value as boolean);
+    const className = props.className;
     const classes = computed(() =>
       cn(
         "flex flex-col gap-1 rounded-sm p-2 text-sm transition-all outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 data-[active=true]:bg-accent/50 data-[active=true]:text-accent-foreground data-[active=true]:hover:bg-accent data-[active=true]:focus:bg-accent [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
@@ -376,17 +336,12 @@ export const NavigationMenuLink = component<NavigationMenuLinkProps>(
       ),
     );
 
-    const root = ref<HTMLAnchorElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<a
-      ref="${root}"
       data-slot="navigation-menu-link"
       href="${href}"
       data-active="${computed(() => (active.value ? 'true' : undefined))}"
       class="${classes}"
-    >${props.children}</a>`;
+    >${children()}</a>`;
   },
+  { attrs: { href: 'string', active: 'boolean', className: 'string' } },
 );

@@ -14,31 +14,26 @@
  *   </ui-collapsible>
  *
  * Upstream carries no classes (bare data-slot hooks); style via className or
- * the data-slot/data-state selectors. Open state is signal-driven (controlled
- * `open` prop, derived; default-open / attribute fallback) and dispatches a
- * bubbling `ui-open-change` CustomEvent from the `<ui-collapsible>` host.
+ * the data-slot/data-state selectors. Open state follows PATTERN A (ADR 0025
+ * item 3): the `open` ATTRIBUTE is the uncontrolled state (like native
+ * <details open>), `defaultOpen` seeds it once, and a controlled factory `open`
+ * signal pins the prop. Open/close dispatches a bubbling `ui-open-change`
+ * CustomEvent from the `<ui-collapsible>` host.
  *
  * This file was copied into your project by `nisli-ui` — you own it.
  */
 
 import {
+  children,
   component,
+  createContext,
   computed,
+  effect,
   html,
-  onMount,
-  ref,
-  signal,
   type ReadonlySignal,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, isPinned, transparentHost } from '../lib/utils.js';
 
 // ── Shared state (published on the <ui-collapsible> host) ────────────
 
@@ -49,18 +44,10 @@ export interface CollapsibleState {
   baseId: string;
 }
 
-type CollapsibleHost = HTMLElement & { __uiCollapsible?: CollapsibleState };
+/** Subtree-scoped channel from the Collapsible provider to its parts. */
+const CollapsibleContext = createContext<CollapsibleState>('Collapsible', { providerTag: 'ui-collapsible' });
 
 let uid = 0;
-
-function useCollapsibleState(host: HTMLElement, tag: string): CollapsibleState {
-  const parent = host.closest('ui-collapsible') as CollapsibleHost | null;
-  const state = parent?.__uiCollapsible;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-collapsible>.`);
-  }
-  return state;
-}
 
 const stateAttr = (open: boolean) => (open ? 'open' : 'closed');
 
@@ -78,23 +65,39 @@ export type CollapsibleProps = {
 
 export const Collapsible = component<CollapsibleProps>('ui-collapsible', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const initialOpen =
-    props.defaultOpen.value ??
-    props.open.value ??
-    (host.hasAttribute('open') || host.hasAttribute('default-open'));
-  const internal = signal<boolean>(Boolean(initialOpen));
-  const open = computed<boolean>(() => props.open.value ?? internal.value);
-  const disabled = boolAttr(props.disabled, host, 'disabled');
+  // PATTERN A (ADR 0025 item 3): the `open` ATTRIBUTE is the uncontrolled state
+  // (like native <dialog open>/<details open>). The attribute IS the truth.
+  const open = computed<boolean>(() => props.open.value ?? false);
 
   const setOpen = (next: boolean): void => {
     if (next === open.value) return;
-    internal.value = next;
+    // Uncontrolled → the attribute IS the state, so write it. Controlled (a
+    // pinned factory `open` signal) → don't; the parent drives and the reflect
+    // effect re-syncs the attr. isPinned('open') is the discriminator (a declared
+    // 'boolean' is never undefined, so pin state is the only controlled signal).
+    if (!isPinned(host, 'open')) host.toggleAttribute('open', next);
     host.dispatchEvent(
       new CustomEvent('ui-open-change', { detail: { open: next }, bubbles: true }),
     );
   };
+
+  // defaultOpen is INIT-SEED-ONLY: seed the open attribute once, but only when
+  // `open` is neither controlled (pinned — else the reflect effect would revert
+  // it, a pointless flicker) nor explicitly authored. host.hasAttribute('open')
+  // is a SANCTIONED read of a DECLARED attribute: it distinguishes 'absent' from
+  // 'present-false' so an explicit open="false" beats defaultOpen (stays closed).
+  if (props.defaultOpen.value && !isPinned(host, 'open') && !host.hasAttribute('open')) {
+    host.toggleAttribute('open', true);
+  }
+
+  // Reflect the resolved state to the attribute so CONTROLLED (factory) usage
+  // also reflects (CSS [open] selectors + native parity); dedupe makes it cheap.
+  effect(() => {
+    host.toggleAttribute('open', open.value);
+  });
+
+  const disabled = computed<boolean>(() => props.disabled.value as boolean);
 
   const state: CollapsibleState = {
     open,
@@ -102,23 +105,25 @@ export const Collapsible = component<CollapsibleProps>('ui-collapsible', (props,
     disabled,
     baseId: `ui-collapsible-${++uid}`,
   };
-  (host as CollapsibleHost).__uiCollapsible = state;
+  CollapsibleContext.provide(host, state);
 
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn(className.value));
 
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
   return html`<div
-    ref="${root}"
     data-slot="collapsible"
     data-state="${computed(() => stateAttr(open.value))}"
     data-disabled="${computed(() => (disabled.value ? '' : undefined))}"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  // PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
+  attrs: {
+    open: 'boolean',
+    defaultOpen: 'boolean',
+    disabled: 'boolean',
+    className: 'string',
+  },
 });
 
 // ── ui-collapsible-trigger ───────────────────────────────────────────
@@ -131,24 +136,17 @@ export type CollapsibleTriggerProps = {
 export const CollapsibleTrigger = component<CollapsibleTriggerProps>(
   'ui-collapsible-trigger',
   (props, host) => {
-    const state = useCollapsibleState(host, 'ui-collapsible-trigger');
+    const state = CollapsibleContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(className.value));
-
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
 
     const onToggle = (): void => {
       if (!state.disabled.value) state.setOpen(!state.open.value);
     };
 
     return html`<button
-      ref="${root}"
       type="button"
       data-slot="collapsible-trigger"
       aria-controls="${`${state.baseId}-content`}"
@@ -158,8 +156,9 @@ export const CollapsibleTrigger = component<CollapsibleTriggerProps>(
       disabled="${state.disabled}"
       class="${classes}"
       @click=${onToggle}
-    >${props.children}</button>`;
+    >${children()}</button>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-collapsible-content ───────────────────────────────────────────
@@ -172,25 +171,19 @@ export type CollapsibleContentProps = {
 export const CollapsibleContent = component<CollapsibleContentProps>(
   'ui-collapsible-content',
   (props, host) => {
-    const state = useCollapsibleState(host, 'ui-collapsible-content');
+    const state = CollapsibleContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(className.value));
 
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<div
-      ref="${root}"
       data-slot="collapsible-content"
       id="${`${state.baseId}-content`}"
       data-state="${computed(() => stateAttr(state.open.value))}"
       hidden="${computed(() => !state.open.value)}"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { className: 'string' } },
 );

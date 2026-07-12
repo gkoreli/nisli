@@ -28,13 +28,7 @@ import {
   onMount,
   ref,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  cn,
-  forwardedAttr,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 export const inputClasses =
   'h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40';
@@ -57,17 +51,23 @@ export type InputProps = {
 export const Input = component<InputProps>('ui-input', (props, host) => {
   transparentHost(host);
 
-  const type = attr(props.type, host, 'type');
-  const placeholder = attr(props.placeholder, host, 'placeholder');
-  const autocomplete = attr(props.autocomplete, host, 'autocomplete');
-  const value = attr(props.value, host, 'value');
-  // id/name belong on the real control, not the transparent host.
-  const id = forwardedAttr(props.id, host, 'id');
-  const name = forwardedAttr(props.name, host, 'name');
-  const disabled = boolAttr(props.disabled, host, 'disabled');
-  const required = boolAttr(props.required, host, 'required');
-  const readOnly = boolAttr(props.readOnly, host, 'readonly');
-  const className = attr(props.className, host, 'class-name');
+  // ADR 0025 item 3: attribute fallbacks are declared via the `attrs` option
+  // below and delivered as plain, LIVE prop signals — no userland
+  // attr()/boolAttr()/forwardedAttr() at setup. 'forward' relocates id/name off
+  // the transparent host onto the inner control (native form participation).
+  // Declared-default booleans are runtime-guaranteed non-undefined; the
+  // `as boolean` is the typing stopgap until ReactiveProps carries the declared
+  // type.
+  const type = props.type;
+  const placeholder = props.placeholder;
+  const autocomplete = props.autocomplete;
+  const value = props.value;
+  const id = props.id;
+  const name = props.name;
+  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const required = computed<boolean>(() => props.required.value as boolean);
+  const readOnly = computed<boolean>(() => props.readOnly.value as boolean);
+  const className = props.className;
 
   const classes = computed(() => cn(inputClasses, className.value));
 
@@ -105,4 +105,20 @@ export const Input = component<InputProps>('ui-input', (props, host) => {
     required="${required}"
     readonly="${readOnly}"
   />`;
+}, {
+  // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
+  // (className → class-name). 'forward' relocates id/name off the transparent
+  // host onto the inner control (native form participation).
+  attrs: {
+    type: 'string',
+    placeholder: 'string',
+    autocomplete: 'string',
+    value: 'string',
+    className: 'string',
+    id: 'forward',
+    name: 'forward',
+    disabled: 'boolean',
+    required: 'boolean',
+    readOnly: { type: 'boolean', attr: 'readonly' },
+  },
 });

@@ -10,20 +10,13 @@
  */
 
 import {
+  children,
   component,
   computed,
   html,
-  onMount,
-  ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 export const kbdClasses =
   "pointer-events-none inline-flex h-5 w-fit min-w-5 items-center justify-center gap-1 rounded-sm bg-muted px-1 font-sans text-xs font-medium text-muted-foreground select-none [&_svg:not([class*='size-'])]:size-3 [[data-slot=tooltip-content]_&]:bg-background/20 [[data-slot=tooltip-content]_&]:text-background dark:[[data-slot=tooltip-content]_&]:bg-background/10";
@@ -38,21 +31,18 @@ export type KbdProps = {
 
 export const Kbd = component<KbdProps>('ui-kbd', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn(kbdClasses, className.value));
 
-  const root = ref<HTMLElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
   return html`<kbd
-    ref="${root}"
     data-slot="kbd"
     class="${classes}"
-  >${props.children}</kbd>`;
+  >${children()}</kbd>`;
+}, {
+  attrs: {
+    className: 'string',
+  },
 });
 
 export type KbdGroupProps = {
@@ -63,19 +53,16 @@ export type KbdGroupProps = {
 
 export const KbdGroup = component<KbdGroupProps>('ui-kbd-group', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn(kbdGroupClasses, className.value));
 
-  const root = ref<HTMLElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
   return html`<kbd
-    ref="${root}"
     data-slot="kbd-group"
     class="${classes}"
-  >${props.children}</kbd>`;
+  >${children()}</kbd>`;
+}, {
+  attrs: {
+    className: 'string',
+  },
 });

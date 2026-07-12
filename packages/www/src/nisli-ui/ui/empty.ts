@@ -10,19 +10,15 @@
  */
 
 import {
+  children,
   component,
   computed,
   html,
-  onMount,
-  ref,
   type TemplateResult,
 } from '@nisli/core';
 import {
-  attr,
-  captureChildren,
   cn,
   cv,
-  projectChildren,
   transparentHost,
 } from '../lib/utils.js';
 
@@ -35,14 +31,12 @@ export type EmptyPartProps = {
 function emptyPart(tag: string, slot: string, base: string) {
   return component<EmptyPartProps>(tag, (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(base, className.value));
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<div ref="${root}" data-slot="${slot}" class="${classes}">${props.children}</div>`;
+    const classes = computed(() => cn(base, props.className.value));
+    return html`<div data-slot="${slot}" class="${classes}">${children()}</div>`;
+  }, {
+    attrs: {
+      className: 'string',
+    },
   });
 }
 
@@ -103,20 +97,18 @@ export type EmptyMediaProps = {
 
 export const EmptyMedia = component<EmptyMediaProps>('ui-empty-media', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const variant = attr(props.variant, host, 'variant');
-  const className = attr(props.className, host, 'class-name');
+  const variant = props.variant;
   const classes = computed(() =>
-    cn(emptyMediaVariants({ variant: variant.value }), className.value),
+    cn(emptyMediaVariants({ variant: variant.value }), props.className.value),
   );
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
   return html`<div
-    ref="${root}"
     data-slot="empty-icon"
     data-variant="${computed(() => variant.value ?? 'default')}"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  attrs: {
+    variant: 'string',
+    className: 'string',
+  },
 });

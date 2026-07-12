@@ -12,8 +12,8 @@
  * This file was copied into your project by `nisli-ui` — you own it.
  */
 
-import { component, computed, html, onMount, ref, type TemplateResult } from '@nisli/core';
-import { attr, captureChildren, cn, cv, projectChildren, transparentHost } from '../lib/utils.js';
+import { children, component, computed, html, type TemplateResult } from '@nisli/core';
+import { cn, cv, transparentHost } from '../lib/utils.js';
 
 export type BubbleGroupProps = {
   className?: string;
@@ -22,14 +22,13 @@ export type BubbleGroupProps = {
 
 export const BubbleGroup = component<BubbleGroupProps>('ui-bubble-group', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn('flex min-w-0 flex-col gap-2', className.value));
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-  return html`<div ref="${root}" data-slot="bubble-group" class="${classes}">${props.children}</div>`;
+  return html`<div data-slot="bubble-group" class="${classes}">${children()}</div>`;
+}, {
+  attrs: {
+    className: 'string',
+  },
 });
 
 // ── ui-bubble ────────────────────────────────────────────────────────
@@ -77,22 +76,22 @@ export type BubbleProps = {
 
 export const Bubble = component<BubbleProps>('ui-bubble', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const variant = attr(props.variant, host, 'variant');
-  const align = attr(props.align, host, 'align');
-  const className = attr(props.className, host, 'class-name');
+  const variant = props.variant;
+  const align = props.align;
+  const className = props.className;
   const classes = computed(() => cn(bubbleVariants({ variant: variant.value ?? 'default' }), className.value));
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
   return html`<div
-    ref="${root}"
     data-slot="bubble"
     data-variant="${computed(() => variant.value ?? 'default')}"
     data-align="${computed(() => align.value ?? 'start')}"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  attrs: {
+    variant: 'string',
+    align: 'string',
+    className: 'string',
+  },
 });
 
 // ── ui-bubble-content ────────────────────────────────────────────────
@@ -104,19 +103,18 @@ export type BubbleContentProps = {
 
 export const BubbleContent = component<BubbleContentProps>('ui-bubble-content', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() =>
     cn(
       'w-fit max-w-full min-w-0 overflow-hidden rounded-xl border border-transparent px-3 py-2 text-sm leading-relaxed wrap-break-word group-data-[align=end]/bubble:self-end [button]:text-left [button,a]:transition-colors [button,a]:outline-none [button,a]:focus-visible:border-ring [button,a]:focus-visible:ring-3 [button,a]:focus-visible:ring-ring/50',
       className.value,
     ),
   );
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-  return html`<div ref="${root}" data-slot="bubble-content" class="${classes}">${props.children}</div>`;
+  return html`<div data-slot="bubble-content" class="${classes}">${children()}</div>`;
+}, {
+  attrs: {
+    className: 'string',
+  },
 });
 
 // ── ui-bubble-reactions ──────────────────────────────────────────────
@@ -149,26 +147,27 @@ export const BubbleReactions = component<BubbleReactionsProps>(
   'ui-bubble-reactions',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const side = attr(props.side, host, 'side');
-    const align = attr(props.align, host, 'align');
-    const className = attr(props.className, host, 'class-name');
+    const side = props.side;
+    const align = props.align;
+    const className = props.className;
     const classes = computed(() =>
       cn(
         bubbleReactionsVariants({ side: side.value ?? 'bottom', align: align.value ?? 'end' }),
         className.value,
       ),
     );
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<div
-      ref="${root}"
       data-slot="bubble-reactions"
       data-align="${computed(() => align.value ?? 'end')}"
       data-side="${computed(() => side.value ?? 'bottom')}"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
+  },
+  {
+    attrs: {
+      side: 'string',
+      align: 'string',
+      className: 'string',
+    },
   },
 );

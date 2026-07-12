@@ -30,7 +30,9 @@
  */
 
 import {
+  children,
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -43,14 +45,7 @@ import {
   type Ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, isPinned, transparentHost } from '../lib/utils.js';
 import { positionFloating, type Align, type Side } from '../lib/floating.js';
 import { portal } from '../lib/portal.js';
 import { dismissableLayer } from '../lib/dismissable-layer.js';
@@ -79,13 +74,8 @@ export interface MenubarState {
   /** Make `el` the single tab stop among the bar's triggers. */
   focusTrigger(el: HTMLElement): void;
 }
-type MenubarHost = HTMLElement & { __uiMenubar?: MenubarState };
-
-function useMenubar(host: HTMLElement, tag: string): MenubarState {
-  const bar = (host.closest('ui-menubar') as MenubarHost | null)?.__uiMenubar;
-  if (!bar) throw new Error(`<${tag}> must be used inside <ui-menubar>.`);
-  return bar;
-}
+/** Bar state — the top level, above per-menu state. */
+const MenubarContext = createContext<MenubarState>('Menubar', { providerTag: 'ui-menubar' });
 
 // ── Menu scope state (published on each <ui-menubar-menu> host) ───────
 
@@ -99,13 +89,8 @@ export interface MenubarMenuState {
    * here still bubbles to <ui-menubar> once the content is portaled away. */
   rootHost: HTMLElement;
 }
-type MenubarMenuHost = HTMLElement & { __uiMenubarMenu?: MenubarMenuState };
-
-function useMenu(host: HTMLElement, tag: string): MenubarMenuState {
-  const menu = (host.closest('ui-menubar-menu') as MenubarMenuHost | null)?.__uiMenubarMenu;
-  if (!menu) throw new Error(`<${tag}> must be used inside <ui-menubar-menu>.`);
-  return menu;
-}
+/** Per-menu state — trigger/content/items/sub of one menu resolve it. */
+const MenubarMenuContext = createContext<MenubarMenuState>('MenubarMenu', { providerTag: 'ui-menubar-menu' });
 
 let uid = 0;
 
@@ -118,7 +103,6 @@ export type MenubarProps = {
 
 export const Menubar = component<MenubarProps>('ui-menubar', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
   const openMenuId = signal<string | null>(null);
   const bar = ref<HTMLElement>();
@@ -147,24 +131,22 @@ export const Menubar = component<MenubarProps>('ui-menubar', (props, host) => {
     },
     focusTrigger,
   };
-  (host as MenubarHost).__uiMenubar = state;
+  MenubarContext.provide(host, state);
 
-  const className = attr(props.className, host, 'class-name');
   const classes = computed(() =>
-    cn('flex h-9 items-center gap-1 rounded-md border bg-background p-1 shadow-xs', className.value),
+    cn('flex h-9 items-center gap-1 rounded-md border bg-background p-1 shadow-xs', props.className.value),
   );
 
   onMount(() => {
     if (bar.current) {
-      projectChildren(host, bar.current, projected);
       // First trigger is the initial tab stop (roving).
       const list = triggers();
       list.forEach((t, i) => t.setAttribute('tabindex', i === 0 ? '0' : '-1'));
     }
   });
 
-  return html`<div ref="${bar}" role="menubar" data-slot="menubar" class="${classes}">${props.children}</div>`;
-});
+  return html`<div ref="${bar}" role="menubar" data-slot="menubar" class="${classes}">${children()}</div>`;
+}, { attrs: { className: 'string' } });
 
 // ── ui-menubar-menu (per-menu scope) ─────────────────────────────────
 
@@ -175,9 +157,8 @@ export type MenubarMenuProps = {
 };
 
 export const MenubarMenu = component<MenubarMenuProps>('ui-menubar-menu', (props, host) => {
-  const barState = useMenubar(host, 'ui-menubar-menu');
+  const barState = MenubarContext.inject();
   transparentHost(host);
-  const projected = captureChildren(host);
 
   const menuId = `ui-menubar-menu-${++uid}`;
   const open = computed<boolean>(() => barState.openMenuId.value === menuId);
@@ -194,17 +175,12 @@ export const MenubarMenu = component<MenubarMenuProps>('ui-menubar-menu', (props
     trigger: ref<HTMLElement>(),
     rootHost: host,
   };
-  (host as MenubarMenuHost).__uiMenubarMenu = state;
+  MenubarMenuContext.provide(host, state);
 
-  const className = attr(props.className, host, 'class-name');
-  const classes = computed(() => cn(className.value));
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
+  const classes = computed(() => cn(props.className.value));
 
-  return html`<div ref="${root}" data-slot="menubar-menu" style="display:contents" class="${classes}">${props.children}</div>`;
-});
+  return html`<div data-slot="menubar-menu" style="display:contents" class="${classes}">${children()}</div>`;
+}, { attrs: { value: 'string', className: 'string' } });
 
 // ── ui-menubar-trigger ───────────────────────────────────────────────
 
@@ -219,20 +195,15 @@ export type MenubarTriggerProps = {
 export const MenubarTrigger = component<MenubarTriggerProps>(
   'ui-menubar-trigger',
   (props, host) => {
-    const bar = useMenubar(host, 'ui-menubar-trigger');
-    const menu = useMenu(host, 'ui-menubar-trigger');
+    const bar = MenubarContext.inject();
+    const menu = MenubarMenuContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(triggerClasses, className.value));
+    const classes = computed(() => cn(triggerClasses, props.className.value));
 
     const root = ref<HTMLButtonElement>();
     onMount(() => {
-      if (root.current) {
-        projectChildren(host, root.current, projected);
-        menu.trigger.current = root.current;
-      }
+      if (root.current) menu.trigger.current = root.current;
     });
 
     const siblings = (): HTMLElement[] =>
@@ -288,8 +259,9 @@ export const MenubarTrigger = component<MenubarTriggerProps>(
         if (bar.openMenuId.value != null) menu.setOpen(true);
       }}
       @keydown=${onKeyDown}
-    >${props.children}</button>`;
+    >${children()}</button>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── Shared menu-surface wiring (root content + submenu content) ──────
@@ -442,26 +414,20 @@ export type MenubarContentProps = {
 export const MenubarContent = component<MenubarContentProps>(
   'ui-menubar-content',
   (props, host) => {
-    const bar = useMenubar(host, 'ui-menubar-content');
-    const menu = useMenu(host, 'ui-menubar-content');
+    const bar = MenubarContext.inject();
+    const menu = MenubarMenuContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
-
-    const alignAttr = attr(props.align, host, 'align');
-    const align = computed<Align>(() => (alignAttr.value as Align) ?? 'start');
+    const align = computed<Align>(() => (props.align.value as Align) ?? 'start');
     const alignOffset = computed<number>(() => props.alignOffset.value ?? -4);
     const sideOffset = computed<number>(() => props.sideOffset.value ?? 8);
 
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(contentClasses, className.value));
+    const classes = computed(() => cn(contentClasses, props.className.value));
     const contentId = `${menu.baseId}-content`;
 
     const content = ref<HTMLElement>();
     // Portal the menu surface to <body> (default on) so its fixed positioning
     // escapes transformed ancestors; the wired behavior operates by reference.
-    const portalEnabled =
-      props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
-    portal(content, { enabled: portalEnabled });
+    portal(content, { enabled: props.portal.value as boolean });
     const closeAndFocusTrigger = (): void => {
       menu.setOpen(false);
       menu.trigger.current?.focus();
@@ -485,10 +451,6 @@ export const MenubarContent = component<MenubarContentProps>(
       onArrowRight: () => bar.moveMenu(menu.menuId, 1),
     });
 
-    onMount(() => {
-      if (content.current) projectChildren(host, content.current, projected);
-    });
-
     return html`<div
       ref="${content}"
       role="menu"
@@ -500,8 +462,9 @@ export const MenubarContent = component<MenubarContentProps>(
       class="${classes}"
       @keydown=${onKeyDown}
       @pointerover=${onPointerOver}
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { align: 'string', alignOffset: 'number', sideOffset: 'number', portal: { type: 'boolean', default: true }, className: 'string' } },
 );
 
 // ── Item selection helper ────────────────────────────────────────────
@@ -529,41 +492,32 @@ export type MenubarItemProps = {
 };
 
 export const MenubarItem = component<MenubarItemProps>('ui-menubar-item', (props, host) => {
-  const menu = useMenu(host, 'ui-menubar-item');
+  const menu = MenubarMenuContext.inject();
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const inset = boolAttr(props.inset, host, 'inset');
-  const variant = attr(props.variant, host, 'variant');
-  const disabled = boolAttr(props.disabled, host, 'disabled');
-  const value = attr(props.value, host, 'value');
-
-  const className = attr(props.className, host, 'class-name');
-  const classes = computed(() => cn(itemClasses, className.value));
+  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const classes = computed(() => cn(itemClasses, props.className.value));
 
   const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
 
   const onClick = (): void => {
     if (disabled.value || !root.current) return;
-    emitSelect(menu, value.value);
+    emitSelect(menu, props.value.value);
   };
 
   return html`<div
     ref="${root}"
     role="menuitem"
     data-slot="menubar-item"
-    data-inset="${computed(() => (inset.value ? '' : undefined))}"
-    data-variant="${computed(() => variant.value ?? 'default')}"
+    data-inset="${computed(() => (props.inset.value ? '' : undefined))}"
+    data-variant="${computed(() => props.variant.value ?? 'default')}"
     data-disabled="${computed(() => (disabled.value ? '' : undefined))}"
     aria-disabled="${computed(() => (disabled.value ? 'true' : undefined))}"
     tabindex="-1"
     class="${classes}"
     @click=${onClick}
-  >${props.children}</div>`;
-});
+  >${children()}</div>`;
+}, { attrs: { inset: 'boolean', variant: 'string', disabled: 'boolean', value: 'string', className: 'string' } });
 
 // ── ui-menubar-checkbox-item / radio-group / radio-item ──────────────
 
@@ -582,29 +536,24 @@ export type MenubarCheckboxItemProps = {
 export const MenubarCheckboxItem = component<MenubarCheckboxItemProps>(
   'ui-menubar-checkbox-item',
   (props, host) => {
-    const menu = useMenu(host, 'ui-menubar-checkbox-item');
+    const menu = MenubarMenuContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const disabled = boolAttr(props.disabled, host, 'disabled');
-    const value = attr(props.value, host, 'value');
-    const controlled = props.checked;
-    const internal = signal<boolean>(Boolean(props.checked.value ?? host.hasAttribute('checked')));
-    const checked = computed<boolean>(() => controlled.value ?? internal.value);
+    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    // Controlled when the factory PINS `checked`; else uncontrolled internal.
+    const internal = signal<boolean>(Boolean(props.checked.value));
+    const checked = computed<boolean>(() =>
+      isPinned(host, 'checked') ? Boolean(props.checked.value) : internal.value,
+    );
 
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(checkableItemClasses, className.value));
+    const classes = computed(() => cn(checkableItemClasses, props.className.value));
 
     const item = ref<HTMLDivElement>();
-    const label = ref<HTMLSpanElement>();
-    onMount(() => {
-      if (label.current) projectChildren(host, label.current, projected);
-    });
 
     const onClick = (): void => {
       if (disabled.value || !item.current) return;
       internal.value = !checked.value;
-      emitSelect(menu, value.value);
+      emitSelect(menu, props.value.value);
     };
 
     return html`<div
@@ -617,15 +566,17 @@ export const MenubarCheckboxItem = component<MenubarCheckboxItemProps>(
       tabindex="-1"
       class="${classes}"
       @click=${onClick}
-    ><span class="${indicatorSpan}">${when(checked, () => checkIcon)}</span><span ref="${label}" style="display:contents">${props.children}</span></div>`;
+    ><span class="${indicatorSpan}">${when(checked, () => checkIcon)}</span><span style="display:contents">${children()}</span></div>`;
   },
+  { attrs: { checked: 'boolean', disabled: 'boolean', value: 'string', className: 'string' } },
 );
 
 export interface MenubarRadioGroupState {
   value: ReadonlySignal<string>;
   setValue(value: string): void;
 }
-type RadioGroupHost = HTMLElement & { __uiMenubarRadioGroup?: MenubarRadioGroupState };
+/** Radio-group value scope — its radio items resolve it. */
+const MenubarRadioGroupContext = createContext<MenubarRadioGroupState>('MenubarRadioGroup', { providerTag: 'ui-menubar-radio-group' });
 
 export type MenubarRadioGroupProps = {
   value?: string;
@@ -638,26 +589,21 @@ export const MenubarRadioGroup = component<MenubarRadioGroupProps>(
   'ui-menubar-radio-group',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const internal = signal<string>(props.defaultValue.value ?? host.getAttribute('default-value') ?? '');
+    const internal = signal<string>(props.defaultValue.value ?? '');
     const value = computed<string>(() => props.value.value ?? internal.value);
-    (host as RadioGroupHost).__uiMenubarRadioGroup = {
+    MenubarRadioGroupContext.provide(host, {
       value,
       setValue: (v) => {
         internal.value = v;
       },
-    };
-
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(className.value));
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
     });
 
-    return html`<div ref="${root}" role="group" data-slot="menubar-radio-group" style="display:contents" class="${classes}">${props.children}</div>`;
+    const classes = computed(() => cn(props.className.value));
+
+    return html`<div role="group" data-slot="menubar-radio-group" style="display:contents" class="${classes}">${children()}</div>`;
   },
+  { attrs: { value: 'string', defaultValue: 'string', className: 'string' } },
 );
 
 export type MenubarRadioItemProps = {
@@ -670,29 +616,23 @@ export type MenubarRadioItemProps = {
 export const MenubarRadioItem = component<MenubarRadioItemProps>(
   'ui-menubar-radio-item',
   (props, host) => {
-    const menu = useMenu(host, 'ui-menubar-radio-item');
-    const group = (host.closest('ui-menubar-radio-group') as RadioGroupHost | null)
-      ?.__uiMenubarRadioGroup;
+    const menu = MenubarMenuContext.inject();
+    const group = MenubarRadioGroupContext.inject.optional();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const disabled = boolAttr(props.disabled, host, 'disabled');
-    const value = attr(props.value, host, 'value');
-    const checked = computed<boolean>(() => group != null && group.value.value === (value.value ?? ''));
+    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const checked = computed<boolean>(
+      () => group != null && group.value.value === (props.value.value ?? ''),
+    );
 
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(checkableItemClasses, className.value));
+    const classes = computed(() => cn(checkableItemClasses, props.className.value));
 
     const item = ref<HTMLDivElement>();
-    const label = ref<HTMLSpanElement>();
-    onMount(() => {
-      if (label.current) projectChildren(host, label.current, projected);
-    });
 
     const onClick = (): void => {
       if (disabled.value || !item.current) return;
-      group?.setValue(value.value ?? '');
-      emitSelect(menu, value.value);
+      group?.setValue(props.value.value ?? '');
+      emitSelect(menu, props.value.value);
     };
 
     return html`<div
@@ -705,8 +645,9 @@ export const MenubarRadioItem = component<MenubarRadioItemProps>(
       tabindex="-1"
       class="${classes}"
       @click=${onClick}
-    ><span class="${indicatorSpan}">${when(checked, () => circleIcon)}</span><span ref="${label}" style="display:contents">${props.children}</span></div>`;
+    ><span class="${indicatorSpan}">${when(checked, () => circleIcon)}</span><span style="display:contents">${children()}</span></div>`;
   },
+  { attrs: { value: 'string', disabled: 'boolean', className: 'string' } },
 );
 
 // ── ui-menubar-label / -separator / -shortcut / -group ───────────────
@@ -719,21 +660,13 @@ export type MenubarLabelProps = {
 
 export const MenubarLabel = component<MenubarLabelProps>('ui-menubar-label', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const inset = boolAttr(props.inset, host, 'inset');
-  const className = attr(props.className, host, 'class-name');
-  const classes = computed(() => cn('px-2 py-1.5 text-sm font-medium data-[inset]:pl-8', className.value));
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
+  const classes = computed(() => cn('px-2 py-1.5 text-sm font-medium data-[inset]:pl-8', props.className.value));
   return html`<div
-    ref="${root}"
     data-slot="menubar-label"
-    data-inset="${computed(() => (inset.value ? '' : undefined))}"
+    data-inset="${computed(() => (props.inset.value ? '' : undefined))}"
     class="${classes}"
-  >${props.children}</div>`;
-});
+  >${children()}</div>`;
+}, { attrs: { inset: 'boolean', className: 'string' } });
 
 export type MenubarSeparatorProps = { className?: string };
 
@@ -741,10 +674,10 @@ export const MenubarSeparator = component<MenubarSeparatorProps>(
   'ui-menubar-separator',
   (props, host) => {
     transparentHost(host);
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn('-mx-1 my-1 h-px bg-border', className.value));
+    const classes = computed(() => cn('-mx-1 my-1 h-px bg-border', props.className.value));
     return html`<div role="separator" aria-orientation="horizontal" data-slot="menubar-separator" class="${classes}"></div>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export type MenubarShortcutProps = {
@@ -756,17 +689,12 @@ export const MenubarShortcut = component<MenubarShortcutProps>(
   'ui-menubar-shortcut',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
-      cn('ml-auto text-xs tracking-widest text-muted-foreground', className.value),
+      cn('ml-auto text-xs tracking-widest text-muted-foreground', props.className.value),
     );
-    const root = ref<HTMLSpanElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<span ref="${root}" data-slot="menubar-shortcut" class="${classes}">${props.children}</span>`;
+    return html`<span data-slot="menubar-shortcut" class="${classes}">${children()}</span>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export type MenubarGroupProps = {
@@ -776,15 +704,9 @@ export type MenubarGroupProps = {
 
 export const MenubarGroup = component<MenubarGroupProps>('ui-menubar-group', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const className = attr(props.className, host, 'class-name');
-  const classes = computed(() => cn(className.value));
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-  return html`<div ref="${root}" role="group" data-slot="menubar-group" style="display:contents" class="${classes}">${props.children}</div>`;
-});
+  const classes = computed(() => cn(props.className.value));
+  return html`<div role="group" data-slot="menubar-group" style="display:contents" class="${classes}">${children()}</div>`;
+}, { attrs: { className: 'string' } });
 
 // ── Submenu: ui-menubar-sub / -sub-trigger / -sub-content ────────────
 
@@ -800,21 +722,16 @@ export interface MenubarSubState {
   hoverClose(): void;
   hoverCancel(): void;
 }
-type SubHost = HTMLElement & { __uiMenubarSub?: MenubarSubState };
-
-function useSubState(host: HTMLElement, tag: string): MenubarSubState {
-  const sub = (host.closest('ui-menubar-sub') as SubHost | null)?.__uiMenubarSub;
-  if (!sub) throw new Error(`<${tag}> must be used inside <ui-menubar-sub>.`);
-  return sub;
-}
+/** Submenu state — sub-trigger/sub-content resolve it. */
+const MenubarSubContext = createContext<MenubarSubState>('MenubarSub', { providerTag: 'ui-menubar-sub' });
 
 /** Nearest ancestor scope open signal (enclosing submenu, else the menu). */
 function resolveParentOpen(host: HTMLElement): ReadonlySignal<boolean> {
   let el: HTMLElement | null = host.parentElement;
   while (el) {
-    const sub = (el as SubHost).__uiMenubarSub;
+    const sub = MenubarSubContext.peek(el);
     if (sub) return sub.open;
-    const menu = (el as MenubarMenuHost).__uiMenubarMenu;
+    const menu = MenubarMenuContext.peek(el);
     if (menu) return menu.open;
     el = el.parentElement;
   }
@@ -829,12 +746,13 @@ export type MenubarSubProps = {
 };
 
 export const MenubarSub = component<MenubarSubProps>('ui-menubar-sub', (props, host) => {
-  useMenu(host, 'ui-menubar-sub');
+  MenubarMenuContext.inject();
   transparentHost(host);
-  const projected = captureChildren(host);
 
   const parentOpen = resolveParentOpen(host);
-  const internal = signal<boolean>(Boolean(props.defaultOpen.value ?? host.hasAttribute('default-open')));
+  // Submenu open is INTERNAL (root-only attribute-as-truth rule): plain signal
+  // seeded from the declared default-open; `open` stays a factory-only control.
+  const internal = signal<boolean>(Boolean(props.defaultOpen.value));
   const desired = computed<boolean>(() => props.open.value ?? internal.value);
   const open = computed<boolean>(() => desired.value && parentOpen.value);
   const setOpen = (next: boolean): void => {
@@ -864,18 +782,13 @@ export const MenubarSub = component<MenubarSubProps>('ui-menubar-sub', (props, h
     },
     hoverCancel: clearTimers,
   };
-  (host as SubHost).__uiMenubarSub = state;
+  MenubarSubContext.provide(host, state);
   onCleanup(clearTimers);
 
-  const className = attr(props.className, host, 'class-name');
-  const classes = computed(() => cn(className.value));
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
+  const classes = computed(() => cn(props.className.value));
 
-  return html`<div ref="${root}" data-slot="menubar-sub" style="display:contents" class="${classes}">${props.children}</div>`;
-});
+  return html`<div data-slot="menubar-sub" style="display:contents" class="${classes}">${children()}</div>`;
+}, { attrs: { defaultOpen: 'boolean', className: 'string' } });
 
 const subTriggerClasses =
   'flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-none select-none focus:bg-accent focus:text-accent-foreground data-[inset]:pl-8 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground';
@@ -890,19 +803,14 @@ export type MenubarSubTriggerProps = {
 export const MenubarSubTrigger = component<MenubarSubTriggerProps>(
   'ui-menubar-sub-trigger',
   (props, host) => {
-    const sub = useSubState(host, 'ui-menubar-sub-trigger');
+    const sub = MenubarSubContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const inset = boolAttr(props.inset, host, 'inset');
-    const disabled = boolAttr(props.disabled, host, 'disabled');
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(subTriggerClasses, className.value));
+    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const classes = computed(() => cn(subTriggerClasses, props.className.value));
 
     const item = ref<HTMLDivElement>();
-    const label = ref<HTMLSpanElement>();
     onMount(() => {
-      if (label.current) projectChildren(host, label.current, projected);
       if (item.current) sub.trigger.current = item.current;
     });
 
@@ -924,7 +832,7 @@ export const MenubarSubTrigger = component<MenubarSubTriggerProps>(
       aria-expanded="${computed(() => (sub.open.value ? 'true' : 'false'))}"
       aria-controls="${`${sub.baseId}-content`}"
       data-state="${computed(() => stateAttr(sub.open.value))}"
-      data-inset="${computed(() => (inset.value ? '' : undefined))}"
+      data-inset="${computed(() => (props.inset.value ? '' : undefined))}"
       data-disabled="${computed(() => (disabled.value ? '' : undefined))}"
       aria-disabled="${computed(() => (disabled.value ? 'true' : undefined))}"
       tabindex="-1"
@@ -940,8 +848,9 @@ export const MenubarSubTrigger = component<MenubarSubTriggerProps>(
       }}
       @pointerleave=${() => sub.hoverClose()}
       @keydown=${onKeyDown}
-    ><span ref="${label}" style="display:contents">${props.children}</span>${chevronRightIcon}</div>`;
+    ><span style="display:contents">${children()}</span>${chevronRightIcon}</div>`;
   },
+  { attrs: { inset: 'boolean', disabled: 'boolean', className: 'string' } },
 );
 
 const subContentClasses =
@@ -961,19 +870,15 @@ export type MenubarSubContentProps = {
 export const MenubarSubContent = component<MenubarSubContentProps>(
   'ui-menubar-sub-content',
   (props, host) => {
-    const sub = useSubState(host, 'ui-menubar-sub-content');
+    const sub = MenubarSubContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
     const sideOffset = computed<number>(() => props.sideOffset.value ?? 0);
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(subContentClasses, className.value));
+    const classes = computed(() => cn(subContentClasses, props.className.value));
     const contentId = `${sub.baseId}-content`;
 
     const content = ref<HTMLElement>();
-    const portalEnabled =
-      props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
-    portal(content, { enabled: portalEnabled });
+    portal(content, { enabled: props.portal.value as boolean });
     const closeAndFocusTrigger = (): void => {
       sub.setOpen(false);
       sub.trigger.current?.focus();
@@ -989,10 +894,6 @@ export const MenubarSubContent = component<MenubarSubContentProps>(
       onArrowLeft: closeAndFocusTrigger,
     });
 
-    onMount(() => {
-      if (content.current) projectChildren(host, content.current, projected);
-    });
-
     return html`<div
       ref="${content}"
       role="menu"
@@ -1006,6 +907,7 @@ export const MenubarSubContent = component<MenubarSubContentProps>(
       @pointerover=${onPointerOver}
       @pointerenter=${() => sub.hoverCancel()}
       @pointerleave=${() => sub.hoverClose()}
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { sideOffset: 'number', portal: { type: 'boolean', default: true }, className: 'string' } },
 );

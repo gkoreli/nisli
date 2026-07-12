@@ -10,6 +10,7 @@
  */
 
 import {
+  children,
   component,
   computed,
   effect,
@@ -22,13 +23,9 @@ import { buttonVariants, type ButtonVariant } from './button.js';
 import { inputClasses, type InputProps } from './input.js';
 import { textareaClasses, type TextareaProps } from './textarea.js';
 import {
-  attr,
-  boolAttr,
   captureChildren,
   cn,
   cv,
-  forwardedAttr,
-  projectChildren,
   transparentHost,
 } from '../lib/utils.js';
 
@@ -39,19 +36,18 @@ type PartProps = { className?: string; children?: string | TemplateResult };
 
 export const InputGroup = component<PartProps>('ui-input-group', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const className = attr(props.className, host, 'class-name');
+  // ADR 0025 item 3: className fallback declared via `attrs` below (no userland
+  // attr()); item 1: light-DOM projection via children() (no captureChildren /
+  // projectChildren / projection onMount / projection ref).
+  const className = props.className;
   const classes = computed(() => cn(inputGroupClasses, className.value));
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
   return html`<div
-    ref="${root}"
     data-slot="input-group"
     role="group"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  attrs: { className: 'string' },
 });
 
 export const inputGroupAddonVariants = cv(
@@ -84,30 +80,26 @@ export const InputGroupAddon = component<InputGroupAddonProps>(
   'ui-input-group-addon',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const alignAttr = attr(props.align, host, 'align');
-    const align = computed<InputGroupAddonAlign>(() => alignAttr.value ?? 'inline-start');
-    const className = attr(props.className, host, 'class-name');
+    const align = computed<InputGroupAddonAlign>(() => props.align.value ?? 'inline-start');
+    const className = props.className;
     const classes = computed(() =>
       cn(inputGroupAddonVariants({ align: align.value }), className.value),
     );
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     const focusControl = (event: Event): void => {
       const target = event.target as HTMLElement;
       if (target.closest('button')) return;
       host.parentElement?.querySelector<HTMLInputElement>('input')?.focus();
     };
     return html`<div
-      ref="${root}"
       role="group"
       data-slot="input-group-addon"
       data-align="${align}"
       class="${classes}"
       @click=${focusControl}
-    >${props.children}</div>`;
+    >${children()}</div>`;
+  },
+  {
+    attrs: { align: 'string', className: 'string' },
   },
 );
 
@@ -135,13 +127,11 @@ export const InputGroupButton = component<InputGroupButtonProps>(
   'ui-input-group-button',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const type = attr(props.type, host, 'type');
-    const variant = attr(props.variant, host, 'variant');
-    const sizeAttr = attr(props.size, host, 'size');
-    const size = computed<InputGroupButtonSize>(() => sizeAttr.value ?? 'xs');
-    const disabled = boolAttr(props.disabled, host, 'disabled');
-    const className = attr(props.className, host, 'class-name');
+    const type = props.type;
+    const variant = props.variant;
+    const size = computed<InputGroupButtonSize>(() => props.size.value ?? 'xs');
+    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const className = props.className;
     const classes = computed(() =>
       cn(
         buttonVariants({ variant: variant.value ?? 'ghost' }),
@@ -149,19 +139,23 @@ export const InputGroupButton = component<InputGroupButtonProps>(
         className.value,
       ),
     );
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<button
-      ref="${root}"
       data-slot="button"
       data-size="${size}"
       data-variant="${computed(() => variant.value ?? 'ghost')}"
       type="${computed(() => type.value ?? 'button')}"
       disabled="${disabled}"
       class="${classes}"
-    >${props.children}</button>`;
+    >${children()}</button>`;
+  },
+  {
+    attrs: {
+      type: 'string',
+      variant: 'string',
+      size: 'string',
+      disabled: 'boolean',
+      className: 'string',
+    },
   },
 );
 
@@ -170,18 +164,14 @@ export const inputGroupTextClasses =
 
 export const InputGroupText = component<PartProps>('ui-input-group-text', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn(inputGroupTextClasses, className.value));
-  const root = ref<HTMLSpanElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
   return html`<span
-    ref="${root}"
     data-slot="input-group-text"
     class="${classes}"
-  >${props.children}</span>`;
+  >${children()}</span>`;
+}, {
+  attrs: { className: 'string' },
 });
 
 export const inputGroupInputClasses =
@@ -189,16 +179,20 @@ export const inputGroupInputClasses =
 
 export const InputGroupInput = component<InputProps>('ui-input-group-input', (props, host) => {
   transparentHost(host);
-  const type = attr(props.type, host, 'type');
-  const placeholder = attr(props.placeholder, host, 'placeholder');
-  const autocomplete = attr(props.autocomplete, host, 'autocomplete');
-  const value = attr(props.value, host, 'value');
-  const id = forwardedAttr(props.id, host, 'id');
-  const name = forwardedAttr(props.name, host, 'name');
-  const disabled = boolAttr(props.disabled, host, 'disabled');
-  const required = boolAttr(props.required, host, 'required');
-  const readOnly = boolAttr(props.readOnly, host, 'readonly');
-  const className = attr(props.className, host, 'class-name');
+  // ADR 0025 item 3: attribute fallbacks declared via `attrs` below; delivered
+  // as live prop signals — no userland attr()/boolAttr()/forwardedAttr().
+  // 'forward' relocates id/name onto the inner control. Declared-default
+  // booleans are runtime-guaranteed non-undefined (`as boolean` is the stopgap).
+  const type = props.type;
+  const placeholder = props.placeholder;
+  const autocomplete = props.autocomplete;
+  const value = props.value;
+  const id = props.id;
+  const name = props.name;
+  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const required = computed<boolean>(() => props.required.value as boolean);
+  const readOnly = computed<boolean>(() => props.readOnly.value as boolean);
+  const className = props.className;
   const classes = computed(() => cn(inputClasses, inputGroupInputClasses, className.value));
   const root = ref<HTMLInputElement>();
   effect(() => {
@@ -227,6 +221,19 @@ export const InputGroupInput = component<InputProps>('ui-input-group-input', (pr
     required="${required}"
     readonly="${readOnly}"
   />`;
+}, {
+  attrs: {
+    type: 'string',
+    placeholder: 'string',
+    autocomplete: 'string',
+    value: 'string',
+    className: 'string',
+    id: 'forward',
+    name: 'forward',
+    disabled: 'boolean',
+    required: 'boolean',
+    readOnly: { type: 'boolean', attr: 'readonly' },
+  },
 });
 
 export const inputGroupTextareaClasses =
@@ -236,19 +243,24 @@ export const InputGroupTextarea = component<TextareaProps>(
   'ui-input-group-textarea',
   (props, host) => {
     transparentHost(host);
+    // A textarea's child text is its value; capture pre-existing content.
+    // NOTE: captureChildren here CONSUMES child text as the initial value
+    // (native <textarea> semantics) — it does NOT project children into a slot,
+    // so this is deliberately kept rather than migrated to children().
     const captured = captureChildren(host);
     const capturedText = captured.map((node) => node.textContent ?? '').join('');
-    const placeholder = attr(props.placeholder, host, 'placeholder');
-    const autocomplete = attr(props.autocomplete, host, 'autocomplete');
-    const value = attr(props.value, host, 'value');
-    const id = forwardedAttr(props.id, host, 'id');
-    const name = forwardedAttr(props.name, host, 'name');
-    const disabled = boolAttr(props.disabled, host, 'disabled');
-    const required = boolAttr(props.required, host, 'required');
-    const readOnly = boolAttr(props.readOnly, host, 'readonly');
-    const className = attr(props.className, host, 'class-name');
-    const rowsAttr = host.getAttribute('rows') ?? undefined;
-    const rows = computed(() => props.rows.value ?? rowsAttr);
+    // ADR 0025 item 3: attribute fallbacks declared via `attrs` below; delivered
+    // as live prop signals — no userland attr()/boolAttr()/forwardedAttr().
+    const placeholder = props.placeholder;
+    const autocomplete = props.autocomplete;
+    const value = props.value;
+    const id = props.id;
+    const name = props.name;
+    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const required = computed<boolean>(() => props.required.value as boolean);
+    const readOnly = computed<boolean>(() => props.readOnly.value as boolean);
+    const className = props.className;
+    const rows = props.rows; // 'number' attr (declared below) — live
     const classes = computed(() =>
       cn(textareaClasses, inputGroupTextareaClasses, className.value),
     );
@@ -281,5 +293,19 @@ export const InputGroupTextarea = component<TextareaProps>(
       required="${required}"
       readonly="${readOnly}"
     ></textarea>`;
+  },
+  {
+    attrs: {
+      placeholder: 'string',
+      autocomplete: 'string',
+      value: 'string',
+      className: 'string',
+      id: 'forward',
+      name: 'forward',
+      disabled: 'boolean',
+      required: 'boolean',
+      readOnly: { type: 'boolean', attr: 'readonly' },
+      rows: 'number',
+    },
   },
 );

@@ -13,21 +13,13 @@
  */
 
 import {
+  children,
   component,
   computed,
   html,
-  onMount,
-  ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 import { buttonVariants, type ButtonSize } from './button.js';
 
 const chevronLeft = (): TemplateResult => html`<svg
@@ -68,38 +60,31 @@ export type PaginationPartProps = {
 
 export const Pagination = component<PaginationPartProps>('ui-pagination', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn('mx-auto flex w-full justify-center', className.value));
-  const root = ref<HTMLElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
   return html`<nav
-    ref="${root}"
     role="navigation"
     aria-label="pagination"
     data-slot="pagination"
     class="${classes}"
-  >${props.children}</nav>`;
+  >${children()}</nav>`;
+}, {
+  attrs: { className: 'string' },
 });
 
 export const PaginationContent = component<PaginationPartProps>(
   'ui-pagination-content',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn('flex flex-row items-center gap-1', className.value));
-    const root = ref<HTMLUListElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<ul
-      ref="${root}"
       data-slot="pagination-content"
       class="${classes}"
-    >${props.children}</ul>`;
+    >${children()}</ul>`;
+  },
+  {
+    attrs: { className: 'string' },
   },
 );
 
@@ -107,18 +92,15 @@ export const PaginationItem = component<PaginationPartProps>(
   'ui-pagination-item',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(className.value));
-    const root = ref<HTMLLIElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<li
-      ref="${root}"
       data-slot="pagination-item"
       class="${classes}"
-    >${props.children}</li>`;
+    >${children()}</li>`;
+  },
+  {
+    attrs: { className: 'string' },
   },
 );
 
@@ -132,12 +114,11 @@ export const PaginationLink = component<PaginationLinkProps>(
   'ui-pagination-link',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const isActive = boolAttr(props.isActive, host, 'is-active');
-    const size = attr(props.size, host, 'size');
-    const href = attr(props.href, host, 'href');
-    const className = attr(props.className, host, 'class-name');
+    const isActive = computed<boolean>(() => props.isActive.value as boolean);
+    const size = props.size;
+    const href = props.href;
+    const className = props.className;
 
     const classes = computed(() =>
       cn(
@@ -149,19 +130,21 @@ export const PaginationLink = component<PaginationLinkProps>(
       ),
     );
 
-    const root = ref<HTMLAnchorElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<a
-      ref="${root}"
       data-slot="pagination-link"
       href="${href}"
       aria-current="${computed(() => (isActive.value ? 'page' : undefined))}"
       data-active="${computed(() => (isActive.value ? 'true' : undefined))}"
       class="${classes}"
-    >${props.children}</a>`;
+    >${children()}</a>`;
+  },
+  {
+    attrs: {
+      isActive: 'boolean',
+      size: 'string',
+      href: 'string',
+      className: 'string',
+    },
   },
 );
 
@@ -169,8 +152,8 @@ export const PaginationPrevious = component<Pick<PaginationLinkProps, 'href' | '
   'ui-pagination-previous',
   (props, host) => {
     transparentHost(host);
-    const href = attr(props.href, host, 'href');
-    const className = attr(props.className, host, 'class-name');
+    const href = props.href;
+    const className = props.className;
     const classes = computed(() =>
       cn(
         buttonVariants({ variant: 'ghost', size: 'default' }),
@@ -185,14 +168,17 @@ export const PaginationPrevious = component<Pick<PaginationLinkProps, 'href' | '
       class="${classes}"
     >${chevronLeft()}<span class="hidden sm:block">Previous</span></a>`;
   },
+  {
+    attrs: { href: 'string', className: 'string' },
+  },
 );
 
 export const PaginationNext = component<Pick<PaginationLinkProps, 'href' | 'className'>>(
   'ui-pagination-next',
   (props, host) => {
     transparentHost(host);
-    const href = attr(props.href, host, 'href');
-    const className = attr(props.className, host, 'class-name');
+    const href = props.href;
+    const className = props.className;
     const classes = computed(() =>
       cn(
         buttonVariants({ variant: 'ghost', size: 'default' }),
@@ -207,13 +193,16 @@ export const PaginationNext = component<Pick<PaginationLinkProps, 'href' | 'clas
       class="${classes}"
     ><span class="hidden sm:block">Next</span>${chevronRight()}</a>`;
   },
+  {
+    attrs: { href: 'string', className: 'string' },
+  },
 );
 
 export const PaginationEllipsis = component<PaginationPartProps>(
   'ui-pagination-ellipsis',
   (props, host) => {
     transparentHost(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() =>
       cn('flex size-9 items-center justify-center', className.value),
     );
@@ -222,5 +211,8 @@ export const PaginationEllipsis = component<PaginationPartProps>(
       data-slot="pagination-ellipsis"
       class="${classes}"
     >${moreHorizontal()}<span class="sr-only">More pages</span></span>`;
+  },
+  {
+    attrs: { className: 'string' },
   },
 );

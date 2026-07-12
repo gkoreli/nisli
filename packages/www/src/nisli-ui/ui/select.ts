@@ -30,6 +30,7 @@
  */
 
 import {
+  children,
   component,
   computed,
   effect,
@@ -38,15 +39,7 @@ import {
   ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  captureChildren,
-  cn,
-  forwardedAttr,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 export const selectWrapperClasses =
   'group/native-select relative w-fit has-[select:disabled]:opacity-50';
@@ -77,16 +70,20 @@ export type SelectProps = {
 
 export const Select = component<SelectProps>('ui-select', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const value = attr(props.value, host, 'value');
-  const defaultValue = attr(props.defaultValue, host, 'default-value');
-  const size = attr(props.size, host, 'size');
-  const id = forwardedAttr(props.id, host, 'id');
-  const name = forwardedAttr(props.name, host, 'name');
-  const disabled = boolAttr(props.disabled, host, 'disabled');
-  const required = boolAttr(props.required, host, 'required');
-  const className = attr(props.className, host, 'class-name');
+  // ADR 0025 item 3: attribute fallbacks declared via the `attrs` option below
+  // and delivered as plain, LIVE prop signals — no userland attr()/boolAttr()/
+  // forwardedAttr(). 'forward' relocates id/name off the transparent host onto
+  // the inner control. Declared booleans are runtime-guaranteed non-undefined
+  // (the `as boolean` is the typing stopgap).
+  const value = props.value;
+  const defaultValue = props.defaultValue;
+  const size = props.size;
+  const id = props.id;
+  const name = props.name;
+  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const required = computed<boolean>(() => props.required.value as boolean);
+  const className = props.className;
 
   const classes = computed(() => cn(selectClasses, className.value));
 
@@ -102,13 +99,10 @@ export const Select = component<SelectProps>('ui-select', (props, host) => {
   onMount(() => {
     const select = root.current;
     if (!select) return;
-    // Project <option> children into the <select> first (may append late,
-    // streaming options in a microtask).
-    projectChildren(host, select, projected);
 
     // Select the initial value once options exist, and mark it as the native
-    // reset target (defaultSelected). Runs now (captured options) and after
-    // projectChildren's microtask sweep (streaming options).
+    // reset target (defaultSelected). Runs now (children() rendered the options
+    // at the slot) and again after a microtask (late streaming options).
     const applyInitial = () => {
       const initial = value.value ?? defaultValue.value;
       if (initial == null) return;
@@ -131,7 +125,7 @@ export const Select = component<SelectProps>('ui-select', (props, host) => {
       name="${name}"
       disabled="${disabled}"
       required="${required}"
-    >${props.children}</select>
+    >${children()}</select>
     <svg
       data-slot="native-select-icon"
       class="${selectIconClasses}"
@@ -145,4 +139,18 @@ export const Select = component<SelectProps>('ui-select', (props, host) => {
       stroke-linejoin="round"
     ><path d="m6 9 6 6 6-6"></path></svg>
   </div>`;
+}, {
+  // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
+  // (className → class-name, defaultValue → default-value). 'forward' relocates
+  // id/name off the transparent host onto the inner control.
+  attrs: {
+    value: 'string',
+    defaultValue: 'string',
+    size: 'string',
+    className: 'string',
+    id: 'forward',
+    name: 'forward',
+    disabled: 'boolean',
+    required: 'boolean',
+  },
 });
