@@ -250,6 +250,39 @@ describe('Resizable — live attribute reactivity', () => {
     expect(grow(panels(c)[0])).toBe(60);
   });
 
+  it('a live min-size increase re-clamps the current user-resized layout', () => {
+    const c = mountPlain('default-size="50" min-size="10"', 'default-size="50" min-size="10"');
+    const h = handle(c);
+    // User layout: 70 / 30.
+    h.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    h.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    flush2();
+    expect(panels(c).map(grow)).toEqual([70, 30]);
+
+    // Raising B's constraint clamps CURRENT 70/30 to 60/40, rather than
+    // resetting to the 50/50 defaults.
+    c.querySelectorAll<HTMLElement>('ui-resizable-panel')[1]!.setAttribute('min-size', '40');
+    flush2();
+    expect(panels(c).map(grow)).toEqual([60, 40]);
+  });
+
+  it('deregisters a removed panel and reflows the surviving membership', async () => {
+    const c = mountPlain('default-size="25"', 'default-size="75"');
+    const hosts = c.querySelectorAll<HTMLElement>('ui-resizable-panel');
+    hosts[1]!.remove();
+    await Promise.resolve();
+    await Promise.resolve();
+    flush2();
+    expect(panels(c)).toHaveLength(1);
+    expect(grow(panels(c)[0])).toBe(100);
+  });
+
+  it('normalizes impossible aggregate minima deterministically', () => {
+    const c = mountPlain('default-size="50" min-size="80"', 'default-size="50" min-size="40"');
+    // 120% of constraints cannot fit; preserve their 2:1 ratio within 100%.
+    expect(panels(c).map(grow)).toEqual([67, 33]);
+  });
+
   it('a garbage default-size attribute falls to the even-split default (number semantics)', () => {
     const c = mountPlain('default-size="oops"', 'default-size="70"');
     const [a, b] = panels(c);

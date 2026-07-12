@@ -285,7 +285,13 @@ column-sizing grid or a menu typeahead registry are the likely triggers). RECOMM
 do NOT build the helper pre-checkpoint; document the pattern + the signal-thunk rule now.
 **Disposition (2026-07-11, arch)**: accepted as sketched — `comp-register-signal-not-value`
 documented in the framework skill (§1); the `reactiveRegistry` primitive stays deferred
-until a second registration-reactive consumer lands.
+until a second registration-reactive consumer lands. **UI-42 closure
+(2026-07-12)**: `resizable` now completes the manual pattern: panel cleanup
+unregisters mounted membership and bumps the registration version; the parent
+tracks both live `defaultSize` and `minSize` signals, with constraint changes
+re-clamping the current user layout rather than resetting defaults. This matches
+`react-resizable-panels`' mounted-panel membership and live-constraint
+conventions while retaining the documented zero-dependency implementation.
 
 ### 4. Reactive-slot primitive transition gap — FIXED (2026-07-11)
 
