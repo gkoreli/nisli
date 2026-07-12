@@ -136,6 +136,14 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './nisli-ui/
 import { DirectionProvider } from './nisli-ui/ui/direction.js';
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from './nisli-ui/ui/input-otp.js';
 import { ItemGroup, Item, ItemMedia, ItemContent, ItemTitle, ItemDescription } from './nisli-ui/ui/item.js';
+import {
+  AttachmentGroup,
+  Attachment,
+  AttachmentMedia,
+  AttachmentContent,
+  AttachmentTitle,
+  AttachmentDescription,
+} from './nisli-ui/ui/attachment.js';
 import { Marker, MarkerIcon, MarkerContent } from './nisli-ui/ui/marker.js';
 import { MessageGroup, Message, MessageAvatar, MessageContent, MessageHeader } from './nisli-ui/ui/message.js';
 import {
@@ -467,6 +475,33 @@ export const examples: Record<string, () => TemplateResult> = {
             ${ItemDescription({ children: 'Everything you need to get started.' })}`,
           })}
           ${Button({ size: 'sm', variant: 'outline', children: 'Upgrade' })}`,
+        })}`,
+      })}
+    </div>`,
+  // WWW-15: attachment auto-defaulted to a childless empty <ui-attachment> — a
+  // compositional component needs curated content so the live frame paints.
+  attachment: () =>
+    html`<div class="w-full max-w-sm">
+      ${AttachmentGroup({
+        children: html`${Attachment({
+          children: html`${AttachmentMedia({
+            variant: 'icon',
+            children: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-5"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><path d="M14 2v4a2 2 0 0 0 2 2h4" /></svg>`,
+          })}
+          ${AttachmentContent({
+            children: html`${AttachmentTitle({ children: 'quarterly-report.pdf' })}
+            ${AttachmentDescription({ children: '2.4 MB · PDF' })}`,
+          })}`,
+        })}
+        ${Attachment({
+          children: html`${AttachmentMedia({
+            variant: 'icon',
+            children: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-5"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></svg>`,
+          })}
+          ${AttachmentContent({
+            children: html`${AttachmentTitle({ children: 'cover.png' })}
+            ${AttachmentDescription({ children: '512 KB · Image' })}`,
+          })}`,
         })}`,
       })}
     </div>`,

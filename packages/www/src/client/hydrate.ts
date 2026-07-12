@@ -22,9 +22,9 @@
  * clean/bounded corpus for the possible @nisli/core adopt-in-place graduation
  * (ADR 0025 item 17).
  */
-import { component, html, onMount, ref } from '@nisli/core';
+import { html } from '@nisli/core';
 import { hydrateFrame, type ExampleLoader } from './hydrate-frame.js';
-import { primaryTag } from '../preview-tags.js';
+import { resolveLoader } from './loader.js';
 
 // Component modules keyed by name — for the auto-default fallback (register on load).
 const components = import.meta.glob('../nisli-ui/ui/*.js');
@@ -36,32 +36,17 @@ const components = import.meta.glob('../nisli-ui/ui/*.js');
 // modules and this monolith import self-destructs).
 const loadExamples = () => import('../examples.js');
 
-// Client auto-default: register the component (so its <ui-*> upgrades) and mount
-// its primary tag live. A DISTINCT tag from the SSG `www-auto-preview` so that
-// defining it never upgrades the prerendered fallback in place.
-const AutoHydrate = component<{ tag: string }>('www-auto-hydrate', (props) => {
-  const host = ref<HTMLDivElement>();
-  onMount(() => {
-    if (host.current) host.current.appendChild(document.createElement(props.tag.value));
-  });
-  return html`<div ref="${host}"></div>`;
-});
-
 /**
- * The loader for a preview frame, DERIVED from its name: the curated example if
- * the registry has one (getExample), else the component's live auto-default
- * (import the module by name → register → mount the primary tag). Loading
- * examples.js also registers every component the examples compose, so the
- * curated mount is live.
+ * The loader for a preview frame, DERIVED from its name — the production wiring
+ * of the injectable {@link resolveLoader} seam: the examples chunk + the
+ * component-module glob. Loading examples.js also registers every component the
+ * examples compose, so the curated mount is live.
  */
 function loaderFor(name: string): ExampleLoader {
-  return async () => {
-    const { getExample } = await loadExamples();
-    const example = getExample(name);
-    if (example) return { default: example };
-    await components[`../nisli-ui/ui/${name}.js`]?.(); // no curated example → auto-default (derived)
-    return { default: () => AutoHydrate({ tag: primaryTag(name) }) };
-  };
+  return resolveLoader(name, {
+    loadExamples,
+    registerComponent: (n) => components[`../nisli-ui/ui/${n}.js`]?.(),
+  });
 }
 
 const observer = new IntersectionObserver(

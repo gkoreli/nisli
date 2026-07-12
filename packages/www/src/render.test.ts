@@ -166,21 +166,14 @@ describe('nisli website', () => {
     }
   });
 
-  // WWW-15: hydration is DERIVED, not curated. A ui component with NO curated
-  // example still hydrates its AUTO-DEFAULT by derivation — so its /ui page must
-  // render a [data-preview] frame and carry the runtime (the client mounts the
-  // component's primary tag live). Guards the auto-default derivation path arch
-  // required be exercised, and that "no example" never means "no hydration".
-  it('a ui component with no curated example still hydrates (auto-default derivation)', async () => {
-    const built = await buildSite();
-    const autoDefault = components.filter((c) => getExample(c.name) === undefined);
-    expect(autoDefault.length, 'expected at least one auto-default ui component').toBeGreaterThan(0);
-    for (const item of autoDefault) {
-      const page = built.find((p) => p.path === `/ui/${item.name}`);
-      expect(page, `no built page for ${item.name}`).toBeDefined();
-      const html = readFileSync(page!.filePath, 'utf8');
-      expect(html.includes(`data-preview="${item.name}"`), `${item.name}: no preview frame`).toBe(true);
-      expect(html.includes('/ui-preview/hydrate.js'), `${item.name}: no runtime`).toBe(true);
+  // WWW-15: every SHIPPED ui component IS curated, so no live preview frame ever
+  // falls to the auto-default and paints empty (cdx2's guard correctly refuses a
+  // boxless auto-default — compositional families like attachment must curate).
+  // The auto-default is the derivation FLOOR, exercised non-vacuously through the
+  // real loader in client/loader.test.ts — not asserted on pure pieces here.
+  it('every ui component is curated (no live frame falls to an empty auto-default)', () => {
+    for (const c of components) {
+      expect(getExample(c.name), `${c.name} must have a curated example (no empty auto-default)`).toBeDefined();
     }
   });
 });
