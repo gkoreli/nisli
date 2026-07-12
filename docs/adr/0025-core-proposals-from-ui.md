@@ -303,18 +303,40 @@ templates or `each()`.
 and 10; static factory arrays now use the same factory mounting helper as the
 reactive array path.
 
-### 11. Dynamic tag names in templates — MEDIUM
+### 11. Dynamic tag names in templates — FIXED (2026-07-11)
 
 `html\`<\${tag}>\`` is not expressible — the template parser only handles
 static tag names, so registry-driven rendering (www's auto-default previews:
-"render the element named by this string") needs an `onMount` +
-`document.createElement(tag)` workaround, which bypasses template binding
+"render the element named by this string") needed an `onMount` +
+`document.createElement(tag)` workaround, which bypassed template binding
 for that subtree. Found by eng3 building the /ui preview system; flagged by
 Goga for tracking.
-**Proposal**: either a dynamic-element primitive (e.g.
-`el(tagName, props?, children?)` returning a mountable TemplateResult) or
-first-class documentation of the createElement-in-onMount pattern with a
-helper. Design work — the parser itself should stay static.
+
+**Resolution (UI-32 design gate + UI-33 core, 2026-07-11)**: `core` now exports
+`el(tagName, props?, children?)` — a runtime element factory returning a
+`TemplateResult`, so it composes in an `html` slot
+(`` html`${el(tag, { class: cls }, children)}` ``) while the **parser stays
+100% static**. `el()` is a separate, programmatic construction path that
+**shares `html`'s binding helpers** rather than duplicating them: the
+`bindAttribute` setAttribute path was extracted to `bindPlainAttribute` (now
+used by both `bindAttribute`'s non-component branch and `el()`), and children
+go through the existing `replaceMarkerWithBinding` slot mounter — so `el()`
+accepts the full text-slot range (string/number, signals, nested
+`TemplateResult`, factory results, arrays) with the same reactivity/disposal.
+Props: `class` uses the reactive class binder; every other key is a **plain
+HTML attribute** (`setAttribute`, `html`'s boolean/null rules) — NEVER
+`_setProp`. `el()` is the "author plain HTML programmatically" primitive: a
+framework component tag reached this way receives its values as attributes
+and resolves them through its `attr()`/`boolAttr()` fallbacks (typed
+composition stays the factories' job). `ref` and `on: { event: handler }` are
+supported. v1 is HTML-only — SVG/namespaced tags (`createElementNS`) and a
+conditional-class-map DSL are deferred until a real consumer needs them (arch
+rulings).
+**Proof**: `core/src/el.test.ts` (8 cases: runtime tag, reactive attrs +
+boolean/null, ref + events, full text-slot children incl. factory + reactive
+signal, `html`-slot composition, the component-tag-uses-ATTRIBUTES contract,
+and clean dispose). Consumer: www's `AutoPreview` collapses to
+`el(primaryTag(name))` (a follow-up www adoption; the primitive is landed).
 
 ### 12. `refetch()` is suppressed by `staleTime` — FIXED (2026-07-11)
 

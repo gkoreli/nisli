@@ -582,6 +582,25 @@ function bindAttribute(
     return;
   }
 
+  bindPlainAttribute(el, name, value, bindings, disposers);
+}
+
+/**
+ * Bind a value as a plain HTML attribute via `setAttribute`, reactive when it
+ * is a signal, with `html`'s boolean/null semantics (true → present empty,
+ * false/null/undefined → absent). NEVER uses `_setProp` — this is the shared
+ * attribute path used by both `bindAttribute` (its non-component branch) and
+ * `el()`, whose contract is *plain-HTML authoring*: a framework component tag
+ * reached this way receives its values as attributes and resolves them through
+ * its `attr()`/`boolAttr()` fallbacks, not typed prop setters.
+ */
+function bindPlainAttribute(
+  el: Element,
+  name: string,
+  value: unknown,
+  bindings: Binding[],
+  disposers: (() => void)[],
+): void {
   if (isSignal(value)) {
     const binding: AttributeBinding = { type: 'attribute', element: el, name };
     bindings.push(binding);
@@ -949,4 +968,133 @@ export function when(
     );
   }
   return condition ? resolveTemplate() : null;
+}
+
+// ── el(): dynamic tag names (ADR 0025 item 11) ──────────────────────
+
+/** A value bindable to an `el()` attribute — static or reactive. */
+type ElAttrValue = string | number | boolean | null | undefined | ReadonlySignal<unknown>;
+
+export interface ElProps {
+  /** Assigned to `.current` on mount, nulled on dispose. */
+  ref?: Ref;
+  /** Event handlers by native event name; auto-removed on dispose. */
+  on?: Record<string, EventListener>;
+  /** Any other key is an HTML attribute (static or signal → reactive). */
+  [attr: string]: ElAttrValue | Ref | Record<string, EventListener> | undefined;
+}
+
+/** A child accepted by `el()` — anything an `html` text slot accepts, plus arrays. */
+export type ElChild =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | TemplateResult
+  | ReadonlySignal<unknown>
+  | { __type: 'factory' }
+  | ElChild[];
+
+/**
+ * Build a DOM element by a (possibly *dynamic*) tag name with reactive
+ * attributes, event handlers, and children, returned as a mountable/disposable
+ * `TemplateResult` — so it composes in an `html` slot:
+ * `` html`${el(tag, { class: cls }, children)}` ``.
+ *
+ * `el()` is the "author plain HTML programmatically" primitive. It exists for
+ * the one thing `html` cannot express — a tag name chosen at runtime — while
+ * the `html` PARSER STAYS 100% STATIC: `el()` is a separate construction path
+ * that shares `html`'s binding helpers (`bindPlainAttribute`, `bindClassAttribute`,
+ * `bindEvent`, and the `replaceMarkerWithBinding` slot mounter). Prefer `html`
+ * for static tags and typed factories for typed composition.
+ *
+ * Semantics (ADR 0025 item 11):
+ * - Props are **HTML attributes**: `class` uses the reactive class binder, every
+ *   other key uses `setAttribute` with `html`'s boolean/null rules — NEVER
+ *   `_setProp`. A framework component tag reached via `el()` receives its values
+ *   as attributes and resolves them through its `attr()`/`boolAttr()` fallbacks.
+ * - `ref` assigns `.current`; `on: { event: handler }` adds auto-removed listeners.
+ * - Children accept the full `html` text-slot range — string/number, signals
+ *   (reactive text or reactive template slot), `TemplateResult`, factory results,
+ *   and arrays — via the shared slot mounter.
+ * - v1 is HTML-only: SVG/namespaced tags (`createElementNS`) are deferred until a
+ *   real consumer needs them.
+ */
+export function el(
+  tag: string,
+  props: ElProps = {},
+  children?: ElChild | ElChild[],
+): TemplateResult {
+  let node: HTMLElement | null = null;
+  const bindings: Binding[] = [];
+  const disposers: (() => void)[] = [];
+
+  return {
+    __templateResult: true,
+
+    mount(host: HTMLElement): void {
+      const element = document.createElement(tag);
+      node = element;
+
+      for (const [key, val] of Object.entries(props)) {
+        if (val === undefined) continue;
+        if (key === 'ref') {
+          if (isRef(val)) {
+            (val as Ref).current = element;
+            disposers.push(() => { (val as Ref).current = null; });
+          }
+          continue;
+        }
+        if (key === 'on') {
+          for (const [event, handler] of Object.entries(val as Record<string, EventListener>)) {
+            bindEvent(element, event, handler, [], bindings);
+            disposers.push(() => element.removeEventListener(event, handler));
+          }
+          continue;
+        }
+        if (key === 'class') {
+          bindClassAttribute(element, val, bindings, disposers);
+          continue;
+        }
+        bindPlainAttribute(element, key, val, bindings, disposers);
+      }
+
+      // Children reuse html's text-slot mounter: append a comment anchor per
+      // child and let replaceMarkerWithBinding resolve its type in place.
+      const flat: ElChild[] = [];
+      flattenChildren(children, flat);
+      for (const child of flat) {
+        const anchor = document.createComment('');
+        element.appendChild(anchor);
+        replaceMarkerWithBinding(anchor, child, bindings, disposers);
+      }
+
+      host.appendChild(element);
+    },
+
+    dispose(): void {
+      for (const d of disposers) {
+        try { d(); } catch (_) { /* swallow */ }
+      }
+      disposers.length = 0;
+      for (const b of bindings) {
+        if ('dispose' in b && b.dispose) {
+          try { b.dispose(); } catch (_) { /* swallow */ }
+        }
+      }
+      bindings.length = 0;
+      node?.parentNode?.removeChild(node);
+      node = null;
+    },
+  };
+}
+
+function flattenChildren(children: ElChild | ElChild[] | undefined, out: ElChild[]): void {
+  if (children === undefined) return;
+  if (Array.isArray(children)) {
+    for (const c of children) flattenChildren(c, out);
+  } else {
+    out.push(children);
+  }
 }

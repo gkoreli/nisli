@@ -89,6 +89,7 @@ Reference these guidelines when:
 - `tmpl-when-simple` - Use `when()` only for simple single-branch toggles
 - `tmpl-xss-safe` - Text bindings use `textNode.data`; never parse user input as HTML
 - `tmpl-comment-markers` - Framework uses `<!--bk-N-->` markers; avoid this pattern in content
+- `tmpl-el-dynamic-tag` - For a tag chosen at RUNTIME (the one thing `html` can't express), use `el(tag, props?, children?)` — a factory returning a `TemplateResult` that composes in an `html` slot (`html`${el(tag, { class }, kids)}``). Prefer `html` for static tags. `el()` sets **attributes** (`setAttribute`, never `_setProp`) — a component tag reached via `el()` resolves values through its `attr()`/`boolAttr()` fallbacks, so use typed **factories** for typed composition. Props: `class` (string|signal), other keys → attribute, `ref`, `on: { event: handler }`; children take the full text-slot range. HTML-only in v1 (no SVG/namespaced tags)
 
 ### 4. Dependency Injection (HIGH)
 

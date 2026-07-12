@@ -72,10 +72,13 @@ export {
 // ── Template engine ─────────────────────────────────────────────────
 export {
   html,
+  el,
   when,
   each,
   type TemplateResult,
   type TypedEventHandler,
+  type ElProps,
+  type ElChild,
 } from './template.js';
 
 // ── Element refs ────────────────────────────────────────────────────
