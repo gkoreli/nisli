@@ -37,7 +37,7 @@ and exposes them (plus a factory `children` input) as a first-class,
 correctly-timed primitive — the registry's subtlest copied code deleted
 everywhere at once.
 
-### 2. Subtree-scoped context / DI — HIGH
+### 2. Subtree-scoped context / DI — FIXED (2026-07-11)
 
 Parent↔child state uses a hand-rolled convention: parent sets
 `host.__uiTabs = {…signals}`, children `closest('ui-tabs')` and throw into
@@ -80,25 +80,41 @@ pass-through, error boundary, and the reparent/portal-safe-capture case) + `tabs
 migrated as the smallest `__ui` family (`host.__uiTabs`/`closest('ui-tabs')` →
 `TabsContext.provide`/`.inject()`; all 15 tabs tests green, full ui suite 744 green).
 
-**Open design questions for the 9-family review** (arch's gate):
-1. *Inclusive vs exclusive walk.* Prototype is inclusive (a provider that injects
-   its own context resolves itself), matching the old `closest` semantics. No
-   current family injects a same-context ancestor from within a provider, but the
-   menu families provide one context (menu state) while injecting another (bar /
-   sub state) — different contexts, so unaffected. Flagging in case a future
-   same-context nesting wants exclusive-from-parent.
-2. *Multi-context providers.* Menubar publishes `MenubarState` (bar) and each
-   menu publishes `MenubarMenuState` — two contexts on different hosts, resolved
-   independently. Confirmed fine, but the migration touches more provide/inject
-   sites than tabs; worth a spot-check before committing the API.
-3. *Value vs signal storage.* We store the value object (which holds signals),
-   not a signal-of-value. Providers never swap the whole state object mid-life, so
-   this matches every family; if any needs a replaceable provider value, that
-   would want a signal wrapper (not in scope here).
-4. *Naming.* `createContext` + `provide`/`inject` methods sit next to the existing
-   app-global `provide`/`inject` free functions (injector.ts). No collision
-   (methods vs free functions), but the doc pairing (`Context` = DOM subtree,
-   injector = app singleton) should be explicit in core docs.
+**Resolution (UI-27 design gate + UI-28 full migration, 2026-07-11)**: the
+prototype API was ratified and the convention deleted registry-wide. `createContext`
+graduated as core (`element-context.ts`); the one API addition the migration
+surfaced — `Context.peek(host)` ("read THIS host only, no walk") — was added to
+back the menu families' `resolveParentOpen()` (a bespoke "nearest enclosing
+sub-open, else root-menu-open" loop that `inject` can't express and a private
+symbol correctly blocks the old direct read). All 33 `host.__uiX`/`closest`
+sites migrated across ~30 files in five reviewable batches (Tier-1 flats →
+portaled overlays → accordion's 2-context split → menus with peek + menubar
+acceptance → combobox), each keeping behavior identical (state objects + their
+signals unchanged). A registry-wide grep for `.__ui[A-Z]` now returns zero
+provider/consumer sites. Full ui suite 758 green, core 251 green.
+
+Arch's four rulings (all folded in):
+1. *Walk = INCLUSIVE* (matches `closest`; no family self-injects a same-context
+   ancestor — the menu families provide one context while injecting a different
+   one, isolated by symbol). Exclusive-from-parent can become an option if a
+   same-context nesting ever appears.
+2. *Multi-context providers* are handled by symbol identity — **menubar is the
+   acceptance proof** (bar → per-menu → sub + radio-group, four levels resolving
+   independently; explicit `Menubar — multi-context resolution` test suite). Three
+   SEPARATE radio-group contexts keep the menu families from cross-resolving.
+3. *Store the state object* (which holds signals); **swapping the provided value
+   mid-life is UNSUPPORTED** — `inject` resolves once and does not re-walk. All
+   reactivity lives in signals inside the value.
+4. *Naming stands* — `Context.provide`/`.inject` methods vs the app-global
+   `provide`/`inject` free functions. The **"two DI systems"** distinction
+   (`Context` = DOM-subtree scoped / `injector` = app-singleton) is documented in
+   the framework skill (§4) and this ADR.
+
+**Proof**: `element-context.test.ts` (15 cases incl. reparent/portal-safe capture,
+nearest-provider, same-name distinctness, reactive pass-through, error boundary,
+`peek` + a nearest-of-A-or-B walk demo); `tabs` (first migration) + a
+`dialog.test.ts` reactivity-survives-portal assertion + the `menubar.test.ts`
+multi-context acceptance suite.
 
 ### 3. Opt-in attribute reactivity / reflection — MEDIUM
 

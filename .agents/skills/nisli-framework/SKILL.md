@@ -81,12 +81,33 @@ Reference these guidelines when:
 
 ### 4. Dependency Injection (HIGH)
 
+**Two DI systems — pick by scope:**
+
+| | App-global DI (`injector`) | Subtree context (`createContext`) |
+|---|---|---|
+| Import | free `inject()` / `provide()` | `createContext<T>(name)` → `.provide` / `.inject` methods |
+| Scope | one app-wide singleton per token | per-provider, resolved by walking up the DOM |
+| Token | the class itself | the context object's private symbol (typed, no strings) |
+| Use for | services, stores, emitters, query clients | parent↔descendant component state (tabs/menus/dialog "state on the host") |
+| Resolves via | the injector registry | `parentElement` walk from the injecting host |
+
+They do not overlap: services are singletons; component-family state is subtree-scoped. Reach for `createContext` wherever you'd otherwise write `host.__uiX = state` + `host.closest('ui-x')`.
+
+**App-global (`injector`):**
 - `di-class-as-token` - Use the class itself as the injection token; no `createToken()` for services
 - `di-auto-singleton` - `inject(Class)` auto-creates a singleton; no registration needed
 - `di-provide-for-overrides` - `provide()` is for testing and subtree overrides only
 - `di-sync-only` - `inject()` must be called synchronously during setup
 - `di-bootstrap-eager` - Long-lived services with startup side effects must be eagerly created by the app
 - `di-no-failed-cache` - Failed construction is never cached; next `inject()` retries
+
+**Subtree context (`createContext`):**
+- `ctx-provide-in-setup` - Provider calls `Ctx.provide(host, state)` in setup, before returning its template
+- `ctx-inject-in-setup` - Descendants call `Ctx.inject()` (no host) in setup — this CAPTURES the value while still under the provider, so it survives later reparenting (portals). Outside setup, pass an explicit host: `Ctx.inject(host)`
+- `ctx-value-holds-signals` - Put all reactivity in signals inside the provided value; **swapping the provided value object mid-life is unsupported** (inject resolves once, does not re-walk)
+- `ctx-inject-throws` - `Ctx.inject()` throws into the setup error boundary when no provider exists; `Ctx.inject.optional()` returns `undefined` instead
+- `ctx-peek-this-host-only` - `Ctx.peek(host)` reads the value on THAT host only (no walk) — the low-level primitive for bespoke walks (e.g. "nearest provider of A or B"); prefer `inject` for ordinary resolution
+- `ctx-symbol-identity` - Distinct `createContext` calls never collide, even with the same `name` (name is diagnostic only); use separate contexts for separate scopes (e.g. one per menu family's radio-group)
 
 ### 5. Typed Emitters (MEDIUM-HIGH)
 
