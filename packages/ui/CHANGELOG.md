@@ -4,6 +4,21 @@ All notable changes to `@nisli/ui`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
+## Unreleased
+
+### Added
+- **subtree context migration** — registry families now use the core
+  `createContext` flow instead of the `__uiX`/`closest()` convention. Misuse
+  errors are actionable element-language — `<ui-dialog-content> must be used
+  inside <ui-dialog>` — at every family.
+- **switch**, **button**, **message-scroller** — migrated onto the core
+  attrs / children primitives, preserving the public API while removing the
+  remaining userland wiring.
+
+### Changed
+- **switch** now reflects live attribute updates correctly on the custom
+  element surface.
+
 ## 0.1.3 — 2026-07-11
 
 The largest release since 0.1.0: the registry reaches the complete portable
