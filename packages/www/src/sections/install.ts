@@ -55,9 +55,9 @@ export function install(): TemplateResult {
         </p>
       </div>
 
-      <ol class="mt-10 grid gap-4 lg:grid-cols-3">
+      <ol class="mt-10 grid grid-cols-1 gap-4 lg:grid-cols-3">
         ${STEPS.map(
-          (step) => html`<li class="flex flex-col rounded-xl border bg-card p-6">
+          (step) => html`<li class="flex min-w-0 flex-col rounded-xl border bg-card p-6">
             <div class="flex items-center gap-3">
               <span
                 class="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground"

@@ -22,8 +22,8 @@ const Counter = component('my-counter', () => {
 });`;
 
 export function hero(): TemplateResult {
-  return html`<section class="mx-auto grid max-w-6xl items-center gap-12 px-6 pt-20 pb-16 lg:grid-cols-2 lg:pt-28 lg:pb-24">
-    <div>
+  return html`<section class="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-6 pt-20 pb-16 lg:grid-cols-2 lg:pt-28 lg:pb-24">
+    <div class="min-w-0">
       ${Badge({ variant: 'outline', children: 'The reactive web-component framework' })}
       <h1 class="mt-5 text-4xl font-bold tracking-tight text-balance sm:text-5xl">
         Reactive web components. No build step, no virtual DOM.
@@ -47,7 +47,7 @@ export function hero(): TemplateResult {
         >
       </div>
     </div>
-    <div class="relative">
+    <div class="relative min-w-0">
       <div
         class="overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm"
       >

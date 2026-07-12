@@ -45,7 +45,7 @@ export function SiteShell(
     <header
       class="sticky top-0 z-50 w-full border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60"
     >
-      <div class="mx-auto flex h-(--header-height) max-w-6xl items-center gap-6 px-6">
+      <div class="mx-auto flex h-(--header-height) max-w-6xl items-center gap-3 px-4 sm:gap-6 sm:px-6">
         <a href="/" class="flex items-center gap-2 font-semibold tracking-tight">
           <span
             class="inline-flex h-6 w-6 items-center justify-center rounded bg-foreground text-[13px] font-bold text-background"
@@ -53,7 +53,7 @@ export function SiteShell(
           >
           nisli
         </a>
-        <nav aria-label="Main" class="flex items-center gap-5 text-sm">
+        <nav aria-label="Main" class="flex items-center gap-4 text-sm sm:gap-5">
           ${TOP_LINKS.map((link) => {
             const active = topActive(current, link.href);
             return html`<a
@@ -69,7 +69,7 @@ export function SiteShell(
         <div class="ml-auto flex items-center gap-2">
           <a
             href="https://github.com/gogakoreli/nisli"
-            class="text-sm text-muted-foreground transition-colors hover:text-foreground"
+            class="hidden text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-block"
             >GitHub</a
           >
           <button
