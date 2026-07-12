@@ -16,6 +16,15 @@ npm install @nisli/core @nisli/router
 import { component, html } from '@nisli/core';
 import { defineRouter, enumParam, route } from '@nisli/router';
 
+const HomePage = component('home-page', () => html`<h1>Home</h1>`);
+const UserPage = component<{ userId: string; tab: 'profile' | 'activity' }>(
+  'user-page',
+  (props) => html`
+    <h1>User ${props.userId.value}</h1>
+    <p>${props.tab.value}</p>
+  `,
+);
+
 export const AppRouter = defineRouter({
   home: route('/', { render: async () => HomePage({}) }),
   user: route('/users/:userId', {
@@ -39,10 +48,12 @@ const href = AppRouter.routes.user.href({
 html`<a href="${href}">Activity</a>`;
 ```
 
-`AppRouter({})` connects the generic injectable `Router` browser service and
-renders the current route. Route matching itself is pure and
-environment-neutral, leaving stable seams for `@nisli/router/vite` and Nisli's
-SSG integration to consume the exact same application definition.
+`AppRouter({})` connects the injectable `Router` browser service and renders
+the current route. Defining `AppRouter` is lazy and DOM-free; the outlet
+registers on the first `AppRouter({})` call, so Vite and SSG can consume the
+same route catalog without an extra `provideRouter` step. Route matching itself
+is pure and environment-neutral, and the literal path drives `href()` inference
+without extra generics.
 
 ## Vite direct routes
 
