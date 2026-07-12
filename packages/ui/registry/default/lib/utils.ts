@@ -134,97 +134,15 @@ export function isPinned(host: HTMLElement, key: string): boolean {
 }
 
 /**
- * Resolve a prop with a host-attribute fallback, for plain-HTML usage
- * (`<ui-button variant="outline">`). The attribute is read once at
- * setup; an explicitly set prop always wins. Use kebab-case attribute
- * names for camelCase props (`className` ↔ `class-name`).
- */
-export function attr<T extends string>(
-  prop: ReadonlySignal<T | undefined>,
-  host: HTMLElement,
-  name: string,
-): ReadonlySignal<T | undefined> {
-  const fallback = (host.getAttribute(name) ?? undefined) as T | undefined;
-  return computed(() => prop.value ?? fallback);
-}
-
-/**
- * Like `attr()`, but *moves* the host attribute onto the inner control:
- * the fallback is read once at setup and then removed from the host. Use it
- * for attributes that must live on the real form element rather than the
- * layout-transparent host — `id` and `name` — so that native form
- * participation works: `form.elements.namedItem('email')` resolves to the
- * inner `<input>`, and `<ui-label for="email">` + `label.control` bind to it.
- * Without the move, the id/name would be duplicated on both the host and the
- * inner control, and `document.getElementById` could resolve to the wrong one.
- * An explicitly set prop still wins.
- */
-export function forwardedAttr<T extends string>(
-  prop: ReadonlySignal<T | undefined>,
-  host: HTMLElement,
-  name: string,
-): ReadonlySignal<T | undefined> {
-  const fallback = (host.getAttribute(name) ?? undefined) as T | undefined;
-  if (fallback !== undefined) host.removeAttribute(name);
-  return computed(() => prop.value ?? fallback);
-}
-
-/**
- * Boolean variant of `attr()`. An explicitly set prop always wins; otherwise
- * the host attribute is the fallback, resolved at setup:
- *
- * - attribute **absent** → `defaultValue` (default `false`);
- * - attribute equal to the literal string `"false"` → `false`;
- * - attribute present with any other value (including empty) → `true`.
- *
- * The `"false"` coercion is what lets a default-`true` flag like a separator's
- * `decorative` be opted out of from plain HTML (`decorative="false"`), while a
- * default-`false` flag like `disabled` still opts in with a bare attribute
- * (`<ui-button disabled>`).
- */
-export function boolAttr(
-  prop: ReadonlySignal<boolean | undefined>,
-  host: HTMLElement,
-  name: string,
-  defaultValue = false,
-): ReadonlySignal<boolean> {
-  const raw = host.getAttribute(name);
-  const fallback = raw === null ? defaultValue : raw !== 'false';
-  return computed(() => prop.value ?? fallback);
-}
-
-/**
- * Capture pre-existing light-DOM children for projection. Call in setup
- * before returning the template, then hand the nodes to
- * `projectChildren()` in `onMount`. This is how `<ui-button>Save</ui-button>`
- * gets its label inside the rendered `<button>`.
+ * Detach and return the host's pre-existing light-DOM child nodes. Light-DOM
+ * projection is now `children()` (ADR 0025 item 1); the sole surviving use of
+ * this helper is capturing child TEXT as a native initial value — `textarea`
+ * and `input-group` read the returned nodes' text content once at setup (a
+ * sanctioned exception, commented at each call site). Call once in setup,
+ * before returning the template.
  */
 export function captureChildren(host: HTMLElement): Node[] {
   const nodes = Array.from(host.childNodes);
   for (const node of nodes) host.removeChild(node);
   return nodes;
-}
-
-/**
- * Project light-DOM children into a single-root component's inner root
- * element: appends the nodes captured by `captureChildren()`, then sweeps
- * (in a microtask) any children a streaming parser appended to the host
- * after upgrade — needed when the element is defined before the document
- * finishes parsing.
- *
- * The `node.contains(root)` guard matters for nested components
- * (`<ui-alert><ui-alert-title>…`): a parent's sweep can move a child host
- * — and the just-mounted `root` inside it — before the child's own sweep
- * runs. Skipping any node that already contains `root` avoids the invalid
- * "append an ancestor into its own descendant" DOMException.
- */
-export function projectChildren(host: HTMLElement, root: Element, captured: Node[]): void {
-  if (captured.length > 0) root.append(...captured);
-  queueMicrotask(() => {
-    for (const node of Array.from(host.childNodes)) {
-      if (node !== root && !root.contains(node) && !node.contains(root)) {
-        root.append(node);
-      }
-    }
-  });
 }

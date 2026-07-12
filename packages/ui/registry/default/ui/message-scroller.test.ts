@@ -284,6 +284,49 @@ describe('MessageScroller — plain custom elements', () => {
   });
 });
 
+// Live attribute reactivity — the capability that did NOT exist under the old
+// parse-time-only attr()/boolAttr(): with attrs{} declared on component(),
+// setAttribute() AFTER mount writes the prop signal live and re-renders
+// (UI-30-FINAL).
+describe('MessageScroller — live attribute reactivity', () => {
+  it('setAttribute after mount re-renders the button + item parts live', () => {
+    const c = mount(html`${MessageScroller({ children: '' })}`);
+    flush2();
+    const root = q(c, 'message-scroller');
+
+    // Button (injects the root context): direction/variant/size go live.
+    const btnHost = document.createElement('ui-message-scroller-button');
+    root.appendChild(btnHost);
+    flush2();
+    const btn = btnHost.querySelector('[data-slot="message-scroller-button"]') as HTMLElement;
+    expect(btn.getAttribute('data-direction')).toBe('end'); // default
+
+    btnHost.setAttribute('direction', 'start');
+    btnHost.setAttribute('variant', 'outline');
+    btnHost.setAttribute('size', 'lg');
+    flush2();
+    expect(btn.getAttribute('data-direction')).toBe('start');
+    expect(btn.getAttribute('data-variant')).toBe('outline');
+    expect(btn.getAttribute('data-size')).toBe('lg');
+
+    // Item: boolean scroll-anchor toggles data-scroll-anchor live (bare → true,
+    // "false" → removed), our boolean semantics preserved.
+    const itemHost = document.createElement('ui-message-scroller-item');
+    root.appendChild(itemHost);
+    flush2();
+    const item = itemHost.querySelector('[data-slot="message-scroller-item"]') as HTMLElement;
+    expect(item.hasAttribute('data-scroll-anchor')).toBe(false);
+
+    itemHost.setAttribute('scroll-anchor', '');
+    flush2();
+    expect(item.getAttribute('data-scroll-anchor')).toBe('true');
+
+    itemHost.setAttribute('scroll-anchor', 'false');
+    flush2();
+    expect(item.hasAttribute('data-scroll-anchor')).toBe(false);
+  });
+});
+
 describe('MessageScroller — misuse', () => {
   it('a viewport outside <ui-message-scroller> renders an error fallback', () => {
     const __err = vi.spyOn(console, 'error').mockImplementation(() => {});

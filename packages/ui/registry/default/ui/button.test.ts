@@ -137,8 +137,8 @@ describe('Button as a plain custom element', () => {
 
     const btn = getButton();
     expect(btn.className).toContain('bg-destructive');
-    // happy-dom connects the element before parsing its children — the
-    // projectChildren() microtask sweep picks the label up afterwards.
+    // happy-dom connects the element before parsing its children — children()'s
+    // late-parser sweep picks the label up on the following microtask.
     await Promise.resolve();
     expect(btn.textContent).toBe('Nuke');
   });
@@ -155,5 +155,51 @@ describe('Button as a plain custom element', () => {
     const btn = getButton(host);
     expect(btn.className).toContain('bg-destructive');
     expect(btn.className).not.toContain('border-input');
+  });
+});
+
+// Live attribute reactivity — the capability that did NOT exist under the old
+// parse-time-only attr()/boolAttr(): with attrs{} declared on component(),
+// setAttribute() AFTER mount writes the prop signal live and re-renders
+// (UI-30-FINAL).
+describe('Button — live attribute reactivity', () => {
+  function mountHost(attrs = ''): HTMLElement {
+    document.body.innerHTML = `<ui-button ${attrs}></ui-button>`;
+    return document.body.querySelector('ui-button') as HTMLElement;
+  }
+
+  it('setAttribute after mount re-renders variant / size / type / disabled live', () => {
+    const host = mountHost();
+    const btn = getButton();
+    expect(btn.getAttribute('data-variant')).toBe('default');
+    expect(btn.disabled).toBe(false);
+
+    host.setAttribute('variant', 'destructive');
+    host.setAttribute('size', 'lg');
+    host.setAttribute('type', 'submit');
+    flushEffects();
+    expect(btn.getAttribute('data-variant')).toBe('destructive');
+    expect(btn.getAttribute('data-size')).toBe('lg');
+    expect(btn.getAttribute('type')).toBe('submit');
+    expect(btn.className).toContain('bg-destructive');
+
+    host.setAttribute('disabled', ''); // bare → true (our boolean semantics)
+    flushEffects();
+    expect(btn.disabled).toBe(true);
+    host.setAttribute('disabled', 'false'); // literal "false" → false
+    flushEffects();
+    expect(btn.disabled).toBe(false);
+  });
+
+  it('an explicit DEFINED prop pins against later attribute writes', () => {
+    const host = document.createElement('ui-button');
+    (host as unknown as { _setProp(k: string, v: unknown): void })._setProp('variant', 'outline');
+    document.body.appendChild(host);
+    const btn = getButton();
+    expect(btn.getAttribute('data-variant')).toBe('outline');
+
+    host.setAttribute('variant', 'destructive'); // pinned → attribute ignored
+    flushEffects();
+    expect(btn.getAttribute('data-variant')).toBe('outline');
   });
 });

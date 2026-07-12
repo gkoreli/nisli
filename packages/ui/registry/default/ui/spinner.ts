@@ -9,20 +9,13 @@
  */
 
 import {
+  children,
   component,
   computed,
   html,
-  onMount,
-  ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 export const spinnerClasses = 'size-4 animate-spin';
 
@@ -36,20 +29,13 @@ export type SpinnerProps = {
 
 export const Spinner = component<SpinnerProps>('ui-spinner', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const role = attr(props.role, host, 'role');
-  const ariaLabel = attr(props.ariaLabel, host, 'aria-label');
-  const className = attr(props.className, host, 'class-name');
+  const role = props.role;
+  const ariaLabel = props.ariaLabel;
+  const className = props.className;
   const classes = computed(() => cn(spinnerClasses, className.value));
 
-  const root = ref<SVGSVGElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
   return html`<svg
-    ref="${root}"
     data-slot="spinner"
     xmlns="http://www.w3.org/2000/svg"
     width="24"
@@ -63,5 +49,11 @@ export const Spinner = component<SpinnerProps>('ui-spinner', (props, host) => {
     role="${computed(() => role.value ?? 'status')}"
     aria-label="${computed(() => ariaLabel.value ?? 'Loading')}"
     class="${classes}"
-  ><path d="M21 12a9 9 0 1 1-6.219-8.56"></path>${props.children}</svg>`;
+  ><path d="M21 12a9 9 0 1 1-6.219-8.56"></path>${children()}</svg>`;
+}, {
+  attrs: {
+    role: 'string',
+    ariaLabel: 'string',
+    className: 'string',
+  },
 });

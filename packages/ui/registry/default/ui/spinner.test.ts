@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { html, type TemplateResult } from '@nisli/core';
+import { flushEffects, html, type TemplateResult } from '@nisli/core';
 import { Spinner, spinnerClasses } from './spinner.js';
 
 beforeEach(() => {
@@ -81,5 +81,30 @@ describe('Spinner as a plain custom element', () => {
     const spinner = getSpinner(host);
     expect(spinner.contains(title)).toBe(true);
     expect([...host.childNodes].every((node) => node === spinner)).toBe(true);
+  });
+});
+
+// Live attribute reactivity — the capability that did NOT exist under the old
+// parse-time-only attr(): with attrs{} declared on component(), setAttribute()
+// AFTER mount writes the prop signal live and re-renders (UI-30-FINAL).
+describe('Spinner — live attribute reactivity', () => {
+  function mountHost(attrs = ''): HTMLElement {
+    document.body.innerHTML = `<ui-spinner ${attrs}></ui-spinner>`;
+    return document.body.querySelector('ui-spinner') as HTMLElement;
+  }
+
+  it('setAttribute after mount re-renders role / aria-label / class live', () => {
+    const host = mountHost();
+    const svg = getSpinner();
+    expect(svg.getAttribute('role')).toBe('status');
+    expect(svg.getAttribute('aria-label')).toBe('Loading');
+
+    host.setAttribute('role', 'progressbar');
+    host.setAttribute('aria-label', 'Saving');
+    host.setAttribute('class-name', 'text-destructive');
+    flushEffects();
+    expect(svg.getAttribute('role')).toBe('progressbar');
+    expect(svg.getAttribute('aria-label')).toBe('Saving');
+    expect(svg.getAttribute('class')).toBe(`${spinnerClasses} text-destructive`);
   });
 });

@@ -34,7 +34,7 @@ import {
   type ReadonlySignal,
   type TemplateResult,
 } from '@nisli/core';
-import { attr, boolAttr, captureChildren, cn, projectChildren, transparentHost } from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 import { buttonVariants, type ButtonSize, type ButtonVariant } from './button.js';
 
 const AT_EDGE_THRESHOLD = 2;
@@ -65,15 +65,11 @@ export const MessageScrollerProvider = component<MessageScrollerSectionProps>(
   'ui-message-scroller-provider',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(className.value));
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<div ref="${root}" data-slot="message-scroller-provider" style="display:contents" class="${classes}">${props.children}</div>`;
+    return html`<div data-slot="message-scroller-provider" style="display:contents" class="${classes}">${children()}</div>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-message-scroller (root) ───────────────────────────────────────
@@ -82,7 +78,6 @@ export const MessageScroller = component<MessageScrollerSectionProps>(
   'ui-message-scroller',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
 
     const isAtStart = signal<boolean>(true);
     const isAtEnd = signal<boolean>(true);
@@ -133,19 +128,16 @@ export const MessageScroller = component<MessageScrollerSectionProps>(
     MessageScrollerContext.provide(host, state);
     onCleanup(() => observer?.disconnect());
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() =>
       cn(
         'group/message-scroller relative flex size-full min-h-0 flex-col overflow-hidden',
         className.value,
       ),
     );
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<div ref="${root}" data-slot="message-scroller" class="${classes}">${props.children}</div>`;
+    return html`<div data-slot="message-scroller" class="${classes}">${children()}</div>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-message-scroller-viewport ─────────────────────────────────────
@@ -155,8 +147,7 @@ export const MessageScrollerViewport = component<MessageScrollerSectionProps>(
   (props, host) => {
     const state = MessageScrollerContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() =>
       cn(
         'size-full min-h-0 min-w-0 scroll-fade-b scrollbar-thin scrollbar-gutter-stable overflow-y-auto overscroll-contain contain-content data-autoscrolling:scrollbar-none',
@@ -165,18 +156,16 @@ export const MessageScrollerViewport = component<MessageScrollerSectionProps>(
     );
     const root = ref<HTMLDivElement>();
     onMount(() => {
-      if (root.current) {
-        projectChildren(host, root.current, projected);
-        state.setViewport(root.current);
-      }
+      if (root.current) state.setViewport(root.current);
     });
     return html`<div
       ref="${root}"
       data-slot="message-scroller-viewport"
       class="${classes}"
       @scroll=${() => state.handleScroll()}
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-message-scroller-content ──────────────────────────────────────
@@ -186,18 +175,15 @@ export const MessageScrollerContent = component<MessageScrollerSectionProps>(
   (props, host) => {
     const state = MessageScrollerContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn('flex h-max min-h-full flex-col gap-8', className.value));
     const root = ref<HTMLDivElement>();
     onMount(() => {
-      if (root.current) {
-        projectChildren(host, root.current, projected);
-        state.setContent(root.current);
-      }
+      if (root.current) state.setContent(root.current);
     });
-    return html`<div ref="${root}" data-slot="message-scroller-content" class="${classes}">${props.children}</div>`;
+    return html`<div ref="${root}" data-slot="message-scroller-content" class="${classes}">${children()}</div>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-message-scroller-item ─────────────────────────────────────────
@@ -212,26 +198,21 @@ export const MessageScrollerItem = component<MessageScrollerItemProps>(
   'ui-message-scroller-item',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const scrollAnchor = boolAttr(props.scrollAnchor, host, 'scroll-anchor');
-    const className = attr(props.className, host, 'class-name');
+    const scrollAnchor = computed<boolean>(() => props.scrollAnchor.value as boolean);
+    const className = props.className;
     const classes = computed(() =>
       cn(
         'min-w-0 shrink-0 [contain-intrinsic-size:auto_10rem] [content-visibility:auto]',
         className.value,
       ),
     );
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<div
-      ref="${root}"
       data-slot="message-scroller-item"
       data-scroll-anchor="${computed(() => (scrollAnchor.value ? 'true' : undefined))}"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { scrollAnchor: 'boolean', className: 'string' } },
 );
 
 // ── ui-message-scroller-button ───────────────────────────────────────
@@ -263,7 +244,7 @@ export const MessageScrollerButton = component<MessageScrollerButtonProps>(
     const state = MessageScrollerContext.inject();
     transparentHost(host);
 
-    const dirAttr = attr(props.direction, host, 'direction');
+    const dirAttr = props.direction;
     const direction = computed<'start' | 'end'>(() =>
       dirAttr.value === 'start' ? 'start' : 'end',
     );
@@ -271,8 +252,8 @@ export const MessageScrollerButton = component<MessageScrollerButtonProps>(
       direction.value === 'end' ? !state.isAtEnd.value : !state.isAtStart.value,
     );
 
-    const variant = attr(props.variant, host, 'variant');
-    const size = attr(props.size, host, 'size');
+    const variant = props.variant;
+    const size = props.size;
     const resolvedVariant = computed<ButtonVariant>(
       () => (variant.value as ButtonVariant | undefined) ?? 'secondary',
     );
@@ -280,7 +261,7 @@ export const MessageScrollerButton = component<MessageScrollerButtonProps>(
       () => (size.value as ButtonSize | undefined) ?? 'icon-sm',
     );
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     // Canonical button variant classes, then the message-scroller position
     // overrides, then the caller's className — same layering as upstream's
     // `render={<Button variant size />}` + merged className.
@@ -316,5 +297,13 @@ export const MessageScrollerButton = component<MessageScrollerButtonProps>(
       class="${classes}"
       @click=${onClick}
     >${children(defaultContent)}</button>`;
+  },
+  {
+    attrs: {
+      direction: 'string',
+      variant: 'string',
+      size: 'string',
+      className: 'string',
+    },
   },
 );
