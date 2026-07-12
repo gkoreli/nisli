@@ -36,7 +36,7 @@ html`${Button({ variant: 'outline', children: 'Save' })}`;
 
 ## Requirements
 
-- `@nisli/core` >= 0.48
+- `@nisli/core` >= 0.53
 - Tailwind CSS v4 — import the copied `styles/theme.css` after
   `@import "tailwindcss";`. Theming and dark mode work exactly like
   shadcn/ui: override the CSS variables; add a `.dark` class.

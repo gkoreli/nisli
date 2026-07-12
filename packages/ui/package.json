@@ -22,7 +22,7 @@
     "nisli-ui": "./dist/cli.js"
   },
   "peerDependencies": {
-    "@nisli/core": ">=0.48.0"
+    "@nisli/core": ">=0.53.0"
   },
   "devDependencies": {
     "@nisli/core": "workspace:*",
