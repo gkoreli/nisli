@@ -162,6 +162,9 @@ layouts.
   order (`tailwindcss` → `tw-animate-css` → copied `theme.css`). The package is
   never imported by copied TypeScript and is not a runtime dependency; no
   animation CSS is vendored.
+  **Proof (UI-49)**: `packages/www/scripts/animation-proof.mjs` drives the
+  production `/ui/popover` preview in Chromium and checks computed enter/exit
+  animation names and nonzero durations across real open/close interaction.
 - Theming = overriding the CSS variables. Dark mode = a `.dark` class on any
   ancestor. Identical mental model to shadcn, so their theme ecosystem ports
   directly.
