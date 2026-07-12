@@ -87,17 +87,39 @@ sole caller (`build.ts`) already awaited `route.render`; `buildStaticSite`
 was already async, so no public-API ripple. Regression:
 `build.test.ts > settles microtask work before snapshotting`.
 
-### 6. Portal primitive — MEDIUM
+### 6. Portal primitive — FIXED (2026-07-11)
 
 Dialog, sheet, tooltip, popover, and all menus render overlays inline with
 `position: fixed` and each documents the same caveat: a transformed/
 filtered ancestor becomes the containing block and traps the overlay.
-Upstream solves this with portals; we cannot reparent cleanly because
-template disposal ownership is tied to where nodes were mounted.
-**Proposal**: a core-sanctioned portal (mount-to-body with preserved
-dispose/reactivity ownership) — the deferred `portal-lite` from ADR 0022,
-promoted to a framework concern. ADR 0023's move-resilience already
-removes the re-setup hazard for the move itself.
+Upstream solves this with portals; the original proposal assumed we could
+not reparent cleanly because template disposal ownership is tied to where
+nodes were mounted, and asked whether portal had to be a **core** concern.
+
+**Resolution**: that premise proved false — portal did NOT need to be core.
+It shipped as a registry **lib** (`lib/portal.ts`):
+`portal(ref, {target = document.body, enabled})` moves a subtree on mount
+and removes it on teardown. Two facts make lib-level ownership clean:
+(a) `TemplateResult.dispose()` only unbinds effects/bindings — it never
+removes mounted nodes (those leave with the host on disconnect), so a node
+moved out to `<body>` is unreachable by host removal and the portal is its
+sole, uncontested owner (captured at mount so a later ref reset can't
+strand it); and (b) reactive bindings track their nodes by reference, not
+DOM position, so they survive the move. ADR 0023's move-resilience covers
+the re-setup hazard — now *verified*, not assumed. Adopted in `dialog`
+(portal default on) as the graduation proof, retiring its
+transformed-ancestor caveat.
+**Proof**: `registry/default/lib/portal.test.ts` — sole-removal ownership,
+move-resilience (a moved custom-element subtree's setup stays `1` across
+the body move *and* teardown), reactive-binding-inside-portal, multi-portal
+stacking with independent removal, teardown removal, outside-setup guard;
+`registry/default/ui/dialog.test.ts` — default move-to-body, `portal={false}`
+/ `portal="false"` inline, Escape + outside-pointer dismissal and focus
+trap/restore intact through the move, no-leak teardown.
+Follow-up ticket: sheet/tooltip/popover/menus adoption. Known limit: in
+`@nisli/ssg` static render the portaled subtree escapes the captured
+snapshot (client-only, matching upstream's client-portal behavior);
+`portal={false}` keeps it in static output.
 
 ### 7. Awaitable flush/tick — FIXED (2026-07-11)
 

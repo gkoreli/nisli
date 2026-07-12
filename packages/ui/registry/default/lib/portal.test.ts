@@ -35,6 +35,19 @@ const PortalBox = component<{ label?: string | TemplateResult; enabled?: boolean
   },
 );
 
+// A child custom element that counts its own setup runs, wrapped in a portaled
+// box — used to prove the move does NOT re-run a moved subtree's setup.
+let childSetups = 0;
+const PortalSetupChild = component('portal-setup-child', () => {
+  childSetups += 1;
+  return html`<span data-slot="child">child</span>`;
+});
+const PortalSetupParent = component('portal-setup-parent', () => {
+  const b = ref<HTMLElement>();
+  portal(b);
+  return html`<div ref="${b}" data-slot="pbox">${PortalSetupChild({})}</div>`;
+});
+
 // Portals into an explicit container instead of <body>.
 let customTarget: HTMLElement | null = null;
 const TargetedBox = component<{ label?: string }>('portal-targeted-box', (props) => {
@@ -120,6 +133,28 @@ describe('portal — stacking', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(boxes().map((n) => n.textContent)).toEqual(['a', 'c']);
+  });
+});
+
+describe('portal — move-resilience (the graduating invariant)', () => {
+  it('reparenting does not re-run the moved subtree\'s setup (setup stays 1)', async () => {
+    childSetups = 0;
+    const c = mount(html`${PortalSetupParent({})}`);
+
+    // The box (with its custom-element child) was moved to <body>.
+    const box = document.querySelector<HTMLElement>('[data-slot="pbox"]')!;
+    expect(box.parentElement).toBe(document.body);
+    expect(document.querySelector('[data-slot="child"]')).not.toBeNull();
+    // Despite the disconnected+connected the appendChild move fires, ADR 0023
+    // skips the deferred teardown on same-tick reconnect — so setup ran once.
+    expect(childSetups).toBe(1);
+
+    // Teardown after the move: still no re-setup, and the subtree is removed.
+    c.querySelector('portal-setup-parent')!.remove();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(childSetups).toBe(1);
+    expect(document.querySelector('[data-slot="pbox"]')).toBeNull();
   });
 });
 
