@@ -4,7 +4,7 @@
  *
  * @vitest-environment happy-dom
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { buildSite } from './build.js';
 import { components, primitives } from './registry.js';
@@ -12,8 +12,22 @@ import { primaryTag } from './preview.js';
 import { getExample } from './examples.js';
 
 describe('nisli website', () => {
-  it('renders every route through the shell + chrome', async () => {
-    const built = await buildSite();
+  // ONE full-site build shared across the suite. buildSite() renders all ~80
+  // routes (live @nisli/ui previews) + writes dist/ — ~2s locally, ~5-6s on a
+  // slow CI runner. It used to run once PER build-carrying test (8×; the 9th
+  // test was already synchronous), which made each of those tests trip vitest's
+  // 5s DEFAULT per-test timeout on Ubuntu runners (run 29205544349: 8/9 tests
+  // timed out, file 41.685s). Profiled: the cost is inherent to rendering 80
+  // pages — NOT a WWW-15 regression (curated vs auto-default render measured
+  // within noise, ~2.0s either way) — so the honest fix is hoisting the one
+  // build, not inflating per-test timeouts. The single build gets a sized hook
+  // timeout (bounded setup, not per-test masking).
+  let built: Awaited<ReturnType<typeof buildSite>>;
+  beforeAll(async () => {
+    built = await buildSite();
+  }, 60_000);
+
+  it('renders every route through the shell + chrome', () => {
     const paths = new Set(built.map((p) => p.path));
 
     // the AppRouter's static routes + the notFound page are all emitted
@@ -34,8 +48,7 @@ describe('nisli website', () => {
     }
   });
 
-  it('renders the home page with live @nisli/ui components', async () => {
-    const built = await buildSite();
+  it('renders the home page with live @nisli/ui components', () => {
     const home = built.find((p) => p.path === '/');
     expect(home).toBeDefined();
     const page = readFileSync(home!.filePath, 'utf8');
@@ -47,8 +60,7 @@ describe('nisli website', () => {
     expect(page).toContain('id="framework"');
   });
 
-  it('is registry-driven: one /ui/<name> route per registry item', async () => {
-    const built = await buildSite();
+  it('is registry-driven: one /ui/<name> route per registry item', () => {
     const paths = new Set(built.map((p) => p.path));
 
     // every component + primitive in the registry has its own page
@@ -58,8 +70,7 @@ describe('nisli website', () => {
     expect(paths.has('/ui')).toBe(true);
   });
 
-  it('renders a component page from registry metadata (exact add command)', async () => {
-    const built = await buildSite();
+  it('renders a component page from registry metadata (exact add command)', () => {
     const button = built.find((p) => p.path === '/ui/button');
     expect(button).toBeDefined();
     const page = readFileSync(button!.filePath, 'utf8');
@@ -75,9 +86,7 @@ describe('nisli website', () => {
     expect(indexHtml).toContain('href="/ui/dialog"');
   });
 
-  it('renders framework-first docs with a hello-world quick-start', async () => {
-    const built = await buildSite();
-
+  it('renders framework-first docs with a hello-world quick-start', () => {
     // docs landing + concept pages exist
     for (const path of ['/docs', '/docs/quick-start', '/docs/signals', '/docs/cli']) {
       expect(built.some((p) => p.path === path)).toBe(true);
@@ -94,9 +103,7 @@ describe('nisli website', () => {
   // WWW-6 permanent guard: every ui-type registry item must open with a live,
   // upgraded component preview on its /ui/<name> page. This absorbs the demo
   // package's dogfood role — www is now the sole end-to-end regression.
-  it('renders a live preview for every ui component (WWW-6 guard)', async () => {
-    const built = await buildSite();
-
+  it('renders a live preview for every ui component (WWW-6 guard)', () => {
     for (const item of components) {
       const page = built.find((p) => p.path === `/ui/${item.name}`);
       expect(page, `missing page for ${item.name}`).toBeDefined();
@@ -129,8 +136,7 @@ describe('nisli website', () => {
     expect(primitives.every((p) => p.type === 'lib')).toBe(true);
   });
 
-  it('renders the themes token showcase', async () => {
-    const built = await buildSite();
+  it('renders the themes token showcase', () => {
     const themes = built.find((p) => p.path === '/themes');
     expect(themes).toBeDefined();
     const page = readFileSync(themes!.filePath, 'utf8');
@@ -145,8 +151,7 @@ describe('nisli website', () => {
   // there hydrates (derived, no allowlist). Home, /themes, and the 404 render in
   // SiteShell alone and stay runtime-free: the NEGATIVE assertion keeps the
   // static-first tenet honest and locks the predicate.
-  it('injects the client runtime on exactly the DocsLayout pages (chrome + previews)', async () => {
-    const built = await buildSite();
+  it('injects the client runtime on exactly the DocsLayout pages (chrome + previews)', () => {
     const SCRIPT = '/ui-preview/hydrate.js';
     const has = (path: string) => readFileSync(built.find((p) => p.path === path)!.filePath, 'utf8').includes(SCRIPT);
     const isDocsLayout = (path: string) =>
