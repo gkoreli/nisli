@@ -40,7 +40,11 @@ function mountTooltip(
 
 const q = (root: ParentNode, slot: string) =>
   root.querySelector<HTMLElement>(`[data-slot="${slot}"]`)!;
-const isOpen = (root: ParentNode) => !q(root, 'tooltip-content').hasAttribute('hidden');
+// Content is portaled to <body>, so it's no longer under the tooltip host —
+// resolve it from the trigger's aria-describedby (each tooltip → its own id).
+const contentFor = (root: ParentNode): HTMLElement =>
+  document.getElementById(q(root, 'tooltip-trigger').getAttribute('aria-describedby')!)!;
+const isOpen = (root: ParentNode) => !contentFor(root).hasAttribute('hidden');
 function fire(el: Element, type: string): void {
   el.dispatchEvent(new Event(type, { bubbles: true }));
   flushEffects();
@@ -56,7 +60,7 @@ describe('Tooltip — structure and ARIA', () => {
   it('wires trigger aria-describedby to the content, closed initially', () => {
     const c = mountTooltip();
     const trigger = q(c, 'tooltip-trigger');
-    const content = q(c, 'tooltip-content');
+    const content = q(document, 'tooltip-content');
     expect(content.getAttribute('role')).toBe('tooltip');
     expect(content.id).toBeTruthy();
     expect(trigger.getAttribute('aria-describedby')).toBe(content.id);
@@ -180,8 +184,41 @@ describe('Tooltip — plain custom element usage', () => {
 
     const root = document.querySelector('ui-tooltip')!;
     expect(root.querySelectorAll('[data-slot="tooltip-trigger"]')).toHaveLength(1);
-    expect(root.querySelectorAll('[data-slot="tooltip-content"]')).toHaveLength(1);
+    // Content is portaled to <body>, so it's counted there, not under the host.
+    expect(document.querySelectorAll('[data-slot="tooltip-content"]')).toHaveLength(1);
     expect(q(root, 'tooltip-trigger').textContent).toBe('Hover');
-    expect(q(root, 'tooltip-content').textContent).toBe('Tip');
+    expect(q(document, 'tooltip-content').textContent).toBe('Tip');
+  });
+});
+
+describe('Tooltip — portal', () => {
+  it('moves the content to <body> by default, trigger stays put', () => {
+    const c = mountTooltip();
+    const content = q(document, 'tooltip-content');
+    expect(content.parentElement).toBe(document.body);
+    expect(c.contains(content)).toBe(false);
+    expect(c.contains(q(c, 'tooltip-trigger'))).toBe(true);
+  });
+
+  it('portal={false} keeps the content inline', () => {
+    const c = mount(
+      html`${Tooltip({
+        children: html`${TooltipTrigger({ children: 'Hover' })}
+        ${TooltipContent({ portal: false, children: 'Tip' })}`,
+      })}`,
+    );
+    flushEffects();
+    const content = q(document, 'tooltip-content');
+    expect(content.parentElement).not.toBe(document.body);
+    expect(c.contains(content)).toBe(true);
+  });
+
+  it('removes the portaled content when the tooltip is disconnected (no leak)', async () => {
+    const c = mountTooltip();
+    expect(document.querySelector('[data-slot="tooltip-content"]')).not.toBeNull();
+    c.querySelector('ui-tooltip')!.remove();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.querySelector('[data-slot="tooltip-content"]')).toBeNull();
   });
 });

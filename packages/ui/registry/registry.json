@@ -310,7 +310,8 @@
       ],
       "registryDependencies": [
         "utils",
-        "floating"
+        "floating",
+        "portal"
       ]
     },
     {
