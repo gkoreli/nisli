@@ -24,6 +24,9 @@
  *
  * v1 deviations (documented):
  * - `asChild` is not supported (Nisli renders the native element directly).
+ *   Where upstream reaches for `asChild` to make a menu button a link
+ *   (`<SidebarMenuButton asChild><a href>`), `SidebarMenuButton`/`SubButton`
+ *   take an `href` prop and render a real `<a>` instead.
  * - No tooltip on a collapsed menu button.
  * - `data-sidebar="sidebar"` / `data-slot="sidebar"` / `data-mobile="true"` sit
  *   on the mobile panel's inner wrapper (upstream sets them on SheetContent
@@ -555,6 +558,13 @@ export type SidebarMenuButtonProps = {
   isActive?: boolean;
   variant?: SidebarMenuButtonVariant;
   size?: SidebarMenuButtonSize;
+  /**
+   * When set, the button renders as an `<a href>` — a real navigation link
+   * (works with zero JS). This is the Nisli translation of upstream's
+   * `<SidebarMenuButton asChild><a href>` (asChild unsupported), and mirrors
+   * `SidebarMenuSubButton`'s existing href/anchor mode.
+   */
+  href?: string;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -563,6 +573,7 @@ const sidebarMenuButtonAttrs = {
   isActive: 'boolean',
   variant: 'string',
   size: 'string',
+  href: 'string',
   className: 'string',
 } satisfies ComponentAttrs<SidebarMenuButtonProps>;
 
@@ -580,14 +591,31 @@ export const SidebarMenuButton = component<SidebarMenuButtonProps, typeof sideba
         props.className.value,
       ),
     );
+    const dataSize = computed(() => props.size.value ?? 'default');
+    const dataActive = computed(() => (isActive.value ? 'true' : 'false'));
+    const ariaCurrent = computed(() => (isActive.value ? 'page' : undefined));
+    const kids = children();
+
+    // href → real anchor (static structural choice at setup, like asChild).
+    if (props.href.value != null) {
+      return html`<a
+        data-slot="sidebar-menu-button"
+        data-sidebar="menu-button"
+        data-size="${dataSize}"
+        data-active="${dataActive}"
+        href="${props.href}"
+        aria-current="${ariaCurrent}"
+        class="${classes}"
+      >${kids}</a>`;
+    }
     return html`<button
       type="button"
       data-slot="sidebar-menu-button"
       data-sidebar="menu-button"
-      data-size="${computed(() => props.size.value ?? 'default')}"
-      data-active="${computed(() => (isActive.value ? 'true' : 'false'))}"
+      data-size="${dataSize}"
+      data-active="${dataActive}"
       class="${classes}"
-    >${children()}</button>`;
+    >${kids}</button>`;
   },
   { attrs: sidebarMenuButtonAttrs },
 );

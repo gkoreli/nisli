@@ -190,6 +190,40 @@ describe('Sidebar — menu + group parts', () => {
     expect(q(c, 'sidebar-group-label').textContent).toBe('Platform');
   });
 
+  it('a menu button with href renders a real anchor with aria-current when active', () => {
+    const c = mount(
+      html`${SidebarProvider({
+        children: Sidebar({
+          children: SidebarMenu({
+            children: html`${SidebarMenuItem({
+              children: SidebarMenuButton({ href: '/docs', isActive: true, children: 'Docs' }),
+            })}
+            ${SidebarMenuItem({
+              children: SidebarMenuButton({ href: '/ui', children: 'Components' }),
+            })}`,
+          }),
+        }),
+      })}`,
+    );
+    flush2();
+    const buttons = c.querySelectorAll<HTMLElement>('[data-slot="sidebar-menu-button"]');
+    expect(buttons[0]!.tagName).toBe('A');
+    expect(buttons[0]!.getAttribute('href')).toBe('/docs');
+    expect(buttons[0]!.getAttribute('data-active')).toBe('true');
+    expect(buttons[0]!.getAttribute('aria-current')).toBe('page');
+    // Inactive link: anchor, no aria-current.
+    expect(buttons[1]!.tagName).toBe('A');
+    expect(buttons[1]!.getAttribute('aria-current')).toBeNull();
+    // A plain (no-href) menu button stays a <button>.
+    const plain = mount(
+      html`${SidebarProvider({
+        children: Sidebar({ children: SidebarMenu({ children: SidebarMenuItem({ children: SidebarMenuButton({ children: 'Act' }) }) }) }),
+      })}`,
+    );
+    flush2();
+    expect(plain.querySelector('[data-slot="sidebar-menu-button"]')!.tagName).toBe('BUTTON');
+  });
+
   it('menu skeleton renders a deterministic width (SSG-safe) and optional icon', () => {
     const c = mount(
       html`${SidebarProvider({ children: SidebarMenuSkeleton({ showIcon: true, width: '60%' }) })}`,
