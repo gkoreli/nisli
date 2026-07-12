@@ -111,13 +111,17 @@ handler; the template engine could map event names to types.
 **Proposal**: typed event helper or template type map (compile-time only,
 no runtime change).
 
-### 9. `component<P>` rejects interfaces — LOW (ergonomics)
+### 9. `component<P>` rejects interfaces — FIXED (2026-07-11)
 
 `P extends Record<string, unknown>` means props must be type aliases
 (interfaces lack implicit index signatures) — a recurring papercut when
 porting.
 **Proposal**: relax the constraint (e.g. `object`) or document the alias
 requirement in the framework skill.
+
+**Resolution**: fixed by the `fix(core)` commit graduating tracker item 9;
+`component<P>` now constrains props to `object`, with compile-time proofs for
+interface props, required properties, optional properties, and value types.
 
 ### 10. Static factory arrays don't mount in slots — FIXED (2026-07-11)
 
