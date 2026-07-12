@@ -56,6 +56,7 @@ try {
     `@nisli/ui@${version}`,
     'tailwindcss@^4',
     '@tailwindcss/vite@^4',
+    'tw-animate-css@^1.4',
     'happy-dom',
   ]);
 
@@ -80,6 +81,7 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({ plugins: [tailwindcss()] });
 `);
   writeFileSync(join(app, 'src/style.css'), `@import "tailwindcss";
+@import "tw-animate-css";
 @import "./nisli-ui/styles/theme.css";
 `);
   writeFileSync(join(app, 'src/main.ts'), `import './style.css';

@@ -6,7 +6,8 @@ distributed as **source copied into your project**, not as a runtime
 dependency. You own the code.
 
 ```sh
-npm install -D @nisli/ui
+npm install @nisli/core
+npm install -D @nisli/ui tailwindcss tw-animate-css
 npx nisli-ui init          # writes nisli-ui.json, copies lib/utils.ts + styles/theme.css
 npx nisli-ui add button    # copies ui/button.ts (and its registry deps) into your tree
 ```
@@ -16,6 +17,7 @@ Tailwind:
 
 ```css
 @import "tailwindcss";
+@import "tw-animate-css";
 @import "./nisli-ui/styles/theme.css";
 ```
 
@@ -37,8 +39,8 @@ html`${Button({ variant: 'outline', children: 'Save' })}`;
 ## Requirements
 
 - `@nisli/core` >= 0.53
-- Tailwind CSS v4 — import the copied `styles/theme.css` after
-  `@import "tailwindcss";`. Theming and dark mode work exactly like
+- Tailwind CSS v4 + `tw-animate-css` — import the copied `styles/theme.css`
+  after both build-tool imports. Theming and dark mode work exactly like
   shadcn/ui: override the CSS variables; add a `.dark` class.
 
 The networked smoke test for the currently published package runs as a separate

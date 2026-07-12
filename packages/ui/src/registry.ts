@@ -21,6 +21,8 @@ export interface RegistryItem {
   registryDependencies?: string[];
   /** npm packages the consumer must install (reported, never auto-installed). */
   dependencies?: string[];
+  /** Build-only npm packages the consumer should install with `--save-dev`. */
+  devDependencies?: string[];
 }
 
 export interface Registry {

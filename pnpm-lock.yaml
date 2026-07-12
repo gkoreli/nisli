@@ -57,6 +57,9 @@ importers:
       '@nisli/ssg':
         specifier: workspace:*
         version: link:../ssg
+      tw-animate-css:
+        specifier: ^1.4.0
+        version: 1.4.0
 
   packages/www:
     devDependencies:

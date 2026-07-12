@@ -42,8 +42,12 @@ try {
   const run = (...args) => execFileSync('node', [cli, ...args], { cwd: consumer }).toString();
 
   check('packed CLI: list works', run('list').includes('button'));
-  run('init', '--dir', 'src/ui');
+  const initOutput = run('init', '--dir', 'src/ui');
   check('packed CLI: init copies base files', existsSync(join(consumer, 'src/ui/lib/utils.ts')));
+  check('packed CLI: init reports animation build dependency',
+    initOutput.includes('npm install -D tw-animate-css'));
+  check('packed CLI: init reports the required CSS import',
+    initOutput.includes('@import "tw-animate-css";'));
   run('add', 'dialog');
   check(
     'packed CLI: add resolves transitive lib deps',

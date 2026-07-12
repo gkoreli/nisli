@@ -22,6 +22,8 @@ export interface AddResult {
   skipped: string[];
   /** npm packages the consumer must install. */
   dependencies: string[];
+  /** Build-only npm packages the consumer must install. */
+  devDependencies: string[];
 }
 
 export function addItems(cwd: string, names: string[], options: AddOptions = {}): AddResult {
@@ -37,7 +39,7 @@ export function addItems(cwd: string, names: string[], options: AddOptions = {})
   const items = resolveItems(registry, names);
   const sourceRoot = join(registryDir(), registry.style);
 
-  const result: AddResult = { copied: [], skipped: [], dependencies: [] };
+  const result: AddResult = { copied: [], skipped: [], dependencies: [], devDependencies: [] };
   for (const item of items) {
     for (const file of item.files) {
       const relative = join(config.dir, file);
@@ -52,6 +54,9 @@ export function addItems(cwd: string, names: string[], options: AddOptions = {})
     }
     for (const dep of item.dependencies ?? []) {
       if (!result.dependencies.includes(dep)) result.dependencies.push(dep);
+    }
+    for (const dep of item.devDependencies ?? []) {
+      if (!result.devDependencies.includes(dep)) result.devDependencies.push(dep);
     }
   }
   return result;

@@ -28,6 +28,7 @@ describe('init()', () => {
     expect(existsSync(join(cwd, 'nisli-ui.json'))).toBe(true);
     expect(existsSync(join(cwd, 'src/nisli-ui/lib/utils.ts'))).toBe(true);
     expect(existsSync(join(cwd, 'src/nisli-ui/styles/theme.css'))).toBe(true);
+    expect(result.add.devDependencies).toEqual(['tw-animate-css']);
   });
 
   it('respects a custom dir', () => {

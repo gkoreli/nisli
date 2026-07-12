@@ -30,6 +30,9 @@ function report(result: AddResult): void {
   if (result.dependencies.length > 0) {
     console.log(`\nInstall npm dependencies: npm install ${result.dependencies.join(' ')}`);
   }
+  if (result.devDependencies.length > 0) {
+    console.log(`\nInstall build dependencies: npm install -D ${result.devDependencies.join(' ')}`);
+  }
 }
 
 export function run(argv: string[], cwd: string = process.cwd()): number {
@@ -50,7 +53,12 @@ export function run(argv: string[], cwd: string = process.cwd()): number {
             : `Using existing ${CONFIG_FILE} (dir: ${result.config.dir})`,
         );
         report(result.add);
-        console.log('\nNext: import styles/theme.css after `@import "tailwindcss";` in your CSS.');
+        console.log(
+          '\nNext, add these imports to your Tailwind v4 entry CSS:\n' +
+          '  @import "tailwindcss";\n' +
+          '  @import "tw-animate-css";\n' +
+          `  @import "./${result.config.dir}/styles/theme.css";`,
+        );
         return 0;
       }
       case 'add': {

@@ -8,6 +8,17 @@ A reactive web component framework. Signals, templates, dependency injection —
 npm install @nisli/core
 ```
 
+To add the source-first component registry with Tailwind v4 animations:
+
+```bash
+npm install @nisli/core
+npm install -D @nisli/ui tailwindcss tw-animate-css
+npx nisli-ui init
+```
+
+Then import `tailwindcss`, `tw-animate-css`, and the copied
+`nisli-ui/styles/theme.css` in that order in your entry stylesheet.
+
 ## Quick Start
 
 ```typescript

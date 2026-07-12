@@ -15,6 +15,9 @@
       "description": "shadcn-compatible CSS variable tokens (light + dark) for Tailwind v4.",
       "files": [
         "styles/theme.css"
+      ],
+      "devDependencies": [
+        "tw-animate-css"
       ]
     },
     {

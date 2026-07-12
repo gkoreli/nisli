@@ -156,6 +156,12 @@ layouts.
   `--secondary`, `--muted`, `--accent`, `--destructive`, `--border`,
   `--input`, `--ring`, `--radius`, … in oklch, plus an `@theme inline` block
   mapping them to Tailwind color names (`--color-background: var(--background)`).
+- Upstream `new-york-v4` declares `tw-animate-css` as a **development/build
+  dependency** and imports it before the theme layer. Nisli mirrors that
+  contract: `init` reports `npm install -D tw-animate-css` and the required CSS
+  order (`tailwindcss` → `tw-animate-css` → copied `theme.css`). The package is
+  never imported by copied TypeScript and is not a runtime dependency; no
+  animation CSS is vendored.
 - Theming = overriding the CSS variables. Dark mode = a `.dark` class on any
   ancestor. Identical mental model to shadcn, so their theme ecosystem ports
   directly.
