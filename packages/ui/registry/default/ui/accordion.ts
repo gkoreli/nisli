@@ -13,11 +13,11 @@
  *     </ui-accordion-item>
  *   </ui-accordion>
  *
- * Usable via typed factories or as plain custom elements. The parent
- * `<ui-accordion>` publishes its open-state on `host.__uiAccordion`; each
- * `<ui-accordion-item>` publishes its value on `host.__uiAccordionItem`.
- * Triggers/content locate both via `host.closest(...)` and render the setup
- * error fallback when used outside an accordion. Open/close changes dispatch a
+ * Usable via typed factories or as plain custom elements. Two subtree-scoped
+ * contexts: `<ui-accordion>` publishes its open-state via `AccordionContext`
+ * and each `<ui-accordion-item>` publishes its value via `AccordionItemContext`;
+ * triggers/content resolve both with `.inject()` and render the setup error
+ * fallback when used outside an accordion. Open/close changes dispatch a
  * bubbling `ui-value-change` CustomEvent from the `<ui-accordion>` host.
  *
  * The trigger carries the shadcn chevron (a literal `<svg>` in the html
@@ -29,6 +29,7 @@
 
 import {
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -61,28 +62,12 @@ export interface AccordionState {
   baseId: string;
 }
 
-type AccordionHost = HTMLElement & { __uiAccordion?: AccordionState };
-type AccordionItemHost = HTMLElement & { __uiAccordionItem?: { value: string } };
+/** Root accordion state (open-set, type) shared with items/triggers/content. */
+const AccordionContext = createContext<AccordionState>('Accordion');
+/** Per-item value, published by each <ui-accordion-item> for its trigger/content. */
+const AccordionItemContext = createContext<{ value: string }>('AccordionItem');
 
 let uid = 0;
-
-function useAccordionState(host: HTMLElement, tag: string): AccordionState {
-  const parent = host.closest('ui-accordion') as AccordionHost | null;
-  const state = parent?.__uiAccordion;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-accordion>.`);
-  }
-  return state;
-}
-
-function useItemValue(host: HTMLElement, tag: string): string {
-  const item = host.closest('ui-accordion-item') as AccordionItemHost | null;
-  const value = item?.__uiAccordionItem?.value;
-  if (value == null) {
-    throw new Error(`<${tag}> must be used inside <ui-accordion-item>.`);
-  }
-  return value;
-}
 
 /** Normalize a controlled value (string | string[]) into a Set. */
 function toSet(value: string | string[] | undefined): Set<string> {
@@ -163,7 +148,7 @@ export const Accordion = component<AccordionProps>('ui-accordion', (props, host)
     toggle,
     baseId: `ui-accordion-${++uid}`,
   };
-  (host as AccordionHost).__uiAccordion = state;
+  AccordionContext.provide(host, state);
 
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() => cn(className.value));
@@ -207,13 +192,13 @@ export type AccordionItemProps = {
 export const AccordionItem = component<AccordionItemProps>(
   'ui-accordion-item',
   (props, host) => {
-    const state = useAccordionState(host, 'ui-accordion-item');
+    const state = AccordionContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
     const valueAttr = attr(props.value, host, 'value');
     const value = valueAttr.value ?? '';
-    (host as AccordionItemHost).__uiAccordionItem = { value };
+    AccordionItemContext.provide(host, { value });
 
     const open = computed(() => value !== '' && state.openValues.value.has(value));
 
@@ -248,8 +233,8 @@ export type AccordionTriggerProps = {
 export const AccordionTrigger = component<AccordionTriggerProps>(
   'ui-accordion-trigger',
   (props, host) => {
-    const state = useAccordionState(host, 'ui-accordion-trigger');
-    const value = useItemValue(host, 'ui-accordion-trigger');
+    const state = AccordionContext.inject();
+    const value = AccordionItemContext.inject().value;
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -306,8 +291,8 @@ export type AccordionContentProps = {
 export const AccordionContent = component<AccordionContentProps>(
   'ui-accordion-content',
   (props, host) => {
-    const state = useAccordionState(host, 'ui-accordion-content');
-    const value = useItemValue(host, 'ui-accordion-content');
+    const state = AccordionContext.inject();
+    const value = AccordionItemContext.inject().value;
     transparentHost(host);
     const projected = captureChildren(host);
 
