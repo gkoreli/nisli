@@ -148,6 +148,20 @@ styling lives on the component's inner root element (the real `<button>`).
 The host never carries visual classes; wrappers must not distort flex/grid
 layouts.
 
+**Direct-child selector translation (ButtonGroup, UI-61):** CSS selectors do not
+flatten `display: contents` custom-element hosts. UI-55's follow-up cohesion
+audit found that upstream ButtonGroup's direct-child rounding/border selectors
+therefore matched non-painting `ui-button` hosts. Nisli keeps the upstream rules
+for native/plain children and adds parallel selectors for the painted inner
+`[data-slot=button]` / `[data-slot=button-group-text]` nodes. Nested group gaps,
+focus stacking, both orientations, and separator composition preserve the
+upstream visual contract without abandoning transparent factory composition.
+Every upstream port must mechanically classify direct-child (`>` / `*:`),
+positional (`first:` / `last:`), and divide utilities against Nisli's actual
+rendered DOM. Verbatim utility-token equality is not parity when a transparent
+host prevents the selector from reaching the painted node. The complete census
+and explicitly ticketed residuals live in `packages/ui/UI-36B-WORKLIST.md`.
+
 ### 3. Styling and theming: Tailwind v4 + shadcn token layer
 
 - Consumers are expected to use **Tailwind CSS v4** (CSS-first config). The

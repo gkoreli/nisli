@@ -20,15 +20,18 @@ import {
 import type { SeparatorOrientation } from './separator.js';
 import { cn, cv, transparentHost } from '../lib/utils.js';
 
+// Upstream's direct-child utilities target painted primitives. Nisli factories
+// interpose transparent ui-button/ui-button-group-text hosts, so keep the
+// upstream paths for plain children and add explicit paths to the painted slots.
 export const buttonGroupVariants = cv(
-  "flex w-fit items-stretch has-[>[data-slot=button-group]]:gap-2 [&>*]:focus-visible:relative [&>*]:focus-visible:z-10 has-[select[aria-hidden=true]:last-child]:[&>[data-slot=select-trigger]:last-of-type]:rounded-r-md [&>[data-slot=select-trigger]:not([class*='w-'])]:w-fit [&>input]:flex-1",
+  "flex w-fit items-stretch has-[>[data-slot=button-group]]:gap-2 has-[>ui-button-group>[data-slot=button-group]]:gap-2 [&>*]:focus-visible:relative [&>*]:focus-visible:z-10 [&>ui-button>[data-slot=button]]:focus-visible:relative [&>ui-button>[data-slot=button]]:focus-visible:z-10 [&>ui-button-group-text>[data-slot=button-group-text]]:focus-visible:relative [&>ui-button-group-text>[data-slot=button-group-text]]:focus-visible:z-10 has-[select[aria-hidden=true]:last-child]:[&>[data-slot=select-trigger]:last-of-type]:rounded-r-md [&>[data-slot=select-trigger]:not([class*='w-'])]:w-fit [&>input]:flex-1",
   {
     variants: {
       orientation: {
         horizontal:
-          '[&>*:not(:first-child)]:rounded-l-none [&>*:not(:first-child)]:border-l-0 [&>*:not(:last-child)]:rounded-r-none',
+          '[&>*:not(:first-child)]:rounded-l-none [&>*:not(:first-child)]:border-l-0 [&>*:not(:last-child)]:rounded-r-none [&>ui-button:not(:first-child)>[data-slot=button]]:rounded-l-none [&>ui-button:not(:first-child)>[data-slot=button]]:border-l-0 [&>ui-button:not(:last-child)>[data-slot=button]]:rounded-r-none [&>ui-button-group-text:not(:first-child)>[data-slot=button-group-text]]:rounded-l-none [&>ui-button-group-text:not(:first-child)>[data-slot=button-group-text]]:border-l-0 [&>ui-button-group-text:not(:last-child)>[data-slot=button-group-text]]:rounded-r-none',
         vertical:
-          'flex-col [&>*:not(:first-child)]:rounded-t-none [&>*:not(:first-child)]:border-t-0 [&>*:not(:last-child)]:rounded-b-none',
+          'flex-col [&>*:not(:first-child)]:rounded-t-none [&>*:not(:first-child)]:border-t-0 [&>*:not(:last-child)]:rounded-b-none [&>ui-button:not(:first-child)>[data-slot=button]]:rounded-t-none [&>ui-button:not(:first-child)>[data-slot=button]]:border-t-0 [&>ui-button:not(:last-child)>[data-slot=button]]:rounded-b-none [&>ui-button-group-text:not(:first-child)>[data-slot=button-group-text]]:rounded-t-none [&>ui-button-group-text:not(:first-child)>[data-slot=button-group-text]]:border-t-0 [&>ui-button-group-text:not(:last-child)>[data-slot=button-group-text]]:rounded-b-none',
       },
     },
     defaultVariants: { orientation: 'horizontal' },

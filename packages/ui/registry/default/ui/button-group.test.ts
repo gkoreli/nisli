@@ -5,6 +5,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { html, type TemplateResult } from '@nisli/core';
+import { Button } from './button.js';
 import {
   ButtonGroup,
   ButtonGroupSeparator,
@@ -63,6 +64,38 @@ describe('ButtonGroup via factory', () => {
     expect(separator.className).toContain(buttonGroupSeparatorClasses);
     expect(separator.getAttribute('data-orientation')).toBe('vertical');
     expect(separator.getAttribute('role')).toBe('none');
+  });
+
+  it('keeps button hosts direct while targeting their painted inner buttons', () => {
+    const c = mount(html`${ButtonGroup({
+      children: html`${Button({ variant: 'outline', children: 'Cut' })}
+      ${Button({ variant: 'outline', children: 'Copy' })}
+      ${Button({ variant: 'outline', children: 'Paste' })}`,
+    })}`);
+    const group = bySlot('button-group', c);
+    const hosts = [...group.children];
+    expect(hosts.map((host) => host.tagName)).toEqual(['UI-BUTTON', 'UI-BUTTON', 'UI-BUTTON']);
+    expect(hosts.map((host) => host.querySelector('[data-slot="button"]')?.textContent)).toEqual([
+      'Cut', 'Copy', 'Paste',
+    ]);
+    expect(group.className).toContain(
+      '[&>ui-button:not(:first-child)>[data-slot=button]]:border-l-0',
+    );
+    expect(group.className).toContain(
+      '[&>ui-button:not(:last-child)>[data-slot=button]]:rounded-r-none',
+    );
+  });
+
+  it('translates nested-group gap and both orientation contracts through transparent hosts', () => {
+    expect(buttonGroupVariants({})).toContain(
+      'has-[>ui-button-group>[data-slot=button-group]]:gap-2',
+    );
+    expect(buttonGroupVariants({ orientation: 'horizontal' })).toContain(
+      '[&>ui-button-group-text:not(:first-child)>[data-slot=button-group-text]]:rounded-l-none',
+    );
+    expect(buttonGroupVariants({ orientation: 'vertical' })).toContain(
+      '[&>ui-button:not(:first-child)>[data-slot=button]]:border-t-0',
+    );
   });
 });
 

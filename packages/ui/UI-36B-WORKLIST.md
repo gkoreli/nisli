@@ -139,6 +139,54 @@ base rule. Bare Tailwind v4 borders no longer fall back to near-black
 Tailwind build + Chromium computed-style proof covers both coupled defaults.
 The three manual holds below remain open until post-deploy human recheck.
 
+Button-group cohesion **translated for Nisli transparent hosts (UI-61)**: pinned
+new-york-v4 correctly targets direct painted children, but Nisli's direct
+children are layout-transparent `ui-button` / `ui-button-group-text` hosts.
+The registry retains the upstream selectors for native/plain children and adds
+parallel selectors for the inner painted slots, including focus stacking,
+horizontal/vertical corner + shared-border collapse, and nested-group gap.
+This is intentional platform translation, not byte-verbatim drift. Built CSS
+and Chromium geometry at desktop + 390px cover the joined control; separator
+composition remains supported.
+
+### Transparent-host child-selector census
+
+Mechanical audit of registry class lists for direct-child arbitrary variants,
+`*:` variants, positional first/last rules, and `divide-x/y` utilities. The
+classification is about the actual rendered target, not token similarity.
+`REACHABLE` means the selector reaches a native/projected painted child; `N/A`
+means the candidate is internal or does not cross a transparent host;
+`TRANSLATED` means Nisli already supplies the required descendant path; `DEAD`
+means a transparent component host intercepts the selector. No `divide-x/y`
+candidate exists in the registry at this census.
+
+| File | Selector family / intended target | Class | Reason / disposition |
+| --- | --- | --- | --- |
+| `sidebar.ts` | `>button`, `>svg`, `>span:last-child` | REACHABLE | Rules live on painted native nodes and target their native children. |
+| `menubar.ts`, `context-menu.ts`, `dropdown-menu.ts` | destructive `*:[svg]` | REACHABLE | Menu item inner nodes receive projected raw SVG children. |
+| `avatar.ts` | overlap and ring on avatar boxes | TRANSLATED | Explicit-depth overlap and `**:` ring paths already cross the transparent avatar hosts. |
+| `item.ts`, `empty.ts`, `marker.ts` | direct projected anchors | REACHABLE | Text/content inner nodes own projected native anchors. |
+| `form-field.ts` | `&>*`, direct field label/content | DEAD — UI-58 | Field root sees transparent field component hosts rather than their painted slots. |
+| `input-otp.ts` | slot `first:` / `last:` rounding and border | DEAD — UI-57 | Each slot's inner node is both first and last inside its own transparent host; position belongs to the host sequence. |
+| `button-group.ts` | nested gap, focus, shared border, first/last corners | TRANSLATED — current change | Parallel explicit paths target button/text painted slots while retaining upstream native-child rules. |
+| `message.ts` | direct self-end message child | DEAD — UI-60 | The slot-bearing painted node is behind a transparent component host. |
+| `breadcrumb.ts` | separator `>svg` | REACHABLE | The separator inner node directly owns its SVG. |
+| `input-group.ts` | direct textarea/input/alignment/addon button/kbd | DEAD — UI-58 | Composition interposes input/addon/button hosts; descendant raw-SVG rules remain reachable. |
+| `alert.ts`, `badge.ts`, `alert-dialog.ts` | direct/projected SVG and alert description | REACHABLE | The styled inner nodes directly own the native/projected targets. |
+| `table.ts` | footer `>tr`, cell/header direct checkbox | DEAD — UI-59 | Table section/cell hosts interpose between styled inner elements and painted row/control; descendant `tr:last-child` remains reachable. |
+| `attachment.ts` | direct attachment, spinner, and image | DEAD — UI-60 | Slot-bearing boxes are descendants of transparent attachment/media hosts. |
+| `calendar.ts` | cell/button/span first/last and direct descendants | N/A | DayPicker generates the native table/button/span structure within the painted calendar root. |
+| `toggle-group.ts` | item `first:` / `last:` corners and border | DEAD — UI-57 | Every item button is sole child of its own host; group position must be read from the host sequence. |
+| `command.ts` | `**:` command descendants | TRANSLATED | Descendant variants intentionally cross transparent command hosts. |
+| `accordion.ts` | item `last:border-b-0` | DEAD — UI-57 | Each painted item root is sole child of its host, so every item reads as last. |
+| `bubble.ts` | direct bubble-content variants and hover paths | DEAD — UI-60 | Bubble content's slot-bearing box sits behind a transparent child host. |
+| `pagination.ts` | compositional-root child contract | N/A | No direct-child utility targets a component-hosted painted child; icon rules live on native controls. |
+
+Only ButtonGroup is fixed in this change. UI-57 owns toggle-group, input-OTP,
+and accordion positional semantics; UI-58 owns form-field/input-group; UI-59
+owns table; UI-60 owns attachment/message/bubble. The census is deliberately
+ticketed rather than silently broadening this parity fix.
+
 ## Manual side-by-side pass — wave B (arch, 2026-07-12, vs live 39a8d36 + UI-53 contact sheets)
 
 **Baseline correction (process-significant):** ui.shadcn.com now defaults to
