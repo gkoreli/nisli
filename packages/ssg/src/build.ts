@@ -15,6 +15,15 @@ export interface StaticRouterMetadata {
   meta?: Readonly<Record<string, string>>;
 }
 
+// Under strictFunctionTypes, a precise route metadata callback is
+// contravariantly unassignable to this broad structural context. Extracting a
+// method deliberately grants bivariant parameter checking, matching render's
+// method syntax while retaining object-valued metadata. Do not simplify this
+// to a function-property type; that reintroduces the variance rejection.
+type BivariantCallback<Args extends unknown[], Result> = {
+  bivarianceHack(...args: Args): Result;
+}['bivarianceHack'];
+
 export interface StaticRouterRenderContext {
   url: URL;
   params: Record<string, string>;
@@ -26,13 +35,13 @@ export interface StaticRouterRoute {
   path: string;
   href(...args: unknown[]): string;
   entries?: () => Iterable<Record<string, string>> | Promise<Iterable<Record<string, string>>>;
-  render: (context: StaticRouterRenderContext) => Renderable | Promise<Renderable>;
-  metadata?: StaticRouterMetadata | ((context: StaticRouterRenderContext) => StaticRouterMetadata);
+  render(context: StaticRouterRenderContext): Renderable | Promise<Renderable>;
+  metadata?: StaticRouterMetadata | BivariantCallback<[StaticRouterRenderContext], StaticRouterMetadata>;
 }
 
 export interface StaticRouterNotFound {
-  render: (context: { url: URL }) => Renderable | Promise<Renderable>;
-  metadata?: StaticRouterMetadata | ((context: { url: URL }) => StaticRouterMetadata);
+  render(context: { url: URL }): Renderable | Promise<Renderable>;
+  metadata?: StaticRouterMetadata | BivariantCallback<[{ url: URL }], StaticRouterMetadata>;
 }
 
 export interface StaticRouterMatch {

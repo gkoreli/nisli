@@ -85,7 +85,7 @@ function encodeCatchAll(value: string | undefined, name: string): string {
 
 export function route<const Path extends string, const Q extends QuerySchema = Record<never, never>>(
   path: Path,
-  options: RouteOptions<Path, Q>,
+  options: RouteOptions<NoInfer<Path>, Q>,
 ): RouteDefinition<Path, Q> {
   const query = (options.query ?? {}) as Q;
   return Object.freeze({
