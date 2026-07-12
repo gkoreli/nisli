@@ -250,6 +250,27 @@ describe('MessageScroller — plain custom elements', () => {
     expect(item.textContent).toContain('Hello');
   });
 
+  it('parser children REPLACE the default glyph + label (no duplication)', async () => {
+    // rev's repro: innerHTML upgrade appends the light child AFTER upgrade, so
+    // the default content mounts first — the late sweep must clear it, not
+    // append after it (previously the button read "Scroll to endgo" + svg).
+    document.body.innerHTML = `
+      <ui-message-scroller>
+        <ui-message-scroller-viewport>
+          <ui-message-scroller-content></ui-message-scroller-content>
+        </ui-message-scroller-viewport>
+        <ui-message-scroller-button direction="end">go</ui-message-scroller-button>
+      </ui-message-scroller>`;
+    flush2();
+    await Promise.resolve();
+    await Promise.resolve();
+    flush2();
+    const btn = endBtn(document.body);
+    expect(btn.textContent).toBe('go');
+    expect(btn.querySelector('svg')).toBeNull(); // default glyph cleared
+    expect(btn.querySelector('.sr-only')).toBeNull(); // default label cleared
+  });
+
   it('explicit prop wins over the host attribute (direction)', () => {
     const c = mount(html`${MessageScroller({ children: '' })}`);
     flush2();

@@ -307,23 +307,49 @@ export const MessageScrollerButton = component<MessageScrollerButtonProps>(
       ),
     );
 
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     const onClick = (): void => {
       if (direction.value === 'end') state.scrollToEnd();
       else state.scrollToStart();
     };
 
-    // Default content (arrow + sr-only label) only when the author supplied
-    // no children — via the factory prop or plain-DOM light children.
+    // Default content (arrow + sr-only label) shows only when the author
+    // supplied no children — via the factory prop or plain-DOM light children.
     const defaultContent = html`${arrowDownIcon}<span class="sr-only">${computed(() =>
       direction.value === 'end' ? 'Scroll to end' : 'Scroll to start',
     )}</span>`;
     const factoryChildren = props.children.value;
-    const authorChildren = projectedChildren || (factoryChildren != null && factoryChildren !== '');
+    // Author content known at setup time: factory children or already-parsed
+    // light children. Parser/innerHTML children arrive LATER (after upgrade),
+    // so this can be false even when the author did supply children.
+    const authorAtSetup = projectedChildren || (factoryChildren != null && factoryChildren !== '');
+
+    const root = ref<HTMLButtonElement>();
+    onMount(() => {
+      const el = root.current;
+      if (!el) return;
+
+      // Snapshot the default glyph/label so a late parser sweep can remove it
+      // — custom children must REPLACE the default, not append to it. This is
+      // a component-local concern (conditional default content); projectChildren
+      // in lib/utils is deliberately left generic.
+      const defaultNodes = authorAtSetup ? [] : Array.from(el.childNodes);
+      const projectInto = (nodes: Node[]): void => {
+        if (nodes.length === 0) return;
+        for (const node of defaultNodes) node.parentNode?.removeChild(node);
+        defaultNodes.length = 0;
+        el.append(...nodes);
+      };
+
+      // Light children captured at mount (createElement + append before connect).
+      projectInto(projected);
+      // Late parser-appended children (streaming / innerHTML upgrade).
+      queueMicrotask(() => {
+        const late = Array.from(host.childNodes).filter(
+          (n) => n !== el && !el.contains(n) && !n.contains(el),
+        );
+        projectInto(late);
+      });
+    });
 
     return html`<button
       ref="${root}"
@@ -335,6 +361,6 @@ export const MessageScrollerButton = component<MessageScrollerButtonProps>(
       data-active="${computed(() => (active.value ? 'true' : 'false'))}"
       class="${classes}"
       @click=${onClick}
-    >${authorChildren ? props.children : defaultContent}</button>`;
+    >${authorAtSetup ? props.children : defaultContent}</button>`;
   },
 );
