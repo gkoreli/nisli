@@ -43,7 +43,7 @@ import {
   type TemplateResult,
 } from '@nisli/core';
 import { cn, transparentHost } from '../lib/utils.js';
-import { positionFloating, type Align, type Side } from '../lib/floating.js';
+import { floatingHidden, positionFloating, type Align, type Side } from '../lib/floating.js';
 import { portal } from '../lib/portal.js';
 
 const DEFAULT_OPEN_DELAY = 700;
@@ -244,7 +244,7 @@ export const HoverCardContent = component<HoverCardContentProps>(
       data-slot="hover-card-content"
       id="${contentId}"
       data-state="${computed(() => stateAttr(state.open.value))}"
-      hidden="${computed(() => !state.open.value)}"
+      hidden="${floatingHidden(state.open, content)}"
       class="${classes}"
       @pointerenter=${() => state.keepOpen()}
       @pointerleave=${() => state.scheduleClose()}

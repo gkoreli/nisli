@@ -145,6 +145,8 @@ export type RadioGroupItemProps = {
   value?: string;
   id?: string;
   disabled?: boolean;
+  /** Invalid state forwarded to this inner radio that owns aria-invalid:* classes. */
+  ariaInvalid?: boolean;
   /** Merged last into the inner <input>'s class list via cn(). */
   className?: string;
 };
@@ -197,6 +199,7 @@ export const RadioGroupItem = component<RadioGroupItemProps>(
       name="${group.name}"
       value="${own}"
       disabled="${disabled}"
+      aria-invalid="${computed(() => (props.ariaInvalid.value ? 'true' : undefined))}"
       @change=${onChange}
     />`;
   },
@@ -209,6 +212,7 @@ export const RadioGroupItem = component<RadioGroupItemProps>(
       id: 'forward',
       className: 'string',
       disabled: 'boolean',
+      ariaInvalid: 'boolean',
     },
   },
 );

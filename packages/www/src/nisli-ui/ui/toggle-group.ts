@@ -199,6 +199,8 @@ export type ToggleGroupItemProps = {
   /** Per-item size — the group's `size` wins when set. */
   size?: ToggleSize;
   disabled?: boolean;
+  /** Invalid state for this item; forwarded to its class-bearing button. */
+  ariaInvalid?: boolean;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -240,9 +242,19 @@ export const ToggleGroupItem = component<ToggleGroupItemProps>(
       aria-pressed="${computed(() => (pressed.value ? 'true' : 'false'))}"
       data-state="${computed(() => (pressed.value ? 'on' : 'off'))}"
       disabled="${disabled}"
+      aria-invalid="${computed(() => (props.ariaInvalid.value ? 'true' : undefined))}"
       class="${classes}"
       @click=${() => { if (!disabled.value) state.toggleValue(own.value); }}
     >${children()}</button>`;
   },
-  { attrs: { value: 'string', variant: 'string', size: 'string', disabled: 'boolean', className: 'string' } },
+  {
+    attrs: {
+      value: 'string',
+      variant: 'string',
+      size: 'string',
+      disabled: 'boolean',
+      ariaInvalid: 'boolean',
+      className: 'string',
+    },
+  },
 );

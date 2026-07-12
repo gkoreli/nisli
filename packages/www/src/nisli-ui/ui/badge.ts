@@ -49,6 +49,8 @@ export type BadgeVariant =
 
 export type BadgeProps = {
   variant?: BadgeVariant;
+  /** Invalid state forwarded to the inner span that owns aria-invalid:* classes. */
+  ariaInvalid?: boolean;
   /** Merged last into the inner <span>'s class list via cn(). */
   className?: string;
   children?: string | TemplateResult;
@@ -67,6 +69,7 @@ export const Badge = component<BadgeProps>('ui-badge', (props, host) => {
   return html`<span
     data-slot="badge"
     data-variant="${computed(() => props.variant.value ?? 'default')}"
+    aria-invalid="${computed(() => (props.ariaInvalid.value ? 'true' : undefined))}"
     class="${classes}"
   >${children()}</span>`;
 }, {
@@ -74,6 +77,7 @@ export const Badge = component<BadgeProps>('ui-badge', (props, host) => {
   // (className → class-name); values delivered as live prop signals.
   attrs: {
     variant: 'string',
+    ariaInvalid: 'boolean',
     className: 'string',
   },
 });

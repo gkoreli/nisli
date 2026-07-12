@@ -75,6 +75,8 @@ export type ButtonProps = {
   size?: ButtonSize;
   type?: 'button' | 'submit' | 'reset';
   disabled?: boolean;
+  /** Invalid state forwarded to the inner button that owns aria-invalid:* classes. */
+  ariaInvalid?: boolean;
   /** Merged last into the inner <button>'s class list via cn(). */
   className?: string;
   children?: string | TemplateResult;
@@ -103,6 +105,7 @@ export const Button = component<ButtonProps>('ui-button', (props, host) => {
     class="${classes}"
     type="${computed(() => type.value ?? 'button')}"
     disabled="${disabled}"
+    aria-invalid="${computed(() => (props.ariaInvalid.value ? 'true' : undefined))}"
   >${children()}</button>`;
 }, {
   attrs: {
@@ -111,5 +114,6 @@ export const Button = component<ButtonProps>('ui-button', (props, host) => {
     type: 'string',
     className: 'string',
     disabled: 'boolean',
+    ariaInvalid: 'boolean',
   },
 });

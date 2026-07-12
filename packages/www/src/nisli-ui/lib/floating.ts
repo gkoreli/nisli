@@ -16,6 +16,14 @@
  * This file was copied into your project by `nisli-ui` — you own it.
  */
 
+import {
+  effect,
+  onCleanup,
+  signal,
+  type ReadonlySignal,
+  type Ref,
+} from '@nisli/core';
+
 export type Side = 'top' | 'right' | 'bottom' | 'left';
 export type Align = 'start' | 'center' | 'end';
 
@@ -48,6 +56,94 @@ const OPPOSITE: Record<Side, Side> = {
   left: 'right',
   right: 'left',
 };
+
+const ORIGIN_VARIABLE_BY_SLOT: Record<string, string> = {
+  'tooltip-content': '--radix-tooltip-content-transform-origin',
+  'popover-content': '--radix-popover-content-transform-origin',
+  'hover-card-content': '--radix-hover-card-content-transform-origin',
+  'dropdown-menu-content': '--radix-dropdown-menu-content-transform-origin',
+  'dropdown-menu-sub-content': '--radix-dropdown-menu-content-transform-origin',
+  'context-menu-content': '--radix-context-menu-content-transform-origin',
+  'context-menu-sub-content': '--radix-context-menu-content-transform-origin',
+  'menubar-content': '--radix-menubar-content-transform-origin',
+  'menubar-sub-content': '--radix-menubar-content-transform-origin',
+};
+
+/** Transform origin on the anchor-facing edge after collision flipping. */
+export function transformOrigin(side: Side, align: Align): string {
+  const cross = align === 'start' ? '0%' : align === 'end' ? '100%' : '50%';
+  switch (side) {
+    case 'top': return `${cross} 100%`;
+    case 'bottom': return `${cross} 0%`;
+    case 'left': return `100% ${cross}`;
+    case 'right': return `0% ${cross}`;
+  }
+}
+
+function hasClosingAnimation(element: HTMLElement): boolean {
+  const style = getComputedStyle(element);
+  const names = style.animationName.split(',').map((name) => name.trim());
+  const durations = style.animationDuration.split(',').map((duration) => duration.trim());
+  return names.some((name, index) => {
+    const duration = durations[index] ?? durations[durations.length - 1] ?? '0s';
+    return name !== '' && name !== 'none' && duration !== '' && duration !== '0s' && duration !== '0ms';
+  });
+}
+
+/**
+ * Keep a closing floating layer visible for its CSS exit animation. In
+ * no-CSS environments (including happy-dom) closing hides synchronously.
+ */
+export function floatingHidden(
+  open: ReadonlySignal<boolean>,
+  elementRef: Ref<HTMLElement>,
+): ReadonlySignal<boolean> {
+  const hidden = signal(!open.value);
+  let closingElement: HTMLElement | null = null;
+
+  const stopWaiting = (): void => {
+    if (!closingElement) return;
+    closingElement.removeEventListener('animationend', finish);
+    closingElement.removeEventListener('animationcancel', finish);
+    closingElement = null;
+  };
+  const finish = (event: Event): void => {
+    if (event.target !== closingElement || open.value) return;
+    stopWaiting();
+    hidden.value = true;
+  };
+
+  effect(() => {
+    if (open.value) {
+      stopWaiting();
+      hidden.value = false;
+      return;
+    }
+
+    const element = elementRef.current;
+    if (!element) {
+      hidden.value = true;
+      return;
+    }
+
+    // Make the closing selectors observable before checking computed style;
+    // the template binding converges on the same value in this flush.
+    element.setAttribute('data-state', 'closed');
+    if (!hasClosingAnimation(element)) {
+      stopWaiting();
+      hidden.value = true;
+      return;
+    }
+
+    stopWaiting();
+    closingElement = element;
+    element.addEventListener('animationend', finish);
+    element.addEventListener('animationcancel', finish);
+  });
+
+  onCleanup(stopWaiting);
+  return hidden;
+}
 
 interface Rect {
   x: number;
@@ -157,6 +253,8 @@ export function positionFloating(
     floating.style.top = `${pos.y}px`;
     floating.setAttribute('data-side', pos.side);
     floating.setAttribute('data-align', pos.align);
+    const variable = ORIGIN_VARIABLE_BY_SLOT[floating.dataset.slot ?? ''];
+    if (variable) floating.style.setProperty(variable, transformOrigin(pos.side, pos.align));
   };
 
   update();
