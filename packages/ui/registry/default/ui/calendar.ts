@@ -75,7 +75,7 @@ import {
   each,
   type TemplateResult,
 } from '@nisli/core';
-import { attr, boolAttr, cn, transparentHost } from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 import { buttonVariants } from './button.js';
 
 // ── Date helpers (no dependencies) ──────────────────────────────────
@@ -96,6 +96,19 @@ const isSameDay = (a: Date, b: Date): boolean =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 const isSameMonth = (a: Date, b: Date): boolean =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+/**
+ * Resolve a date-valued prop that may arrive as a Date (factory) or an ISO
+ * string (the declared `'string'` attribute — the component parses ISO, so the
+ * attribute path stays live). Garbage/empty → undefined.
+ */
+const asDate = (v: unknown): Date | undefined => {
+  if (v instanceof Date) return v;
+  if (typeof v === 'string' && v) {
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  }
+  return undefined;
+};
 /** Whole-day comparison: <0 if a before b. */
 const cmpDay = (a: Date, b: Date): number => startOfDay(a).getTime() - startOfDay(b).getTime();
 
@@ -166,29 +179,21 @@ let uid = 0;
 export const Calendar = component<CalendarProps>('ui-calendar', (props, host) => {
   transparentHost(host);
 
-  // Attribute fallbacks for plain-HTML usage; explicit props always win.
-  const parseDateAttr = (name: string): Date | undefined => {
-    const raw = host.getAttribute(name);
-    if (!raw) return undefined;
-    const d = new Date(raw);
-    return Number.isNaN(d.getTime()) ? undefined : d;
-  };
-  const modeAttr = attr(props.mode, host, 'mode');
-  const mode: CalendarMode = modeAttr.value === 'range' ? 'range' : 'single';
-  const weekStartsOn =
-    props.weekStartsOn.value ??
-    (host.hasAttribute('week-starts-on') ? Number(host.getAttribute('week-starts-on')) : 0);
-  const showOutside = boolAttr(props.showOutsideDays, host, 'show-outside-days', true).value;
-  const localeAttr = attr(props.locale, host, 'locale');
-  const locale = (): string => localeAttr.value ?? 'default';
-  const className = attr(props.className, host, 'class-name');
+  // Attribute-backed config, now declared in `attrs` (below) and read as LIVE
+  // prop signals; explicit factory props still win (pin precedence). Date props
+  // arrive as a Date (factory) or an ISO string (attribute) — asDate() bridges.
+  const mode: CalendarMode = props.mode.value === 'range' ? 'range' : 'single';
+  // week-start + outside-days are read live (in the reactive graph below) so a
+  // post-mount setAttribute re-renders the grid.
+  const weekStart = (): number => props.weekStartsOn.value ?? 0;
+  const showOutside = (): boolean => props.showOutsideDays.value as boolean;
+  const locale = (): string => props.locale.value ?? 'default';
   const baseId = `ui-calendar-${++uid}`;
 
-  const propMonth = (): Date | undefined => props.month.value ?? parseDateAttr('month');
-  const propDefaultMonth = (): Date | undefined =>
-    props.defaultMonth.value ?? parseDateAttr('default-month');
-  const propMin = (): Date | undefined => props.min.value ?? parseDateAttr('min');
-  const propMax = (): Date | undefined => props.max.value ?? parseDateAttr('max');
+  const propMonth = (): Date | undefined => asDate(props.month.value);
+  const propDefaultMonth = (): Date | undefined => asDate(props.defaultMonth.value);
+  const propMin = (): Date | undefined => asDate(props.min.value);
+  const propMax = (): Date | undefined => asDate(props.max.value);
 
   const today = startOfDay(new Date());
 
@@ -305,7 +310,7 @@ export const Calendar = component<CalendarProps>('ui-calendar', (props, host) =>
   };
   const onGridKeydown = (e: KeyboardEvent): void => {
     const cur = focused.value;
-    const dow = (cur.getDay() - weekStartsOn + 7) % 7;
+    const dow = (cur.getDay() - weekStart() + 7) % 7;
     let target: Date | null = null;
     switch (e.key) {
       case 'ArrowLeft': target = addDays(cur, -1); break;
@@ -323,7 +328,10 @@ export const Calendar = component<CalendarProps>('ui-calendar', (props, host) =>
   };
 
   // ── Derived view ──
-  const weeks = computed<Date[][]>(() => buildWeeks(month.value, weekStartsOn));
+  const weeks = computed<Date[][]>(() => {
+    showOutside(); // dependency: toggling outside-day visibility re-renders the grid
+    return buildWeeks(month.value, weekStart());
+  });
   const weekdayNames = computed<string[]>(() => {
     const fmt = new Intl.DateTimeFormat(locale(), { weekday: 'short' });
     const long = new Intl.DateTimeFormat(locale(), { weekday: 'long' });
@@ -360,7 +368,7 @@ export const Calendar = component<CalendarProps>('ui-calendar', (props, host) =>
   const classes = computed(() =>
     cn(
       'group/calendar w-fit bg-background p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent',
-      className.value,
+      props.className.value,
     ),
   );
 
@@ -372,7 +380,7 @@ export const Calendar = component<CalendarProps>('ui-calendar', (props, host) =>
   // and `data-selected` week-edge rounding fire (header adaptation 4).
   const renderDay = (day: Date): TemplateResult => {
     const outside = !isSameMonth(day, month.value);
-    if (outside && !showOutside) {
+    if (outside && !showOutside()) {
       // Upstream `hidden` modifier → an inert `invisible` cell that keeps grid
       // layout. data-slot on both elements (header adaptation 6).
       return html`<td
@@ -479,7 +487,9 @@ export const Calendar = component<CalendarProps>('ui-calendar', (props, host) =>
           </thead>
           <tbody role="rowgroup" data-slot="calendar-weeks" class="flex flex-col">${each(
             weeks,
-            (w) => ymd(w[0]!),
+            // Key includes outside-day visibility so a live toggle re-keys the
+            // rows (the reconciler would otherwise keep the stale cells).
+            (w) => `${ymd(w[0]!)}|${showOutside()}`,
             (wSig) => renderWeek(wSig.value),
           )}</tbody>
         </table>
@@ -506,4 +516,18 @@ export const Calendar = component<CalendarProps>('ui-calendar', (props, host) =>
       </div>
     </div>
   </div>`;
+}, {
+  // Date props declared 'string' — the component parses ISO (asDate), so the
+  // attribute path is live; a factory Date still wins via pin precedence.
+  attrs: {
+    mode: 'string',
+    month: 'string',
+    defaultMonth: 'string',
+    min: 'string',
+    max: 'string',
+    weekStartsOn: { type: 'number', default: 0 },
+    showOutsideDays: { type: 'boolean', default: true },
+    locale: 'string',
+    className: 'string',
+  },
 });

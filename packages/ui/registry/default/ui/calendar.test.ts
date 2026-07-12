@@ -440,3 +440,41 @@ describe('Calendar — resolved-composition doctrine (cn is clsx-style, not tail
     expect(tokens).not.toContain('data-[range-end=true]:rounded-l-none');
   });
 });
+
+describe('Calendar — live attributes (UI-30 attrs{})', () => {
+  const firstHeader = (r: ParentNode) =>
+    r.querySelectorAll('th[role="columnheader"]')[0]!.textContent;
+
+  it('reacts to a post-mount `month` attribute change (caption updates)', () => {
+    document.body.innerHTML = '<ui-calendar month="2026-01-15T12:00:00"></ui-calendar>';
+    flushEffects();
+    expect(caption(document.body)).toContain('January 2026');
+
+    document.querySelector('ui-calendar')!.setAttribute('month', '2026-03-15T12:00:00');
+    flushEffects();
+    expect(caption(document.body)).toContain('March 2026');
+  });
+
+  it('reacts to a post-mount `week-starts-on` change (first column shifts)', () => {
+    document.body.innerHTML =
+      '<ui-calendar default-month="2026-01-15T12:00:00" week-starts-on="0"></ui-calendar>';
+    flushEffects();
+    const sundayFirst = firstHeader(document.body);
+
+    document.querySelector('ui-calendar')!.setAttribute('week-starts-on', '1');
+    flushEffects();
+    expect(firstHeader(document.body)).not.toBe(sundayFirst);
+  });
+
+  it('reacts to a post-mount `show-outside-days` toggle (outside cells appear/vanish)', () => {
+    document.body.innerHTML =
+      '<ui-calendar default-month="2026-01-15T12:00:00" show-outside-days="true"></ui-calendar>';
+    flushEffects();
+    // Dec 31 2025 is an outside day in Jan 2026's first (Sunday-start) week.
+    expect(document.querySelector('[data-day="2025-12-31"]')).not.toBeNull();
+
+    document.querySelector('ui-calendar')!.setAttribute('show-outside-days', 'false');
+    flushEffects();
+    expect(document.querySelector('[data-day="2025-12-31"]')).toBeNull();
+  });
+});
