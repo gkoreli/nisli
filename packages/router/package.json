@@ -1,0 +1,42 @@
+{
+  "name": "@nisli/router",
+  "version": "0.1.0",
+  "description": "Typed application routing for Nisli browser, Vite, and static applications.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gkoreli/nisli.git",
+    "directory": "packages/router"
+  },
+  "keywords": ["router", "nisli", "web-components", "ssg", "vite"],
+  "peerDependencies": {
+    "@nisli/core": ">=0.51.0"
+  },
+  "devDependencies": {
+    "@nisli/core": "workspace:*"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./vite": "./src/vite.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./vite": {
+        "types": "./dist/vite.d.ts",
+        "default": "./dist/vite.js"
+      }
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  }
+}
