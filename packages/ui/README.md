@@ -11,6 +11,14 @@ npx nisli-ui init          # writes nisli-ui.json, copies lib/utils.ts + styles/
 npx nisli-ui add button    # copies ui/button.ts (and its registry deps) into your tree
 ```
 
+In a Tailwind v4 entry stylesheet, import the copied theme immediately after
+Tailwind:
+
+```css
+@import "tailwindcss";
+@import "./nisli-ui/styles/theme.css";
+```
+
 Components are authored with `@nisli/core` (signals + `html` templates) and
 compile to standard custom elements, so they work two ways:
 
@@ -32,6 +40,10 @@ html`${Button({ variant: 'outline', children: 'Save' })}`;
 - Tailwind CSS v4 — import the copied `styles/theme.css` after
   `@import "tailwindcss";`. Theming and dark mode work exactly like
   shadcn/ui: override the CSS variables; add a `.dark` class.
+
+The networked smoke test for the currently published package runs as a separate
+CI job and can be invoked locally with `pnpm --filter @nisli/ui e2e:npm`. Set
+`NISLI_UI_VERSION` to verify a specific release.
 
 ## Design
 

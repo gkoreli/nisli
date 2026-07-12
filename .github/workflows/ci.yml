@@ -31,5 +31,22 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: UI package-shape e2e
+        run: pnpm --filter @nisli/ui e2e:pack
+
       - name: Test
         run: pnpm test
+
+  published-ui-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Published @nisli/ui consumer e2e
+        run: pnpm --filter @nisli/ui e2e:npm
