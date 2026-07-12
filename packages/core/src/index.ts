@@ -61,10 +61,12 @@ export {
 export {
   component,
   type ReactiveProps,
+  type AttrValueType,
   type SetupFunction,
   type ComponentFactory,
   type ComponentOptions,
   type AttrDecl,
+  type ComponentAttrs,
   type PropInput,
   type HostAttrs,
 } from './component.js';

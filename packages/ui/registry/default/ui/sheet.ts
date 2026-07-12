@@ -40,6 +40,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   effect,
@@ -75,12 +76,20 @@ export type SheetProps = {
   children?: string | TemplateResult;
 };
 
-export const Sheet = component<SheetProps>('ui-sheet', (props, host) => {
+// PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
+const sheetAttrs = {
+  open: 'boolean',
+  defaultOpen: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<SheetProps>;
+
+export const Sheet = component<SheetProps, typeof sheetAttrs>('ui-sheet', (props, host) => {
   transparentHost(host);
 
   // PATTERN A (ADR 0025 item 3): the `open` ATTRIBUTE is the uncontrolled state
-  // (like native <dialog open>/<details open>). The attribute IS the truth.
-  const open = computed<boolean>(() => props.open.value ?? false);
+  // (like native <dialog open>/<details open>). The attribute IS the truth. The
+  // declared 'boolean' now narrows to `boolean`, so no `?? false` is needed.
+  const open = computed<boolean>(() => props.open.value);
 
   const setOpen = (next: boolean): void => {
     if (next === open.value) return;
@@ -116,14 +125,7 @@ export const Sheet = component<SheetProps>('ui-sheet', (props, host) => {
   const classes = computed(() => cn(className.value));
 
   return html`<div data-slot="sheet" style="display:contents" class="${classes}">${children()}</div>`;
-}, {
-  // PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
-  attrs: {
-    open: 'boolean',
-    defaultOpen: 'boolean',
-    className: 'string',
-  },
-});
+}, { attrs: sheetAttrs });
 
 // ── ui-sheet-trigger ─────────────────────────────────────────────────
 
@@ -132,7 +134,9 @@ export type SheetTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const SheetTrigger = component<SheetTriggerProps>('ui-sheet-trigger', (props, host) => {
+const sheetTriggerAttrs = { className: 'string' } satisfies ComponentAttrs<SheetTriggerProps>;
+
+export const SheetTrigger = component<SheetTriggerProps, typeof sheetTriggerAttrs>('ui-sheet-trigger', (props, host) => {
   const state = SheetContext.inject();
   transparentHost(host);
 
@@ -149,7 +153,7 @@ export const SheetTrigger = component<SheetTriggerProps>('ui-sheet-trigger', (pr
     class="${classes}"
     @click=${() => state.setOpen(true)}
   >${children()}</button>`;
-}, { attrs: { className: 'string' } });
+}, { attrs: sheetTriggerAttrs });
 
 // ── ui-sheet-close (standalone) ──────────────────────────────────────
 
@@ -158,7 +162,9 @@ export type SheetCloseProps = {
   children?: string | TemplateResult;
 };
 
-export const SheetClose = component<SheetCloseProps>('ui-sheet-close', (props, host) => {
+const sheetCloseAttrs = { className: 'string' } satisfies ComponentAttrs<SheetCloseProps>;
+
+export const SheetClose = component<SheetCloseProps, typeof sheetCloseAttrs>('ui-sheet-close', (props, host) => {
   const state = SheetContext.inject();
   transparentHost(host);
 
@@ -171,7 +177,7 @@ export const SheetClose = component<SheetCloseProps>('ui-sheet-close', (props, h
     class="${classes}"
     @click=${() => state.setOpen(false)}
   >${children()}</button>`;
-}, { attrs: { className: 'string' } });
+}, { attrs: sheetCloseAttrs });
 
 // ── ui-sheet-content (overlay + side panel + close) ──────────────────
 
@@ -214,11 +220,19 @@ export type SheetContentProps = {
   children?: string | TemplateResult;
 };
 
-export const SheetContent = component<SheetContentProps>('ui-sheet-content', (props, host) => {
+// PATTERN B: default-true booleans (absent → true, "false" → false).
+const sheetContentAttrs = {
+  side: 'string',
+  showCloseButton: { type: 'boolean', default: true },
+  portal: { type: 'boolean', default: true },
+  className: 'string',
+} satisfies ComponentAttrs<SheetContentProps>;
+
+export const SheetContent = component<SheetContentProps, typeof sheetContentAttrs>('ui-sheet-content', (props, host) => {
   const state = SheetContext.inject();
   transparentHost(host);
 
-  const withClose = props.showCloseButton.value as boolean;
+  const withClose = props.showCloseButton.value;
   const side = props.side;
   const dataState = computed(() => (state.open.value ? 'open' : 'closed'));
   const hidden = computed(() => !state.open.value);
@@ -237,8 +251,8 @@ export const SheetContent = component<SheetContentProps>('ui-sheet-content', (pr
   // positioning escapes transformed ancestors. Static setup-time decision
   // (PATTERN B): `portal` is a default-true boolean — absent → on, "false" →
   // off. Dismissal (document listeners) and the focus trap (by ref) keep
-  // working after the move.
-  const portalEnabled = props.portal.value as boolean;
+  // working after the move. Declared 'boolean' now narrows to `boolean`.
+  const portalEnabled = props.portal.value;
   portal(portalRef, { enabled: portalEnabled });
 
   const layer = dismissableLayer(contentRef, {
@@ -298,15 +312,7 @@ export const SheetContent = component<SheetContentProps>('ui-sheet-content', (pr
       class="${classes}"
     >${children()}${withClose ? closeButton : ''}</div>
   </div>`;
-}, {
-  // PATTERN B: default-true booleans (absent → true, "false" → false).
-  attrs: {
-    side: 'string',
-    showCloseButton: { type: 'boolean', default: true },
-    portal: { type: 'boolean', default: true },
-    className: 'string',
-  },
-});
+}, { attrs: sheetContentAttrs });
 
 // ── ui-sheet-header / -footer ────────────────────────────────────────
 
@@ -315,13 +321,15 @@ export type SheetSectionProps = {
   children?: string | TemplateResult;
 };
 
+const sheetSectionAttrs = { className: 'string' } satisfies ComponentAttrs<SheetSectionProps>;
+
 function sheetSection(tag: string, slot: string, base: string) {
-  return component<SheetSectionProps>(tag, (props, host) => {
+  return component<SheetSectionProps, typeof sheetSectionAttrs>(tag, (props, host) => {
     transparentHost(host);
     const className = props.className;
     const classes = computed(() => cn(base, className.value));
     return html`<div data-slot="${slot}" class="${classes}">${children()}</div>`;
-  }, { attrs: { className: 'string' } });
+  }, { attrs: sheetSectionAttrs });
 }
 
 export const SheetHeader = sheetSection(
@@ -343,7 +351,9 @@ export type SheetTitleProps = {
   children?: string | TemplateResult;
 };
 
-export const SheetTitle = component<SheetTitleProps>('ui-sheet-title', (props, host) => {
+const sheetTitleAttrs = { className: 'string' } satisfies ComponentAttrs<SheetTitleProps>;
+
+export const SheetTitle = component<SheetTitleProps, typeof sheetTitleAttrs>('ui-sheet-title', (props, host) => {
   const state = SheetContext.inject();
   transparentHost(host);
   const className = props.className;
@@ -353,14 +363,16 @@ export const SheetTitle = component<SheetTitleProps>('ui-sheet-title', (props, h
     id="${`${state.baseId}-title`}"
     class="${classes}"
   >${children()}</h2>`;
-}, { attrs: { className: 'string' } });
+}, { attrs: sheetTitleAttrs });
 
 export type SheetDescriptionProps = {
   className?: string;
   children?: string | TemplateResult;
 };
 
-export const SheetDescription = component<SheetDescriptionProps>(
+const sheetDescriptionAttrs = { className: 'string' } satisfies ComponentAttrs<SheetDescriptionProps>;
+
+export const SheetDescription = component<SheetDescriptionProps, typeof sheetDescriptionAttrs>(
   'ui-sheet-description',
   (props, host) => {
     const state = SheetContext.inject();
@@ -373,5 +385,5 @@ export const SheetDescription = component<SheetDescriptionProps>(
       class="${classes}"
     >${children()}</p>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: sheetDescriptionAttrs },
 );

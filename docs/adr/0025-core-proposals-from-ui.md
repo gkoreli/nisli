@@ -233,8 +233,8 @@ future work). (c) `'number'` attrs consumed at mount-time registration aren't li
 for free — `resizable` had to store the prop signals in the group + reflow via an
 effect; a "reactive registration" helper could remove that boilerplate.
 
-**Design sketch — candidate (b): declared-type-aware `ReactiveProps`** (post-
-checkpoint; NOT implemented — motivation corpus = the full UI-30 migration). Today
+**Design sketch — candidate (b): declared-type-aware `ReactiveProps` — FIXED
+(UI-35, 2026-07-12).** Today
 `ReactiveProps<P>` maps every key to `Signal<P[K] | undefined>` regardless of its
 `attrs` declaration, so a declared `'boolean'` (runtime-guaranteed non-`undefined`
 via default-resolution) still types as `boolean | undefined` and every migrated
@@ -263,6 +263,81 @@ majority; leave the dual-mode cast as the documented residual until a fourth dua
 root appears, then reconsider option (2). **Disposition (2026-07-11, arch)**: accepted
 as sketched — graduated to ticket **UI-35** (eng1): ship the boolean/number narrowing,
 keep the dual-mode cast as documented residual.
+
+**Resolution (UI-35, 2026-07-12).** Shipped as recommended — (b)-narrowing for the
+boolean/number majority, dual-mode cast kept (option 1). `component()` gained a
+SECOND type parameter `A extends ComponentAttrs<P> = {}` threaded through
+`SetupFunction<P, A>` → `ReactiveProps<P, A>`; the new mapped type narrows each key
+via `AttrValueType<P[K], A[K]>`: `'boolean'`/`{type:'boolean'}` (any default) →
+`Signal<boolean>`; `{type:'number', default}` → `Signal<number>`; bare `'number'`
+(no default) → `Signal<number | undefined>`; `'string'`/`{type:'string'}`/`'forward'`/
+undeclared → `Signal<P[K]>` unchanged. New exported type `ComponentAttrs<P>` (the
+`attrs`-map shape, extracted from `ComponentOptions`) is what an `attrs` object
+`satisfies`. Pure type-level: the props Proxy is runtime-untyped and the sole cast
+(`props as ReactiveProps<P, A>` at the setup call) is the compile-time view; zero
+runtime change, zero behavior change.
+
+**The inference wall + the opt-in convention (arch-approved).** Threading `attrs`
+into a SINGLE `component<P>(…)` call so `A` INFERS from `options.attrs` is impossible:
+TypeScript does not do partial type-argument inference — the moment `P` is given
+explicitly (as every registry call does — `P` cannot be inferred, it is the factory's
+public prop type, not derivable from the setup body), a defaulted `A` takes its DEFAULT
+rather than inferring from arguments (verified empirically; not a bug to fight with
+overloads or currying — currying would be a runtime change). The resolution is an
+explicit second type argument at the opt-in sites: name the attrs map as a `const …Attrs
+= { … } satisfies ComponentAttrs<P>` and pass `component<P, typeof …Attrs>(…)`. This is
+zero-runtime and FULLY backward compatible: the single-argument `component<P>(…)`
+form is untouched (`A` defaults to `{}` → every prop keeps its author type, exactly the
+pre-(b) behavior), and `attrs` stays validated for everyone. `satisfies ComponentAttrs<P>`
+at the const preserves the literal declaration types (so `typeof` narrows) AND catches
+typo keys / bad decls.
+
+**Two type-safety refinements (rev passes 1–2).** The first cut had two holes, both
+closed before landing: (1) *the narrowed type must not outrun the runtime.* When the
+`A` type argument is a non-empty attrs literal, the options argument carrying `attrs: A`
+is now REQUIRED (a conditional rest tuple: `[keyof A] extends [never] ? [options?:
+ComponentOptions<P>] : [options: ComponentOptions<P> & { attrs: A }]`), so a
+`component<P, typeof attrs>(tag, setup)` that types props as narrowed but never wires the
+attrs at runtime no longer compiles; the legacy `A = {}` branch keeps options optional.
+(2) *a wrong declaration must never narrow to a lie.* `ComponentAttrs<P>` intentionally
+only checks each value is an `AttrDecl` (it does not couple the decl to `P[K]`), so a
+mismatch like `'boolean'` on a `string` prop passes `satisfies`; `AttrValueType` applies
+the narrowed runtime type ONLY when `NonNullable<P[K]>` is EXACTLY the declared kind —
+**mutual assignability, BOTH directions** (`IsExactKind<T, K> = [NonNullable<T>] extends
+[K] ? ([K] extends [NonNullable<T>] ? true : false) : false`, tuple-wrapped to compare
+`boolean = true | false` whole). A one-way `boolean extends NonNullable<T>` was unsound
+(rev pass 2): it still narrowed `boolean | string` to `boolean` (silently dropping
+`string`) and the other direction would widen a literal `true`/`1`. Now a partial-overlap
+union (`boolean | string` declared `'boolean'`, `number | string` declared numeric), a
+literal author type (`true`, `1`), and an outright mismatch (`'boolean'` on a `string`
+prop) all fall back to `T` unchanged — a sound refusal, never a false narrow or widen.
+The whole registry declares props as exactly `boolean` / `number`, so it narrows as
+before (verified: full ui typecheck clean, no cast re-introduced).
+
+**Proof.** Core compile-time proofs in `core/src/component.test-d.ts`: per-kind
+narrowing (`boolean`/`number`-with-default/`number`-no-default/`string`/`forward`/
+undeclared), a negative block (`@ts-expect-error` that a declared boolean is NOT
+`undefined` and a no-default number is NOT a bare `number` — proving no collapse to
+`never`), a required-options block (omitting options — or omitting the `attrs` key —
+fails when the `A` arg is non-empty; legacy stays optional), a sound-fallback block
+(`'boolean'` on a string prop / a numeric decl on a boolean prop refuse to narrow), an
+EXACT-KIND block (`boolean | string` / `number | string` unions AND literal `true`/`1`
+props all fall back, never narrow/widen — rev pass 2), a backward-compat block (omitting
+the type arg keeps `| undefined`), and a validation block (typo key rejected). Runtime
+parity in `component.test.ts`: declared defaults make the narrowed types honest
+(`checked` → false, `span` → default), a factory-style `_setProp` write sets the narrowed
+value, AND the real typed `ComponentFactory` mounts narrowed values end-to-end (present
+props land, omitted props fall to their declared defaults). Registry: the `as boolean` / `?? false`
+stopgap retired across ~36 files (every migrated boolean/number-with-default root —
+switch, the form controls, the overlay `open` roots, the menu families' `disabled`/
+`portal`, etc.). The ONLY residual casts are the two genuinely dual-mode value roots —
+accordion and toggle-group — whose factory `value`/`defaultValue` are typed
+`string | string[]` while the attribute carries a `string`, forcing the single-branch
+`as string` (the semantic single-vs-array narrowing no representational type derives).
+**combobox is NOT a residual**: its `value`/`defaultValue` are plain `string`
+(comma-encoded for multiple), so it is fully migrated with no value cast — the sketch's
+three-way framing was narrowed to two at implementation. Full suites green: core 283,
+ui 884, plus router/ssg/www; workspace typecheck clean.
 
 **Design sketch — candidate (c): reactive registration helper** (post-checkpoint; NOT
 implemented — motivation corpus = `resizable`, currently the SOLE consumer). Pattern: a

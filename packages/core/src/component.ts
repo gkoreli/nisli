@@ -29,23 +29,80 @@ setContextHook(() => {
 // ── Types ───────────────────────────────────────────────────────────
 
 /**
- * Maps a props interface to reactive signals.
- * Each prop `P[K]` becomes `Signal<P[K]>`.
+ * Narrows one prop's reactive value to the runtime type its `attrs`
+ * declaration guarantees (ADR 0025 candidate (b)). Only the two kinds core
+ * reconciles to a NON-`undefined` runtime value narrow; everything else is
+ * left as the author's `T` (= `P[K]`):
+ *
+ * - `'boolean'` / `{ type:'boolean' }` (any default) → `boolean` — a declared
+ *   boolean is absent→`false`, never `undefined`.
+ * - `{ type:'number'; default }` → `number` — the default guarantees a value.
+ * - `'number'` / `{ type:'number' }` WITHOUT a default → `number | undefined`.
+ * - `'string'` / `{ type:'string' }` / `'forward'` / undeclared → `T` unchanged
+ *   (a string attr is genuinely absent→`undefined`; forwarding does not touch
+ *   the value type).
+ *
+ * SOUND FALLBACK on an incompatible declaration: the narrowed runtime type is
+ * applied ONLY when the declared kind and `NonNullable<T>` (the prop's author
+ * type) agree EXACTLY — mutual assignability, BOTH directions. A one-way check
+ * (`boolean extends NonNullable<T>`) is unsound: it would still narrow a
+ * `boolean | string` prop to `boolean` (silently dropping `string`), and a
+ * one-way check the other way would widen a literal `true`/`1` prop. So a
+ * declaration is honored only when `NonNullable<T>` IS the kind — `boolean` for
+ * a boolean declaration, `number` for a numeric one — via {@link IsExactKind}.
+ * Every genuine mismatch or partial overlap (`boolean | string` declared
+ * `'boolean'`, `'boolean'` on a `string` prop, a numeric decl on a boolean prop,
+ * a literal `true`/`1` prop) falls back to `T` unchanged — never a compile-time
+ * lie about the value. The whole registry declares props as exactly `boolean` /
+ * `number`, so it narrows as before; only unions/literals/mismatches are refused.
+ *
+ * `D` is the declaration at that key (or `undefined` when the key is absent
+ * from the `attrs` map, in which case the caller passes `T` through directly).
+ */
+export type AttrValueType<T, D> =
+  D extends 'boolean' ? (IsExactKind<T, boolean> extends true ? boolean : T)
+  : D extends { type: 'boolean' } ? (IsExactKind<T, boolean> extends true ? boolean : T)
+  : D extends { type: 'number'; default: number } ? (IsExactKind<T, number> extends true ? number : T)
+  : D extends 'number' ? (IsExactKind<T, number> extends true ? number | undefined : T)
+  : D extends { type: 'number' } ? (IsExactKind<T, number> extends true ? number | undefined : T)
+  : T;
+
+/**
+ * `true` iff `NonNullable<T>` is EXACTLY `K` — mutually assignable in both
+ * directions (`NonNullable<T> extends K` AND `K extends NonNullable<T>`). The
+ * tuple wrappers block distribution so `boolean` (`= true | false`) is compared
+ * whole: `boolean | string` is NOT exactly `boolean` (fails the first arm), and
+ * `true` is NOT exactly `boolean` (fails the second), so both are refused.
+ */
+type IsExactKind<T, K> =
+  [NonNullable<T>] extends [K] ? ([K] extends [NonNullable<T>] ? true : false) : false;
+
+/**
+ * Maps a props interface to reactive signals, narrowed by the `attrs`
+ * declaration `A` (ADR 0025 candidate (b)).
+ *
+ * Each prop `P[K]` becomes `Signal<AttrValueType<P[K], A[K]>>` when `K` is
+ * declared in `A`, otherwise `Signal<P[K]>`. So a declared `'boolean'` types as
+ * `Signal<boolean>` (not `Signal<boolean | undefined>`), retiring the
+ * registry's `as boolean` stopgap. `A` defaults to `{}` (no declared keys →
+ * every prop unchanged), so `ReactiveProps<P>` keeps its pre-candidate-(b)
+ * meaning and existing single-argument uses are unaffected.
  *
  * Optionality is stripped (`-?`): the props Proxy always returns a signal,
  * even for props never set — an optional prop `variant?: T` is
  * `Signal<T | undefined>`, not `Signal<T> | undefined`.
  */
-export type ReactiveProps<P> = {
-  readonly [K in keyof P]-?: Signal<P[K]>;
+export type ReactiveProps<P, A extends ComponentAttrs<P> = {}> = {
+  readonly [K in keyof P]-?: Signal<K extends keyof A ? AttrValueType<P[K], A[K]> : P[K]>;
 };
 
 /**
- * The setup function signature. Receives reactive props and host element.
- * Returns a TemplateResult to be mounted into the component.
+ * The setup function signature. Receives reactive props (narrowed by the
+ * `attrs` declaration `A`) and the host element. Returns a TemplateResult to be
+ * mounted into the component.
  */
-export type SetupFunction<P> = (
-  props: ReactiveProps<P>,
+export type SetupFunction<P, A extends ComponentAttrs<P> = {}> = (
+  props: ReactiveProps<P, A>,
   host: HTMLElement,
 ) => TemplateResult;
 
@@ -113,6 +170,20 @@ export type AttrDecl =
   | { type: 'string'; default?: string; attr?: string }
   | { type: 'number'; default?: number; attr?: string };
 
+/**
+ * The `attrs` declaration map for a props interface `P`: prop keys → attribute
+ * behavior. This is the type an `attrs` object satisfies; capture its literal
+ * type with `typeof` and pass it as `component`'s second type argument to
+ * unlock declared-type narrowing (ADR 0025 candidate (b)):
+ *
+ * ```ts
+ * const attrs = { checked: 'boolean' } satisfies ComponentAttrs<SwitchProps>;
+ * const Switch = component<SwitchProps, typeof attrs>('ui-switch', setup, { attrs });
+ * //   inside setup: props.checked.value is `boolean`, not `boolean | undefined`
+ * ```
+ */
+export type ComponentAttrs<P> = Partial<Record<Extract<keyof P, string>, AttrDecl>>;
+
 /** Options for component() registration */
 export interface ComponentOptions<P = unknown> {
   /** Custom error fallback renderer */
@@ -122,7 +193,7 @@ export interface ComponentOptions<P = unknown> {
    * to attribute declarations. Omitted entirely → zero cost (empty
    * `observedAttributes`, no `attributeChangedCallback` work).
    */
-  attrs?: Partial<Record<Extract<keyof P, string>, AttrDecl>>;
+  attrs?: ComponentAttrs<P>;
 }
 
 // ── Attribute-reactivity helpers (ADR 0025 item 3) ───────
@@ -254,10 +325,22 @@ function createPropsProxy<P>(): {
  * TaskItem({ task: taskSignal, selected: isSelected })
  * ```
  */
-export function component<P extends object = Record<string, never>>(
+export function component<
+  P extends object = Record<string, never>,
+  A extends ComponentAttrs<P> = {},
+>(
   tagName: string,
-  setup: SetupFunction<P>,
-  options?: ComponentOptions<P>,
+  setup: SetupFunction<P, A>,
+  // When `A` is explicitly given a non-empty attrs literal (the narrowing
+  // opt-in), the options argument — carrying `attrs: A` — is REQUIRED: a
+  // `component<P, typeof attrs>(tag, setup)` that types the props as narrowed but
+  // never actually wires the attrs at runtime would be a compile-time lie. When
+  // `A` is `{}` (the legacy default, no second type arg), options stays optional
+  // exactly as before. `attrs` in that legacy branch is still validated as
+  // `ComponentAttrs<P>` via `ComponentOptions<P>`.
+  ...[options]: [keyof A] extends [never]
+    ? [options?: ComponentOptions<P>]
+    : [options: ComponentOptions<P> & { attrs: A }]
 ): ComponentFactory<P> {
   // Attribute-reactivity wiring (ADR 0025 item 3). Computed once
   // per component definition; empty when no `attrs` declared (→ zero cost).
@@ -368,7 +451,12 @@ export function component<P extends object = Record<string, never>>(
           // CONTEXT is established by runWithContext(host, …) below; setup then
           // runs with seed + capture already in place.
           runWithContext(host, () => {
-            this._templateResult = setup(this._propsProxy!.props, this);
+            // The Proxy is runtime-untyped; the declared narrowing (A) is a
+            // compile-time view the setup function requested (ADR 0025 (b)).
+            this._templateResult = setup(
+              this._propsProxy!.props as ReactiveProps<P, A>,
+              this,
+            );
           });
 
           // Mount the template result

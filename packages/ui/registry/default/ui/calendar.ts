@@ -69,6 +69,7 @@
 
 import {
   component,
+  type ComponentAttrs,
   computed,
   html,
   signal,
@@ -175,7 +176,21 @@ export type CalendarProps = {
 
 let uid = 0;
 
-export const Calendar = component<CalendarProps>('ui-calendar', (props, host) => {
+// Date props declared 'string' — the component parses ISO (asDate), so the
+// attribute path is live; a factory Date still wins via pin precedence.
+const calendarAttrs = {
+  mode: 'string',
+  month: 'string',
+  defaultMonth: 'string',
+  min: 'string',
+  max: 'string',
+  weekStartsOn: { type: 'number', default: 0 },
+  showOutsideDays: { type: 'boolean', default: true },
+  locale: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<CalendarProps>;
+
+export const Calendar = component<CalendarProps, typeof calendarAttrs>('ui-calendar', (props, host) => {
   transparentHost(host);
 
   // Attribute-backed config, now declared in `attrs` (below) and read as LIVE
@@ -185,7 +200,7 @@ export const Calendar = component<CalendarProps>('ui-calendar', (props, host) =>
   // week-start + outside-days are read live (in the reactive graph below) so a
   // post-mount setAttribute re-renders the grid.
   const weekStart = (): number => props.weekStartsOn.value ?? 0;
-  const showOutside = (): boolean => props.showOutsideDays.value as boolean;
+  const showOutside = (): boolean => props.showOutsideDays.value;
   const locale = (): string => props.locale.value ?? 'default';
   const baseId = `ui-calendar-${++uid}`;
 
@@ -515,18 +530,4 @@ export const Calendar = component<CalendarProps>('ui-calendar', (props, host) =>
       </div>
     </div>
   </div>`;
-}, {
-  // Date props declared 'string' — the component parses ISO (asDate), so the
-  // attribute path is live; a factory Date still wins via pin precedence.
-  attrs: {
-    mode: 'string',
-    month: 'string',
-    defaultMonth: 'string',
-    min: 'string',
-    max: 'string',
-    weekStartsOn: { type: 'number', default: 0 },
-    showOutsideDays: { type: 'boolean', default: true },
-    locale: 'string',
-    className: 'string',
-  },
-});
+}, { attrs: calendarAttrs });

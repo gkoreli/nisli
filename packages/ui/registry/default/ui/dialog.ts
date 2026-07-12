@@ -43,6 +43,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   effect,
@@ -80,12 +81,20 @@ export type DialogProps = {
   children?: string | TemplateResult;
 };
 
-export const Dialog = component<DialogProps>('ui-dialog', (props, host) => {
+// PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
+const dialogAttrs = {
+  open: 'boolean',
+  defaultOpen: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<DialogProps>;
+
+export const Dialog = component<DialogProps, typeof dialogAttrs>('ui-dialog', (props, host) => {
   transparentHost(host);
 
   // PATTERN A (ADR 0025 item 3): the `open` ATTRIBUTE is the uncontrolled state
-  // (like native <dialog open>/<details open>). The attribute IS the truth.
-  const open = computed<boolean>(() => props.open.value ?? false);
+  // (like native <dialog open>/<details open>). The attribute IS the truth. The
+  // declared 'boolean' now narrows to `boolean`, so no `?? false` is needed.
+  const open = computed<boolean>(() => props.open.value);
 
   const setOpen = (next: boolean): void => {
     if (next === open.value) return;
@@ -122,14 +131,7 @@ export const Dialog = component<DialogProps>('ui-dialog', (props, host) => {
 
   // The root is layout-transparent (shadcn's Dialog root renders no box).
   return html`<div data-slot="dialog" style="display:contents" class="${classes}">${children()}</div>`;
-}, {
-  // PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
-  attrs: {
-    open: 'boolean',
-    defaultOpen: 'boolean',
-    className: 'string',
-  },
-});
+}, { attrs: dialogAttrs });
 
 // ── ui-dialog-trigger ────────────────────────────────────────────────
 
@@ -138,7 +140,9 @@ export type DialogTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const DialogTrigger = component<DialogTriggerProps>(
+const dialogTriggerAttrs = { className: 'string' } satisfies ComponentAttrs<DialogTriggerProps>;
+
+export const DialogTrigger = component<DialogTriggerProps, typeof dialogTriggerAttrs>(
   'ui-dialog-trigger',
   (props, host) => {
     const state = DialogContext.inject();
@@ -158,7 +162,7 @@ export const DialogTrigger = component<DialogTriggerProps>(
       @click=${() => state.setOpen(true)}
     >${children()}</button>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: dialogTriggerAttrs },
 );
 
 // ── ui-dialog-close (standalone, for footer composition) ─────────────
@@ -173,7 +177,9 @@ export type DialogCloseProps = {
  * "Cancel"). The content's built-in top-right close button is separate; this
  * mirrors upstream's exported `DialogClose`.
  */
-export const DialogClose = component<DialogCloseProps>('ui-dialog-close', (props, host) => {
+const dialogCloseAttrs = { className: 'string' } satisfies ComponentAttrs<DialogCloseProps>;
+
+export const DialogClose = component<DialogCloseProps, typeof dialogCloseAttrs>('ui-dialog-close', (props, host) => {
   const state = DialogContext.inject();
   transparentHost(host);
 
@@ -186,7 +192,7 @@ export const DialogClose = component<DialogCloseProps>('ui-dialog-close', (props
     class="${classes}"
     @click=${() => state.setOpen(false)}
   >${children()}</button>`;
-}, { attrs: { className: 'string' } });
+}, { attrs: dialogCloseAttrs });
 
 // ── ui-dialog-content (overlay + panel + close) ──────────────────────
 
@@ -211,13 +217,20 @@ export type DialogContentProps = {
   children?: string | TemplateResult;
 };
 
-export const DialogContent = component<DialogContentProps>(
+// PATTERN B: default-true booleans (absent → true, "false" → false).
+const dialogContentAttrs = {
+  showCloseButton: { type: 'boolean', default: true },
+  portal: { type: 'boolean', default: true },
+  className: 'string',
+} satisfies ComponentAttrs<DialogContentProps>;
+
+export const DialogContent = component<DialogContentProps, typeof dialogContentAttrs>(
   'ui-dialog-content',
   (props, host) => {
     const state = DialogContext.inject();
     transparentHost(host);
 
-    const withClose = props.showCloseButton.value as boolean;
+    const withClose = props.showCloseButton.value;
     const dataState = computed(() => (state.open.value ? 'open' : 'closed'));
     const hidden = computed(() => !state.open.value);
     const contentId = `${state.baseId}-content`;
@@ -233,8 +246,9 @@ export const DialogContent = component<DialogContentProps>(
     // positioning escapes any transformed ancestor. Static setup-time decision
     // (PATTERN B): `portal` is a default-true boolean — absent → on, "false" →
     // off. The dismissable-layer (document listeners) and focus trap (operates
-    // by ref) keep working after the move — verified in tests.
-    const portalEnabled = props.portal.value as boolean;
+    // by ref) keep working after the move — verified in tests. Declared
+    // 'boolean' now narrows to `boolean`.
+    const portalEnabled = props.portal.value;
     portal(portalRef, { enabled: portalEnabled });
 
     // Escape / outside-pointer dismissal and modal focus trap, active only
@@ -298,14 +312,7 @@ export const DialogContent = component<DialogContentProps>(
       >${children()}${withClose ? closeButton : ''}</div>
     </div>`;
   },
-  {
-    // PATTERN B: default-true booleans (absent → true, "false" → false).
-    attrs: {
-      showCloseButton: { type: 'boolean', default: true },
-      portal: { type: 'boolean', default: true },
-      className: 'string',
-    },
-  },
+  { attrs: dialogContentAttrs },
 );
 
 // ── ui-dialog-header / -footer ───────────────────────────────────────
@@ -315,13 +322,15 @@ export type DialogSectionProps = {
   children?: string | TemplateResult;
 };
 
+const dialogSectionAttrs = { className: 'string' } satisfies ComponentAttrs<DialogSectionProps>;
+
 function dialogSection(tag: string, slot: string, base: string) {
-  return component<DialogSectionProps>(tag, (props, host) => {
+  return component<DialogSectionProps, typeof dialogSectionAttrs>(tag, (props, host) => {
     transparentHost(host);
     const className = props.className;
     const classes = computed(() => cn(base, className.value));
     return html`<div data-slot="${slot}" class="${classes}">${children()}</div>`;
-  }, { attrs: { className: 'string' } });
+  }, { attrs: dialogSectionAttrs });
 }
 
 export const DialogHeader = dialogSection(
@@ -343,7 +352,9 @@ export type DialogTitleProps = {
   children?: string | TemplateResult;
 };
 
-export const DialogTitle = component<DialogTitleProps>('ui-dialog-title', (props, host) => {
+const dialogTitleAttrs = { className: 'string' } satisfies ComponentAttrs<DialogTitleProps>;
+
+export const DialogTitle = component<DialogTitleProps, typeof dialogTitleAttrs>('ui-dialog-title', (props, host) => {
   const state = DialogContext.inject();
   transparentHost(host);
   const className = props.className;
@@ -353,14 +364,16 @@ export const DialogTitle = component<DialogTitleProps>('ui-dialog-title', (props
     id="${`${state.baseId}-title`}"
     class="${classes}"
   >${children()}</h2>`;
-}, { attrs: { className: 'string' } });
+}, { attrs: dialogTitleAttrs });
 
 export type DialogDescriptionProps = {
   className?: string;
   children?: string | TemplateResult;
 };
 
-export const DialogDescription = component<DialogDescriptionProps>(
+const dialogDescriptionAttrs = { className: 'string' } satisfies ComponentAttrs<DialogDescriptionProps>;
+
+export const DialogDescription = component<DialogDescriptionProps, typeof dialogDescriptionAttrs>(
   'ui-dialog-description',
   (props, host) => {
     const state = DialogContext.inject();
@@ -373,5 +386,5 @@ export const DialogDescription = component<DialogDescriptionProps>(
       class="${classes}"
     >${children()}</p>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: dialogDescriptionAttrs },
 );

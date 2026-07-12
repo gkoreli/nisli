@@ -24,6 +24,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   html,
@@ -61,7 +62,11 @@ export type MessageScrollerSectionProps = {
   children?: string | TemplateResult;
 };
 
-export const MessageScrollerProvider = component<MessageScrollerSectionProps>(
+const messageScrollerProviderAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<MessageScrollerSectionProps>;
+
+export const MessageScrollerProvider = component<MessageScrollerSectionProps, typeof messageScrollerProviderAttrs>(
   'ui-message-scroller-provider',
   (props, host) => {
     transparentHost(host);
@@ -69,12 +74,16 @@ export const MessageScrollerProvider = component<MessageScrollerSectionProps>(
     const classes = computed(() => cn(className.value));
     return html`<div data-slot="message-scroller-provider" style="display:contents" class="${classes}">${children()}</div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: messageScrollerProviderAttrs },
 );
 
 // ── ui-message-scroller (root) ───────────────────────────────────────
 
-export const MessageScroller = component<MessageScrollerSectionProps>(
+const messageScrollerAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<MessageScrollerSectionProps>;
+
+export const MessageScroller = component<MessageScrollerSectionProps, typeof messageScrollerAttrs>(
   'ui-message-scroller',
   (props, host) => {
     transparentHost(host);
@@ -137,12 +146,16 @@ export const MessageScroller = component<MessageScrollerSectionProps>(
     );
     return html`<div data-slot="message-scroller" class="${classes}">${children()}</div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: messageScrollerAttrs },
 );
 
 // ── ui-message-scroller-viewport ─────────────────────────────────────
 
-export const MessageScrollerViewport = component<MessageScrollerSectionProps>(
+const messageScrollerViewportAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<MessageScrollerSectionProps>;
+
+export const MessageScrollerViewport = component<MessageScrollerSectionProps, typeof messageScrollerViewportAttrs>(
   'ui-message-scroller-viewport',
   (props, host) => {
     const state = MessageScrollerContext.inject();
@@ -165,12 +178,16 @@ export const MessageScrollerViewport = component<MessageScrollerSectionProps>(
       @scroll=${() => state.handleScroll()}
     >${children()}</div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: messageScrollerViewportAttrs },
 );
 
 // ── ui-message-scroller-content ──────────────────────────────────────
 
-export const MessageScrollerContent = component<MessageScrollerSectionProps>(
+const messageScrollerContentAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<MessageScrollerSectionProps>;
+
+export const MessageScrollerContent = component<MessageScrollerSectionProps, typeof messageScrollerContentAttrs>(
   'ui-message-scroller-content',
   (props, host) => {
     const state = MessageScrollerContext.inject();
@@ -183,7 +200,7 @@ export const MessageScrollerContent = component<MessageScrollerSectionProps>(
     });
     return html`<div ref="${root}" data-slot="message-scroller-content" class="${classes}">${children()}</div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: messageScrollerContentAttrs },
 );
 
 // ── ui-message-scroller-item ─────────────────────────────────────────
@@ -194,11 +211,16 @@ export type MessageScrollerItemProps = {
   children?: string | TemplateResult;
 };
 
-export const MessageScrollerItem = component<MessageScrollerItemProps>(
+const messageScrollerItemAttrs = {
+  scrollAnchor: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<MessageScrollerItemProps>;
+
+export const MessageScrollerItem = component<MessageScrollerItemProps, typeof messageScrollerItemAttrs>(
   'ui-message-scroller-item',
   (props, host) => {
     transparentHost(host);
-    const scrollAnchor = computed<boolean>(() => props.scrollAnchor.value as boolean);
+    const scrollAnchor = computed<boolean>(() => props.scrollAnchor.value);
     const className = props.className;
     const classes = computed(() =>
       cn(
@@ -212,7 +234,7 @@ export const MessageScrollerItem = component<MessageScrollerItemProps>(
       class="${classes}"
     >${children()}</div>`;
   },
-  { attrs: { scrollAnchor: 'boolean', className: 'string' } },
+  { attrs: messageScrollerItemAttrs },
 );
 
 // ── ui-message-scroller-button ───────────────────────────────────────
@@ -238,7 +260,14 @@ export type MessageScrollerButtonProps = {
   children?: string | TemplateResult;
 };
 
-export const MessageScrollerButton = component<MessageScrollerButtonProps>(
+const messageScrollerButtonAttrs = {
+  direction: 'string',
+  variant: 'string',
+  size: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<MessageScrollerButtonProps>;
+
+export const MessageScrollerButton = component<MessageScrollerButtonProps, typeof messageScrollerButtonAttrs>(
   'ui-message-scroller-button',
   (props, host) => {
     const state = MessageScrollerContext.inject();
@@ -298,12 +327,5 @@ export const MessageScrollerButton = component<MessageScrollerButtonProps>(
       @click=${onClick}
     >${children(defaultContent)}</button>`;
   },
-  {
-    attrs: {
-      direction: 'string',
-      variant: 'string',
-      size: 'string',
-      className: 'string',
-    },
-  },
+  { attrs: messageScrollerButtonAttrs },
 );

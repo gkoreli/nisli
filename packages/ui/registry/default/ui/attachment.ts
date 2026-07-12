@@ -19,7 +19,7 @@
  * This file was copied into your project by `nisli-ui` — you own it.
  */
 
-import { children, component, computed, html, type TemplateResult } from '@nisli/core';
+import { children, component, type ComponentAttrs, computed, html, type TemplateResult } from '@nisli/core';
 import { cn, cv, transparentHost } from '../lib/utils.js';
 import { buttonVariants, type ButtonSize, type ButtonVariant } from './button.js';
 
@@ -211,11 +211,20 @@ export type AttachmentActionProps = {
   children?: string | TemplateResult;
 };
 
-export const AttachmentAction = component<AttachmentActionProps>(
+const attachmentActionAttrs = {
+  variant: 'string',
+  size: 'string',
+  type: 'string',
+  ariaLabel: 'string',
+  disabled: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<AttachmentActionProps>;
+
+export const AttachmentAction = component<AttachmentActionProps, typeof attachmentActionAttrs>(
   'ui-attachment-action',
   (props, host) => {
     transparentHost(host);
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
     const classes = computed(() =>
       cn(
         buttonVariants({
@@ -233,7 +242,7 @@ export const AttachmentAction = component<AttachmentActionProps>(
       disabled="${disabled}"
     >${children()}</button>`;
   },
-  { attrs: { variant: 'string', size: 'string', type: 'string', ariaLabel: 'string', disabled: 'boolean', className: 'string' } },
+  { attrs: attachmentActionAttrs },
 );
 
 // ── ui-attachment-trigger (fills the chip; the main click target) ────
@@ -247,11 +256,18 @@ export type AttachmentTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const AttachmentTrigger = component<AttachmentTriggerProps>(
+const attachmentTriggerAttrs = {
+  type: 'string',
+  ariaLabel: 'string',
+  disabled: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<AttachmentTriggerProps>;
+
+export const AttachmentTrigger = component<AttachmentTriggerProps, typeof attachmentTriggerAttrs>(
   'ui-attachment-trigger',
   (props, host) => {
     transparentHost(host);
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
     const classes = computed(() => cn('absolute inset-0 z-10 outline-none', props.className.value));
     return html`<button
       data-slot="attachment-trigger"

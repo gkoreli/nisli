@@ -29,6 +29,7 @@
 
 import {
   component,
+  type ComponentAttrs,
   computed,
   effect,
   html,
@@ -71,22 +72,37 @@ export type SwitchProps = {
   className?: string;
 };
 
-export const Switch = component<SwitchProps>('ui-switch', (props, host) => {
+// ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
+// (className → class-name). 'forward' relocates id/name off the transparent host
+// onto the inner control (native form participation). Passed as component()'s
+// second type argument (`typeof switchAttrs`) so ReactiveProps narrows each
+// declared 'boolean' to `boolean` (ADR 0025 candidate (b)) — the `as boolean`
+// stopgap is retired.
+const switchAttrs = {
+  value: 'string',
+  size: 'string',
+  className: 'string',
+  id: 'forward',
+  name: 'forward',
+  checked: 'boolean',
+  disabled: 'boolean',
+  required: 'boolean',
+} satisfies ComponentAttrs<SwitchProps>;
+
+export const Switch = component<SwitchProps, typeof switchAttrs>('ui-switch', (props, host) => {
   transparentHost(host);
 
-  // ADR 0025 item 3: attribute fallbacks are declared via the
-  // `attrs` option below and delivered as plain, LIVE prop signals — no
-  // userland attr()/boolAttr()/forwardedAttr() at setup. `setAttribute` after
-  // mount now flows through (see the live-update tests). Declared-default
-  // booleans are runtime-guaranteed non-undefined by the declaration, so there
-  // is NO defensive `?? false`; the `as boolean` reflects that guarantee until
-  // ReactiveProps carries the declared type (future work, per arch).
+  // Attribute fallbacks are declared via `switchAttrs` and delivered as plain,
+  // LIVE prop signals — no userland attr()/boolAttr()/forwardedAttr() at setup.
+  // `setAttribute` after mount now flows through (see the live-update tests).
+  // Declared booleans are runtime-guaranteed non-undefined and now TYPE as
+  // `boolean`, so there is no `as boolean` cast and no defensive `?? false`.
   const value = props.value;
   const id = props.id;
   const name = props.name;
-  const checked = computed<boolean>(() => props.checked.value as boolean);
-  const disabled = computed<boolean>(() => props.disabled.value as boolean);
-  const required = computed<boolean>(() => props.required.value as boolean);
+  const checked = computed<boolean>(() => props.checked.value);
+  const disabled = computed<boolean>(() => props.disabled.value);
+  const required = computed<boolean>(() => props.required.value);
   const className = props.className;
   const size = computed<SwitchSize>(() => (props.size.value === 'sm' ? 'sm' : 'default'));
 
@@ -145,18 +161,4 @@ export const Switch = component<SwitchProps>('ui-switch', (props, host) => {
     />
     <span data-slot="switch-thumb" class="${thumbClasses}"></span>
   </span>`;
-}, {
-  // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr
-  // names (className → class-name). 'forward' relocates id/name off the
-  // transparent host onto the inner control (native form participation).
-  attrs: {
-    value: 'string',
-    size: 'string',
-    className: 'string',
-    id: 'forward',
-    name: 'forward',
-    checked: 'boolean',
-    disabled: 'boolean',
-    required: 'boolean',
-  },
-});
+}, { attrs: switchAttrs });

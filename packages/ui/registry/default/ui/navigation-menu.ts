@@ -36,6 +36,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   html,
@@ -80,7 +81,9 @@ export type NavigationMenuProps = {
   children?: string | TemplateResult;
 };
 
-export const NavigationMenu = component<NavigationMenuProps>(
+const navigationMenuAttrs = { className: 'string' } satisfies ComponentAttrs<NavigationMenuProps>;
+
+export const NavigationMenu = component<NavigationMenuProps, typeof navigationMenuAttrs>(
   'ui-navigation-menu',
   (props, host) => {
     transparentHost(host);
@@ -138,7 +141,7 @@ export const NavigationMenu = component<NavigationMenuProps>(
       class="${classes}"
     >${children()}</div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: navigationMenuAttrs },
 );
 
 // ── ui-navigation-menu-list ──────────────────────────────────────────
@@ -148,7 +151,9 @@ export type NavigationMenuListProps = {
   children?: string | TemplateResult;
 };
 
-export const NavigationMenuList = component<NavigationMenuListProps>(
+const navigationMenuListAttrs = { className: 'string' } satisfies ComponentAttrs<NavigationMenuListProps>;
+
+export const NavigationMenuList = component<NavigationMenuListProps, typeof navigationMenuListAttrs>(
   'ui-navigation-menu-list',
   (props, host) => {
     const state = NavigationMenuContext.inject();
@@ -190,7 +195,7 @@ export const NavigationMenuList = component<NavigationMenuListProps>(
       @keydown=${onKeydown}
     >${children()}</ul>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: navigationMenuListAttrs },
 );
 
 // ── ui-navigation-menu-item ──────────────────────────────────────────
@@ -200,7 +205,9 @@ export type NavigationMenuItemProps = {
   children?: string | TemplateResult;
 };
 
-export const NavigationMenuItem = component<NavigationMenuItemProps>(
+const navigationMenuItemAttrs = { className: 'string' } satisfies ComponentAttrs<NavigationMenuItemProps>;
+
+export const NavigationMenuItem = component<NavigationMenuItemProps, typeof navigationMenuItemAttrs>(
   'ui-navigation-menu-item',
   (props, host) => {
     NavigationMenuContext.inject();
@@ -214,7 +221,7 @@ export const NavigationMenuItem = component<NavigationMenuItemProps>(
       class="${classes}"
     >${children()}</li>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: navigationMenuItemAttrs },
 );
 
 // ── ui-navigation-menu-trigger ───────────────────────────────────────
@@ -230,7 +237,12 @@ export type NavigationMenuTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const NavigationMenuTrigger = component<NavigationMenuTriggerProps>(
+const navigationMenuTriggerAttrs = {
+  value: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<NavigationMenuTriggerProps>;
+
+export const NavigationMenuTrigger = component<NavigationMenuTriggerProps, typeof navigationMenuTriggerAttrs>(
   'ui-navigation-menu-trigger',
   (props, host) => {
     const state = NavigationMenuContext.inject();
@@ -267,7 +279,7 @@ export const NavigationMenuTrigger = component<NavigationMenuTriggerProps>(
         aria-hidden="true"
       ><path d="m6 9 6 6 6-6"></path></svg></button>`;
   },
-  { attrs: { value: 'string', className: 'string' } },
+  { attrs: navigationMenuTriggerAttrs },
 );
 
 // ── ui-navigation-menu-content ───────────────────────────────────────
@@ -282,7 +294,12 @@ export type NavigationMenuContentProps = {
   children?: string | TemplateResult;
 };
 
-export const NavigationMenuContent = component<NavigationMenuContentProps>(
+const navigationMenuContentAttrs = {
+  value: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<NavigationMenuContentProps>;
+
+export const NavigationMenuContent = component<NavigationMenuContentProps, typeof navigationMenuContentAttrs>(
   'ui-navigation-menu-content',
   (props, host) => {
     const state = NavigationMenuContext.inject();
@@ -307,7 +324,7 @@ export const NavigationMenuContent = component<NavigationMenuContentProps>(
       @pointerleave=${() => state.scheduleClose()}
     >${children()}</div>`;
   },
-  { attrs: { value: 'string', className: 'string' } },
+  { attrs: navigationMenuContentAttrs },
 );
 
 // ── ui-navigation-menu-link ──────────────────────────────────────────
@@ -319,7 +336,13 @@ export type NavigationMenuLinkProps = {
   children?: string | TemplateResult;
 };
 
-export const NavigationMenuLink = component<NavigationMenuLinkProps>(
+const navigationMenuLinkAttrs = {
+  href: 'string',
+  active: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<NavigationMenuLinkProps>;
+
+export const NavigationMenuLink = component<NavigationMenuLinkProps, typeof navigationMenuLinkAttrs>(
   'ui-navigation-menu-link',
   (props, host) => {
     transparentHost(host);
@@ -327,7 +350,7 @@ export const NavigationMenuLink = component<NavigationMenuLinkProps>(
     const href = props.href;
     // `active` is a declared boolean attribute — its presence IS the truth, so
     // props.active reads it directly (no separate host.hasAttribute fallback).
-    const active = computed<boolean>(() => props.active.value as boolean);
+    const active = computed<boolean>(() => props.active.value);
     const className = props.className;
     const classes = computed(() =>
       cn(
@@ -343,5 +366,5 @@ export const NavigationMenuLink = component<NavigationMenuLinkProps>(
       class="${classes}"
     >${children()}</a>`;
   },
-  { attrs: { href: 'string', active: 'boolean', className: 'string' } },
+  { attrs: navigationMenuLinkAttrs },
 );

@@ -15,6 +15,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   computed,
   html,
   type TemplateResult,
@@ -58,7 +59,9 @@ export type PaginationPartProps = {
   children?: string | TemplateResult;
 };
 
-export const Pagination = component<PaginationPartProps>('ui-pagination', (props, host) => {
+const paginationAttrs = { className: 'string' } satisfies ComponentAttrs<PaginationPartProps>;
+
+export const Pagination = component<PaginationPartProps, typeof paginationAttrs>('ui-pagination', (props, host) => {
   transparentHost(host);
   const className = props.className;
   const classes = computed(() => cn('mx-auto flex w-full justify-center', className.value));
@@ -68,11 +71,11 @@ export const Pagination = component<PaginationPartProps>('ui-pagination', (props
     data-slot="pagination"
     class="${classes}"
   >${children()}</nav>`;
-}, {
-  attrs: { className: 'string' },
-});
+}, { attrs: paginationAttrs });
 
-export const PaginationContent = component<PaginationPartProps>(
+const paginationContentAttrs = { className: 'string' } satisfies ComponentAttrs<PaginationPartProps>;
+
+export const PaginationContent = component<PaginationPartProps, typeof paginationContentAttrs>(
   'ui-pagination-content',
   (props, host) => {
     transparentHost(host);
@@ -83,12 +86,12 @@ export const PaginationContent = component<PaginationPartProps>(
       class="${classes}"
     >${children()}</ul>`;
   },
-  {
-    attrs: { className: 'string' },
-  },
+  { attrs: paginationContentAttrs },
 );
 
-export const PaginationItem = component<PaginationPartProps>(
+const paginationItemAttrs = { className: 'string' } satisfies ComponentAttrs<PaginationPartProps>;
+
+export const PaginationItem = component<PaginationPartProps, typeof paginationItemAttrs>(
   'ui-pagination-item',
   (props, host) => {
     transparentHost(host);
@@ -99,9 +102,7 @@ export const PaginationItem = component<PaginationPartProps>(
       class="${classes}"
     >${children()}</li>`;
   },
-  {
-    attrs: { className: 'string' },
-  },
+  { attrs: paginationItemAttrs },
 );
 
 export type PaginationLinkProps = PaginationPartProps & {
@@ -110,12 +111,19 @@ export type PaginationLinkProps = PaginationPartProps & {
   href?: string;
 };
 
-export const PaginationLink = component<PaginationLinkProps>(
+const paginationLinkAttrs = {
+  isActive: 'boolean',
+  size: 'string',
+  href: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<PaginationLinkProps>;
+
+export const PaginationLink = component<PaginationLinkProps, typeof paginationLinkAttrs>(
   'ui-pagination-link',
   (props, host) => {
     transparentHost(host);
 
-    const isActive = computed<boolean>(() => props.isActive.value as boolean);
+    const isActive = computed<boolean>(() => props.isActive.value);
     const size = props.size;
     const href = props.href;
     const className = props.className;
@@ -138,17 +146,15 @@ export const PaginationLink = component<PaginationLinkProps>(
       class="${classes}"
     >${children()}</a>`;
   },
-  {
-    attrs: {
-      isActive: 'boolean',
-      size: 'string',
-      href: 'string',
-      className: 'string',
-    },
-  },
+  { attrs: paginationLinkAttrs },
 );
 
-export const PaginationPrevious = component<Pick<PaginationLinkProps, 'href' | 'className'>>(
+const paginationPreviousAttrs = {
+  href: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<Pick<PaginationLinkProps, 'href' | 'className'>>;
+
+export const PaginationPrevious = component<Pick<PaginationLinkProps, 'href' | 'className'>, typeof paginationPreviousAttrs>(
   'ui-pagination-previous',
   (props, host) => {
     transparentHost(host);
@@ -168,12 +174,15 @@ export const PaginationPrevious = component<Pick<PaginationLinkProps, 'href' | '
       class="${classes}"
     >${chevronLeft()}<span class="hidden sm:block">Previous</span></a>`;
   },
-  {
-    attrs: { href: 'string', className: 'string' },
-  },
+  { attrs: paginationPreviousAttrs },
 );
 
-export const PaginationNext = component<Pick<PaginationLinkProps, 'href' | 'className'>>(
+const paginationNextAttrs = {
+  href: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<Pick<PaginationLinkProps, 'href' | 'className'>>;
+
+export const PaginationNext = component<Pick<PaginationLinkProps, 'href' | 'className'>, typeof paginationNextAttrs>(
   'ui-pagination-next',
   (props, host) => {
     transparentHost(host);
@@ -193,12 +202,12 @@ export const PaginationNext = component<Pick<PaginationLinkProps, 'href' | 'clas
       class="${classes}"
     ><span class="hidden sm:block">Next</span>${chevronRight()}</a>`;
   },
-  {
-    attrs: { href: 'string', className: 'string' },
-  },
+  { attrs: paginationNextAttrs },
 );
 
-export const PaginationEllipsis = component<PaginationPartProps>(
+const paginationEllipsisAttrs = { className: 'string' } satisfies ComponentAttrs<PaginationPartProps>;
+
+export const PaginationEllipsis = component<PaginationPartProps, typeof paginationEllipsisAttrs>(
   'ui-pagination-ellipsis',
   (props, host) => {
     transparentHost(host);
@@ -212,7 +221,5 @@ export const PaginationEllipsis = component<PaginationPartProps>(
       class="${classes}"
     >${moreHorizontal()}<span class="sr-only">More pages</span></span>`;
   },
-  {
-    attrs: { className: 'string' },
-  },
+  { attrs: paginationEllipsisAttrs },
 );

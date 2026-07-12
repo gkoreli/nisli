@@ -31,6 +31,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   effect,
@@ -75,12 +76,20 @@ export type PopoverProps = {
   children?: string | TemplateResult;
 };
 
-export const Popover = component<PopoverProps>('ui-popover', (props, host) => {
+// PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
+const popoverAttrs = {
+  open: 'boolean',
+  defaultOpen: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<PopoverProps>;
+
+export const Popover = component<PopoverProps, typeof popoverAttrs>('ui-popover', (props, host) => {
   transparentHost(host);
 
   // PATTERN A (ADR 0025 item 3): the `open` ATTRIBUTE is the uncontrolled state
-  // (like native <dialog open>/<details open>). The attribute IS the truth.
-  const open = computed<boolean>(() => props.open.value ?? false);
+  // (like native <dialog open>/<details open>). The attribute IS the truth. The
+  // declared 'boolean' now narrows to `boolean`, so no `?? false` is needed.
+  const open = computed<boolean>(() => props.open.value);
 
   const setOpen = (next: boolean): void => {
     if (next === open.value) return;
@@ -126,14 +135,7 @@ export const Popover = component<PopoverProps>('ui-popover', (props, host) => {
     style="display:contents"
     class="${classes}"
   >${children()}</div>`;
-}, {
-  // PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
-  attrs: {
-    open: 'boolean',
-    defaultOpen: 'boolean',
-    className: 'string',
-  },
-});
+}, { attrs: popoverAttrs });
 
 // ── ui-popover-trigger ───────────────────────────────────────────────
 
@@ -142,7 +144,9 @@ export type PopoverTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const PopoverTrigger = component<PopoverTriggerProps>(
+const popoverTriggerAttrs = { className: 'string' } satisfies ComponentAttrs<PopoverTriggerProps>;
+
+export const PopoverTrigger = component<PopoverTriggerProps, typeof popoverTriggerAttrs>(
   'ui-popover-trigger',
   (props, host) => {
     const state = PopoverContext.inject();
@@ -163,7 +167,7 @@ export const PopoverTrigger = component<PopoverTriggerProps>(
       @click=${() => state.setOpen(!state.open.value)}
     >${children()}</button>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: popoverTriggerAttrs },
 );
 
 // ── ui-popover-anchor (optional positioning anchor) ──────────────────
@@ -173,7 +177,9 @@ export type PopoverAnchorProps = {
   children?: string | TemplateResult;
 };
 
-export const PopoverAnchor = component<PopoverAnchorProps>(
+const popoverAnchorAttrs = { className: 'string' } satisfies ComponentAttrs<PopoverAnchorProps>;
+
+export const PopoverAnchor = component<PopoverAnchorProps, typeof popoverAnchorAttrs>(
   'ui-popover-anchor',
   (props, host) => {
     const state = PopoverContext.inject();
@@ -184,7 +190,7 @@ export const PopoverAnchor = component<PopoverAnchorProps>(
 
     return html`<div ref="${state.anchor}" data-slot="popover-anchor" style="display:contents" class="${classes}">${children()}</div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: popoverAnchorAttrs },
 );
 
 // ── ui-popover-content ───────────────────────────────────────────────
@@ -207,7 +213,15 @@ export type PopoverContentProps = {
   children?: string | TemplateResult;
 };
 
-export const PopoverContent = component<PopoverContentProps>(
+// PATTERN B: `portal` is a default-true boolean (absent → true, "false" → false).
+const popoverContentAttrs = {
+  side: 'string',
+  align: 'string',
+  portal: { type: 'boolean', default: true },
+  className: 'string',
+} satisfies ComponentAttrs<PopoverContentProps>;
+
+export const PopoverContent = component<PopoverContentProps, typeof popoverContentAttrs>(
   'ui-popover-content',
   (props, host) => {
     const state = PopoverContext.inject();
@@ -228,8 +242,8 @@ export const PopoverContent = component<PopoverContentProps>(
     // Portal the content to <body> (default on) so its fixed positioning
     // escapes transformed ancestors. Floating, dismissable-layer (document),
     // and focus trap all operate on `content` by reference. PATTERN B: `portal`
-    // is a default-true boolean — absent → on, "false" → off.
-    const portalEnabled = props.portal.value as boolean;
+    // is a default-true boolean — absent → on, "false" → off (now narrows to `boolean`).
+    const portalEnabled = props.portal.value;
     portal(content, { enabled: portalEnabled });
 
     const layer = dismissableLayer(content, {
@@ -287,15 +301,7 @@ export const PopoverContent = component<PopoverContentProps>(
       class="${classes}"
     >${children()}</div>`;
   },
-  {
-    // PATTERN B: `portal` is a default-true boolean (absent → true, "false" → false).
-    attrs: {
-      side: 'string',
-      align: 'string',
-      portal: { type: 'boolean', default: true },
-      className: 'string',
-    },
-  },
+  { attrs: popoverContentAttrs },
 );
 
 // ── ui-popover-header / -title / -description ────────────────────────
@@ -305,15 +311,17 @@ export type PopoverSectionProps = {
   children?: string | TemplateResult;
 };
 
+const popoverSectionAttrs = { className: 'string' } satisfies ComponentAttrs<PopoverSectionProps>;
+
 function popoverSection(tag: string, slot: string, base: string, element: 'div' | 'p') {
-  return component<PopoverSectionProps>(tag, (props, host) => {
+  return component<PopoverSectionProps, typeof popoverSectionAttrs>(tag, (props, host) => {
     transparentHost(host);
     const className = props.className;
     const classes = computed(() => cn(base, className.value));
     return element === 'p'
       ? html`<p data-slot="${slot}" class="${classes}">${children()}</p>`
       : html`<div data-slot="${slot}" class="${classes}">${children()}</div>`;
-  }, { attrs: { className: 'string' } });
+  }, { attrs: popoverSectionAttrs });
 }
 
 export const PopoverHeader = popoverSection(

@@ -32,6 +32,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   computed,
   createContext,
   effect,
@@ -74,7 +75,15 @@ export type TabsProps = {
   children?: string | TemplateResult;
 };
 
-export const Tabs = component<TabsProps>('ui-tabs', (props, host) => {
+// VALUE-STATE: `value` is the attribute-as-truth selection; `defaultValue` seeds it.
+const tabsAttrs = {
+  value: 'string',
+  defaultValue: 'string',
+  orientation: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<TabsProps>;
+
+export const Tabs = component<TabsProps, typeof tabsAttrs>('ui-tabs', (props, host) => {
   transparentHost(host);
 
   const orientation = computed<Orientation>(() =>
@@ -134,15 +143,7 @@ export const Tabs = component<TabsProps>('ui-tabs', (props, host) => {
     data-orientation="${orientation}"
     class="${classes}"
   >${children()}</div>`;
-}, {
-  // VALUE-STATE: `value` is the attribute-as-truth selection; `defaultValue` seeds it.
-  attrs: {
-    value: 'string',
-    defaultValue: 'string',
-    orientation: 'string',
-    className: 'string',
-  },
-});
+}, { attrs: tabsAttrs });
 
 // ── ui-tabs-list ─────────────────────────────────────────────────────
 
@@ -167,7 +168,12 @@ export type TabsListProps = {
   children?: string | TemplateResult;
 };
 
-export const TabsList = component<TabsListProps>('ui-tabs-list', (props, host) => {
+const tabsListAttrs = {
+  variant: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<TabsListProps>;
+
+export const TabsList = component<TabsListProps, typeof tabsListAttrs>('ui-tabs-list', (props, host) => {
   const state = TabsContext.inject();
   transparentHost(host);
 
@@ -212,7 +218,7 @@ export const TabsList = component<TabsListProps>('ui-tabs-list', (props, host) =
     class="${classes}"
     @keydown=${onKeydown}
   >${children()}</div>`;
-}, { attrs: { variant: 'string', className: 'string' } });
+}, { attrs: tabsListAttrs });
 
 // ── ui-tabs-trigger ──────────────────────────────────────────────────
 
@@ -231,14 +237,20 @@ export type TabsTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const TabsTrigger = component<TabsTriggerProps>(
+const tabsTriggerAttrs = {
+  value: 'string',
+  disabled: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<TabsTriggerProps>;
+
+export const TabsTrigger = component<TabsTriggerProps, typeof tabsTriggerAttrs>(
   'ui-tabs-trigger',
   (props, host) => {
     const state = TabsContext.inject();
     transparentHost(host);
 
     const own = computed(() => props.value.value ?? '');
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
     const selected = computed(
       () => own.value !== '' && state.value.value === own.value,
     );
@@ -267,7 +279,7 @@ export const TabsTrigger = component<TabsTriggerProps>(
       @click=${select}
     >${children()}</button>`;
   },
-  { attrs: { value: 'string', disabled: 'boolean', className: 'string' } },
+  { attrs: tabsTriggerAttrs },
 );
 
 // ── ui-tabs-content ──────────────────────────────────────────────────
@@ -279,7 +291,12 @@ export type TabsContentProps = {
   children?: string | TemplateResult;
 };
 
-export const TabsContent = component<TabsContentProps>(
+const tabsContentAttrs = {
+  value: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<TabsContentProps>;
+
+export const TabsContent = component<TabsContentProps, typeof tabsContentAttrs>(
   'ui-tabs-content',
   (props, host) => {
     const state = TabsContext.inject();
@@ -306,5 +323,5 @@ export const TabsContent = component<TabsContentProps>(
       class="${classes}"
     >${children()}</div>`;
   },
-  { attrs: { value: 'string', className: 'string' } },
+  { attrs: tabsContentAttrs },
 );

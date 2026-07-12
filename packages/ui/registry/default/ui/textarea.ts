@@ -18,6 +18,7 @@
 
 import {
   component,
+  type ComponentAttrs,
   computed,
   effect,
   html,
@@ -50,7 +51,26 @@ export type TextareaProps = {
   className?: string;
 };
 
-export const Textarea = component<TextareaProps>('ui-textarea', (props, host) => {
+// ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
+// (className → class-name). 'forward' relocates id/name off the transparent
+// host onto the inner control (native form participation). Passed as
+// component()'s second type argument (`typeof textareaAttrs`) so declared
+// booleans narrow to `boolean` (ADR 0025 candidate (b)) — no `as boolean`.
+const textareaAttrs = {
+  placeholder: 'string',
+  autocomplete: 'string',
+  value: 'string',
+  className: 'string',
+  id: 'forward',
+  name: 'forward',
+  disabled: 'boolean',
+  required: 'boolean',
+  readOnly: { type: 'boolean', attr: 'readonly' },
+  ariaInvalid: 'boolean',
+  rows: 'number',
+} satisfies ComponentAttrs<TextareaProps>;
+
+export const Textarea = component<TextareaProps, typeof textareaAttrs>('ui-textarea', (props, host) => {
   transparentHost(host);
   // A textarea's child text is its value; capture pre-existing content.
   // NOTE: captureChildren here CONSUMES child text as the initial value (native
@@ -59,18 +79,18 @@ export const Textarea = component<TextareaProps>('ui-textarea', (props, host) =>
   const captured = captureChildren(host);
   const capturedText = captured.map((n) => n.textContent ?? '').join('');
 
-  // ADR 0025 item 3: attribute fallbacks are declared via the `attrs` option
-  // below and delivered as plain, LIVE prop signals — no userland
-  // attr()/boolAttr()/forwardedAttr() at setup. Declared-default booleans are
-  // runtime-guaranteed non-undefined; the `as boolean` is the typing stopgap.
+  // Attribute fallbacks are declared via `textareaAttrs` and delivered as plain,
+  // LIVE prop signals — no userland attr()/boolAttr()/forwardedAttr() at setup.
+  // Declared booleans now TYPE as `boolean` (narrowed via `typeof textareaAttrs`),
+  // so there is no `as boolean`.
   const placeholder = props.placeholder;
   const autocomplete = props.autocomplete;
   const value = props.value;
   const id = props.id;
   const name = props.name;
-  const disabled = computed<boolean>(() => props.disabled.value as boolean);
-  const required = computed<boolean>(() => props.required.value as boolean);
-  const readOnly = computed<boolean>(() => props.readOnly.value as boolean);
+  const disabled = computed<boolean>(() => props.disabled.value);
+  const required = computed<boolean>(() => props.required.value);
+  const readOnly = computed<boolean>(() => props.readOnly.value);
   const className = props.className;
 
   const rows = props.rows; // 'number' attr (declared below) — live
@@ -127,21 +147,4 @@ export const Textarea = component<TextareaProps>('ui-textarea', (props, host) =>
     readonly="${readOnly}"
     aria-invalid="${computed(() => (props.ariaInvalid.value ? 'true' : undefined))}"
   ></textarea>`;
-}, {
-  // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
-  // (className → class-name). 'forward' relocates id/name off the transparent
-  // host onto the inner control (native form participation).
-  attrs: {
-    placeholder: 'string',
-    autocomplete: 'string',
-    value: 'string',
-    className: 'string',
-    id: 'forward',
-    name: 'forward',
-    disabled: 'boolean',
-    required: 'boolean',
-    readOnly: { type: 'boolean', attr: 'readonly' },
-    ariaInvalid: 'boolean',
-    rows: 'number',
-  },
-});
+}, { attrs: textareaAttrs });

@@ -30,6 +30,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   effect,
@@ -83,7 +84,9 @@ export type HoverCardProps = {
   children?: string | TemplateResult;
 };
 
-export const HoverCard = component<HoverCardProps>('ui-hover-card', (props, host) => {
+const hoverCardAttrs = { className: 'string' } satisfies ComponentAttrs<HoverCardProps>;
+
+export const HoverCard = component<HoverCardProps, typeof hoverCardAttrs>('ui-hover-card', (props, host) => {
   transparentHost(host);
 
   const internal = signal<boolean>(false);
@@ -141,7 +144,7 @@ export const HoverCard = component<HoverCardProps>('ui-hover-card', (props, host
     style="display:contents"
     class="${classes}"
   >${children()}</div>`;
-}, { attrs: { className: 'string' } });
+}, { attrs: hoverCardAttrs });
 
 // ── ui-hover-card-trigger ────────────────────────────────────────────
 
@@ -150,7 +153,9 @@ export type HoverCardTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const HoverCardTrigger = component<HoverCardTriggerProps>(
+const hoverCardTriggerAttrs = { className: 'string' } satisfies ComponentAttrs<HoverCardTriggerProps>;
+
+export const HoverCardTrigger = component<HoverCardTriggerProps, typeof hoverCardTriggerAttrs>(
   'ui-hover-card-trigger',
   (props, host) => {
     const state = HoverCardContext.inject();
@@ -173,7 +178,7 @@ export const HoverCardTrigger = component<HoverCardTriggerProps>(
       @pointerleave=${() => state.scheduleClose()}
     >${children()}</span>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: hoverCardTriggerAttrs },
 );
 
 // ── ui-hover-card-content ────────────────────────────────────────────
@@ -192,7 +197,14 @@ export type HoverCardContentProps = {
   children?: string | TemplateResult;
 };
 
-export const HoverCardContent = component<HoverCardContentProps>(
+const hoverCardContentAttrs = {
+  side: 'string',
+  align: 'string',
+  portal: { type: 'boolean', default: true },
+  className: 'string',
+} satisfies ComponentAttrs<HoverCardContentProps>;
+
+export const HoverCardContent = component<HoverCardContentProps, typeof hoverCardContentAttrs>(
   'ui-hover-card-content',
   (props, host) => {
     const state = HoverCardContext.inject();
@@ -207,7 +219,7 @@ export const HoverCardContent = component<HoverCardContentProps>(
     const contentId = `${state.baseId}-content`;
 
     const content = ref<HTMLDivElement>();
-    portal(content, { enabled: props.portal.value as boolean });
+    portal(content, { enabled: props.portal.value });
     let disposePosition: (() => void) | null = null;
 
     const stopPositioning = (): void => {
@@ -250,12 +262,5 @@ export const HoverCardContent = component<HoverCardContentProps>(
       @pointerleave=${() => state.scheduleClose()}
     >${children()}</div>`;
   },
-  {
-    attrs: {
-      side: 'string',
-      align: 'string',
-      portal: { type: 'boolean', default: true },
-      className: 'string',
-    },
-  },
+  { attrs: hoverCardContentAttrs },
 );

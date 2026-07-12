@@ -12,6 +12,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   computed,
   effect,
   html,
@@ -34,7 +35,9 @@ export const inputGroupClasses =
 
 type PartProps = { className?: string; children?: string | TemplateResult };
 
-export const InputGroup = component<PartProps>('ui-input-group', (props, host) => {
+const inputGroupAttrs = { className: 'string' } satisfies ComponentAttrs<PartProps>;
+
+export const InputGroup = component<PartProps, typeof inputGroupAttrs>('ui-input-group', (props, host) => {
   transparentHost(host);
   // ADR 0025 item 3: className fallback declared via `attrs` below (no userland
   // attr()); item 1: light-DOM projection via children() (no captureChildren /
@@ -46,9 +49,7 @@ export const InputGroup = component<PartProps>('ui-input-group', (props, host) =
     role="group"
     class="${classes}"
   >${children()}</div>`;
-}, {
-  attrs: { className: 'string' },
-});
+}, { attrs: inputGroupAttrs });
 
 export const inputGroupAddonVariants = cv(
   "flex h-auto cursor-text items-center justify-center gap-2 py-1.5 text-sm font-medium text-muted-foreground select-none group-data-[disabled=true]/input-group:opacity-50 [&>kbd]:rounded-[calc(var(--radius)-5px)] [&>svg:not([class*='size-'])]:size-4",
@@ -76,7 +77,12 @@ export type InputGroupAddonAlign =
   | 'block-end';
 export type InputGroupAddonProps = PartProps & { align?: InputGroupAddonAlign };
 
-export const InputGroupAddon = component<InputGroupAddonProps>(
+const inputGroupAddonAttrs = {
+  align: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<InputGroupAddonProps>;
+
+export const InputGroupAddon = component<InputGroupAddonProps, typeof inputGroupAddonAttrs>(
   'ui-input-group-addon',
   (props, host) => {
     transparentHost(host);
@@ -98,9 +104,7 @@ export const InputGroupAddon = component<InputGroupAddonProps>(
       @click=${focusControl}
     >${children()}</div>`;
   },
-  {
-    attrs: { align: 'string', className: 'string' },
-  },
+  { attrs: inputGroupAddonAttrs },
 );
 
 export const inputGroupButtonVariants = cv('flex items-center gap-2 text-sm shadow-none', {
@@ -123,14 +127,22 @@ export type InputGroupButtonProps = PartProps & {
   disabled?: boolean;
 };
 
-export const InputGroupButton = component<InputGroupButtonProps>(
+const inputGroupButtonAttrs = {
+  type: 'string',
+  variant: 'string',
+  size: 'string',
+  disabled: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<InputGroupButtonProps>;
+
+export const InputGroupButton = component<InputGroupButtonProps, typeof inputGroupButtonAttrs>(
   'ui-input-group-button',
   (props, host) => {
     transparentHost(host);
     const type = props.type;
     const variant = props.variant;
     const size = computed<InputGroupButtonSize>(() => props.size.value ?? 'xs');
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
     const className = props.className;
     const classes = computed(() =>
       cn(
@@ -148,21 +160,15 @@ export const InputGroupButton = component<InputGroupButtonProps>(
       class="${classes}"
     >${children()}</button>`;
   },
-  {
-    attrs: {
-      type: 'string',
-      variant: 'string',
-      size: 'string',
-      disabled: 'boolean',
-      className: 'string',
-    },
-  },
+  { attrs: inputGroupButtonAttrs },
 );
 
 export const inputGroupTextClasses =
   "flex items-center gap-2 text-sm text-muted-foreground [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4";
 
-export const InputGroupText = component<PartProps>('ui-input-group-text', (props, host) => {
+const inputGroupTextAttrs = { className: 'string' } satisfies ComponentAttrs<PartProps>;
+
+export const InputGroupText = component<PartProps, typeof inputGroupTextAttrs>('ui-input-group-text', (props, host) => {
   transparentHost(host);
   const className = props.className;
   const classes = computed(() => cn(inputGroupTextClasses, className.value));
@@ -170,28 +176,39 @@ export const InputGroupText = component<PartProps>('ui-input-group-text', (props
     data-slot="input-group-text"
     class="${classes}"
   >${children()}</span>`;
-}, {
-  attrs: { className: 'string' },
-});
+}, { attrs: inputGroupTextAttrs });
 
 export const inputGroupInputClasses =
   'flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent';
 
-export const InputGroupInput = component<InputProps>('ui-input-group-input', (props, host) => {
+const inputGroupInputAttrs = {
+  type: 'string',
+  placeholder: 'string',
+  autocomplete: 'string',
+  value: 'string',
+  className: 'string',
+  id: 'forward',
+  name: 'forward',
+  disabled: 'boolean',
+  required: 'boolean',
+  readOnly: { type: 'boolean', attr: 'readonly' },
+} satisfies ComponentAttrs<InputProps>;
+
+export const InputGroupInput = component<InputProps, typeof inputGroupInputAttrs>('ui-input-group-input', (props, host) => {
   transparentHost(host);
-  // ADR 0025 item 3: attribute fallbacks declared via `attrs` below; delivered
-  // as live prop signals — no userland attr()/boolAttr()/forwardedAttr().
-  // 'forward' relocates id/name onto the inner control. Declared-default
-  // booleans are runtime-guaranteed non-undefined (`as boolean` is the stopgap).
+  // ADR 0025 item 3: attribute fallbacks declared via `inputGroupInputAttrs`;
+  // delivered as live prop signals — no userland attr()/boolAttr()/forwardedAttr().
+  // 'forward' relocates id/name onto the inner control. Declared booleans now
+  // TYPE as `boolean` (narrowed via the second type arg), so no `as boolean`.
   const type = props.type;
   const placeholder = props.placeholder;
   const autocomplete = props.autocomplete;
   const value = props.value;
   const id = props.id;
   const name = props.name;
-  const disabled = computed<boolean>(() => props.disabled.value as boolean);
-  const required = computed<boolean>(() => props.required.value as boolean);
-  const readOnly = computed<boolean>(() => props.readOnly.value as boolean);
+  const disabled = computed<boolean>(() => props.disabled.value);
+  const required = computed<boolean>(() => props.required.value);
+  const readOnly = computed<boolean>(() => props.readOnly.value);
   const className = props.className;
   const classes = computed(() => cn(inputClasses, inputGroupInputClasses, className.value));
   const root = ref<HTMLInputElement>();
@@ -221,25 +238,25 @@ export const InputGroupInput = component<InputProps>('ui-input-group-input', (pr
     required="${required}"
     readonly="${readOnly}"
   />`;
-}, {
-  attrs: {
-    type: 'string',
-    placeholder: 'string',
-    autocomplete: 'string',
-    value: 'string',
-    className: 'string',
-    id: 'forward',
-    name: 'forward',
-    disabled: 'boolean',
-    required: 'boolean',
-    readOnly: { type: 'boolean', attr: 'readonly' },
-  },
-});
+}, { attrs: inputGroupInputAttrs });
 
 export const inputGroupTextareaClasses =
   'flex-1 resize-none rounded-none border-0 bg-transparent py-3 shadow-none focus-visible:ring-0 dark:bg-transparent';
 
-export const InputGroupTextarea = component<TextareaProps>(
+const inputGroupTextareaAttrs = {
+  placeholder: 'string',
+  autocomplete: 'string',
+  value: 'string',
+  className: 'string',
+  id: 'forward',
+  name: 'forward',
+  disabled: 'boolean',
+  required: 'boolean',
+  readOnly: { type: 'boolean', attr: 'readonly' },
+  rows: 'number',
+} satisfies ComponentAttrs<TextareaProps>;
+
+export const InputGroupTextarea = component<TextareaProps, typeof inputGroupTextareaAttrs>(
   'ui-input-group-textarea',
   (props, host) => {
     transparentHost(host);
@@ -249,16 +266,17 @@ export const InputGroupTextarea = component<TextareaProps>(
     // so this is deliberately kept rather than migrated to children().
     const captured = captureChildren(host);
     const capturedText = captured.map((node) => node.textContent ?? '').join('');
-    // ADR 0025 item 3: attribute fallbacks declared via `attrs` below; delivered
-    // as live prop signals — no userland attr()/boolAttr()/forwardedAttr().
+    // ADR 0025 item 3: attribute fallbacks declared via `inputGroupTextareaAttrs`;
+    // delivered as live prop signals — no userland attr()/boolAttr()/forwardedAttr().
+    // Declared booleans now TYPE as `boolean` (narrowed via the second type arg).
     const placeholder = props.placeholder;
     const autocomplete = props.autocomplete;
     const value = props.value;
     const id = props.id;
     const name = props.name;
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
-    const required = computed<boolean>(() => props.required.value as boolean);
-    const readOnly = computed<boolean>(() => props.readOnly.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
+    const required = computed<boolean>(() => props.required.value);
+    const readOnly = computed<boolean>(() => props.readOnly.value);
     const className = props.className;
     const rows = props.rows; // 'number' attr (declared below) — live
     const classes = computed(() =>
@@ -294,18 +312,5 @@ export const InputGroupTextarea = component<TextareaProps>(
       readonly="${readOnly}"
     ></textarea>`;
   },
-  {
-    attrs: {
-      placeholder: 'string',
-      autocomplete: 'string',
-      value: 'string',
-      className: 'string',
-      id: 'forward',
-      name: 'forward',
-      disabled: 'boolean',
-      required: 'boolean',
-      readOnly: { type: 'boolean', attr: 'readonly' },
-      rows: 'number',
-    },
-  },
+  { attrs: inputGroupTextareaAttrs },
 );

@@ -22,6 +22,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   effect,
@@ -69,7 +70,21 @@ export type ToggleGroupProps = {
   children?: string | TemplateResult;
 };
 
-export const ToggleGroup = component<ToggleGroupProps>('ui-toggle-group', (props, host) => {
+// VALUE-STATE: `value` is the attribute-as-truth selection; `defaultValue` seeds
+// it. `value`/`defaultValue` type as `string | string[]` (dual-mode) while the
+// attr is a 'string', so their casts are the documented residual (ADR 0025
+// candidate (b)); `disabled` narrows to `boolean` from its declaration.
+const toggleGroupAttrs = {
+  type: 'string',
+  value: 'string',
+  defaultValue: 'string',
+  variant: 'string',
+  size: 'string',
+  disabled: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<ToggleGroupProps>;
+
+export const ToggleGroup = component<ToggleGroupProps, typeof toggleGroupAttrs>('ui-toggle-group', (props, host) => {
   transparentHost(host);
 
   // `type` is known at setup (attribute-seeded); the value-state shape below
@@ -78,7 +93,7 @@ export const ToggleGroup = component<ToggleGroupProps>('ui-toggle-group', (props
   const variant = props.variant;
   const size = props.size;
   const spacing = computed(() => props.spacing.value ?? 0);
-  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const disabled = computed<boolean>(() => props.disabled.value);
 
   // VALUE-STATE pattern (ADR 0025 item 3): the `value` ATTRIBUTE is the
   // uncontrolled selection state — the attribute IS the truth. `defaultValue`
@@ -176,18 +191,7 @@ export const ToggleGroup = component<ToggleGroupProps>('ui-toggle-group', (props
     class="${classes}"
     @keydown=${(e: KeyboardEvent) => roving.onKeydown(e)}
   >${children()}</div>`;
-}, {
-  // VALUE-STATE: `value` is the attribute-as-truth selection; `defaultValue` seeds it.
-  attrs: {
-    type: 'string',
-    value: 'string',
-    defaultValue: 'string',
-    variant: 'string',
-    size: 'string',
-    disabled: 'boolean',
-    className: 'string',
-  },
-});
+}, { attrs: toggleGroupAttrs });
 
 // ── ui-toggle-group-item ─────────────────────────────────────────────
 
@@ -205,7 +209,16 @@ export type ToggleGroupItemProps = {
   children?: string | TemplateResult;
 };
 
-export const ToggleGroupItem = component<ToggleGroupItemProps>(
+const toggleGroupItemAttrs = {
+  value: 'string',
+  variant: 'string',
+  size: 'string',
+  disabled: 'boolean',
+  ariaInvalid: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<ToggleGroupItemProps>;
+
+export const ToggleGroupItem = component<ToggleGroupItemProps, typeof toggleGroupItemAttrs>(
   'ui-toggle-group-item',
   (props, host) => {
     const state = ToggleGroupContext.inject();
@@ -214,7 +227,7 @@ export const ToggleGroupItem = component<ToggleGroupItemProps>(
     const own = computed(() => props.value.value ?? '');
     // Group-level disable wins alongside the item's own (Radix Root semantics).
     const disabled = computed<boolean>(
-      () => state.disabled.value || (props.disabled.value as boolean),
+      () => state.disabled.value || props.disabled.value,
     );
     const pressed = computed(() => own.value !== '' && state.value.value.includes(own.value));
     // Upstream: `context.variant || variant` — the group's setting wins when present.
@@ -247,14 +260,5 @@ export const ToggleGroupItem = component<ToggleGroupItemProps>(
       @click=${() => { if (!disabled.value) state.toggleValue(own.value); }}
     >${children()}</button>`;
   },
-  {
-    attrs: {
-      value: 'string',
-      variant: 'string',
-      size: 'string',
-      disabled: 'boolean',
-      ariaInvalid: 'boolean',
-      className: 'string',
-    },
-  },
+  { attrs: toggleGroupItemAttrs },
 );

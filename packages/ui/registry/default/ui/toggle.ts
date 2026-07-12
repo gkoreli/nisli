@@ -16,6 +16,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   computed,
   effect,
   html,
@@ -63,17 +64,31 @@ export type ToggleProps = {
   children?: string | TemplateResult;
 };
 
-export const Toggle = component<ToggleProps>('ui-toggle', (props, host) => {
+// PATTERN A: `pressed` is the attribute-as-truth state; `defaultPressed` seeds
+// it. Passed as component()'s second type argument (`typeof toggleAttrs`) so
+// declared booleans narrow to `boolean` (ADR 0025 candidate (b)) — no
+// `as boolean` / `?? false` stopgaps.
+const toggleAttrs = {
+  pressed: 'boolean',
+  defaultPressed: 'boolean',
+  variant: 'string',
+  size: 'string',
+  disabled: 'boolean',
+  ariaInvalid: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<ToggleProps>;
+
+export const Toggle = component<ToggleProps, typeof toggleAttrs>('ui-toggle', (props, host) => {
   transparentHost(host);
 
   const variant = props.variant;
   const size = props.size;
-  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const disabled = computed<boolean>(() => props.disabled.value);
   const className = props.className;
 
   // PATTERN A (ADR 0025 item 3): the `pressed` ATTRIBUTE is the uncontrolled
   // state (like native <dialog open>/<details open>). The attribute IS the truth.
-  const pressed = computed<boolean>(() => props.pressed.value ?? false);
+  const pressed = computed<boolean>(() => props.pressed.value);
 
   const setPressed = (next: boolean): void => {
     if (next === pressed.value) return;
@@ -122,15 +137,4 @@ export const Toggle = component<ToggleProps>('ui-toggle', (props, host) => {
     class="${classes}"
     @click=${toggle}
   >${children()}</button>`;
-}, {
-  // PATTERN A: `pressed` is the attribute-as-truth state; `defaultPressed` seeds it.
-  attrs: {
-    pressed: 'boolean',
-    defaultPressed: 'boolean',
-    variant: 'string',
-    size: 'string',
-    disabled: 'boolean',
-    ariaInvalid: 'boolean',
-    className: 'string',
-  },
-});
+}, { attrs: toggleAttrs });

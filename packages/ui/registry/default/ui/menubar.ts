@@ -32,6 +32,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   effect,
@@ -101,7 +102,11 @@ export type MenubarProps = {
   children?: string | TemplateResult;
 };
 
-export const Menubar = component<MenubarProps>('ui-menubar', (props, host) => {
+const menubarAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<MenubarProps>;
+
+export const Menubar = component<MenubarProps, typeof menubarAttrs>('ui-menubar', (props, host) => {
   transparentHost(host);
 
   const openMenuId = signal<string | null>(null);
@@ -146,7 +151,7 @@ export const Menubar = component<MenubarProps>('ui-menubar', (props, host) => {
   });
 
   return html`<div ref="${bar}" role="menubar" data-slot="menubar" class="${classes}">${children()}</div>`;
-}, { attrs: { className: 'string' } });
+}, { attrs: menubarAttrs });
 
 // ── ui-menubar-menu (per-menu scope) ─────────────────────────────────
 
@@ -156,7 +161,12 @@ export type MenubarMenuProps = {
   children?: string | TemplateResult;
 };
 
-export const MenubarMenu = component<MenubarMenuProps>('ui-menubar-menu', (props, host) => {
+const menubarMenuAttrs = {
+  value: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<MenubarMenuProps>;
+
+export const MenubarMenu = component<MenubarMenuProps, typeof menubarMenuAttrs>('ui-menubar-menu', (props, host) => {
   const barState = MenubarContext.inject();
   transparentHost(host);
 
@@ -180,7 +190,7 @@ export const MenubarMenu = component<MenubarMenuProps>('ui-menubar-menu', (props
   const classes = computed(() => cn(props.className.value));
 
   return html`<div data-slot="menubar-menu" style="display:contents" class="${classes}">${children()}</div>`;
-}, { attrs: { value: 'string', className: 'string' } });
+}, { attrs: menubarMenuAttrs });
 
 // ── ui-menubar-trigger ───────────────────────────────────────────────
 
@@ -192,7 +202,11 @@ export type MenubarTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const MenubarTrigger = component<MenubarTriggerProps>(
+const menubarTriggerAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<MenubarTriggerProps>;
+
+export const MenubarTrigger = component<MenubarTriggerProps, typeof menubarTriggerAttrs>(
   'ui-menubar-trigger',
   (props, host) => {
     const bar = MenubarContext.inject();
@@ -261,7 +275,7 @@ export const MenubarTrigger = component<MenubarTriggerProps>(
       @keydown=${onKeyDown}
     >${children()}</button>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: menubarTriggerAttrs },
 );
 
 // ── Shared menu-surface wiring (root content + submenu content) ──────
@@ -411,7 +425,15 @@ export type MenubarContentProps = {
   children?: string | TemplateResult;
 };
 
-export const MenubarContent = component<MenubarContentProps>(
+const menubarContentAttrs = {
+  align: 'string',
+  alignOffset: 'number',
+  sideOffset: 'number',
+  portal: { type: 'boolean', default: true },
+  className: 'string',
+} satisfies ComponentAttrs<MenubarContentProps>;
+
+export const MenubarContent = component<MenubarContentProps, typeof menubarContentAttrs>(
   'ui-menubar-content',
   (props, host) => {
     const bar = MenubarContext.inject();
@@ -427,7 +449,7 @@ export const MenubarContent = component<MenubarContentProps>(
     const content = ref<HTMLElement>();
     // Portal the menu surface to <body> (default on) so its fixed positioning
     // escapes transformed ancestors; the wired behavior operates by reference.
-    portal(content, { enabled: props.portal.value as boolean });
+    portal(content, { enabled: props.portal.value });
     const closeAndFocusTrigger = (): void => {
       menu.setOpen(false);
       menu.trigger.current?.focus();
@@ -464,7 +486,7 @@ export const MenubarContent = component<MenubarContentProps>(
       @pointerover=${onPointerOver}
     >${children()}</div>`;
   },
-  { attrs: { align: 'string', alignOffset: 'number', sideOffset: 'number', portal: { type: 'boolean', default: true }, className: 'string' } },
+  { attrs: menubarContentAttrs },
 );
 
 // ── Item selection helper ────────────────────────────────────────────
@@ -491,11 +513,19 @@ export type MenubarItemProps = {
   children?: string | TemplateResult;
 };
 
-export const MenubarItem = component<MenubarItemProps>('ui-menubar-item', (props, host) => {
+const menubarItemAttrs = {
+  inset: 'boolean',
+  variant: 'string',
+  disabled: 'boolean',
+  value: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<MenubarItemProps>;
+
+export const MenubarItem = component<MenubarItemProps, typeof menubarItemAttrs>('ui-menubar-item', (props, host) => {
   const menu = MenubarMenuContext.inject();
   transparentHost(host);
 
-  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const disabled = computed<boolean>(() => props.disabled.value);
   const classes = computed(() => cn(itemClasses, props.className.value));
 
   const root = ref<HTMLDivElement>();
@@ -517,7 +547,7 @@ export const MenubarItem = component<MenubarItemProps>('ui-menubar-item', (props
     class="${classes}"
     @click=${onClick}
   >${children()}</div>`;
-}, { attrs: { inset: 'boolean', variant: 'string', disabled: 'boolean', value: 'string', className: 'string' } });
+}, { attrs: menubarItemAttrs });
 
 // ── ui-menubar-checkbox-item / radio-group / radio-item ──────────────
 
@@ -533,13 +563,20 @@ export type MenubarCheckboxItemProps = {
   children?: string | TemplateResult;
 };
 
-export const MenubarCheckboxItem = component<MenubarCheckboxItemProps>(
+const menubarCheckboxItemAttrs = {
+  checked: 'boolean',
+  disabled: 'boolean',
+  value: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<MenubarCheckboxItemProps>;
+
+export const MenubarCheckboxItem = component<MenubarCheckboxItemProps, typeof menubarCheckboxItemAttrs>(
   'ui-menubar-checkbox-item',
   (props, host) => {
     const menu = MenubarMenuContext.inject();
     transparentHost(host);
 
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
     // Controlled when the factory PINS `checked`; else uncontrolled internal.
     const internal = signal<boolean>(Boolean(props.checked.value));
     const checked = computed<boolean>(() =>
@@ -568,7 +605,7 @@ export const MenubarCheckboxItem = component<MenubarCheckboxItemProps>(
       @click=${onClick}
     ><span class="${indicatorSpan}">${when(checked, () => checkIcon)}</span><span style="display:contents">${children()}</span></div>`;
   },
-  { attrs: { checked: 'boolean', disabled: 'boolean', value: 'string', className: 'string' } },
+  { attrs: menubarCheckboxItemAttrs },
 );
 
 export interface MenubarRadioGroupState {
@@ -585,7 +622,13 @@ export type MenubarRadioGroupProps = {
   children?: string | TemplateResult;
 };
 
-export const MenubarRadioGroup = component<MenubarRadioGroupProps>(
+const menubarRadioGroupAttrs = {
+  value: 'string',
+  defaultValue: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<MenubarRadioGroupProps>;
+
+export const MenubarRadioGroup = component<MenubarRadioGroupProps, typeof menubarRadioGroupAttrs>(
   'ui-menubar-radio-group',
   (props, host) => {
     transparentHost(host);
@@ -603,7 +646,7 @@ export const MenubarRadioGroup = component<MenubarRadioGroupProps>(
 
     return html`<div role="group" data-slot="menubar-radio-group" style="display:contents" class="${classes}">${children()}</div>`;
   },
-  { attrs: { value: 'string', defaultValue: 'string', className: 'string' } },
+  { attrs: menubarRadioGroupAttrs },
 );
 
 export type MenubarRadioItemProps = {
@@ -613,14 +656,20 @@ export type MenubarRadioItemProps = {
   children?: string | TemplateResult;
 };
 
-export const MenubarRadioItem = component<MenubarRadioItemProps>(
+const menubarRadioItemAttrs = {
+  value: 'string',
+  disabled: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<MenubarRadioItemProps>;
+
+export const MenubarRadioItem = component<MenubarRadioItemProps, typeof menubarRadioItemAttrs>(
   'ui-menubar-radio-item',
   (props, host) => {
     const menu = MenubarMenuContext.inject();
     const group = MenubarRadioGroupContext.inject.optional();
     transparentHost(host);
 
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
     const checked = computed<boolean>(
       () => group != null && group.value.value === (props.value.value ?? ''),
     );
@@ -647,7 +696,7 @@ export const MenubarRadioItem = component<MenubarRadioItemProps>(
       @click=${onClick}
     ><span class="${indicatorSpan}">${when(checked, () => circleIcon)}</span><span style="display:contents">${children()}</span></div>`;
   },
-  { attrs: { value: 'string', disabled: 'boolean', className: 'string' } },
+  { attrs: menubarRadioItemAttrs },
 );
 
 // ── ui-menubar-label / -separator / -shortcut / -group ───────────────
@@ -658,7 +707,12 @@ export type MenubarLabelProps = {
   children?: string | TemplateResult;
 };
 
-export const MenubarLabel = component<MenubarLabelProps>('ui-menubar-label', (props, host) => {
+const menubarLabelAttrs = {
+  inset: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<MenubarLabelProps>;
+
+export const MenubarLabel = component<MenubarLabelProps, typeof menubarLabelAttrs>('ui-menubar-label', (props, host) => {
   transparentHost(host);
   const classes = computed(() => cn('px-2 py-1.5 text-sm font-medium data-[inset]:pl-8', props.className.value));
   return html`<div
@@ -666,18 +720,22 @@ export const MenubarLabel = component<MenubarLabelProps>('ui-menubar-label', (pr
     data-inset="${computed(() => (props.inset.value ? '' : undefined))}"
     class="${classes}"
   >${children()}</div>`;
-}, { attrs: { inset: 'boolean', className: 'string' } });
+}, { attrs: menubarLabelAttrs });
 
 export type MenubarSeparatorProps = { className?: string };
 
-export const MenubarSeparator = component<MenubarSeparatorProps>(
+const menubarSeparatorAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<MenubarSeparatorProps>;
+
+export const MenubarSeparator = component<MenubarSeparatorProps, typeof menubarSeparatorAttrs>(
   'ui-menubar-separator',
   (props, host) => {
     transparentHost(host);
     const classes = computed(() => cn('-mx-1 my-1 h-px bg-border', props.className.value));
     return html`<div role="separator" aria-orientation="horizontal" data-slot="menubar-separator" class="${classes}"></div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: menubarSeparatorAttrs },
 );
 
 export type MenubarShortcutProps = {
@@ -685,7 +743,11 @@ export type MenubarShortcutProps = {
   children?: string | TemplateResult;
 };
 
-export const MenubarShortcut = component<MenubarShortcutProps>(
+const menubarShortcutAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<MenubarShortcutProps>;
+
+export const MenubarShortcut = component<MenubarShortcutProps, typeof menubarShortcutAttrs>(
   'ui-menubar-shortcut',
   (props, host) => {
     transparentHost(host);
@@ -694,7 +756,7 @@ export const MenubarShortcut = component<MenubarShortcutProps>(
     );
     return html`<span data-slot="menubar-shortcut" class="${classes}">${children()}</span>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: menubarShortcutAttrs },
 );
 
 export type MenubarGroupProps = {
@@ -702,11 +764,15 @@ export type MenubarGroupProps = {
   children?: string | TemplateResult;
 };
 
-export const MenubarGroup = component<MenubarGroupProps>('ui-menubar-group', (props, host) => {
+const menubarGroupAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<MenubarGroupProps>;
+
+export const MenubarGroup = component<MenubarGroupProps, typeof menubarGroupAttrs>('ui-menubar-group', (props, host) => {
   transparentHost(host);
   const classes = computed(() => cn(props.className.value));
   return html`<div role="group" data-slot="menubar-group" style="display:contents" class="${classes}">${children()}</div>`;
-}, { attrs: { className: 'string' } });
+}, { attrs: menubarGroupAttrs });
 
 // ── Submenu: ui-menubar-sub / -sub-trigger / -sub-content ────────────
 
@@ -745,7 +811,12 @@ export type MenubarSubProps = {
   children?: string | TemplateResult;
 };
 
-export const MenubarSub = component<MenubarSubProps>('ui-menubar-sub', (props, host) => {
+const menubarSubAttrs = {
+  defaultOpen: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<MenubarSubProps>;
+
+export const MenubarSub = component<MenubarSubProps, typeof menubarSubAttrs>('ui-menubar-sub', (props, host) => {
   MenubarMenuContext.inject();
   transparentHost(host);
 
@@ -788,7 +859,7 @@ export const MenubarSub = component<MenubarSubProps>('ui-menubar-sub', (props, h
   const classes = computed(() => cn(props.className.value));
 
   return html`<div data-slot="menubar-sub" style="display:contents" class="${classes}">${children()}</div>`;
-}, { attrs: { defaultOpen: 'boolean', className: 'string' } });
+}, { attrs: menubarSubAttrs });
 
 const subTriggerClasses =
   'flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-none select-none focus:bg-accent focus:text-accent-foreground data-[inset]:pl-8 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground';
@@ -800,13 +871,19 @@ export type MenubarSubTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const MenubarSubTrigger = component<MenubarSubTriggerProps>(
+const menubarSubTriggerAttrs = {
+  inset: 'boolean',
+  disabled: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<MenubarSubTriggerProps>;
+
+export const MenubarSubTrigger = component<MenubarSubTriggerProps, typeof menubarSubTriggerAttrs>(
   'ui-menubar-sub-trigger',
   (props, host) => {
     const sub = MenubarSubContext.inject();
     transparentHost(host);
 
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
     const classes = computed(() => cn(subTriggerClasses, props.className.value));
 
     const item = ref<HTMLDivElement>();
@@ -850,7 +927,7 @@ export const MenubarSubTrigger = component<MenubarSubTriggerProps>(
       @keydown=${onKeyDown}
     ><span style="display:contents">${children()}</span>${chevronRightIcon}</div>`;
   },
-  { attrs: { inset: 'boolean', disabled: 'boolean', className: 'string' } },
+  { attrs: menubarSubTriggerAttrs },
 );
 
 const subContentClasses =
@@ -867,7 +944,13 @@ export type MenubarSubContentProps = {
   children?: string | TemplateResult;
 };
 
-export const MenubarSubContent = component<MenubarSubContentProps>(
+const menubarSubContentAttrs = {
+  sideOffset: 'number',
+  portal: { type: 'boolean', default: true },
+  className: 'string',
+} satisfies ComponentAttrs<MenubarSubContentProps>;
+
+export const MenubarSubContent = component<MenubarSubContentProps, typeof menubarSubContentAttrs>(
   'ui-menubar-sub-content',
   (props, host) => {
     const sub = MenubarSubContext.inject();
@@ -878,7 +961,7 @@ export const MenubarSubContent = component<MenubarSubContentProps>(
     const contentId = `${sub.baseId}-content`;
 
     const content = ref<HTMLElement>();
-    portal(content, { enabled: props.portal.value as boolean });
+    portal(content, { enabled: props.portal.value });
     const closeAndFocusTrigger = (): void => {
       sub.setOpen(false);
       sub.trigger.current?.focus();
@@ -909,5 +992,5 @@ export const MenubarSubContent = component<MenubarSubContentProps>(
       @pointerleave=${() => sub.hoverClose()}
     >${children()}</div>`;
   },
-  { attrs: { sideOffset: 'number', portal: { type: 'boolean', default: true }, className: 'string' } },
+  { attrs: menubarSubContentAttrs },
 );

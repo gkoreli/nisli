@@ -24,6 +24,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   html,
@@ -71,7 +72,9 @@ export type CommandProps = {
   children?: string | TemplateResult;
 };
 
-export const Command = component<CommandProps>('ui-command', (props, host) => {
+const commandAttrs = { className: 'string' } satisfies ComponentAttrs<CommandProps>;
+
+export const Command = component<CommandProps, typeof commandAttrs>('ui-command', (props, host) => {
   transparentHost(host);
 
   const query = signal('');
@@ -170,7 +173,7 @@ export const Command = component<CommandProps>('ui-command', (props, host) => {
     class="${classes}"
     @keydown=${onKeydown}
   >${children()}</div>`;
-}, { attrs: { className: 'string' } });
+}, { attrs: commandAttrs });
 
 // ── ui-command-input ─────────────────────────────────────────────────
 
@@ -179,7 +182,12 @@ export type CommandInputProps = {
   className?: string;
 };
 
-export const CommandInput = component<CommandInputProps>('ui-command-input', (props, host) => {
+const commandInputAttrs = {
+  placeholder: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<CommandInputProps>;
+
+export const CommandInput = component<CommandInputProps, typeof commandInputAttrs>('ui-command-input', (props, host) => {
   const state = CommandContext.inject();
   transparentHost(host);
 
@@ -213,9 +221,13 @@ export const CommandInput = component<CommandInputProps>('ui-command-input', (pr
       @input=${onInput}
     />
   </div>`;
-}, { attrs: { placeholder: 'string', className: 'string' } });
+}, { attrs: commandInputAttrs });
 
 // ── ui-command-list / -empty / -group / -separator / -shortcut ──────
+
+const commandSectionAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<{ className?: string; children?: string | TemplateResult }>;
 
 function commandSection(
   tag: string,
@@ -223,7 +235,7 @@ function commandSection(
   base: string,
   extra?: { role?: string; hiddenByDefault?: boolean; cmdkAttr?: string },
 ) {
-  return component<{ className?: string; children?: string | TemplateResult }>(tag, (props, host) => {
+  return component<{ className?: string; children?: string | TemplateResult }, typeof commandSectionAttrs>(tag, (props, host) => {
     CommandContext.inject();
     transparentHost(host);
     const classes = computed(() => cn(base, props.className.value));
@@ -233,7 +245,7 @@ function commandSection(
       hidden="${extra?.hiddenByDefault ?? false}"
       class="${classes}"
     >${children()}</div>`;
-  }, { attrs: { className: 'string' } });
+  }, { attrs: commandSectionAttrs });
 }
 
 export const CommandList = component<{ className?: string; children?: string | TemplateResult }>(
@@ -276,7 +288,12 @@ export type CommandGroupProps = {
   children?: string | TemplateResult;
 };
 
-export const CommandGroup = component<CommandGroupProps>('ui-command-group', (props, host) => {
+const commandGroupAttrs = {
+  heading: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<CommandGroupProps>;
+
+export const CommandGroup = component<CommandGroupProps, typeof commandGroupAttrs>('ui-command-group', (props, host) => {
   CommandContext.inject();
   transparentHost(host);
   const classes = computed(() =>
@@ -293,7 +310,7 @@ export const CommandGroup = component<CommandGroupProps>('ui-command-group', (pr
     )}
     <div data-slot="command-group-items" role="presentation">${children()}</div>
   </div>`;
-}, { attrs: { heading: 'string', className: 'string' } });
+}, { attrs: commandGroupAttrs });
 
 export type CommandItemProps = {
   /** Filter/select value; falls back to the item's text. */
@@ -305,11 +322,18 @@ export type CommandItemProps = {
   children?: string | TemplateResult;
 };
 
-export const CommandItem = component<CommandItemProps>('ui-command-item', (props, host) => {
+const commandItemAttrs = {
+  value: 'string',
+  keywords: 'string',
+  disabled: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<CommandItemProps>;
+
+export const CommandItem = component<CommandItemProps, typeof commandItemAttrs>('ui-command-item', (props, host) => {
   const state = CommandContext.inject();
   transparentHost(host);
 
-  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const disabled = computed<boolean>(() => props.disabled.value);
   const classes = computed(() =>
     cn(
       "relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
@@ -344,7 +368,7 @@ export const CommandItem = component<CommandItemProps>('ui-command-item', (props
     @click=${select}
     @pointerenter=${() => { if (!disabled.value && root.current) state.setHighlighted(root.current); }}
   >${children()}</div>`;
-}, { attrs: { value: 'string', keywords: 'string', disabled: 'boolean', className: 'string' } });
+}, { attrs: commandItemAttrs });
 
 export const CommandShortcut = commandSection(
   'ui-command-shortcut',

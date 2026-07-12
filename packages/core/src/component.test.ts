@@ -5,7 +5,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { component, type ReactiveProps } from './component.js';
+import { component, type ReactiveProps, type ComponentAttrs } from './component.js';
 import { signal, computed, effect, flushEffects, type Signal } from './signal.js';
 import { inject, provide, resetInjector } from './injector.js';
 import { getCurrentComponent, runWithContext } from './context.js';
@@ -425,6 +425,89 @@ describe('attrs v1.1: forward unpin (rev audit fix)', () => {
     el._setProp('id', undefined);
     document.body.appendChild(el);
     expect(props.id.value).toBeUndefined(); // not pinned, no stale value
+  });
+});
+
+describe('attrs: declared-type narrowing (ADR 0025 candidate b) — runtime parity', () => {
+  // The narrowing is type-only, but it PROMISES the runtime value is non-`undefined`
+  // for a declared boolean / number-with-default. These assert the runtime actually
+  // honors that promise both via declared defaults and via factory-style writes, so
+  // the compile-time narrowed type can never diverge from the runtime value.
+  interface NarrowProps {
+    checked?: boolean;
+    span?: number;
+  }
+  const narrowAttrs = {
+    checked: 'boolean',
+    span: { type: 'number', default: 3 },
+  } satisfies ComponentAttrs<NarrowProps>;
+
+  it('declared defaults make the narrowed types honest with no factory write', () => {
+    const tag = uniqueTag('narrow-defaults');
+    let props!: ReactiveProps<NarrowProps, typeof narrowAttrs>;
+    component<NarrowProps, typeof narrowAttrs>(
+      tag,
+      (p) => { props = p; return html`<i></i>`; },
+      { attrs: narrowAttrs },
+    );
+    const el = document.createElement(tag);
+    document.body.appendChild(el);
+    // checked → false (not undefined); span → its declared default 3.
+    expect(props.checked.value).toBe(false);
+    expect(props.span.value).toBe(3);
+  });
+
+  it('a factory-style prop write sets the narrowed value (pinned over the default)', () => {
+    const tag = uniqueTag('narrow-write');
+    let props!: ReactiveProps<NarrowProps, typeof narrowAttrs>;
+    component<NarrowProps, typeof narrowAttrs>(
+      tag,
+      (p) => { props = p; return html`<i></i>`; },
+      { attrs: narrowAttrs },
+    );
+    // Mirrors ComponentFactory: props are _setProp'd BEFORE the element connects.
+    const el = document.createElement(tag) as HTMLElement & { _setProp(k: string, v: unknown): void };
+    el._setProp('checked', true);
+    el._setProp('span', 7);
+    document.body.appendChild(el);
+    expect(props.checked.value).toBe(true);
+    expect(props.span.value).toBe(7);
+    // A later live write flows through the same signal.
+    el._setProp('checked', false);
+    expect(props.checked.value).toBe(false);
+  });
+
+  it('the real ComponentFactory writes narrowed values through mount (end-to-end)', () => {
+    const tag = uniqueTag('narrow-factory');
+    let props!: ReactiveProps<NarrowProps, typeof narrowAttrs>;
+    const Factory = component<NarrowProps, typeof narrowAttrs>(
+      tag,
+      (p) => { props = p; return html`<i></i>`; },
+      { attrs: narrowAttrs },
+    );
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    // The actual typed factory → TemplateResult → mount: mountTemplate's factory
+    // branch _setProp's each prop before connecting the child, so the narrowed
+    // compile-time types (checked: boolean, span: number) match the live values.
+    html`${Factory({ checked: true, span: 7 })}`.mount(container);
+    expect(props.checked.value).toBe(true);
+    expect(props.span.value).toBe(7);
+
+    // A factory that OMITS the props still lands the declared defaults (so the
+    // non-undefined narrowed types stay honest end-to-end).
+    const tag2 = uniqueTag('narrow-factory-default');
+    let props2!: ReactiveProps<NarrowProps, typeof narrowAttrs>;
+    const Factory2 = component<NarrowProps, typeof narrowAttrs>(
+      tag2,
+      (p) => { props2 = p; return html`<i></i>`; },
+      { attrs: narrowAttrs },
+    );
+    const c2 = document.createElement('div');
+    document.body.appendChild(c2);
+    html`${Factory2({})}`.mount(c2);
+    expect(props2.checked.value).toBe(false);
+    expect(props2.span.value).toBe(3);
   });
 });
 

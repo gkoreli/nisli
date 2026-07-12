@@ -22,6 +22,7 @@
 
 import {
   component,
+  type ComponentAttrs,
   computed,
   effect,
   html,
@@ -50,25 +51,41 @@ export type InputProps = {
   className?: string;
 };
 
-export const Input = component<InputProps>('ui-input', (props, host) => {
+// ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
+// (className → class-name). 'forward' relocates id/name off the transparent
+// host onto the inner control (native form participation). Passed as
+// component()'s second type argument (`typeof inputAttrs`) so declared booleans
+// narrow to `boolean` (ADR 0025 candidate (b)) — no `as boolean` stopgap.
+const inputAttrs = {
+  type: 'string',
+  placeholder: 'string',
+  autocomplete: 'string',
+  value: 'string',
+  className: 'string',
+  id: 'forward',
+  name: 'forward',
+  disabled: 'boolean',
+  required: 'boolean',
+  readOnly: { type: 'boolean', attr: 'readonly' },
+  ariaInvalid: 'boolean',
+} satisfies ComponentAttrs<InputProps>;
+
+export const Input = component<InputProps, typeof inputAttrs>('ui-input', (props, host) => {
   transparentHost(host);
 
-  // ADR 0025 item 3: attribute fallbacks are declared via the `attrs` option
-  // below and delivered as plain, LIVE prop signals — no userland
-  // attr()/boolAttr()/forwardedAttr() at setup. 'forward' relocates id/name off
-  // the transparent host onto the inner control (native form participation).
-  // Declared-default booleans are runtime-guaranteed non-undefined; the
-  // `as boolean` is the typing stopgap until ReactiveProps carries the declared
-  // type.
+  // Attribute fallbacks are declared via `inputAttrs` and delivered as plain,
+  // LIVE prop signals — no userland attr()/boolAttr()/forwardedAttr() at setup.
+  // Declared booleans now TYPE as `boolean` (narrowed via `typeof inputAttrs`),
+  // so there is no `as boolean`.
   const type = props.type;
   const placeholder = props.placeholder;
   const autocomplete = props.autocomplete;
   const value = props.value;
   const id = props.id;
   const name = props.name;
-  const disabled = computed<boolean>(() => props.disabled.value as boolean);
-  const required = computed<boolean>(() => props.required.value as boolean);
-  const readOnly = computed<boolean>(() => props.readOnly.value as boolean);
+  const disabled = computed<boolean>(() => props.disabled.value);
+  const required = computed<boolean>(() => props.required.value);
+  const readOnly = computed<boolean>(() => props.readOnly.value);
   const className = props.className;
 
   const classes = computed(() => cn(inputClasses, className.value));
@@ -108,21 +125,4 @@ export const Input = component<InputProps>('ui-input', (props, host) => {
     readonly="${readOnly}"
     aria-invalid="${computed(() => (props.ariaInvalid.value ? 'true' : undefined))}"
   />`;
-}, {
-  // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
-  // (className → class-name). 'forward' relocates id/name off the transparent
-  // host onto the inner control (native form participation).
-  attrs: {
-    type: 'string',
-    placeholder: 'string',
-    autocomplete: 'string',
-    value: 'string',
-    className: 'string',
-    id: 'forward',
-    name: 'forward',
-    disabled: 'boolean',
-    required: 'boolean',
-    readOnly: { type: 'boolean', attr: 'readonly' },
-    ariaInvalid: 'boolean',
-  },
-});
+}, { attrs: inputAttrs });

@@ -30,6 +30,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   effect,
@@ -78,7 +79,20 @@ export type AccordionProps = {
   children?: string | TemplateResult;
 };
 
-export const Accordion = component<AccordionProps>('ui-accordion', (props, host) => {
+// VALUE-STATE: `value` is the attribute-as-truth selection; `defaultValue`
+// seeds it. For type='multiple' the attribute is a comma-separated list. `value`/
+// `defaultValue` type as `string | string[]` (dual-mode) while the attr is a
+// 'string', so their casts are the documented residual (ADR 0025 candidate (b));
+// `collapsible` narrows to `boolean` from its declaration.
+const accordionAttrs = {
+  type: 'string',
+  collapsible: 'boolean',
+  value: 'string',
+  defaultValue: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<AccordionProps>;
+
+export const Accordion = component<AccordionProps, typeof accordionAttrs>('ui-accordion', (props, host) => {
   transparentHost(host);
 
   // VALUE-STATE (ADR 0025 item 3): the `value` ATTRIBUTE is the uncontrolled
@@ -87,7 +101,7 @@ export const Accordion = component<AccordionProps>('ui-accordion', (props, host)
   // the comma-separated array shape. The consumer contract (`openValues` set +
   // `toggle`) is unchanged.
   const isMultiple = props.type.value === 'multiple';
-  const collapsible = computed<boolean>(() => props.collapsible.value as boolean);
+  const collapsible = computed<boolean>(() => props.collapsible.value);
 
   let openValues: ReadonlySignal<ReadonlySet<string>>;
   let toggle: (value: string) => void;
@@ -189,17 +203,7 @@ export const Accordion = component<AccordionProps>('ui-accordion', (props, host)
     class="${classes}"
     @keydown=${(e: KeyboardEvent) => roving.onKeydown(e)}
   >${children()}</div>`;
-}, {
-  // VALUE-STATE: `value` is the attribute-as-truth selection; `defaultValue`
-  // seeds it. For type='multiple' the attribute is a comma-separated list.
-  attrs: {
-    type: 'string',
-    collapsible: 'boolean',
-    value: 'string',
-    defaultValue: 'string',
-    className: 'string',
-  },
-});
+}, { attrs: accordionAttrs });
 
 // ── ui-accordion-item ────────────────────────────────────────────────
 
@@ -244,14 +248,19 @@ export type AccordionTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const AccordionTrigger = component<AccordionTriggerProps>(
+const accordionTriggerAttrs = {
+  disabled: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<AccordionTriggerProps>;
+
+export const AccordionTrigger = component<AccordionTriggerProps, typeof accordionTriggerAttrs>(
   'ui-accordion-trigger',
   (props, host) => {
     const state = AccordionContext.inject();
     const value = AccordionItemContext.inject().value;
     transparentHost(host);
 
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
     const open = computed(() => state.openValues.value.has(value));
     const triggerId = `${state.baseId}-trigger-${value}`;
     const contentId = `${state.baseId}-content-${value}`;
@@ -287,7 +296,7 @@ export const AccordionTrigger = component<AccordionTriggerProps>(
         ><path d="m6 9 6 6 6-6"></path></svg></button>
     </h3>`;
   },
-  { attrs: { disabled: 'boolean', className: 'string' } },
+  { attrs: accordionTriggerAttrs },
 );
 
 // ── ui-accordion-content ─────────────────────────────────────────────
