@@ -12,8 +12,9 @@
  * set per the ADR 0025 item-6 SSG limit).
  */
 import { html, type TemplateResult } from '@nisli/core';
-import { SidebarProvider, SidebarTrigger } from '../nisli-ui/ui/sidebar.js';
+import { SidebarProvider } from '../nisli-ui/ui/sidebar.js';
 import { SidebarNav } from './sidebar-nav.js';
+import { MobileNav } from './mobile-nav.js';
 import { PageToc, type TocEntry } from './page-toc.js';
 import { buildNav } from './nav-model.js';
 
@@ -35,9 +36,11 @@ export function DocsLayout(
     className: 'min-h-[calc(100svh-var(--header-height)-1px)]! items-start',
     children: html`${SidebarNav({ model: buildNav(current) })}
     <div class="flex min-w-0 flex-1 flex-col">
-      <div class="flex items-center gap-2 border-b px-4 py-2 md:hidden">
-        ${SidebarTrigger({})}
-        <span class="text-sm font-medium">Menu</span>
+      <div
+        class="flex items-center gap-2 border-b px-4 py-2 md:hidden"
+        data-hydrate="mobile-nav"
+      >
+        ${MobileNav(current)}
       </div>
       <div class="mx-auto flex w-full max-w-6xl gap-12 px-6 py-10">
         <div class="min-w-0 flex-1">${content}</div>

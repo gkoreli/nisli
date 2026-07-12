@@ -277,3 +277,36 @@ interaction, flagged PENDING (not auto-closed).
 Base-UI/"nova"; the pinned `new-york-v4` checkout (ADR 0022) remains the parity
 truth. Site parity comparisons must annotate nova drift rather than treat the
 live upstream as the reference.
+
+## WWW-15 — derived universal hydration + the mobile drawer (2026-07-12)
+
+Goga hit an EMPTY mobile docs drawer on his phone. Root: the WWW-13 chrome
+hydration IMPORTED the sidebar module to upgrade the prerendered sidebar IN
+PLACE, which double-rendered (2 wrappers, 152 nav buttons, mobile nav unpainted)
+— the same upgrade-in-place invariant the WWW-14 preview double-render
+established. Two fixes, one root:
+
+**Derived, universal hydration (the allowlist is deleted).** There is no
+hydrate-set. Every `[data-preview=<name>]` frame hydrates via the replace-based
+`hydrate-frame` (the only no-double-render path), and WHAT it mounts is DERIVED
+from the frame name: `getExample(<name>)` for the curated composition, else the
+component's live auto-default (import the module by name, mount its primary tag).
+So an interactive component is interactive by derivation and the "curated a
+side-effectful example as static → inert" class is structurally impossible.
+`hydrate-set.ts` is gone; the negative assertion survives (home/themes/404
+runtime-free); the auto-default path has its own regression test. (WWW-16 will
+split the curated examples into per-component modules and delete the one
+`examples.ts` monolith chunk this loads.)
+
+**The mobile drawer is a www-local chrome unit (documented workaround).** Desktop
+keeps the registry Sidebar as static zero-JS anchors, UNCHANGED — the global
+sidebar-module import is DELETED (verified: 1 sidebar-wrapper, `ui-sidebar-*` not
+registered on docs pages). Mobile uses `layout/mobile-nav.ts`: a registry Sheet
+(still dogfooding sheet) + nav-model-derived links, replace-hydrated like every
+frame (verified: 76 painted links, no horizontal overflow at 390px). This is a
+consumer WORKAROUND for the SSG-prerender-then-upgrade adopt-in-place gap — the
+registry Sidebar's mobile branch is correct on the pure-client path; only
+adopt-in-place is missing. It is the **second data point (with the WWW-14 preview
+bug) that @nisli/core should own the adopt-in-place primitive** — ADR 0025 item
+17. When that graduates, the mobile drawer RESTORES to the registry sidebar's own
+mobile branch and this www-local unit is deleted.

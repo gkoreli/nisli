@@ -60,8 +60,11 @@ describe('WWW-12 DocsLayout', () => {
     const active = c.querySelector('[data-slot="sidebar-menu-button"][aria-current="page"]');
     expect(active?.getAttribute('href')).toBe('/docs');
 
-    // Mobile drawer toggle is present.
-    expect(c.querySelector('[data-slot="sidebar-trigger"]')).not.toBeNull();
+    // Mobile drawer is the www-local MobileNav chrome unit (WWW-15 option B) —
+    // a replace-hydrated [data-hydrate="mobile-nav"] region (a registry Sheet),
+    // NOT the registry Sidebar's own mobile trigger (that double-rendered).
+    expect(c.querySelector('[data-hydrate="mobile-nav"]')).not.toBeNull();
+    expect(c.querySelector('[data-hydrate="mobile-nav"] [data-slot="sheet-trigger"]')).not.toBeNull();
   });
 
   it('exposes the docs sidebar as a labeled navigation landmark', () => {

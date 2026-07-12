@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { buildSite } from './build.js';
 import { components, primitives } from './registry.js';
 import { primaryTag } from './preview.js';
-import { hydrateSet } from './hydrate-set.js';
+import { getExample } from './examples.js';
 
 describe('nisli website', () => {
   it('renders every route through the shell + chrome', async () => {
@@ -139,23 +139,18 @@ describe('nisli website', () => {
     expect(page).toContain('bg-chart-1'); // chart palette
   });
 
-  // WWW-13: the client runtime (hydrate.js) is injected on EXACTLY the DocsLayout
-  // pages — /ui, /ui/<name>, /docs, /docs/<slug> — because they carry the sidebar
-  // chrome whose mobile drawer needs client JS (and the previews hydrate there
-  // too). Home, /themes, and the 404 render in SiteShell alone and stay
-  // runtime-free: the NEGATIVE assertion keeps the static-first tenet honest and
-  // locks the predicate so the next hydration consumer widens it deliberately.
+  // WWW-13/15: the client runtime (hydrate.js) is injected on EXACTLY the
+  // DocsLayout pages — /ui, /ui/<name>, /docs, /docs/<slug> — because they carry
+  // the sidebar chrome whose mobile drawer needs client JS, AND every preview
+  // there hydrates (derived, no allowlist). Home, /themes, and the 404 render in
+  // SiteShell alone and stay runtime-free: the NEGATIVE assertion keeps the
+  // static-first tenet honest and locks the predicate.
   it('injects the client runtime on exactly the DocsLayout pages (chrome + previews)', async () => {
     const built = await buildSite();
     const SCRIPT = '/ui-preview/hydrate.js';
     const has = (path: string) => readFileSync(built.find((p) => p.path === path)!.filePath, 'utf8').includes(SCRIPT);
     const isDocsLayout = (path: string) =>
       path === '/ui' || path.startsWith('/ui/') || path === '/docs' || path.startsWith('/docs/');
-
-    // every hydrate example maps to a built (DocsLayout) page — no dangling example
-    for (const name of hydrateSet) {
-      expect(built.some((p) => p.path === `/ui/${name}`), `no built /ui/${name} for hydrate example`).toBe(true);
-    }
 
     // every DocsLayout page carries the runtime; nothing else does
     for (const page of built) {
@@ -168,6 +163,24 @@ describe('nisli website', () => {
     }
     for (const path of ['/', '/themes', '/404.html']) {
       expect(has(path), `${path} must stay runtime-free`).toBe(false);
+    }
+  });
+
+  // WWW-15: hydration is DERIVED, not curated. A ui component with NO curated
+  // example still hydrates its AUTO-DEFAULT by derivation — so its /ui page must
+  // render a [data-preview] frame and carry the runtime (the client mounts the
+  // component's primary tag live). Guards the auto-default derivation path arch
+  // required be exercised, and that "no example" never means "no hydration".
+  it('a ui component with no curated example still hydrates (auto-default derivation)', async () => {
+    const built = await buildSite();
+    const autoDefault = components.filter((c) => getExample(c.name) === undefined);
+    expect(autoDefault.length, 'expected at least one auto-default ui component').toBeGreaterThan(0);
+    for (const item of autoDefault) {
+      const page = built.find((p) => p.path === `/ui/${item.name}`);
+      expect(page, `no built page for ${item.name}`).toBeDefined();
+      const html = readFileSync(page!.filePath, 'utf8');
+      expect(html.includes(`data-preview="${item.name}"`), `${item.name}: no preview frame`).toBe(true);
+      expect(html.includes('/ui-preview/hydrate.js'), `${item.name}: no runtime`).toBe(true);
     }
   });
 });

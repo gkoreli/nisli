@@ -15,19 +15,10 @@ import type { RegistryItem } from './registry.js';
 import { getExample } from './examples.js';
 import './preview-elements.js'; // register every component's custom element
 
-/** Primary custom-element tag for an item — `ui-<name>` save these exceptions. */
-const TAG_OVERRIDES: Record<string, string> = {
-  toast: 'ui-toaster',
-  resizable: 'ui-resizable-panel-group',
-  item: 'ui-item-group',
-  sidebar: 'ui-sidebar-provider',
-  direction: 'ui-direction-provider',
-  bubble: 'ui-bubble-group',
-};
-
-export function primaryTag(name: string): string {
-  return TAG_OVERRIDES[name] ?? `ui-${name}`;
-}
+// primaryTag/TAG_OVERRIDES live in preview-tags.ts, shared with the client
+// hydration runtime so the SSG and derived-hydration auto-defaults never drift.
+import { primaryTag } from './preview-tags.js';
+export { primaryTag };
 
 /**
  * Renders a custom element by tag. html`` can't take a dynamic tag, so we
