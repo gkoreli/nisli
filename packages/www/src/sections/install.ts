@@ -12,12 +12,14 @@ interface Step {
   code: string;
 }
 
-// Import snippet uses `${count}` — escaped so it survives this template literal
-// and renders literally through the <code> text binding.
-const importSnippet = `import { Button } from '@/components/ui/button';
+// The copied source lands at <dir>/ui/<name>.ts (default dir: src/nisli-ui) and
+// composes as a typed factory inside an html`` template — the exact usage from
+// the @nisli/ui README, so the shown import path and call are what `add` produces.
+const importSnippet = `import { html } from '@nisli/core';
+import { Button } from './nisli-ui/ui/button.js';
 
 // your owned copy — edit it, it's yours
-document.body.append(Button({ children: 'Ship it' }));`;
+html\`\${Button({ variant: 'outline', children: 'Ship it' })}\`;`;
 
 const STEPS: readonly Step[] = [
   {
