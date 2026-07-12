@@ -25,15 +25,23 @@ jobs:
           - name: '@nisli/core'
             dir: packages/core
             tag-prefix: core
+            trusted-publisher: true
           - name: '@nisli/ssg'
             dir: packages/ssg
             tag-prefix: ssg
+            trusted-publisher: true
           - name: '@nisli/ui'
             dir: packages/ui
             tag-prefix: ui
+            trusted-publisher: true
+          # Router's npm Trusted Publisher is not configured yet (ADR 0026,
+          # Goga-gated). Until it is, the job SKIPS publishing explicitly and
+          # stays green — a permanently red job is alarm fatigue that buries
+          # real failures. Flip to true once the Trusted Publisher exists.
           - name: '@nisli/router'
             dir: packages/router
             tag-prefix: router
+            trusted-publisher: false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,7 +59,10 @@ jobs:
           echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-          if npm view "$PACKAGE_NAME@$CURRENT_VERSION" version >/dev/null 2>&1; then
+          if [ "${{ matrix.package.trusted-publisher }}" != "true" ]; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "::notice title=$PACKAGE_NAME publish SKIPPED::npm Trusted Publisher not configured yet (ADR 0026, pending). Set trusted-publisher: true in auto-tag.yml once it exists. Version $CURRENT_VERSION remains unpublished by design."
+          elif npm view "$PACKAGE_NAME@$CURRENT_VERSION" version >/dev/null 2>&1; then
             echo "changed=false" >> $GITHUB_OUTPUT
             echo "$PACKAGE_NAME@$CURRENT_VERSION already exists on npm, skipping"
           elif git rev-parse "$TAG" >/dev/null 2>&1; then

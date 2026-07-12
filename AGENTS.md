@@ -23,6 +23,15 @@
   run `pnpm install` before trusting red tests/typecheck — "Cannot find
   module @nisli/…" after a rebase is almost always a stale install, not a
   repo defect (this has caused two false alarms).
+- **"Gates green" includes REMOTE CI green on main after push.** Whoever
+  pushes origin verifies `gh run list`/`gh run watch` for their commit's CI
+  run; the follow-through lane sweeps overall CI status. Local gates alone
+  are not done — GitHub runners differ from dev machines (slower CPUs hit
+  test timeouts local runs never see), and a workflow that is allowed to
+  stay red for a known reason trains everyone to ignore red until it buries
+  a real failure (this happened: a permanently-red publish job masked a
+  genuinely red test suite). Known-blocked jobs must SKIP loudly with a
+  reason, never fail-as-normal.
 
 ## Framework Work
 
