@@ -718,6 +718,48 @@ within 0.008px of center. The transformed intermediate reproduced the 6–7px
 settled shift. Forced geometry tests require deferred visible-frame measurement,
 untransformed layout-size centering, stable updates, and stale-frame teardown.
 
+### 17. First-class hydration/adoption primitive — OPEN (question posed by Goga, 2026-07-12)
+
+The ui components are portable vanilla custom elements — import the module
+and use them anywhere; nothing here concerns normal usage. The question is
+solely the **SSG-prerender-then-upgrade path**: a page whose markup was
+rendered by `@nisli/ssg` and whose interactivity arrives later via module
+load. Today `packages/www` hand-rolls that path: a replace-based "hydrate
+frame" (WWW-10) that swaps SSG children for a live client mount, per-page
+module derivation (WWW-15, mandated derived-not-curated), an
+IntersectionObserver loader, failure-safe `data-hydrating`/`data-hydrated`
+locks, and a hard-won invariant — **globally registering custom elements on
+a prerendered page double-renders** (proven in WWW-14: in-place upgrade of
+SSG markup re-runs setup and re-mounts templates over existing children;
+replace-based framing is the only safe path we know). That is the classic
+ADR 0025 shape: subtle userland machinery, discovered invariants, every
+SSG consumer will need it.
+
+**Question**: should `@nisli/core` own an adoption primitive — take
+SSG-rendered DOM + a loaded component module and upgrade IN PLACE without
+re-render, flicker, or state loss?
+
+**Options (to be evaluated honestly, incl. do-nothing):**
+(a) core `adopt()`/hydration primitive — `component()` learns to detect
+    prerendered output (marker comments / a data attribute from
+    `renderToHtml`) and binds to existing DOM instead of re-mounting.
+    Highest value (every SSG consumer), highest cost: template binding
+    against parsed DOM is a real engine feature (claim markers, reattach
+    effects to existing nodes), not a helper.
+(b) registry/ssg **lib item** (the portal precedent): package www's
+    replace-based frame + loader + locks as copyable source; documents the
+    double-render invariant instead of removing it. Cheap, honest, but the
+    frame REPLACES prerendered DOM — it is re-render-without-flicker, not
+    true adoption; state in SSG markup is still lost.
+(c) do nothing: www-local pattern, documented here. Fails the
+    second-consumer test the moment the blog (or any SSG consumer of ui
+    components) wants interactive islands.
+
+**Evidence gathering**: WWW-15's derived-hydration implementation is the
+primary corpus — its cleanliness/boundedness tells us whether (b) is
+extractable as-is and what (a) would actually need from the template
+engine. Disposition after WWW-15 lands and a second consumer is scoped.
+
 ## Process
 
 New friction found while building ui/www lands here first (PR review may
