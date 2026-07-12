@@ -342,10 +342,17 @@ stacking with independent removal, teardown removal, outside-setup guard;
 `registry/default/ui/dialog.test.ts` — default move-to-body, `portal={false}`
 / `portal="false"` inline, Escape + outside-pointer dismissal and focus
 trap/restore intact through the move, no-leak teardown.
-Follow-up ticket: sheet/tooltip/popover/menus adoption. Known limit: in
-`@nisli/ssg` static render the portaled subtree escapes the captured
-snapshot (client-only, matching upstream's client-portal behavior);
-`portal={false}` keeps it in static output.
+Follow-up (adoption): **DONE for the named set** (2026-07-11) — all eight
+overlay families import `lib/portal.js`: dialog, alert-dialog, sheet,
+tooltip, popover, dropdown-menu, context-menu, menubar. **Residual
+(UI-40, open)**: hover-card, drawer, select (custom), combobox, toast, and
+navigation-menu render their floating/overlay parts inline with no portal —
+each must be diffed against upstream `new-york-v4` and adopt portal only
+where upstream portals (navigation-menu's viewport, for one, is inline
+upstream by design). Known limit: in `@nisli/ssg` static render the
+portaled subtree escapes the captured snapshot (client-only, matching
+upstream's client-portal behavior); `portal={false}` keeps it in static
+output.
 
 ### 7. Awaitable flush/tick — FIXED (2026-07-11)
 

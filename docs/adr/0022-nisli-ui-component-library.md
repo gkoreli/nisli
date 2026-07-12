@@ -357,5 +357,24 @@ fixture and registry-copy equality check were superseded on 2026-07-11 by
 coverage for every registry item in CI. Current roadmap state lives in
 `packages/ui/NORTH-STAR.md`.
 
+**Amendment 2026-07-11 — visual-parity verification process (v1 criterion 2).**
+"Visually matches shadcn's default style side by side" is verified by two
+artifacts, both recorded in the repo, chosen as the cheapest honest check
+over a screenshot-diff pipeline (deferred post-v1 — brittle under font/AA
+rendering deltas for marginal signal):
+
+1. **Class-list parity sweeps** (UI-36A/B): every registry component's
+   markup + Tailwind class lists diffed against the canonical checkout at
+   `shadcn-ref/apps/v4/registry/new-york-v4/ui`, divergences logged in
+   `UI-36{A,B}-WORKLIST.md` — real drift fixed, intentional platform
+   divergences annotated and kept. Since both sides are Tailwind over the
+   same token layer, identical class lists on identical structure IS visual
+   parity up to browser rendering.
+2. **Manual side-by-side checklist**: each worklist entry gets a final
+   eyeball pass — the www gallery preview (`nisli.dev/ui/<name>`) next to
+   ui.shadcn.com's default-style demo — recorded as a checkbox per
+   component in the same worklist file, covering what class diffs cannot
+   (stacking, focus rings, animation feel).
+
 The component roadmap and v1 milestone live in
 [`packages/ui/NORTH-STAR.md`](../../packages/ui/NORTH-STAR.md).
