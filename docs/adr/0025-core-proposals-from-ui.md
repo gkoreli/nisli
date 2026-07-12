@@ -342,14 +342,38 @@ stacking with independent removal, teardown removal, outside-setup guard;
 `registry/default/ui/dialog.test.ts` — default move-to-body, `portal={false}`
 / `portal="false"` inline, Escape + outside-pointer dismissal and focus
 trap/restore intact through the move, no-leak teardown.
-Follow-up (adoption): **DONE for the named set** (2026-07-11) — all eight
+Follow-up (adoption): **DONE** (UI-40, 2026-07-12). The original eight
 overlay families import `lib/portal.js`: dialog, alert-dialog, sheet,
-tooltip, popover, dropdown-menu, context-menu, menubar. **Residual
-(UI-40, open)**: hover-card, drawer, select (custom), combobox, toast, and
-navigation-menu render their floating/overlay parts inline with no portal —
-each must be diffed against upstream `new-york-v4` and adopt portal only
-where upstream portals (navigation-menu's viewport, for one, is inline
-upstream by design). Known limit: in `@nisli/ssg` static render the
+tooltip, popover, dropdown-menu, context-menu, menubar. The residual audit
+diffed every candidate against upstream `new-york-v4`:
+
+- **hover-card — portal adopted**: upstream wraps content in
+  `HoverCardPrimitive.Portal`; content now portals by default with the standard
+  `portal={false}` / `portal="false"` opt-out.
+- **drawer — portal adopted**: upstream Vaul `DrawerPortal` wraps overlay +
+  content; the matching wrapper now portals by default with the same opt-out.
+- **combobox — portal adopted through PopoverContent**: upstream Base UI uses
+  `ComboboxPrimitive.Portal`. The classic Popover + Command composition now
+  keeps item identity through captured context + element registration rather
+  than querying the combobox host subtree, so filtering, selection events,
+  dismissal, and label resolution survive the move. It exposes the same
+  inline opt-out.
+- **select — intentionally inline/native**: this registry item tracks upstream
+  `native-select.tsx`, not Radix `select.tsx`; the browser owns the native popup.
+- **toast — intentionally inline**: upstream `sonner.tsx` renders `Toaster`
+  directly and declares no portal wrapper; the fixed authored region remains.
+- **navigation-menu — intentionally inline**: upstream renders Content and its
+  optional Viewport under the root (the viewport's absolute wrapper is not a
+  portal). Our documented no-viewport variant remains inline too.
+
+Accessibility follow-up: **UI-43** — `command` currently highlights with
+`data-selected` but gives items no stable IDs and does not wire the input's
+`aria-activedescendant` to the active option (upstream cmdk does). This is
+pre-existing drift, not caused by portaling; UI-40 verifies that combobox's
+existing trigger `aria-controls` still resolves across the body move. UI-43
+must add the shared Command wiring for both standalone command and combobox.
+
+Known limit: in `@nisli/ssg` static render the
 portaled subtree escapes the captured snapshot (client-only, matching
 upstream's client-portal behavior); `portal={false}` keeps it in static
 output.

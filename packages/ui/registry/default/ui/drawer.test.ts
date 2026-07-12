@@ -35,9 +35,10 @@ function mountDrawer(
     open?: ReturnType<typeof signal<boolean | undefined>>;
     direction?: 'top' | 'bottom' | 'left' | 'right';
     extra?: TemplateResult;
+    portal?: boolean;
   } = {},
 ): HTMLElement {
-  const { defaultOpen, open, direction, extra } = opts;
+  const { defaultOpen, open, direction, extra, portal = false } = opts;
   return mount(
     html`${Drawer({
       defaultOpen,
@@ -45,6 +46,7 @@ function mountDrawer(
       direction,
       children: html`${DrawerTrigger({ children: 'Open' })}
       ${DrawerContent({
+        portal,
         children: html`${DrawerHeader({
           children: html`${DrawerTitle({ children: 'Title' })}
           ${DrawerDescription({ children: 'Description' })}`,
@@ -180,6 +182,57 @@ describe('Drawer — controlled', () => {
   });
 });
 
+describe('Drawer — portal', () => {
+  it('moves overlay + content wrapper to body by default', () => {
+    const c = mount(
+      html`${Drawer({
+        defaultOpen: true,
+        children: html`${DrawerTrigger({ children: 'Open' })}${DrawerContent({ children: DrawerTitle({ children: 'Title' }) })}`,
+      })}`,
+    );
+    const wrapper = q(document, 'drawer-portal');
+    expect(wrapper.parentElement).toBe(document.body);
+    expect(c.contains(q(document, 'drawer-content'))).toBe(false);
+    expect(c.contains(q(c, 'drawer-trigger'))).toBe(true);
+  });
+
+  it('portal={false} keeps overlay + content inline', () => {
+    const c = mountDrawer({ defaultOpen: true, portal: false });
+    expect(c.contains(q(c, 'drawer-portal'))).toBe(true);
+  });
+
+  it('honours portal="false" in plain HTML', async () => {
+    document.body.innerHTML =
+      '<ui-drawer open><ui-drawer-trigger>Open</ui-drawer-trigger>' +
+      '<ui-drawer-content portal="false"><ui-drawer-title>Title</ui-drawer-title>' +
+      '</ui-drawer-content></ui-drawer>';
+    await Promise.resolve();
+    await Promise.resolve();
+    const host = document.querySelector('ui-drawer')!;
+    expect(host.contains(q(host, 'drawer-portal'))).toBe(true);
+  });
+
+  it('dismissal and drag behavior survive the body move', () => {
+    const c = mountDrawer({ defaultOpen: true, portal: true });
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    flush2();
+    expect(isOpen(document)).toBe(false);
+    q(c, 'drawer-trigger').click();
+    flush2();
+    drag(q(document, 'drawer-content'), 100, 400);
+    expect(isOpen(document)).toBe(false);
+  });
+
+  it('removes the portaled wrapper on teardown', async () => {
+    const c = mountDrawer({ defaultOpen: true, portal: true });
+    expect(q(document, 'drawer-portal')).not.toBeNull();
+    c.querySelector('ui-drawer')!.remove();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.querySelector('[data-slot="drawer-portal"]')).toBeNull();
+  });
+});
+
 describe('Drawer — misuse', () => {
   it('content used outside <ui-drawer> renders an error fallback', () => {
     const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -196,7 +249,7 @@ describe('Drawer — plain custom element usage', () => {
   it('reads default-open + direction from attributes and projects content', async () => {
     document.body.innerHTML =
       '<ui-drawer default-open direction="left">' +
-      '<ui-drawer-content>' +
+      '<ui-drawer-content portal="false">' +
       '<ui-drawer-title>Menu</ui-drawer-title>' +
       '</ui-drawer-content>' +
       '</ui-drawer>';
@@ -212,7 +265,12 @@ describe('Drawer — plain custom element usage', () => {
 
 describe('Drawer — attribute-as-truth (open state)', () => {
   async function mountPlain(markup: string): Promise<HTMLElement> {
-    document.body.innerHTML = markup;
+    // Attribute-state tests are about the root contract, not portal location;
+    // keep their query root local. Dedicated portal tests cover the default.
+    document.body.innerHTML = markup.replace(
+      '<ui-drawer-content',
+      '<ui-drawer-content portal="false"',
+    );
     await Promise.resolve();
     await Promise.resolve();
     return document.querySelector<HTMLElement>('ui-drawer')!;

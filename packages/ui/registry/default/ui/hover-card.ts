@@ -17,8 +17,9 @@
  * leaves both trigger and content — so moving from trigger to content keeps it
  * open. There is NO focus-open and NO focus trap: a hover card is supplementary
  * pointer affordance (that is a deliberate deviation from Radix, which also
- * opens on focus; documented). Content positions inline with position:fixed (no
- * portal in v1; same transformed-ancestor caveat as ui-dialog).
+ * opens on focus; documented). Matching upstream, content portals to `body` by
+ * default so fixed positioning escapes transformed ancestors; pass
+ * `portal={false}` / `portal="false"` to keep it inline.
  *
  * Open/close changes dispatch a bubbling `ui-open-change` CustomEvent
  * (`detail: { open }`) from the `<ui-hover-card>` host.
@@ -43,6 +44,7 @@ import {
 } from '@nisli/core';
 import { cn, transparentHost } from '../lib/utils.js';
 import { positionFloating, type Align, type Side } from '../lib/floating.js';
+import { portal } from '../lib/portal.js';
 
 const DEFAULT_OPEN_DELAY = 700;
 const DEFAULT_CLOSE_DELAY = 300;
@@ -184,6 +186,8 @@ export type HoverCardContentProps = {
   align?: Align;
   /** Gap in px between trigger and content. Default 4 (upstream). */
   sideOffset?: number;
+  /** Move content to document.body by default; false keeps it inline. */
+  portal?: boolean;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -203,6 +207,7 @@ export const HoverCardContent = component<HoverCardContentProps>(
     const contentId = `${state.baseId}-content`;
 
     const content = ref<HTMLDivElement>();
+    portal(content, { enabled: props.portal.value as boolean });
     let disposePosition: (() => void) | null = null;
 
     const stopPositioning = (): void => {
@@ -245,5 +250,12 @@ export const HoverCardContent = component<HoverCardContentProps>(
       @pointerleave=${() => state.scheduleClose()}
     >${children()}</div>`;
   },
-  { attrs: { side: 'string', align: 'string', className: 'string' } },
+  {
+    attrs: {
+      side: 'string',
+      align: 'string',
+      portal: { type: 'boolean', default: true },
+      className: 'string',
+    },
+  },
 );

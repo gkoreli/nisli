@@ -464,7 +464,8 @@
       ],
       "registryDependencies": [
         "utils",
-        "floating"
+        "floating",
+        "portal"
       ]
     },
     {
@@ -557,7 +558,8 @@
       "registryDependencies": [
         "utils",
         "dismissable-layer",
-        "focus"
+        "focus",
+        "portal"
       ]
     },
     {

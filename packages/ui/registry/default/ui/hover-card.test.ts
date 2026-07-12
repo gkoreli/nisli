@@ -28,16 +28,17 @@ function mountHoverCard(
     openDelay?: number;
     closeDelay?: number;
     open?: ReturnType<typeof signal<boolean | undefined>>;
+    portal?: boolean;
   } = {},
 ): HTMLElement {
-  const { openDelay, closeDelay, open } = opts;
+  const { openDelay, closeDelay, open, portal = false } = opts;
   return mount(
     html`${HoverCard({
       openDelay,
       closeDelay,
       open: open as unknown as boolean,
       children: html`${HoverCardTrigger({ children: '@nisli' })}
-      ${HoverCardContent({ children: 'Preview' })}`,
+      ${HoverCardContent({ portal, children: 'Preview' })}`,
     })}`,
   );
 }
@@ -142,6 +143,56 @@ describe('HoverCard — controlled + events', () => {
     fire(q(c, 'hover-card-trigger'), 'pointerenter');
     advance(0);
     expect(onChange).toHaveBeenCalledWith({ open: true });
+  });
+});
+
+describe('HoverCard — portal', () => {
+  it('moves content to body by default while the trigger stays inline', () => {
+    const c = mount(
+      html`${HoverCard({
+        openDelay: 0,
+        children: html`${HoverCardTrigger({ children: '@nisli' })}${HoverCardContent({ children: 'Preview' })}`,
+      })}`,
+    );
+    const content = q(document, 'hover-card-content');
+    expect(content.parentElement).toBe(document.body);
+    expect(c.contains(content)).toBe(false);
+    expect(c.contains(q(c, 'hover-card-trigger'))).toBe(true);
+  });
+
+  it('portal={false} keeps content inline', () => {
+    const c = mountHoverCard({ portal: false });
+    expect(c.contains(q(c, 'hover-card-content'))).toBe(true);
+  });
+
+  it('honours portal="false" in plain HTML', async () => {
+    document.body.innerHTML =
+      '<ui-hover-card><ui-hover-card-trigger>@nisli</ui-hover-card-trigger>' +
+      '<ui-hover-card-content portal="false">Preview</ui-hover-card-content></ui-hover-card>';
+    await Promise.resolve();
+    await Promise.resolve();
+    const host = document.querySelector('ui-hover-card')!;
+    expect(host.contains(q(host, 'hover-card-content'))).toBe(true);
+  });
+
+  it('keeps pointer transit behavior through the body move', () => {
+    const c = mountHoverCard({ portal: true, openDelay: 0, closeDelay: 300 });
+    fire(q(c, 'hover-card-trigger'), 'pointerenter');
+    advance(0);
+    const content = q(document, 'hover-card-content');
+    fire(q(c, 'hover-card-trigger'), 'pointerleave');
+    fire(content, 'pointerenter');
+    advance(300);
+    expect(isOpen(document)).toBe(true);
+  });
+
+  it('removes portaled content on teardown', async () => {
+    const c = mountHoverCard({ portal: true });
+    expect(q(document, 'hover-card-content')).not.toBeNull();
+    c.querySelector('ui-hover-card')!.remove();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.querySelector('[data-slot="hover-card-content"]')).toBeNull();
   });
 });
 

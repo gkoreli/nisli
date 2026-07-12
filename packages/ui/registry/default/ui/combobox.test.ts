@@ -36,9 +36,9 @@ function mountCombobox(props: Record<string, unknown> = {}): HTMLElement {
 
 const q = (root: ParentNode, sel: string) => root.querySelector<HTMLElement>(sel)!;
 const trigger = (r: ParentNode) => q(r, '[data-slot="popover-trigger"]');
-const content = (r: ParentNode) => q(r, '[data-slot="popover-content"]');
-const items = (r: ParentNode): [HTMLElement, HTMLElement, HTMLElement, ...HTMLElement[]] =>
-  Array.from(r.querySelectorAll<HTMLElement>('[data-slot="command-item"]')) as [
+const content = (_r: ParentNode) => q(document, '[data-slot="popover-content"]');
+const items = (_r: ParentNode): [HTMLElement, HTMLElement, HTMLElement, ...HTMLElement[]] =>
+  Array.from(document.querySelectorAll<HTMLElement>('[data-slot="command-item"]')) as [
     HTMLElement,
     HTMLElement,
     HTMLElement,
@@ -143,7 +143,7 @@ describe('Combobox — filtering', () => {
   it('filters options as you type in the command input', () => {
     const c = mountCombobox();
     open(c);
-    const input = q(c, '[data-slot="command-input"]') as HTMLInputElement;
+    const input = q(document, '[data-slot="command-input"]') as HTMLInputElement;
     input.value = 'sv';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     flush2();
@@ -154,9 +154,119 @@ describe('Combobox — filtering', () => {
   });
 });
 
+describe('Combobox — portal regressions (UI-40)', () => {
+  it('portals by default and command filtering still finds moved items', () => {
+    const c = mountCombobox();
+    const popup = content(c);
+    expect(popup.parentElement).toBe(document.body);
+    expect(c.contains(popup)).toBe(false);
+
+    open(c);
+    const input = q(document, '[data-slot="command-input"]') as HTMLInputElement;
+    input.value = 'sv';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    flush2();
+    expect(items(c).filter((el) => !el.hasAttribute('hidden')).map((el) => el.dataset.value))
+      .toEqual(['svelte']);
+  });
+
+  it('preserves trigger aria-controls across the body move', () => {
+    const c = mountCombobox();
+    const popup = content(c);
+    expect(trigger(c).getAttribute('aria-controls')).toBe(popup.id);
+    expect(document.getElementById(popup.id)).toBe(popup);
+  });
+
+  it('treats pointerdown inside portaled content as inside, then selects normally', () => {
+    const c = mountCombobox({ multiple: true });
+    const onChange = vi.fn();
+    c.querySelector('ui-combobox')!.addEventListener('ui-value-change', (event) =>
+      onChange((event as CustomEvent).detail),
+    );
+    open(c);
+    const item = items(c)[0];
+    item.dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true }));
+    flush2();
+    expect(content(c).hasAttribute('hidden')).toBe(false);
+    item.click();
+    flush2();
+    expect(onChange).toHaveBeenCalledWith({ value: ['next'] });
+    expect(content(c).hasAttribute('hidden')).toBe(false);
+  });
+
+  it('dispatches selection on the captured combobox host, independent of DOM ancestry', () => {
+    const c = mountCombobox();
+    const host = c.querySelector('ui-combobox')!;
+    const onChange = vi.fn();
+    host.addEventListener('ui-value-change', (event) =>
+      onChange((event as CustomEvent).detail),
+    );
+    open(c);
+    expect(host.contains(items(c)[1])).toBe(false);
+    items(c)[1].click();
+    flush2();
+    expect(onChange).toHaveBeenCalledWith({ value: 'svelte' });
+  });
+
+  it('retracks item value signals registered after the parent effect starts', async () => {
+    const itemValue = signal<string | undefined>('next');
+    const c = mount(
+      html`${Combobox({
+        defaultValue: 'next',
+        children: ComboboxItem({ value: itemValue as unknown as string, children: 'Next.js' }),
+      })}`,
+    );
+    await Promise.resolve();
+    flush2();
+    expect(trigger(c).textContent).toContain('Next.js');
+    itemValue.value = 'renamed';
+    flush2();
+    // The selected value is still "next", but no registered item now owns it;
+    // labelFor correctly falls back to the raw value instead of staying stale.
+    expect(trigger(c).textContent).toContain('next');
+    expect(trigger(c).textContent).not.toContain('Next.js');
+  });
+
+  it('invalidates label lookup when a registered item is removed', async () => {
+    const c = mountCombobox({ defaultValue: 'next' });
+    await Promise.resolve();
+    flush2();
+    expect(trigger(c).textContent).toContain('Next.js');
+    document.querySelector('ui-combobox-item')!.remove();
+    await Promise.resolve();
+    await Promise.resolve();
+    flush2();
+    expect(trigger(c).textContent).toContain('next');
+    expect(trigger(c).textContent).not.toContain('Next.js');
+  });
+
+  it('portal={false} keeps the composed popup inline', () => {
+    const c = mountCombobox({ portal: false });
+    expect(c.contains(content(c))).toBe(true);
+  });
+
+  it('honours portal="false" in plain HTML', async () => {
+    document.body.innerHTML =
+      '<ui-combobox portal="false"><ui-combobox-item value="one">One</ui-combobox-item>' +
+      '</ui-combobox>';
+    await Promise.resolve();
+    await Promise.resolve();
+    const host = document.querySelector('ui-combobox')!;
+    expect(host.contains(q(host, '[data-slot="popover-content"]'))).toBe(true);
+  });
+
+  it('removes the portaled popup on combobox teardown', async () => {
+    const c = mountCombobox();
+    c.querySelector('ui-combobox')!.remove();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.querySelector('[data-slot="popover-content"]')).toBeNull();
+  });
+});
+
 describe('Combobox — value-root regression matrix, single (UI-30 3A)', () => {
-  const byValue = (root: ParentNode, v: string) =>
-    root.querySelector<HTMLElement>(`[data-slot="command-item"][data-value="${v}"]`)!;
+  const byValue = (_root: ParentNode, v: string) =>
+    document.querySelector<HTMLElement>(`[data-slot="command-item"][data-value="${v}"]`)!;
 
   it('BARE-PARSE: authored value="svelte" selects at connect; component-path click reflects the new value attr', async () => {
     document.body.innerHTML =
@@ -209,8 +319,8 @@ describe('Combobox — value-root regression matrix, single (UI-30 3A)', () => {
 });
 
 describe('Combobox — value-root regression matrix, multiple (UI-30 3A + finding 4 comma-authoring)', () => {
-  const byValue = (root: ParentNode, v: string) =>
-    root.querySelector<HTMLElement>(`[data-slot="command-item"][data-value="${v}"]`)!;
+  const byValue = (_root: ParentNode, v: string) =>
+    document.querySelector<HTMLElement>(`[data-slot="command-item"][data-value="${v}"]`)!;
 
   it('BARE-PARSE: literal `<ui-combobox multiple value="next,svelte">` selects both at connect; component-path toggle-off reflects the comma-joined remainder', async () => {
     document.body.innerHTML =
