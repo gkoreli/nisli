@@ -1,8 +1,9 @@
 /**
  * shell.ts — the outer HTML document around a rendered body fragment.
  * Per-page <title>/description, static CSS (dist/assets/site.css, compiled by
- * the Tailwind CLI), dark mode via a `.dark` class persisted in localStorage,
- * no runtime JS beyond the theme toggle. The body fragment (nav + main + footer)
+ * the Tailwind CLI), dark mode via a `.dark` class persisted in localStorage.
+ * No client bundle — the only JS is inline progressive enhancement (the theme
+ * toggle and the code copy-to-clipboard). The body fragment (nav + main + footer)
  * is a nisli template rendered by @nisli/ssg; this wrapper stays a string
  * because a full <!doctype html> document can't be mounted into a DOM host.
  * Asset/link paths are absolute (`/assets/...`) so they resolve from nested
@@ -40,6 +41,15 @@ ${bodyFragment}
 document.getElementById('theme-toggle')?.addEventListener('click',()=>{
   const dark=document.documentElement.classList.toggle('dark');
   try{localStorage.theme=dark?'dark':'light'}catch(e){}
+});
+document.querySelectorAll('[data-copy]').forEach((btn)=>{
+  btn.addEventListener('click',async()=>{
+    const code=btn.closest('[data-code-block]')?.querySelector('code')?.textContent||'';
+    try{await navigator.clipboard.writeText(code);
+      const idle=btn.querySelector('[data-copy-idle]'),done=btn.querySelector('[data-copy-done]');
+      if(idle&&done){idle.hidden=true;done.hidden=false;setTimeout(()=>{idle.hidden=false;done.hidden=true},1200);}
+    }catch(e){}
+  });
 });
 </script>
 </body>

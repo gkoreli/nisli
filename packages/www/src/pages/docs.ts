@@ -236,11 +236,105 @@ const cliPage: DocPage = {
   </div>`,
 };
 
+const diPage: DocPage = {
+  slug: 'dependency-injection',
+  title: 'Dependency injection',
+  description: 'Share services down the component tree with provide() and inject() — the class is the token.',
+  render: () => html`<div>
+    <h1 class="text-4xl font-bold tracking-tight">Dependency injection</h1>
+    ${Lead('nisli has built-in DI. Inject a service anywhere in the tree without prop-drilling or module-level globals — and the class itself is the token.')}
+    ${H2('inject')}
+    ${P(html`${code('inject(Service)')} returns a singleton, auto-created on first use. No registration, no provider boilerplate — the class is the token.`)}
+    ${CodeBlock(
+      `import { component, inject, html } from '@nisli/core';
+
+class Clock {
+  now() { return new Date().toLocaleTimeString(); }
+}
+
+component('x-now', () => {
+  const clock = inject(Clock);          // singleton, auto-created
+  return html\`<time>\${clock.now()}</time>\`;
+});`,
+    )}
+    ${H2('provide')}
+    ${P(html`Override what a token resolves to — a mock in tests, or a configured instance. Call ${code('provide()')} before the consumer injects.`)}
+    ${CodeBlock(`import { provide } from '@nisli/core';
+
+provide(Clock, () => ({ now: () => '12:00:00' })); // e.g. in a test`)}
+    ${H2('Tokens for non-class values')}
+    ${P(html`For values that aren’t classes (config objects, primitives), create a typed token with ${code('createToken()')}.`)}
+    ${CodeBlock(`import { createToken, inject, provide } from '@nisli/core';
+
+const ApiUrl = createToken<string>('ApiUrl');
+provide(ApiUrl, () => 'https://api.nisli.dev');
+const url = inject(ApiUrl);`)}
+  </div>`,
+};
+
+const queryPage: DocPage = {
+  slug: 'query',
+  title: 'Query',
+  description: 'Declarative async data with query() — caching, loading, and error state wired into signals.',
+  render: () => html`<div>
+    <h1 class="text-4xl font-bold tracking-tight">Query</h1>
+    ${Lead('query() absorbs the loading / error / cache / refetch boilerplate of fetching data, and hands you signals wired straight into the reactivity graph.')}
+    ${H2('query')}
+    ${P(html`Pass a cache-key function and a fetcher. You get back ${code('data')}, ${code('loading')}, and ${code('error')} signals plus a ${code('refetch()')} method. The key is tracked — when it changes, the query refetches. Select the view with a ${code('computed()')} (the sanctioned multi-branch pattern) so each branch stays reactive.`)}
+    ${CodeBlock(
+      `import { component, query, computed, html } from '@nisli/core';
+
+component('user-card', (props) => {
+  const user = query(
+    () => ['user', props.id.value],          // cache key (tracked)
+    () => fetch(\`/api/users/\${props.id.value}\`).then((r) => r.json()),
+  );
+
+  const view = computed(() => {
+    if (user.loading.value) return html\`<p>Loading…</p>\`;
+    if (user.error.value) return html\`<p>Error: \${user.error.value.message}</p>\`;
+    return html\`<p>\${user.data.value?.name}</p>\`;
+  });
+
+  return html\`\${view}\`;
+});`,
+    )}
+    ${H2('Refetch & caching')}
+    ${P(html`Call ${code('user.refetch()')} to reload. ${code('staleTime')} (ms) marks cached data fresh for that window — while it is fresh, ${code('query()')} serves the cache and skips fetching entirely, including an explicit ${code('refetch()')} (a manual refetch inside the window is a no-op). Only once ${code('staleTime')} expires does it fetch again. Use ${code('QueryClient')} to prefetch.`)}
+  </div>`,
+};
+
+const ssgPage: DocPage = {
+  slug: 'ssg',
+  title: 'Static rendering',
+  description: 'Render nisli components to static HTML with @nisli/ssg — the pipeline behind this site.',
+  render: () => html`<div>
+    <h1 class="text-4xl font-bold tracking-tight">Static rendering</h1>
+    ${Lead('@nisli/ssg renders nisli components to static HTML at build time. No client runtime is required for the initial paint — custom elements upgrade if and when you ship the scripts.')}
+    ${H2('buildStaticSite')}
+    ${P(html`Give it an output directory and a list of routes; each route’s ${code('render')} returns a nisli template, which is rendered to HTML and written to disk.`)}
+    ${CodeBlock(
+      `import { buildStaticSite } from '@nisli/ssg';
+import { homePage } from './pages/home.js';
+
+await buildStaticSite({
+  outDir: 'dist',
+  routes: [{ path: '/', render: () => homePage() }],
+});`,
+      { file: 'build.ts' },
+    )}
+    ${P(html`This very website is built this way — nisli pages, composed from ${code('@nisli/ui')}, rendered by ${code('@nisli/ssg')} to a static bundle and deployed to Cloudflare. It is the framework’s own dogfood.`)}
+  </div>`,
+};
+
 // ── Structure ───────────────────────────────────────────────────────────────
 export const DOC_SECTIONS: readonly DocSection[] = [
   { title: 'Getting started', pages: [introPage, installationPage, quickStartPage] },
-  { title: 'Core concepts', pages: [signalsPage, templatesPage, componentsPage] },
-  { title: 'Tooling', pages: [cliPage] },
+  {
+    title: 'Core concepts',
+    pages: [signalsPage, templatesPage, componentsPage, diPage, queryPage],
+  },
+  { title: 'Tooling', pages: [ssgPage, cliPage] },
 ];
 
 export const docPages: readonly DocPage[] = DOC_SECTIONS.flatMap((s) => s.pages);
