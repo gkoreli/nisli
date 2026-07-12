@@ -607,3 +607,37 @@ is administered outside this repository. The failed `router-v0.1.0` release
 and tag have been removed, so the same version can be retried after that
 configuration is corrected. Until npm confirms the version, documentation
 must not claim that `@nisli/router` is installable from the registry.
+
+### Blog adoption evaluation (RTR-2)
+
+Ruling: **do not migrate a blog route family yet**. The first candidate would
+be the post family (`/:slug`) together with its companion prompt pages
+(`/:slug/prompts`), because both are already expanded from discovered post
+metadata and written as clean-URL `index.html` files. That family would exercise
+typed parameters and `entries()` honestly rather than adding a router around a
+fixed page.
+
+Three prerequisites make migration now premature:
+
+1. The blog depends on `@nisli/core@^0.47.4`, while `@nisli/router@0.1.0`
+   requires core `>=0.51.0`. A route experiment would therefore also be a
+   multi-version framework migration, obscuring whether failures came from the
+   router or the core upgrade.
+2. `@nisli/router` is not yet available from npm (RTR-1). The blog is a separate
+   repository and has no workspace link to this monorepo, so adopting it now
+   would require an unpublished tarball/path dependency rather than proving the
+   consumer installation path.
+3. The blog has a specialized static pipeline, not Vite or `@nisli/ssg`: it
+   discovers Markdown/TypeScript posts, renders page shells, generates OG
+   images, Markdown mirrors, RSS, sitemap, LLM artifacts, and serves clean URLs
+   through BrowserSync middleware. It has no client router or router references.
+   Migrating only URL strings would create a second route catalog without
+   replacing the current output authority.
+
+Re-evaluate after router publication and a separately verified blog core
+upgrade. At that point, migrate the post/prompt family only if its
+`route()` definitions and `entries()` become the canonical source for both
+HTML output paths and href construction, while the existing content/SEO/feed
+pipeline remains the renderer. Do not introduce a browser outlet merely to
+claim adoption; the initial value is one typed static route family with no
+parallel path list.
