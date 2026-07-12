@@ -92,6 +92,9 @@ any shadcn theme drops in.
 **Not ported (by design)**
 - `form` — upstream's form.tsx is react-hook-form context wiring with no
   portable surface; our `form-field` provides the id/aria mechanism.
+- `chart` — upstream's chart.tsx is a recharts theming shim; recharts is a
+  React-scale charting product, not a portable component. Charting in nisli
+  is a potential post-v1 initiative (original, dataviz-first), not a port.
 
 **Later / explicitly deferred**
 - Portal primitive; live attribute observation (MutationObserver); calendar /
