@@ -310,3 +310,61 @@ adopt-in-place is missing. It is the **second data point (with the WWW-14 previe
 bug) that @nisli/core should own the adopt-in-place primitive** — ADR 0025 item
 17. When that graduates, the mobile drawer RESTORES to the registry sidebar's own
 mobile branch and this www-local unit is deleted.
+
+### Permanent phone-bar guard dimensions
+
+The desktop preview sweep was not evidence that the gallery worked on a phone.
+It exercised a desktop mouse viewport, treated a painted SSG island as useful,
+and tested only the overlay-focused hydrate set. Consequently interactive
+examples such as accordion, calendar, carousel, and button-group could look
+complete while taps did nothing; page overflow and an open-but-empty docs
+drawer were outside the guard's dimensions.
+
+WWW-15 makes the product bar match what a phone user experiences:
+
+1. **Viewport fit:** every `/ui/<name>` page runs at desktop and in a real
+   Playwright mobile context (`390px`, `isMobile`, `hasTouch`). Both assert
+   `scrollWidth <= innerWidth + 1`; the phone pass is not a resized desktop page.
+2. **Observable touch interaction:** a reviewable manifest names every
+   JS-driven interactive preview and its concrete before/after state. A real
+   touchscreen action must change that state (expanded/selected/pressed,
+   carousel scroll, visible overlay, toast count, or scroll position). Native
+   controls are tapped and their platform state asserted without inventing a
+   dedicated JS-driven example. An independent audit ledger prevents deleting
+   a manifest row from silently omitting that family; custom manifest entries
+   must also exist in the derived registry corpus.
+   The contract follows actual component mechanics: Carousel proves translated
+   item position plus the active item bounded inside its viewport (not a false
+   `scrollLeft` proxy); Context Menu holds a stationary touch for 750ms (above
+   Radix's 700ms long-press threshold) and still separately proves desktop
+   right-click; Navigation Menu requires mobile tap/click; Hover Card is
+   explicitly desktop-hover-only while its phone frame still must hydrate and
+   paint. Reactive state assertions pin the exact element before input and use
+   bounded post-input settling so a live `:not(...)` locator cannot retarget to
+   the next inactive control.
+3. **Hydration integrity:** every UI frame must be painted, fully registered,
+   out of the transient `data-hydrating` state, and free of duplicate outer
+   component roots. A trigger alone cannot satisfy an overlay contract; the
+   opened content must own `data-state=open` and paint a visible box.
+4. **Drawer usefulness:** the docs drawer opens from a touch tap and the open
+   sheet itself must contain nonzero sidebar items plus nonempty, non-`#`,
+   non-`javascript:` links. A painted shell or landmark without nav content is
+   a failure. The opened page must still fit the phone viewport.
+
+Mutation tests remove manifest coverage and independently corrupt touch state,
+paint/upgrade state, viewport fit, hydration, and assets; each mutation must
+red the guard. Desktop paint/open regression coverage remains in the same
+sweep.
+
+**Earned deployment result:** the authoritative local production build and the
+fresh deployed build both score **132/133** across desktop + `390px` phone. The
+sole failure is `phone:carousel`: the shipped carousel has no coherent
+`data-active`/`aria-current` item after a real 75%→25% horizontal swipe. Arch
+classified and explicitly de-gated that genuine registry defect as UI-65. The
+guard remains strict: after a 220ms primary-axis swipe + 400ms settle it requires
+exactly one active/current item, that item's painted child fully inside the
+viewport, track translation coherent with active index and rendered step, plus
+a vertical-dominant negative swipe that leaves index/translation unchanged.
+All other frames hydrate and paint without double rendering, every page fits,
+the mobile drawer contains 76 valid links, and all other audited interactions
+pass. Live version `744480e8` at main `8a9256f` is the first phone-bar baseline.

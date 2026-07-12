@@ -3,12 +3,13 @@
  *
  * Drives headless chromium over all component pages and asserts each
  * data-preview frame contains an UPGRADED, visibly-rendered <ui-*> element;
- * for hydrate-set items it also asserts the trigger OPENS an overlay. Captures
+ * for audited interactive items it also asserts observable desktop/touch state. Captures
  * per-page console/page errors and emits a failing list (exit 1 if any fail).
  *
  * Build once, use thrice (WS1):
  *   node scripts/preview-sweep.mjs                 # serves local dist/, verifies the prod build
  *   node scripts/preview-sweep.mjs --base=https://nisli.dev   # verifies the live deploy
+ *   node scripts/preview-sweep.mjs --only=calendar,toggle     # focused local diagnosis
  *
  * Seed of the permanent post-hydration guard (ADR 0024). The component list is
  * read from the built dist/ui/ tree so it stays correct-by-construction.
@@ -25,14 +26,273 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { INTERACTIONS, assertInteractionCoverage, cleanupSweepResources, drawerIsUseful, isSweepFailure } from './preview-interactions.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
 
-// hydrate-set = the curated interactive examples (glob source of truth in
-// src/hydrate-set.ts); mirrored here so the sweep can run standalone.
-const hydrateFiles = await readdir(join(HERE, '..', 'src', 'hydrate-examples')).catch(() => []);
-const HYDRATE = new Set(hydrateFiles.filter((f) => f.endsWith('.ts')).map((f) => f.replace(/\.ts$/, '')));
+const DESKTOP_STATE = new Set([
+  'alert-dialog', 'combobox', 'context-menu', 'dialog', 'drawer',
+  'dropdown-menu', 'hover-card', 'menubar', 'navigation-menu', 'popover',
+  'scroll-area', 'sheet', 'toast', 'tooltip',
+]);
+
+const openOverlayCount = (page) => page.evaluate(() =>
+  [...document.querySelectorAll('[data-slot$="-content"][data-state="open"]')].filter((el) =>
+    [el, ...el.querySelectorAll('*')].some((node) => {
+      const rect = node.getBoundingClientRect();
+      return rect.width > 1 && rect.height > 1 && getComputedStyle(node).visibility !== 'hidden';
+    }),
+  ).length,
+);
+
+async function longPress(page, locator) {
+  const box = await locator.boundingBox();
+  if (!box) throw new Error('touch target has no box');
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+  // Radix's authoritative touch long-press threshold is 700ms; hold with a
+  // small margin while staying stationary inside its 10px movement tolerance.
+  await page.waitForTimeout(750);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
+}
+
+async function touchScroll(page, locator) {
+  const box = await locator.boundingBox();
+  if (!box) throw new Error('scroll target has no box');
+  const x = box.x + box.width / 2;
+  const startY = box.y + box.height * 0.75;
+  const endY = box.y + box.height * 0.25;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: startY }] });
+  for (let step = 1; step <= 4; step += 1) {
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x, y: startY + (endY - startY) * step / 4 }],
+    });
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
+}
+
+async function swipe(page, locator, { horizontal }) {
+  const box = await locator.boundingBox();
+  if (!box) throw new Error('swipe target has no box');
+  const start = horizontal
+    ? { x: box.x + box.width * 0.75, y: box.y + box.height / 2 }
+    : { x: box.x + box.width / 2, y: box.y + box.height * 0.75 };
+  const end = horizontal
+    ? { x: box.x + box.width * 0.25, y: start.y }
+    : { x: start.x, y: box.y + box.height * 0.25 };
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
+  await page.waitForTimeout(40);
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchMove',
+    touchPoints: [{ x: start.x + (end.x - start.x) * 0.45, y: start.y + (end.y - start.y) * 0.45 }],
+  });
+  await page.waitForTimeout(80);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [end] });
+  await page.waitForTimeout(100);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
+}
+
+async function runTouchInteraction(page, frame, name, outcomes) {
+  const contract = INTERACTIONS[name];
+  if (!contract) throw new Error(`missing touch contract for ${name}`);
+  if (contract.kind === 'alias') {
+    const source = outcomes.get(contract.target);
+    return source?.startsWith('OK') ? `OK(alias=${contract.target})` : `FAIL(alias ${contract.target}=${source ?? 'missing'})`;
+  }
+  const target = frame.locator(contract.target).first();
+  await target.waitFor({ state: 'visible', timeout: 3000 });
+
+  if (contract.kind === 'overlay' || contract.kind === 'context-menu') {
+    const before = await openOverlayCount(page);
+    if (contract.kind === 'context-menu') await longPress(page, target);
+    else await target.tap({ timeout: 3000 });
+    await page.waitForTimeout(900);
+    const after = await openOverlayCount(page);
+    if (after > before) return `OK(${before}->${after})`;
+    if (contract.kind === 'context-menu') await target.click({ button: 'right', timeout: 3000 });
+    else await target.click({ timeout: 3000 });
+    await page.waitForTimeout(900);
+    const clickProbe = await openOverlayCount(page);
+    return `FAIL(overlay ${before}->${after},clickProbe=${clickProbe})`;
+  }
+  if (contract.kind === 'toast') {
+    const before = await page.locator('[data-slot="toast"]').count();
+    await target.tap({ timeout: 3000 });
+    await page.waitForTimeout(300);
+    const after = await page.locator('[data-slot="toast"]').count();
+    return after > before ? `OK(${before}->${after})` : `FAIL(toast ${before}->${after})`;
+  }
+  if (contract.kind === 'expanded') {
+    const before = await target.getAttribute('aria-expanded');
+    const contentSlot = name === 'accordion' ? 'accordion-content' : 'collapsible-content';
+    const content = frame.locator(`[data-slot="${contentSlot}"]`).first();
+    await target.tap({ timeout: 3000 });
+    await page.waitForTimeout(200);
+    const after = await target.getAttribute('aria-expanded');
+    const state = await content.getAttribute('data-state');
+    const contentHandle = await content.elementHandle();
+    let painted = false;
+    if (contentHandle) {
+      try {
+        await page.waitForFunction((element) =>
+          [element, ...element.querySelectorAll('*')].some((node) => {
+            const rect = node.getBoundingClientRect();
+            return rect.width > 1 && rect.height > 1 && getComputedStyle(node).visibility !== 'hidden';
+          }), contentHandle, { timeout: 600 });
+        painted = true;
+      } catch { /* bounded animation visibility failure is reported below */ }
+    }
+    return before !== after && after === 'true' && state === 'open' && painted
+      ? `OK(${before}->${after})` : `FAIL(expanded ${before}->${after},state=${state},painted=${painted})`;
+  }
+  if (contract.kind === 'calendar') {
+    const candidate = await frame.locator(`${contract.target}:not([aria-selected="true"]):not([aria-disabled="true"])`).first().elementHandle();
+    if (!candidate) return 'FAIL(calendar candidate missing)';
+    const before = await candidate.getAttribute('aria-selected');
+    await candidate.tap({ timeout: 3000 });
+    await page.waitForTimeout(200);
+    const after = await candidate.getAttribute('aria-selected');
+    if (before !== after && after === 'true') return `OK(${before}->${after})`;
+    await candidate.click({ timeout: 3000 });
+    await page.waitForTimeout(200);
+    return `FAIL(selected ${before}->${after},clickProbe=${await candidate.getAttribute('aria-selected')})`;
+  }
+  if (contract.kind === 'carousel') {
+    const viewport = frame.locator('[data-slot="carousel-content"]').first();
+    await swipe(page, viewport, { horizontal: true });
+    await page.waitForTimeout(400);
+    const items = frame.locator('[data-slot="carousel-item"]');
+    const activeItems = frame.locator('[data-slot="carousel-item"][data-active]');
+    const activeCount = await activeItems.count();
+    const activeItem = activeItems.first();
+    const activeIndex = activeCount === 1
+      ? await items.evaluateAll((nodes, active) => nodes.indexOf(active), await activeItem.elementHandle())
+      : -1;
+    const activeBox = activeCount === 1 ? await activeItem.locator(':scope > *').first().boundingBox() : null;
+    const bounds = await viewport.boundingBox();
+    const activeInViewport = activeBox && bounds && activeBox.x >= bounds.x - 1 &&
+      activeBox.x + activeBox.width <= bounds.x + bounds.width + 1;
+    const ariaHidden = activeCount === 1 ? await activeItem.getAttribute('aria-hidden') : null;
+    const ariaCurrent = activeCount === 1 ? await activeItem.getAttribute('aria-current') : null;
+    const track = viewport.locator(':scope > div').first();
+    const transform = await track.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m41);
+    const boxes = await items.evaluateAll((nodes) => nodes.slice(0, 2).map((node) => node.getBoundingClientRect().x));
+    const step = boxes.length === 2 ? boxes[1] - boxes[0] : NaN;
+    const coherent = activeIndex >= 0 && Number.isFinite(step) && Math.abs(transform - (-activeIndex * step)) <= 1;
+    const beforeVertical = { activeIndex, transform };
+    await swipe(page, viewport, { horizontal: false });
+    await page.waitForTimeout(400);
+    const afterVerticalCount = await activeItems.count();
+    const afterVerticalIndex = afterVerticalCount === 1
+      ? await items.evaluateAll((nodes, active) => nodes.indexOf(active), await activeItems.first().elementHandle())
+      : -1;
+    const afterVerticalTransform = await track.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m41);
+    const crossAxisStable = afterVerticalIndex === beforeVertical.activeIndex &&
+      Math.abs(afterVerticalTransform - beforeVertical.transform) <= 1;
+    return activeCount === 1 && ariaHidden === 'false' && ariaCurrent === 'true' && activeInViewport && coherent && crossAxisStable
+      ? `OK(index=${activeIndex},transform=${transform},step=${step})`
+      : `FAIL(carousel active=${activeCount}/${activeIndex},hidden=${ariaHidden},current=${ariaCurrent},bounds=${Boolean(activeInViewport)},coherent=${coherent},crossAxis=${crossAxisStable})`;
+  }
+  if (contract.kind === 'button-group') {
+    const copy = frame.getByRole('button', { name: 'Copy', exact: true });
+    const status = frame.locator('[data-slot="button-group-status"]');
+    const before = (await status.innerText()).trim();
+    await copy.tap({ timeout: 3000 });
+    await page.waitForTimeout(100);
+    const after = (await status.innerText()).trim();
+    return before !== after && after.endsWith('Copy') ? `OK(${before}->${after})` : `FAIL(status ${before}->${after})`;
+  }
+  if (contract.kind === 'tabs') {
+    const second = frame.locator(contract.target).nth(1);
+    const before = await second.getAttribute('aria-selected');
+    await second.tap({ timeout: 3000 });
+    const after = await second.getAttribute('aria-selected');
+    const panel = frame.locator('[data-slot="tabs-content"]:not([hidden])');
+    return before !== after && after === 'true' && await panel.count() > 0
+      ? `OK(${before}->${after})` : `FAIL(tabs ${before}->${after},panel=${await panel.count()})`;
+  }
+  if (contract.kind === 'toggle') {
+    const candidate = await frame.locator(`${contract.target}[aria-pressed="false"]`).first().elementHandle();
+    if (!candidate) return 'FAIL(toggle candidate missing)';
+    const before = await candidate.getAttribute('aria-pressed');
+    await candidate.tap({ timeout: 3000 });
+    await page.waitForTimeout(150);
+    const after = await candidate.getAttribute('aria-pressed');
+    const state = await candidate.getAttribute('data-state');
+    if (before !== after && after === 'true' && (name === 'toggle-group' || state === 'on')) return `OK(${before}->${after})`;
+    await candidate.click({ timeout: 3000 });
+    await page.waitForTimeout(150);
+    return `FAIL(toggle ${before}->${after},state=${state},clickProbe=${await candidate.getAttribute('aria-pressed')})`;
+  }
+  if (contract.kind === 'native-check') {
+    const candidateLocator = name === 'radio-group'
+      ? frame.locator(`${contract.target}:not(:checked)`).first()
+      : target;
+    const candidate = await candidateLocator.elementHandle();
+    if (!candidate) return 'FAIL(native-check candidate missing)';
+    const before = await candidate.isChecked();
+    await candidate.tap({ timeout: 3000 });
+    await page.waitForTimeout(100);
+    const after = await candidate.isChecked();
+    if (before !== after) return `OK(${before}->${after})`;
+    await candidate.click({ timeout: 3000 });
+    await page.waitForTimeout(100);
+    return `FAIL(native-check ${before}->${after},clickProbe=${await candidate.isChecked()})`;
+  }
+  if (contract.kind === 'native-focus') {
+    await target.tap({ timeout: 3000 });
+    const focused = await target.evaluate((element) => document.activeElement === element);
+    return focused ? 'OK(focused)' : 'FAIL(native control did not focus from tap)';
+  }
+  if (contract.kind === 'native-select') {
+    const options = target.locator('option');
+    const count = await options.count();
+    if (count < 2) return `FAIL(select options=${count})`;
+    const before = await target.inputValue();
+    await target.tap({ timeout: 3000 });
+    await target.selectOption({ index: 1 });
+    const after = await target.inputValue();
+    return before !== after ? `OK(${before}->${after})` : `FAIL(select ${before}->${after})`;
+  }
+  if (contract.kind === 'slider') {
+    const before = Number(await target.inputValue());
+    const box = await target.boundingBox();
+    if (!box) return 'FAIL(slider no box)';
+    await page.touchscreen.tap(box.x + box.width * 0.8, box.y + box.height / 2);
+    const after = Number(await target.inputValue());
+    return after > before ? `OK(${before}->${after})` : `FAIL(slider ${before}->${after})`;
+  }
+  if (contract.kind === 'resizable') {
+    const panel = frame.locator('[data-slot="resizable-panel"]').first();
+    const beforeValue = Number(await target.getAttribute('aria-valuenow'));
+    const beforeWidth = (await panel.boundingBox())?.width;
+    await target.focus();
+    await target.press('ArrowRight');
+    await page.waitForTimeout(200);
+    const afterValue = Number(await target.getAttribute('aria-valuenow'));
+    const afterWidth = (await panel.boundingBox())?.width;
+    return afterValue > beforeValue && Number.isFinite(beforeWidth) && Number.isFinite(afterWidth) && afterWidth > beforeWidth + 1
+      ? `OK(value=${beforeValue}->${afterValue},width=${beforeWidth}->${afterWidth})`
+      : `FAIL(resizable value=${beforeValue}->${afterValue},width=${beforeWidth}->${afterWidth})`;
+  }
+  if (contract.kind === 'scroll') {
+    const before = await target.evaluate((element) => element.scrollTop);
+    await touchScroll(page, target);
+    await page.waitForTimeout(150);
+    const after = await target.evaluate((element) => element.scrollTop);
+    return after > before ? `OK(${before}->${after})` : `FAIL(scroll ${before}->${after})`;
+  }
+  throw new Error(`unsupported touch contract ${contract.kind}`);
+}
 
 const arg = process.argv.find((a) => a.startsWith('--base='));
 let base = arg ? arg.slice('--base='.length).replace(/\/$/, '') : null;
@@ -45,9 +305,19 @@ for (const e of entries) {
   if (e.isDirectory() && existsSync(join(uiDir, e.name, 'index.html'))) names.push(e.name);
 }
 names.sort();
+assertInteractionCoverage(names);
+const onlyArg = process.argv.find((value) => value.startsWith('--only='));
+if (onlyArg) {
+  const selected = new Set(onlyArg.slice('--only='.length).split(',').filter(Boolean));
+  names.splice(0, names.length, ...names.filter((name) => selected.has(name)));
+}
 
 // serve local dist/ when no --base was given
 let server;
+let browser;
+let phone;
+let primaryFailure;
+try {
 if (!base) {
   const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' };
   server = createServer(async (req, res) => {
@@ -63,7 +333,7 @@ if (!base) {
 }
 
 console.log(`sweeping ${names.length} /ui pages against ${base}\n`);
-const browser = await chromium.launch();
+browser = await chromium.launch();
 const results = [];
 for (const name of names) {
   const page = await browser.newPage();
@@ -95,9 +365,16 @@ for (const name of names) {
   const noteFail = (req, why) => { if (isPreviewAsset(req)) assetFails.push(`${why} ${new URL(req.url()).pathname}`); };
   page.on('response', (r) => { if (r.status() >= 400) noteFail(r.request(), `HTTP${r.status()}`); });
   page.on('requestfailed', (r) => noteFail(r, 'REQFAIL'));
-  let upgrade = 'NO-FRAME', open = 'n/a', hydrated = 'n/a';
+  let upgrade = 'NO-FRAME', open = 'n/a', hydrated = 'n/a', fit = 'FAIL';
   try {
     await page.goto(`${base}/ui/${name}`, { waitUntil: 'networkidle', timeout: 20000 });
+    const desktopWidth = await page.evaluate(() => ({
+      scroll: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      viewport: window.innerWidth,
+    }));
+    fit = desktopWidth.scroll <= desktopWidth.viewport + 1
+      ? `OK(${desktopWidth.scroll}/${desktopWidth.viewport})`
+      : `FAIL(${desktopWidth.scroll}/${desktopWidth.viewport})`;
     phase = 'hydrate';
     // scroll the preview into view so the IntersectionObserver hydration fires
     await page.locator(`[data-preview="${name}"]`).first().scrollIntoViewIfNeeded().catch(() => {});
@@ -111,6 +388,12 @@ for (const name of names) {
       const isPrimitive = await page.getByText('Primitive', { exact: true }).count() > 0;
       upgrade = isPrimitive ? 'SKIP-primitive' : 'NO-FRAME(ui!)';
     } else {
+      await page.waitForFunction(
+        (component) => document.querySelector(`[data-preview="${component}"]`)?.hasAttribute('data-hydrated'),
+        name,
+        { timeout: 5000 },
+      );
+      hydrated = 'OK';
       const info = await frame.first().evaluate((el) => {
         const uiEls = [...el.querySelectorAll('*')].filter((n) => n.tagName.toLowerCase().startsWith('ui-'));
         // ui-* hosts are display:contents (transparentHost) so their own box is
@@ -119,27 +402,33 @@ for (const name of names) {
           const r = n.getBoundingClientRect();
           return r.height > 1 && r.width > 1;
         });
-        // WWW-14 guard extension: a hydrate-set example's ui-* elements must be
-        // DEFINED (registered) post-hydration. A side-effectful example curated
-        // as static ships a ui-* island that never registers → INERT, which the
-        // paint + overlay-open checks miss (the old static toast passed 67/67
-        // while dead: its ui-button/ui-toaster were undefined). Scoped to the
-        // hydrate-set because static previews are SSG-only by design and their
-        // components are intentionally NOT upgraded client-side (a global
-        // upgrade double-renders them — the replace-based hydrate-frame is the
-        // only safe path, and it only runs on hydrate-set frames).
+        // Every universally hydrated ui-* element must be registered. A
+        // repeated full sequence of outer roots is the upgrade-in-place double
+        // render signature; legitimate repeated children remain nested.
         const undefinedTags = [...new Set(
           uiEls.map((n) => n.tagName.toLowerCase()).filter((t) => customElements.get(t) === undefined),
         )];
-        return { hasUi: uiEls.length > 0, painted, undefinedTags, text: el.textContent.trim().length };
+        const outer = uiEls.filter((node) => {
+          let parent = node.parentElement;
+          while (parent && parent !== el) {
+            if (parent.tagName.toLowerCase().startsWith('ui-')) return false;
+            parent = parent.parentElement;
+          }
+          return true;
+        });
+        const signatures = outer.map((node) => `${node.tagName}:${node.textContent?.trim() ?? ''}`);
+        const half = signatures.length / 2;
+        const doubled = Number.isInteger(half) && half > 0 &&
+          signatures.slice(0, half).every((signature, index) => signature === signatures[index + half]);
+        return { hasUi: uiEls.length > 0, painted, undefinedTags, doubled, text: el.textContent.trim().length };
       });
-      const inert = HYDRATE.has(name) && info.undefinedTags.length;
+      const inert = info.undefinedTags.length || info.doubled;
       upgrade =
-        inert ? `INERT ${info.undefinedTags.join(',')}`
+        inert ? `INERT/DOUBLE ${JSON.stringify(info)}`
         : info.hasUi && info.painted ? 'OK'
         : `WEAK ${JSON.stringify(info)}`;
     }
-    if (HYDRATE.has(name)) {
+    if (DESKTOP_STATE.has(name)) {
       open = 'FAIL';
       phase = 'open';
       // Count OPEN OVERLAY CONTENT only — an element whose data-slot ends in
@@ -162,7 +451,7 @@ for (const name of names) {
         );
       try {
         if (name === 'scroll-area') {
-          // Not an overlay — it's in the hydrate-set so its runtime scrollbar
+          // Not an overlay — universal hydration supplies its runtime scrollbar
           // stylesheet injects. Being hydrated + not-INERT (checked below/above)
           // is the success signal; there is nothing to "open".
           open = 'OK-nostate';
@@ -194,7 +483,92 @@ for (const name of names) {
     upgrade = `LOAD-ERR ${String(e.message).slice(0, 40)}`;
   }
   await page.waitForTimeout(50); // let any pending console-arg evaluations resolve
-  results.push({ name, upgrade, open, hydrated, assetFails: assetFails.slice(0, 3), err: errors[0] || '', artifacts });
+  results.push({ name, mode: 'desktop', upgrade, open, hydrated, fit, touch: 'n/a', assetFails: assetFails.slice(0, 3), err: errors[0] || '', artifacts });
+  await page.close();
+}
+
+// WWW-15 phone dimension: every page gets a real mobile/touch rendering pass,
+// not a desktop page with its width changed after load. Hydrated previews must
+// prove a manifest-owned state transition from a touchscreen action.
+phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+const interactionOutcomes = new Map();
+for (const name of names) {
+  const page = await phone.newPage();
+  const errors = [];
+  const assetFails = [];
+  page.on('pageerror', (error) => errors.push(String(error).split('\n')[0]));
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(`console: ${message.text().slice(0, 80)}`); });
+  const isPreviewAsset = (request) =>
+    ['script', 'stylesheet', 'font'].includes(request.resourceType()) || /\/(chunks|ui-preview|assets)\//.test(request.url());
+  const noteFail = (request, why) => { if (isPreviewAsset(request)) assetFails.push(`${why} ${new URL(request.url()).pathname}`); };
+  page.on('response', (response) => { if (response.status() >= 400) noteFail(response.request(), `HTTP${response.status()}`); });
+  page.on('requestfailed', (request) => noteFail(request, 'REQFAIL'));
+  let upgrade = 'NO-FRAME', hydrated = 'n/a', fit = 'FAIL', touch = 'n/a';
+  try {
+    await page.goto(`${base}/ui/${name}`, { waitUntil: 'networkidle', timeout: 20000 });
+    const widths = await page.evaluate(() => ({
+      scroll: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      viewport: window.innerWidth,
+    }));
+    fit = widths.scroll <= widths.viewport + 1 ? `OK(${widths.scroll}/${widths.viewport})` : `FAIL(${widths.scroll}/${widths.viewport})`;
+    const frame = page.locator(`[data-preview="${name}"]`).first();
+    if (!(await frame.count())) {
+      const primitive = await page.getByText('Primitive', { exact: true }).count() > 0;
+      upgrade = primitive ? 'SKIP-primitive' : 'NO-FRAME(ui!)';
+    } else {
+      await frame.scrollIntoViewIfNeeded();
+      await page.waitForFunction(
+        (component) => document.querySelector(`[data-preview="${component}"]`)?.hasAttribute('data-hydrated'),
+        name,
+        { timeout: 5000 },
+      );
+      const info = await frame.evaluate((element) => {
+        const ui = [...element.querySelectorAll('*')].filter((node) => node.tagName.toLowerCase().startsWith('ui-'));
+        const outer = ui.filter((node) => {
+          let parent = node.parentElement;
+          while (parent && parent !== element) {
+            if (parent.tagName.toLowerCase().startsWith('ui-')) return false;
+            parent = parent.parentElement;
+          }
+          return true;
+        });
+        const undefinedTags = [...new Set(ui.map((node) => node.tagName.toLowerCase()).filter((tag) => !customElements.get(tag)))];
+        const painted = [...element.querySelectorAll('*')].some((node) => {
+          const rect = node.getBoundingClientRect();
+          return rect.width > 1 && rect.height > 1 && getComputedStyle(node).visibility !== 'hidden';
+        });
+        const signatures = outer.map((node) => `${node.tagName}:${node.textContent?.trim() ?? ''}`);
+        const half = signatures.length / 2;
+        const doubled = Number.isInteger(half) && half > 0 &&
+          signatures.slice(0, half).every((signature, index) => signature === signatures[index + half]);
+        return { hasUi: ui.length > 0, painted, undefinedTags, doubled, hydrating: element.hasAttribute('data-hydrating') };
+      });
+      const hydratedProblem = info.undefinedTags.length || info.hydrating || info.doubled;
+      upgrade = hydratedProblem
+        ? `INERT/DOUBLE ${JSON.stringify(info)}`
+        : info.hasUi && info.painted ? 'OK'
+        : `WEAK ${JSON.stringify(info)}`;
+      hydrated = 'OK';
+      if (INTERACTIONS[name] && !INTERACTIONS[name].desktopOnly) {
+        touch = await runTouchInteraction(page, frame, name, interactionOutcomes);
+        interactionOutcomes.set(name, touch);
+      }
+    }
+  } catch (error) {
+    upgrade = `LOAD-ERR ${String(error.message).slice(0, 40)}`;
+  }
+  results.push({
+    name: `phone:${name}`,
+    mode: 'phone',
+    upgrade,
+    open: 'n/a',
+    hydrated,
+    fit,
+    touch,
+    assetFails: assetFails.slice(0, 3),
+    err: errors[0] || '',
+    artifacts: [],
+  });
   await page.close();
 }
 
@@ -205,40 +579,46 @@ for (const name of names) {
 // real: 390px, click the SidebarTrigger, require a VISIBLE open sheet-content
 // plus the sidebar in data-mobile mode.
 {
-  const mpage = await browser.newPage({ viewport: { width: 390, height: 800 } });
+  const mpage = await phone.newPage();
   const mErrors = [];
   mpage.on('pageerror', (e) => mErrors.push(String(e).split('\n')[0]));
-  let open = 'FAIL';
+  let open = 'FAIL', fit = 'FAIL';
   try {
     await mpage.goto(`${base}/docs`, { waitUntil: 'networkidle', timeout: 20000 });
     await mpage.waitForTimeout(400);
-    await mpage.locator('[data-slot="sidebar-trigger"]').first().click({ timeout: 3000 });
+    await mpage.waitForFunction(() => document.querySelector('[data-hydrate="mobile-nav"]')?.hasAttribute('data-hydrated'));
+    await mpage.locator('[data-hydrate="mobile-nav"] [data-slot="sheet-trigger"]').first().tap({ timeout: 3000 });
     await mpage.waitForTimeout(600);
     const opened = await mpage.evaluate(() => {
       const sheet = [...document.querySelectorAll('[data-slot="sheet-content"][data-state="open"]')]
         .some((e) => e.getBoundingClientRect().width > 1);
-      const mobile = !!document.querySelector('[data-slot="sidebar"][data-mobile="true"]');
-      return { sheet, mobile };
+      const drawer = [...document.querySelectorAll('[data-slot="sheet-content"][data-state="open"]')]
+        .find((element) => element.getBoundingClientRect().width > 1);
+      const mobile = !!document.querySelector('[data-hydrate="mobile-nav"][data-hydrated]');
+      const navItems = drawer?.querySelectorAll('nav li').length ?? 0;
+      const links = [...(drawer?.querySelectorAll('a[href]') ?? [])];
+      const validLinks = links.filter((link) => {
+        const href = link.getAttribute('href');
+        return href && href !== '#' && !href.startsWith('javascript:');
+      }).length;
+      const overflow = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth;
+      return { sheet: !!drawer, mobile, navItems, links: links.length, validLinks, overflow };
     });
-    open = opened.sheet && opened.mobile ? 'OK' : `FAIL(sheet=${opened.sheet},mobile=${opened.mobile})`;
+    fit = opened.overflow <= 1 ? `OK(${opened.overflow}px)` : `FAIL(${opened.overflow}px)`;
+    open = drawerIsUseful(opened)
+      ? `OK(items=${opened.navItems},links=${opened.links})`
+      : `FAIL(${JSON.stringify(opened)})`;
   } catch (e) {
     open = `ERR ${String(e.message).slice(0, 36)}`;
   }
-  results.push({ name: 'mobile-drawer', upgrade: 'OK', open, hydrated: 'n/a', assetFails: [], err: mErrors[0] || '', artifacts: [] });
+  results.push({ name: 'phone:docs-drawer', mode: 'phone', upgrade: 'OK', open, hydrated: 'n/a', fit, touch: open, assetFails: [], err: mErrors[0] || '', artifacts: [] });
   await mpage.close();
 }
 
-await browser.close();
-server?.close();
-
-const bad = (r) =>
-  (!r.upgrade.startsWith('OK') && !r.upgrade.startsWith('SKIP')) ||
-  (r.open !== 'n/a' && !r.open.startsWith('OK')) ||
-  (r.hydrated === 'MISSING') ||           // req 2: hydration success marker absent
-  (r.assetFails && r.assetFails.length);  // req 1: a /ui-preview/* asset failed
+const bad = isSweepFailure;
 for (const r of results) {
   const af = r.assetFails?.length ? ` asset-fails=[${r.assetFails.join(', ')}]` : '';
-  console.log(`${r.name.padEnd(18)} upgrade=${r.upgrade.slice(0, 40).padEnd(42)} open=${r.open.padEnd(12)} hydrated=${String(r.hydrated).padEnd(8)}${af} ${r.err}${bad(r) ? '  <== FAIL' : ''}`);
+  console.log(`${r.name.padEnd(24)} upgrade=${r.upgrade.slice(0, 40).padEnd(42)} open=${r.open.padEnd(12)} touch=${r.touch.padEnd(22)} fit=${r.fit.padEnd(14)} hydrated=${String(r.hydrated).padEnd(8)}${af} ${r.err}${bad(r) ? '  <== FAIL' : ''}`);
 }
 const failing = results.filter(bad);
 console.log(`\n${results.length - failing.length}/${results.length} pass. FAILING: ${failing.map((r) => r.name).join(', ') || '(none)'}`);
@@ -258,4 +638,10 @@ if (withErrors.length) {
     }
   }
 }
-process.exit(failing.length ? 1 : 0);
+process.exitCode = failing.length ? 1 : 0;
+} catch (error) {
+  primaryFailure = error;
+  throw error;
+} finally {
+  await cleanupSweepResources({ phone, browser, server, primaryFailure });
+}
