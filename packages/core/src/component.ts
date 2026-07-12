@@ -87,22 +87,31 @@ export type ComponentFactory<P> = (
  * - `'string'` — the attribute's string value (absent → `undefined`).
  * - `'boolean'` — OUR boolean semantics: bare/any value → `true`, literal
  *   `"false"` → `false`, absent → `false`.
+ * - `'number'` — `Number(raw)`; absent → the default (else `undefined`); a
+ *   non-numeric value behaves as absent → the default (else `undefined`), so a
+ *   garbage attribute never propagates `NaN` into layout math.
  * - `{ type: 'boolean', default: true }` — as above but absent → the default
  *   (so a default-`true` flag can be opted out with `attr="false"`).
  * - `{ type: 'string', default: '…' }` — string with an absent-value default.
+ * - `{ type: 'number', default: 0 }` — number with an absent-value default.
  * - `'forward'` — string semantics PLUS relocation: the attribute is removed
  *   from the (layout-transparent) host so `id`/`name` live only on the inner
  *   control (native form participation), matching `forwardedAttr()`.
  *
- * The attribute name is the kebab-case of the prop key (`className` ↔
- * `class-name`, `showOutsideDays` ↔ `show-outside-days`, `id` ↔ `id`).
+ * The observed attribute name is the kebab-case of the prop key (`className` ↔
+ * `class-name`, `showOutsideDays` ↔ `show-outside-days`, `id` ↔ `id`). The
+ * object forms accept an `attr` override for props whose native attribute is
+ * NOT the kebab derivation — e.g. `readOnly: { type: 'boolean', attr: 'readonly' }`
+ * (the native boolean attribute is `readonly`, not `read-only`). (v1.1)
  */
 export type AttrDecl =
   | 'string'
   | 'boolean'
+  | 'number'
   | 'forward'
-  | { type: 'boolean'; default?: boolean }
-  | { type: 'string'; default?: string };
+  | { type: 'boolean'; default?: boolean; attr?: string }
+  | { type: 'string'; default?: string; attr?: string }
+  | { type: 'number'; default?: number; attr?: string };
 
 /** Options for component() registration */
 export interface ComponentOptions<P = unknown> {
@@ -129,18 +138,32 @@ interface AttrEntry {
 const camelToKebab = (s: string): string =>
   s.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
 
-const declType = (decl: AttrDecl): 'string' | 'boolean' | 'forward' =>
+const declType = (decl: AttrDecl): 'string' | 'boolean' | 'number' | 'forward' =>
   typeof decl === 'string' ? decl : decl.type;
+
+/** The observed attribute name: an explicit `attr` override, else kebab(key). */
+const declAttrName = (key: string, decl: AttrDecl): string =>
+  typeof decl === 'object' && decl.attr ? decl.attr : camelToKebab(key);
 
 /** Resolve a raw attribute string (or null when absent) to the prop value. */
 function resolveAttrValue(decl: AttrDecl, raw: string | null): unknown {
-  if (declType(decl) === 'boolean') {
+  const t = declType(decl);
+  if (t === 'boolean') {
     const def =
       typeof decl === 'object' && 'default' in decl && decl.default !== undefined
         ? decl.default
         : false;
     if (raw === null) return def; // absent → declared default (else false)
     return raw !== 'false'; // bare/any → true, literal "false" → false
+  }
+  if (t === 'number') {
+    const def = typeof decl === 'object' && 'default' in decl ? decl.default : undefined;
+    if (raw === null) return def; // absent → declared default (else undefined)
+    const n = Number(raw);
+    // Garbage behaves as ABSENT → the declared default (else undefined). A
+    // default exists to guarantee non-undefined; letting garbage fall to
+    // literal undefined would reintroduce exactly what the default prevents.
+    return Number.isNaN(n) ? def : n;
   }
   // 'string' | 'forward'
   if (raw === null) {
@@ -243,7 +266,7 @@ export function component<P extends object = Record<string, never>>(
   if (options?.attrs) {
     for (const key of Object.keys(options.attrs)) {
       const decl = (options.attrs as Record<string, AttrDecl>)[key]!;
-      const attrName = camelToKebab(key);
+      const attrName = declAttrName(key, decl);
       const entry: AttrEntry = { key, attrName, decl };
       attrEntries.set(attrName, entry);
       attrEntriesByKey.set(key, entry);
@@ -280,7 +303,10 @@ export function component<P extends object = Record<string, never>>(
     private _applyAttr(entry: AttrEntry, raw: string | null): void {
       if (declType(entry.decl) === 'forward') {
         // Relocate off the layout-transparent host (no duplicate id/name), but
-        // only adopt the attribute's value when no explicit prop pinned it.
+        // only adopt the attribute's value when no explicit prop pinned it. A
+        // null `raw` here (absent OR already-relocated) is a NO-OP: the seed
+        // and attributeChangedCallback must not clobber an adopted value. The
+        // explicit unpin path (in _setProp) handles clearing.
         if (raw !== null) {
           if (!this._pinned.has(entry.key)) {
             this._propsProxy!.setProperty(entry.key, raw);
@@ -418,7 +444,17 @@ export function component<P extends object = Record<string, never>>(
         this._pinned.delete(key);
         const entry = attrEntriesByKey.get(key);
         if (entry) {
-          this._applyAttr(entry, this.getAttribute(entry.attrName));
+          const raw = this.getAttribute(entry.attrName);
+          // A 'forward' attribute is removed from the host on adoption, so an
+          // unpin can't re-read it — resolve the absent value directly to CLEAR
+          // a previously pinned id/name (rev audit fix). _applyAttr's forward
+          // branch deliberately no-ops on absent (so the seed/attr callback
+          // never clobber an adopted value); the explicit unpin does not.
+          if (raw === null && declType(entry.decl) === 'forward') {
+            this._propsProxy?.setProperty(key, resolveAttrValue(entry.decl, null));
+          } else {
+            this._applyAttr(entry, raw);
+          }
           return;
         }
       } else {

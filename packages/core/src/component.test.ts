@@ -296,3 +296,134 @@ describe('context isolation', () => {
     expect(hosts[0]).not.toBe(hosts[1]);
   });
 });
+
+// ── attrs option v1.1 — number kind + attr-name override ────────────
+
+describe('attrs v1.1: number kind', () => {
+  it("bare 'number' resolves absent→undefined, valid→Number, garbage→undefined", () => {
+    const tag = uniqueTag('num');
+    let props!: ReactiveProps<{ max?: number }>;
+    component<{ max?: number }>(tag, (p) => { props = p; return html`<i></i>`; }, {
+      attrs: { max: 'number' },
+    });
+
+    const absent = document.createElement(tag);
+    document.body.appendChild(absent);
+    expect(props.max.value).toBeUndefined();
+
+    const valid = document.createElement(tag);
+    valid.setAttribute('max', '42');
+    document.body.appendChild(valid);
+    expect(props.max.value).toBe(42);
+
+    // Garbage behaves as absent → undefined (no default here); NaN never propagates.
+    const garbage = document.createElement(tag);
+    garbage.setAttribute('max', 'not-a-number');
+    document.body.appendChild(garbage);
+    expect(props.max.value).toBeUndefined();
+  });
+
+  it("'{ type: number, default }' uses the default when absent OR garbage", () => {
+    const tag = uniqueTag('numdef');
+    let props!: ReactiveProps<{ step?: number }>;
+    component<{ step?: number }>(tag, (p) => { props = p; return html`<i></i>`; }, {
+      attrs: { step: { type: 'number', default: 1 } },
+    });
+
+    const absent = document.createElement(tag);
+    document.body.appendChild(absent);
+    expect(props.step.value).toBe(1);
+
+    const set = document.createElement(tag);
+    set.setAttribute('step', '5');
+    document.body.appendChild(set);
+    expect(props.step.value).toBe(5);
+
+    // Garbage behaves as absent → the declared default (NOT literal undefined),
+    // so a default guarantees non-undefined.
+    const garbage = document.createElement(tag);
+    garbage.setAttribute('step', 'oops');
+    document.body.appendChild(garbage);
+    expect(props.step.value).toBe(1);
+  });
+
+  it('live setAttribute updates a number prop after mount', () => {
+    const tag = uniqueTag('numlive');
+    let props!: ReactiveProps<{ value?: number }>;
+    component<{ value?: number }>(tag, (p) => { props = p; return html`<i></i>`; }, {
+      attrs: { value: 'number' },
+    });
+    const el = document.createElement(tag);
+    document.body.appendChild(el);
+    expect(props.value.value).toBeUndefined();
+
+    el.setAttribute('value', '7');
+    expect(props.value.value).toBe(7);
+    el.setAttribute('value', 'oops');
+    expect(props.value.value).toBeUndefined();
+  });
+});
+
+describe('attrs v1.1: attr-name override', () => {
+  it('observes an explicit attr name instead of the kebab derivation', () => {
+    const tag = uniqueTag('override');
+    let props!: ReactiveProps<{ readOnly?: boolean }>;
+    const Factory = component<{ readOnly?: boolean }>(tag, (p) => { props = p; return html`<i></i>`; }, {
+      // native boolean attribute is `readonly`, not the kebab `read-only`.
+      attrs: { readOnly: { type: 'boolean', attr: 'readonly' } },
+    });
+    void Factory;
+
+    // observedAttributes reflects the override, not the kebab name.
+    const ctor = customElements.get(tag)!;
+    expect((ctor as unknown as { observedAttributes: string[] }).observedAttributes).toContain('readonly');
+    expect((ctor as unknown as { observedAttributes: string[] }).observedAttributes).not.toContain('read-only');
+
+    // The native `readonly` attribute drives the prop; the kebab name does not.
+    const on = document.createElement(tag);
+    on.setAttribute('readonly', '');
+    document.body.appendChild(on);
+    expect(props.readOnly.value).toBe(true);
+
+    const kebab = document.createElement(tag);
+    kebab.setAttribute('read-only', '');
+    document.body.appendChild(kebab);
+    expect(props.readOnly.value).toBe(false); // 'read-only' is not observed
+  });
+});
+
+describe('attrs v1.1: forward unpin (rev audit fix)', () => {
+  it("'forward' defined→undefined unpin clears the pinned id AND name", () => {
+    const tag = uniqueTag('fwd-unpin');
+    let props!: ReactiveProps<{ id?: string; name?: string }>;
+    component<{ id?: string; name?: string }>(tag, (p) => { props = p; return html`<input />`; }, {
+      attrs: { id: 'forward', name: 'forward' },
+    });
+    const el = document.createElement(tag) as HTMLElement & { _setProp(k: string, v: unknown): void };
+    el._setProp('id', 'pinned-id');
+    el._setProp('name', 'pinned-name');
+    document.body.appendChild(el);
+    expect(props.id.value).toBe('pinned-id');
+    expect(props.name.value).toBe('pinned-name');
+
+    // Unpin: a defined→undefined write must resolve the ABSENT value
+    // (undefined) instead of leaving the stale pinned value on the control.
+    el._setProp('id', undefined);
+    el._setProp('name', undefined);
+    expect(props.id.value).toBeUndefined();
+    expect(props.name.value).toBeUndefined();
+  });
+
+  it("'forward' spread-of-undefined does not pin and resolves absent", () => {
+    const tag = uniqueTag('fwd-spread');
+    let props!: ReactiveProps<{ id?: string }>;
+    component<{ id?: string }>(tag, (p) => { props = p; return html`<input />`; }, {
+      attrs: { id: 'forward' },
+    });
+    const el = document.createElement(tag) as HTMLElement & { _setProp(k: string, v: unknown): void };
+    // Mirrors `Factory({ ...opts })` where opts.id is present-but-undefined.
+    el._setProp('id', undefined);
+    document.body.appendChild(el);
+    expect(props.id.value).toBeUndefined(); // not pinned, no stale value
+  });
+});

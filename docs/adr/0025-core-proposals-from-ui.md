@@ -185,7 +185,18 @@ non-undefined. This keeps determinism AND the established coalesce behavior.
 Proof: `switch` migrated (boolean + forward + string), all 15 prior tests green
 plus live-update + spread-of-undefined regressions; a `signal`-typed
 `as boolean` in switch is the stopgap until `ReactiveProps` carries the
-declared type (future work).
+declared type (future work). **v1.1** (surfaced by the UI-30 batch-1
+migration): the object forms gained an `attr` override for props whose native
+attribute is not the kebab derivation (`readOnly: { type:'boolean',
+attr:'readonly' }`), and a `'number'` kind (`Number(raw)`; absent → default
+else undefined; a non-numeric value behaves as absent → default else undefined,
+so garbage never propagates `NaN` into layout math and a declared default still
+guarantees non-undefined) — both small, orthogonal extensions to
+`resolveAttrValue`/`AttrDecl`. v1.1 also fixes a `'forward'` unpin bug found by
+rev's audit: `_applyAttr`'s forward branch early-returned on an absent
+attribute, so a defined→undefined unpin (or a spread-of-undefined) left the
+stale pinned `id`/`name` on the inner control; the unpinned/absent path now
+resolves the value (undefined) through the prop signal.
 
 ### 4. Reactive-slot primitive transition gap — FIXED (2026-07-11)
 
