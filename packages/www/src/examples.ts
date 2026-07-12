@@ -79,6 +79,17 @@ import hoverCardExample from './hydrate-examples/hover-card.js';
 import dialogExample from './hydrate-examples/dialog.js';
 import alertDialogExample from './hydrate-examples/alert-dialog.js';
 import sheetExample from './hydrate-examples/sheet.js';
+// WWW-15: non-overlay interactive previews — per-file so they hydrate + code-split
+// like the overlays (accordion tap-expands, tabs switch, calendar day-select,
+// carousel nav, collapsible toggle, toggle/toggle-group press, button-group click).
+import accordionExample from './hydrate-examples/accordion.js';
+import tabsExample from './hydrate-examples/tabs.js';
+import carouselExample from './hydrate-examples/carousel.js';
+import calendarExample from './hydrate-examples/calendar.js';
+import collapsibleExample from './hydrate-examples/collapsible.js';
+import toggleExample from './hydrate-examples/toggle.js';
+import toggleGroupExample from './hydrate-examples/toggle-group.js';
+import buttonGroupExample from './hydrate-examples/button-group.js';
 import {
   SidebarProvider,
   Sidebar,
@@ -219,35 +230,8 @@ export const examples: Record<string, () => TemplateResult> = {
         ${CardContent({ children: html`<p class="text-sm text-muted-foreground">Card body content.</p>` })}`,
       })}
     </div>`,
-  tabs: () =>
-    html`<div class="w-full max-w-sm">
-      ${Tabs({
-        defaultValue: 'account',
-        children: html`${TabsList({
-          children: html`${TabsTrigger({ value: 'account', children: 'Account' })}
-          ${TabsTrigger({ value: 'password', children: 'Password' })}`,
-        })}
-        ${TabsContent({ value: 'account', children: 'Account settings live here.' })}
-        ${TabsContent({ value: 'password', children: 'Change your password here.' })}`,
-      })}
-    </div>`,
-  accordion: () =>
-    html`<div class="w-full max-w-md">
-      ${Accordion({
-        type: 'single',
-        collapsible: true,
-        children: html`${AccordionItem({
-          value: 'a11y',
-          children: html`${AccordionTrigger({ children: 'Is it accessible?' })}
-          ${AccordionContent({ children: 'Yes. It follows the WAI-ARIA accordion pattern.' })}`,
-        })}
-        ${AccordionItem({
-          value: 'own',
-          children: html`${AccordionTrigger({ children: 'Do I own the code?' })}
-          ${AccordionContent({ children: 'Yes. nisli-ui add copies the source into your project.' })}`,
-        })}`,
-      })}
-    </div>`,
+  tabs: tabsExample,
+  accordion: accordionExample,
   select: () =>
     html`${Select({
       name: 'fruit',
@@ -268,29 +252,8 @@ export const examples: Record<string, () => TemplateResult> = {
           ${RadioGroupItem({ value: 'pro', id: 'plan-pro' })}${Label({ htmlFor: 'plan-pro', children: 'Pro' })}
         </div>`,
     })}`,
-  'toggle-group': () =>
-    html`${ToggleGroup({
-      type: 'single',
-      variant: 'outline',
-      defaultValue: 'center',
-      children: html`${ToggleGroupItem({ value: 'left', children: 'Left' })}
-      ${ToggleGroupItem({ value: 'center', children: 'Center' })}
-      ${ToggleGroupItem({ value: 'right', children: 'Right' })}`,
-    })}`,
-  // WWW-14: the auto-default rendered a childless (invisible) toggle. An iconed
-  // example — the upstream Bold/Italic pattern — makes the pressed state visible.
-  toggle: () =>
-    html`<div class="flex items-center gap-2">
-      ${Toggle({
-        pressed: true,
-        children: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8" /></svg>`,
-      })}
-      ${Toggle({
-        variant: 'outline',
-        children: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" x2="10" y1="4" y2="4" /><line x1="14" x2="5" y1="20" y2="20" /><line x1="15" x2="9" y1="4" y2="20" /></svg>`,
-      })}
-      ${Toggle({ children: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3" /><path d="M9 20h6" /><path d="M12 4v16" /></svg> Aa` })}
-    </div>`,
+  'toggle-group': toggleGroupExample,
+  toggle: toggleExample,
   breadcrumb: () =>
     // Salvaged from packages/ui/demo/site.ts; the middle link points at /ui
     // (this site's components route) instead of the demo's /components — a
@@ -383,13 +346,7 @@ export const examples: Record<string, () => TemplateResult> = {
       </div>`,
       })}
     </div>`,
-  calendar: () =>
-    html`${Calendar({
-      mode: 'range',
-      defaultMonth: new Date(2024, 5, 1),
-      selected: { from: new Date(2024, 5, 9), to: new Date(2024, 5, 15) },
-      className: 'rounded-md border',
-    })}`,
+  calendar: calendarExample,
   table: () => {
     const invoices = [
       { invoice: 'INV001', status: 'Paid', method: 'Credit Card', amount: '$250.00' },
@@ -440,23 +397,7 @@ export const examples: Record<string, () => TemplateResult> = {
         ${FieldError({ children: 'Enter a valid email address.' })}`,
       })}
     </div>`,
-  carousel: () =>
-    html`<div class="mx-auto max-w-xs px-12">
-      ${Carousel({
-        children: html`${CarouselContent({
-          children: html`${CarouselItem({
-            children: html`<div class="flex aspect-square items-center justify-center rounded-lg border p-6 text-4xl font-semibold">1</div>`,
-          })}
-          ${CarouselItem({
-            children: html`<div class="flex aspect-square items-center justify-center rounded-lg border p-6 text-4xl font-semibold">2</div>`,
-          })}
-          ${CarouselItem({
-            children: html`<div class="flex aspect-square items-center justify-center rounded-lg border p-6 text-4xl font-semibold">3</div>`,
-          })}`,
-        })}
-        ${CarouselPrevious({})}${CarouselNext({})}`,
-      })}
-    </div>`,
+  carousel: carouselExample,
   resizable: () =>
     html`<div class="h-48 w-full max-w-md">
       ${ResizablePanelGroup({
@@ -494,29 +435,8 @@ export const examples: Record<string, () => TemplateResult> = {
       ${Bubble({ variant: 'tinted', align: 'end', children: 'Yeah, added button + dialog in one command.' })}
       ${Bubble({ children: 'Nice. You own the source now.' })}`,
     })}`,
-  'button-group': () =>
-    html`${ButtonGroup({
-      children: html`${Button({ variant: 'outline', children: 'Cut' })}
-      ${Button({ variant: 'outline', children: 'Copy' })}
-      ${ButtonGroupSeparator({})}
-      ${Button({ variant: 'outline', children: 'Paste' })}`,
-    })}`,
-  collapsible: () =>
-    html`<div class="w-full max-w-sm">
-      ${Collapsible({
-        defaultOpen: true,
-        children: html`<div class="flex items-center justify-between gap-4">
-          <span class="text-sm font-semibold">@nisli starred 3 repositories</span>
-          ${CollapsibleTrigger({ className: buttonVariants({ variant: 'ghost', size: 'icon-sm' }), children: '⌄' })}
-        </div>
-        ${CollapsibleContent({
-          children: html`<div class="mt-2 grid gap-2">
-            <div class="rounded-md border px-4 py-2 text-sm">@nisli/core</div>
-            <div class="rounded-md border px-4 py-2 text-sm">@nisli/ui</div>
-          </div>`,
-        })}`,
-      })}
-    </div>`,
+  'button-group': buttonGroupExample,
+  collapsible: collapsibleExample,
   direction: () =>
     html`${DirectionProvider({
       dir: 'rtl',
