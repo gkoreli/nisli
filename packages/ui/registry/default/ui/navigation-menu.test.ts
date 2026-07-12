@@ -51,10 +51,18 @@ function mountMenu(): HTMLElement {
   );
 }
 
-const triggers = (r: ParentNode = document.body) =>
-  Array.from(r.querySelectorAll<HTMLButtonElement>('[data-slot="navigation-menu-trigger"]'));
-const contents = (r: ParentNode = document.body) =>
-  Array.from(r.querySelectorAll<HTMLElement>('[data-slot="navigation-menu-content"]'));
+const triggers = (r: ParentNode = document.body): [HTMLButtonElement, HTMLButtonElement, ...HTMLButtonElement[]] =>
+  Array.from(r.querySelectorAll<HTMLButtonElement>('[data-slot="navigation-menu-trigger"]')) as [
+    HTMLButtonElement,
+    HTMLButtonElement,
+    ...HTMLButtonElement[],
+  ];
+const contents = (r: ParentNode = document.body): [HTMLElement, HTMLElement, ...HTMLElement[]] =>
+  Array.from(r.querySelectorAll<HTMLElement>('[data-slot="navigation-menu-content"]')) as [
+    HTMLElement,
+    HTMLElement,
+    ...HTMLElement[],
+  ];
 function fire(el: Element, type: string): void {
   el.dispatchEvent(new Event(type, { bubbles: true }));
   flushEffects();

@@ -102,7 +102,7 @@ describe('ContextMenu — keyboard + selection', () => {
   it('ArrowDown/ArrowUp move highlight and skip disabled items', async () => {
     const c = mountMenu();
     await rightClick(c);
-    const [edit, copy] = items(c);
+    const [edit, copy] = items(c) as [HTMLElement, HTMLElement];
     press('ArrowDown');
     expect(document.activeElement).toBe(copy);
     press('ArrowDown'); // 'delete' disabled → no move (no wrap)
@@ -123,15 +123,15 @@ describe('ContextMenu — keyboard + selection', () => {
     const onSelect = vi.fn();
     c.querySelector('ui-context-menu')!.addEventListener('ui-select', onSelect as EventListener);
     await rightClick(c);
-    items(c)[0].click();
+    items(c)[0]!.click();
     flush2();
-    expect((onSelect.mock.calls[0][0] as CustomEvent).detail).toEqual({ value: 'edit' });
+    expect((onSelect.mock.calls[0]![0] as CustomEvent).detail).toEqual({ value: 'edit' });
     expect(isOpen(c)).toBe(false);
 
     const c2 = mountMenu();
     c2.querySelector('ui-context-menu')!.addEventListener('ui-select', (e) => e.preventDefault());
     await rightClick(c2);
-    items(c2)[0].click();
+    items(c2)[0]!.click();
     flush2();
     expect(isOpen(c2)).toBe(true);
   });
@@ -238,7 +238,7 @@ describe('ContextMenu — portal', () => {
     const onSelect = vi.fn();
     c.querySelector('ui-context-menu')!.addEventListener('ui-select', onSelect as EventListener);
     await rightClick(c);
-    items(c)[0].click();
+    items(c)[0]!.click();
     flush2();
     expect(onSelect).toHaveBeenCalled();
   });

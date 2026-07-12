@@ -135,7 +135,7 @@ describe('Dialog — open via trigger', () => {
     host.addEventListener('ui-open-change', onChange as EventListener);
 
     await openViaTrigger(c);
-    expect((onChange.mock.calls[0][0] as CustomEvent).detail).toEqual({ open: true });
+    expect((onChange.mock.calls[0]![0] as CustomEvent).detail).toEqual({ open: true });
   });
 });
 

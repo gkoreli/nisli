@@ -107,7 +107,7 @@ describe('Select native form participation', () => {
     const select = getSelect();
     await Promise.resolve();
     expect(select.options.length).toBe(2);
-    expect(select.options[0].value).toBe('apple');
+    expect(select.options[0]!.value).toBe('apple');
   });
 
   it('forwards id/name and associates with <ui-label for>', () => {

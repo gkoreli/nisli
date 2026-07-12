@@ -103,7 +103,7 @@ describe('Popover — toggle', () => {
     host.addEventListener('ui-open-change', onChange as EventListener);
     q(c, 'popover-trigger').click();
     flush2();
-    expect((onChange.mock.calls[0][0] as CustomEvent).detail).toEqual({ open: true });
+    expect((onChange.mock.calls[0]![0] as CustomEvent).detail).toEqual({ open: true });
   });
 });
 

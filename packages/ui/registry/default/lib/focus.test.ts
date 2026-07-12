@@ -28,7 +28,7 @@ afterEach(() => {
 function scene(count = 3): {
   root: Ref<HTMLElement>;
   rootEl: HTMLElement;
-  buttons: HTMLButtonElement[];
+  buttons: [HTMLButtonElement, HTMLButtonElement, HTMLButtonElement, ...HTMLButtonElement[]];
   trigger: HTMLButtonElement;
 } {
   const trigger = document.createElement('button');
@@ -44,7 +44,12 @@ function scene(count = 3): {
   document.body.append(trigger, rootEl);
   const root = ref<HTMLElement>();
   root.current = rootEl;
-  return { root, rootEl, buttons, trigger };
+  return {
+    root,
+    rootEl,
+    buttons: buttons as [HTMLButtonElement, HTMLButtonElement, HTMLButtonElement, ...HTMLButtonElement[]],
+    trigger,
+  };
 }
 
 function tab(shiftKey = false): void {

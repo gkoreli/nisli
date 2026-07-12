@@ -126,7 +126,7 @@ describe('AlertDialog — open/close', () => {
     host.addEventListener('ui-open-change', onChange as EventListener);
     q(c, 'alert-dialog-trigger').click();
     flush2();
-    expect((onChange.mock.calls[0][0] as CustomEvent).detail).toEqual({ open: true });
+    expect((onChange.mock.calls[0]![0] as CustomEvent).detail).toEqual({ open: true });
   });
 });
 

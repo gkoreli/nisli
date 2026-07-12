@@ -109,7 +109,7 @@ describe('Drawer — open/close', () => {
     host.addEventListener('ui-open-change', onChange as EventListener);
     q(c, 'drawer-trigger').click();
     flush2();
-    expect((onChange.mock.calls[0][0] as CustomEvent).detail).toEqual({ open: true });
+    expect((onChange.mock.calls[0]![0] as CustomEvent).detail).toEqual({ open: true });
   });
 
   it('closes on Escape, outside pointerdown, and DrawerClose', () => {

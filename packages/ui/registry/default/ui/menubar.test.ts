@@ -78,22 +78,22 @@ describe('Menubar — structure', () => {
     const c = mountBar();
     expect(c.querySelector('[data-slot="menubar"]')!.getAttribute('role')).toBe('menubar');
     expect(triggers(c)).toHaveLength(2);
-    expect(triggers(c)[0].getAttribute('role')).toBe('menuitem');
-    expect(triggers(c)[0].getAttribute('aria-haspopup')).toBe('menu');
+    expect(triggers(c)[0]!.getAttribute('role')).toBe('menuitem');
+    expect(triggers(c)[0]!.getAttribute('aria-haspopup')).toBe('menu');
     expect(openContents(c)).toHaveLength(0);
   });
 
   it('roving tabindex: the first trigger is the tab stop', () => {
     const c = mountBar();
-    expect(triggers(c)[0].getAttribute('tabindex')).toBe('0');
-    expect(triggers(c)[1].getAttribute('tabindex')).toBe('-1');
+    expect(triggers(c)[0]!.getAttribute('tabindex')).toBe('0');
+    expect(triggers(c)[1]!.getAttribute('tabindex')).toBe('-1');
   });
 });
 
 describe('Menubar — trigger roving + open', () => {
   it('ArrowRight/ArrowLeft move focus between triggers (wrapping)', () => {
     const c = mountBar();
-    const [file, edit] = triggers(c);
+    const [file, edit] = triggers(c) as [HTMLElement, HTMLElement];
     file.focus();
     press(file, 'ArrowRight');
     expect(document.activeElement).toBe(edit);
@@ -104,12 +104,12 @@ describe('Menubar — trigger roving + open', () => {
 
   it('ArrowDown opens the focused menu on its first item', async () => {
     const c = mountBar();
-    const [file] = triggers(c);
+    const [file] = triggers(c) as [HTMLElement];
     file.focus();
     press(file, 'ArrowDown');
     await settle();
     expect(openContents(c)).toHaveLength(1);
-    const firstItem = openContents(c)[0].querySelector('[role="menuitem"]');
+    const firstItem = openContents(c)[0]!.querySelector('[role="menuitem"]');
     expect(document.activeElement).toBe(firstItem);
   });
 });
@@ -117,26 +117,26 @@ describe('Menubar — trigger roving + open', () => {
 describe('Menubar — open-follows-focus', () => {
   it('ArrowRight inside an open menu switches to the sibling menu', async () => {
     const c = mountBar();
-    triggers(c)[0].click(); // open File
+    triggers(c)[0]!.click(); // open File
     await settle();
-    expect(openContents(c)[0].id).toContain(triggers(c)[0].getAttribute('data-menu-id')!);
+    expect(openContents(c)[0]!.id).toContain(triggers(c)[0]!.getAttribute('data-menu-id')!);
 
     // ArrowRight from within the menu moves to the Edit menu.
     press(document.activeElement!, 'ArrowRight');
     await settle();
     const open = openContents(c);
     expect(open).toHaveLength(1);
-    expect(open[0].id).toContain(triggers(c)[1].getAttribute('data-menu-id')!);
+    expect(open[0]!.id).toContain(triggers(c)[1]!.getAttribute('data-menu-id')!);
   });
 
   it('hovering another trigger while a menu is open switches menus', async () => {
     const c = mountBar();
-    triggers(c)[0].click();
+    triggers(c)[0]!.click();
     await settle();
-    triggers(c)[1].dispatchEvent(new Event('pointerenter', { bubbles: true }));
+    triggers(c)[1]!.dispatchEvent(new Event('pointerenter', { bubbles: true }));
     await settle();
     expect(openContents(c)).toHaveLength(1);
-    expect(openContents(c)[0].id).toContain(triggers(c)[1].getAttribute('data-menu-id')!);
+    expect(openContents(c)[0]!.id).toContain(triggers(c)[1]!.getAttribute('data-menu-id')!);
   });
 });
 
@@ -145,17 +145,17 @@ describe('Menubar — selection + dismissal', () => {
     const c = mountBar();
     const onSelect = vi.fn();
     c.querySelector('ui-menubar')!.addEventListener('ui-select', onSelect as EventListener);
-    triggers(c)[0].click();
+    triggers(c)[0]!.click();
     await settle();
-    openContents(c)[0].querySelector<HTMLElement>('[role="menuitem"]')!.click();
+    openContents(c)[0]!.querySelector<HTMLElement>('[role="menuitem"]')!.click();
     flush2();
-    expect((onSelect.mock.calls[0][0] as CustomEvent).detail).toEqual({ value: 'New' });
+    expect((onSelect.mock.calls[0]![0] as CustomEvent).detail).toEqual({ value: 'New' });
     expect(openContents(c)).toHaveLength(0);
   });
 
   it('Escape closes the open menu and returns focus to its trigger', async () => {
     const c = mountBar();
-    triggers(c)[0].click();
+    triggers(c)[0]!.click();
     await settle();
     press(document.activeElement!, 'Escape');
     await Promise.resolve();
@@ -167,28 +167,28 @@ describe('Menubar — selection + dismissal', () => {
 describe('Menubar — portal', () => {
   it('moves an opened menu content to <body>, triggers stay in the bar', async () => {
     const c = mountBar();
-    triggers(c)[0].click();
+    triggers(c)[0]!.click();
     await settle();
-    const content = openContents(c)[0];
+    const content = openContents(c)[0]!;
     expect(content.parentElement).toBe(document.body);
     expect(c.contains(content)).toBe(false);
-    expect(c.contains(triggers(c)[0])).toBe(true);
+    expect(c.contains(triggers(c)[0]!)).toBe(true);
   });
 
   it('ui-select still reaches a listener on <ui-menubar> from portaled items', async () => {
     const c = mountBar();
     const onSelect = vi.fn();
     c.querySelector('ui-menubar')!.addEventListener('ui-select', onSelect as EventListener);
-    triggers(c)[0].click();
+    triggers(c)[0]!.click();
     await settle();
-    openContents(c)[0].querySelector<HTMLElement>('[role="menuitem"]')!.click();
+    openContents(c)[0]!.querySelector<HTMLElement>('[role="menuitem"]')!.click();
     flush2();
     expect(onSelect).toHaveBeenCalled();
   });
 
   it('removes the portaled content when the bar is disconnected (no leak)', async () => {
     const c = mountBar();
-    triggers(c)[0].click();
+    triggers(c)[0]!.click();
     await settle();
     expect(document.querySelector('[data-slot="menubar-content"]')).not.toBeNull();
     c.querySelector('ui-menubar')!.remove();
@@ -225,7 +225,7 @@ describe('Menubar — multi-context resolution (UI-28 acceptance)', () => {
 
   it('bar→menu opens; the radio-group scope resolves independently of the menu', async () => {
     const c = mountRich();
-    triggers(c)[0].click(); // bar resolves the menu, menu opens
+    triggers(c)[0]!.click(); // bar resolves the menu, menu opens
     await settle();
     expect(openContents(c)).toHaveLength(1);
 
@@ -239,7 +239,7 @@ describe('Menubar — multi-context resolution (UI-28 acceptance)', () => {
 
   it('the submenu scope resolves distinctly from its enclosing menu', async () => {
     const c = mountRich();
-    triggers(c)[0].click();
+    triggers(c)[0]!.click();
     await settle();
     const subTrigger = document.querySelector<HTMLElement>('[data-slot="menubar-sub-trigger"]')!;
     subTrigger.click();
@@ -254,7 +254,7 @@ describe('Menubar — multi-context resolution (UI-28 acceptance)', () => {
     const c = mountRich();
     const onSelect = vi.fn();
     c.querySelector('ui-menubar')!.addEventListener('ui-select', onSelect as EventListener);
-    triggers(c)[0].click();
+    triggers(c)[0]!.click();
     await settle();
     // Radio item lives in the portaled content; ui-select still reaches the bar.
     (document.querySelectorAll('[role="menuitemradio"]')[0] as HTMLElement).click();

@@ -21,8 +21,14 @@ function mount(template: TemplateResult, into: HTMLElement = document.body): HTM
   return container;
 }
 
-function radios(container: ParentNode = document.body): HTMLInputElement[] {
-  return Array.from(container.querySelectorAll('input[type="radio"]'));
+function radios(
+  container: ParentNode = document.body,
+): [HTMLInputElement, HTMLInputElement, ...HTMLInputElement[]] {
+  return Array.from(container.querySelectorAll('input[type="radio"]')) as [
+    HTMLInputElement,
+    HTMLInputElement,
+    ...HTMLInputElement[],
+  ];
 }
 
 /** A two-item group; returns its container. */

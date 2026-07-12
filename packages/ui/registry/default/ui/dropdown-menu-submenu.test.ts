@@ -193,7 +193,7 @@ describe('DropdownMenu submenu — dismissal', () => {
     const subX = q(document, 'dropdown-menu-sub-content').querySelector<HTMLElement>('[role="menuitem"]')!;
     subX.click();
     flush2();
-    expect((onSelect.mock.calls[0][0] as CustomEvent).detail).toEqual({ value: 'x' });
+    expect((onSelect.mock.calls[0]![0] as CustomEvent).detail).toEqual({ value: 'x' });
     expect(rootOpen(c)).toBe(false);
   });
 });

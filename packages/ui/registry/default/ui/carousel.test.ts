@@ -63,7 +63,7 @@ describe('Carousel — structure and ARIA', () => {
     expect(region.getAttribute('aria-roledescription')).toBe('carousel');
     const items = c.querySelectorAll('[data-slot="carousel-item"]');
     expect(items).toHaveLength(3);
-    expect(items[0].getAttribute('aria-roledescription')).toBe('slide');
+    expect(items[0]!.getAttribute('aria-roledescription')).toBe('slide');
     expect(prev(c).getAttribute('aria-label')).toBe('Previous slide');
     expect(next(c).getAttribute('aria-label')).toBe('Next slide');
   });
@@ -85,7 +85,7 @@ describe('Carousel — navigation + edges', () => {
 
     next(c).click();
     flush2();
-    expect((onSelect.mock.calls[0][0] as CustomEvent).detail).toEqual({ index: 1 });
+    expect((onSelect.mock.calls[0]![0] as CustomEvent).detail).toEqual({ index: 1 });
     expect(prev(c).disabled).toBe(false);
 
     next(c).click();

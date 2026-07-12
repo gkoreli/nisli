@@ -125,7 +125,7 @@ describe('Sidebar — toggle', () => {
     flush2();
     expect(frame.getAttribute('data-state')).toBe('collapsed');
     expect(frame.getAttribute('data-collapsible')).toBe('offcanvas');
-    expect((onChange.mock.calls[0][0] as CustomEvent).detail).toEqual({ open: false });
+    expect((onChange.mock.calls[0]![0] as CustomEvent).detail).toEqual({ open: false });
     expect(document.cookie).toContain('sidebar_state=false');
 
     q(c, 'sidebar-trigger').click();

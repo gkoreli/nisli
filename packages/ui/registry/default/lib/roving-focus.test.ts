@@ -12,6 +12,12 @@ beforeEach(() => {
 });
 
 /** Build `count` buttons in a container; mark indices in `disabled` as disabled. */
+function group(count: 2, disabled?: number[]): [HTMLButtonElement, HTMLButtonElement];
+function group(count: 3, disabled?: number[]): [HTMLButtonElement, HTMLButtonElement, HTMLButtonElement];
+function group(
+  count: 4,
+  disabled?: number[],
+): [HTMLButtonElement, HTMLButtonElement, HTMLButtonElement, HTMLButtonElement];
 function group(count: number, disabled: number[] = []): HTMLButtonElement[] {
   const container = document.createElement('div');
   document.body.appendChild(container);

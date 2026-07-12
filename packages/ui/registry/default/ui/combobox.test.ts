@@ -37,8 +37,13 @@ function mountCombobox(props: Record<string, unknown> = {}): HTMLElement {
 const q = (root: ParentNode, sel: string) => root.querySelector<HTMLElement>(sel)!;
 const trigger = (r: ParentNode) => q(r, '[data-slot="popover-trigger"]');
 const content = (r: ParentNode) => q(r, '[data-slot="popover-content"]');
-const items = (r: ParentNode) =>
-  Array.from(r.querySelectorAll<HTMLElement>('[data-slot="command-item"]'));
+const items = (r: ParentNode): [HTMLElement, HTMLElement, HTMLElement, ...HTMLElement[]] =>
+  Array.from(r.querySelectorAll<HTMLElement>('[data-slot="command-item"]')) as [
+    HTMLElement,
+    HTMLElement,
+    HTMLElement,
+    ...HTMLElement[],
+  ];
 function flush2(): void {
   flushEffects();
   flushEffects();
@@ -146,7 +151,7 @@ describe('Combobox — filtering', () => {
 
     const visible = items(c).filter((el) => !el.hasAttribute('hidden'));
     expect(visible).toHaveLength(1);
-    expect(visible[0].getAttribute('data-value')).toBe('svelte');
+    expect(visible[0]!.getAttribute('data-value')).toBe('svelte');
   });
 });
 

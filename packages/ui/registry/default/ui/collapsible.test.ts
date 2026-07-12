@@ -94,7 +94,7 @@ describe('Collapsible — toggle', () => {
     host.addEventListener('ui-open-change', onChange as EventListener);
 
     click(q(c, 'collapsible-trigger'));
-    expect((onChange.mock.calls[0][0] as CustomEvent).detail).toEqual({ open: true });
+    expect((onChange.mock.calls[0]![0] as CustomEvent).detail).toEqual({ open: true });
   });
 });
 

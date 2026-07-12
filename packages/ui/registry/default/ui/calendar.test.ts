@@ -59,7 +59,7 @@ describe('Calendar — grid', () => {
     const sun = mount(html`${Calendar({ defaultMonth: JAN_2026, weekStartsOn: 0 })}`);
     const mon = mount(html`${Calendar({ defaultMonth: JAN_2026, weekStartsOn: 1 })}`);
     const firstCol = (r: ParentNode) =>
-      r.querySelectorAll('th[role="columnheader"]')[0].textContent;
+      r.querySelectorAll('th[role="columnheader"]')[0]!.textContent;
     expect(firstCol(sun)).not.toBe(firstCol(mon));
   });
 });
@@ -80,7 +80,7 @@ describe('Calendar — single selection', () => {
     expect(d15.getAttribute('data-selected-single')).toBe('true');
     expect(d15.getAttribute('aria-selected')).toBe('true');
     expect(onSelect).toHaveBeenCalledTimes(1);
-    const picked = onSelect.mock.calls[0][0] as Date;
+    const picked = onSelect.mock.calls[0]![0] as Date;
     expect(picked.getFullYear()).toBe(2026);
     expect(picked.getMonth()).toBe(0);
     expect(picked.getDate()).toBe(15);

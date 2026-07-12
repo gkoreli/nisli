@@ -73,13 +73,13 @@ describe('Table', () => {
 
     const heads = table.querySelectorAll('thead th');
     expect(heads.length).toBe(2);
-    expect(heads[0].tagName).toBe('TH');
-    expect(heads[0].textContent).toBe('Name');
+    expect(heads[0]!.tagName).toBe('TH');
+    expect(heads[0]!.textContent).toBe('Name');
 
     const cells = table.querySelectorAll('tbody td');
     expect(cells.length).toBe(2);
-    expect(cells[0].tagName).toBe('TD');
-    expect(cells[0].textContent).toBe('Ada');
+    expect(cells[0]!.tagName).toBe('TD');
+    expect(cells[0]!.textContent).toBe('Ada');
   });
 
   it('renders a real <tfoot>', () => {

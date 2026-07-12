@@ -83,7 +83,7 @@ describe('DropdownMenu — structure and open', () => {
     const c = mountMenu();
     await openMenu(c);
     expect(isOpen(c)).toBe(true);
-    const [edit] = items(c);
+    const [edit] = items(c) as [HTMLElement];
     expect(document.activeElement).toBe(edit);
     expect(edit.hasAttribute('data-highlighted')).toBe(true);
   });
@@ -105,7 +105,7 @@ describe('DropdownMenu — keyboard navigation', () => {
   it('ArrowDown/ArrowUp move highlight; disabled items are skipped; no wrap', async () => {
     const c = mountMenu();
     await openMenu(c);
-    const [edit, copy] = items(c);
+    const [edit, copy] = items(c) as [HTMLElement, HTMLElement];
 
     press('ArrowDown');
     expect(document.activeElement).toBe(copy);
@@ -134,7 +134,7 @@ describe('DropdownMenu — pointer', () => {
   it('pointerover focuses (highlights) the item under the pointer', async () => {
     const c = mountMenu();
     await openMenu(c);
-    const copy = items(c)[1];
+    const copy = items(c)[1]!;
     copy.dispatchEvent(new Event('pointerover', { bubbles: true }));
     flush2();
     expect(document.activeElement).toBe(copy);
@@ -148,9 +148,9 @@ describe('DropdownMenu — selection', () => {
     const onSelect = vi.fn();
     c.querySelector('ui-dropdown-menu')!.addEventListener('ui-select', onSelect as EventListener);
     await openMenu(c);
-    items(c)[0].click();
+    items(c)[0]!.click();
     flush2();
-    expect((onSelect.mock.calls[0][0] as CustomEvent).detail).toEqual({ value: 'edit' });
+    expect((onSelect.mock.calls[0]![0] as CustomEvent).detail).toEqual({ value: 'edit' });
     expect(isOpen(c)).toBe(false);
   });
 
@@ -158,7 +158,7 @@ describe('DropdownMenu — selection', () => {
     const c = mountMenu();
     c.querySelector('ui-dropdown-menu')!.addEventListener('ui-select', (e) => e.preventDefault());
     await openMenu(c);
-    items(c)[0].click();
+    items(c)[0]!.click();
     flush2();
     expect(isOpen(c)).toBe(true);
   });
@@ -177,7 +177,7 @@ describe('DropdownMenu — selection', () => {
     const onSelect = vi.fn();
     c.querySelector('ui-dropdown-menu')!.addEventListener('ui-select', onSelect as EventListener);
     await openMenu(c);
-    items(c)[2].click(); // 'delete' is disabled
+    items(c)[2]!.click(); // 'delete' is disabled
     flush2();
     expect(onSelect).not.toHaveBeenCalled();
     expect(isOpen(c)).toBe(true);
@@ -209,8 +209,8 @@ describe('DropdownMenu — checkbox + radio items', () => {
     );
     await openMenu(c);
     const radios = document.querySelectorAll('[role="menuitemradio"]');
-    expect(radios[0].getAttribute('aria-checked')).toBe('true');
-    expect(radios[1].getAttribute('aria-checked')).toBe('false');
+    expect(radios[0]!.getAttribute('aria-checked')).toBe('true');
+    expect(radios[1]!.getAttribute('aria-checked')).toBe('false');
   });
 });
 

@@ -45,8 +45,12 @@ function mountGroup(
 
 const q = (root: ParentNode, slot: string) =>
   root.querySelector<HTMLElement>(`[data-slot="${slot}"]`)!;
-const panels = (root: ParentNode) =>
-  Array.from(root.querySelectorAll<HTMLElement>('[data-slot="resizable-panel"]'));
+const panels = (root: ParentNode): [HTMLElement, HTMLElement, ...HTMLElement[]] =>
+  Array.from(root.querySelectorAll<HTMLElement>('[data-slot="resizable-panel"]')) as [
+    HTMLElement,
+    HTMLElement,
+    ...HTMLElement[],
+  ];
 const handle = (root: ParentNode) => q(root, 'resizable-handle');
 function flush2(): void {
   flushEffects();
@@ -131,7 +135,7 @@ describe('Resizable — keyboard resize', () => {
     c.querySelector('ui-resizable-panel-group')!.addEventListener('ui-resize', onResize as EventListener);
     handle(c).dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     flush2();
-    const layout = (onResize.mock.calls[0][0] as CustomEvent).detail.layout as number[];
+    const layout = (onResize.mock.calls[0]![0] as CustomEvent).detail.layout as number[];
     expect(layout.map(Math.round)).toEqual([60, 40]);
   });
 });

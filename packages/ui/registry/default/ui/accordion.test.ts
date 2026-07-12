@@ -53,10 +53,18 @@ function mountAccordion(
   );
 }
 
-const triggers = (r: ParentNode = document.body) =>
-  Array.from(r.querySelectorAll<HTMLButtonElement>('[data-slot="accordion-trigger"]'));
-const regions = (r: ParentNode = document.body) =>
-  Array.from(r.querySelectorAll<HTMLElement>('[role="region"]'));
+const triggers = (r: ParentNode = document.body): [HTMLButtonElement, HTMLButtonElement, ...HTMLButtonElement[]] =>
+  Array.from(r.querySelectorAll<HTMLButtonElement>('[data-slot="accordion-trigger"]')) as [
+    HTMLButtonElement,
+    HTMLButtonElement,
+    ...HTMLButtonElement[],
+  ];
+const regions = (r: ParentNode = document.body): [HTMLElement, HTMLElement, ...HTMLElement[]] =>
+  Array.from(r.querySelectorAll<HTMLElement>('[role="region"]')) as [
+    HTMLElement,
+    HTMLElement,
+    ...HTMLElement[],
+  ];
 function click(el: Element): void {
   (el as HTMLElement).click();
   flushEffects();
@@ -176,7 +184,7 @@ describe('Accordion — keyboard navigation', () => {
 
   it('does not wrap; Home/End jump to first/last', () => {
     const c = mountAccordion({ items: html`${item('a', 'A')}${item('b', 'B')}${item('c', 'C')}` });
-    const [btnA, , btnC] = triggers(c);
+    const [btnA, , btnC] = triggers(c) as [HTMLButtonElement, HTMLButtonElement, HTMLButtonElement];
     btnA.focus();
 
     press(btnA, 'ArrowUp'); // already first, no wrap
@@ -214,15 +222,15 @@ describe('Accordion — ui-value-change event', () => {
     const onChange = vi.fn();
     host.addEventListener('ui-value-change', onChange as EventListener);
 
-    click(triggers(c)[1]);
-    expect((onChange.mock.calls[0][0] as CustomEvent).detail).toEqual({ value: 'b' });
+    click(triggers(c)[1]!);
+    expect((onChange.mock.calls[0]![0] as CustomEvent).detail).toEqual({ value: 'b' });
 
     const c2 = mountAccordion({ type: 'multiple' });
     const host2 = c2.querySelector('ui-accordion') as HTMLElement;
     const onChange2 = vi.fn();
     host2.addEventListener('ui-value-change', onChange2 as EventListener);
-    click(triggers(c2)[0]);
-    expect((onChange2.mock.calls[0][0] as CustomEvent).detail).toEqual({ value: ['a'] });
+    click(triggers(c2)[0]!);
+    expect((onChange2.mock.calls[0]![0] as CustomEvent).detail).toEqual({ value: ['a'] });
   });
 });
 

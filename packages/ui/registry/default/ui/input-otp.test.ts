@@ -40,8 +40,14 @@ function mountOTP(props: Record<string, unknown> = {}, count = 6, into?: HTMLEle
 
 const input = (r: ParentNode) =>
   r.querySelector<HTMLInputElement>('[data-slot="input-otp-input"]')!;
-const slotEls = (r: ParentNode) =>
-  Array.from(r.querySelectorAll<HTMLElement>('[data-slot="input-otp-slot"]'));
+const slotEls = (r: ParentNode): [HTMLElement, HTMLElement, HTMLElement, HTMLElement, ...HTMLElement[]] =>
+  Array.from(r.querySelectorAll<HTMLElement>('[data-slot="input-otp-slot"]')) as [
+    HTMLElement,
+    HTMLElement,
+    HTMLElement,
+    HTMLElement,
+    ...HTMLElement[],
+  ];
 
 /** Simulate typing `text` into the single input. */
 function type(r: ParentNode, text: string): void {

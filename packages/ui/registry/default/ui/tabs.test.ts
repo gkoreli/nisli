@@ -49,11 +49,21 @@ function mountTabs(
   );
 }
 
-function tabButtons(root: ParentNode = document.body): HTMLButtonElement[] {
-  return Array.from(root.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+function tabButtons(
+  root: ParentNode = document.body,
+): [HTMLButtonElement, HTMLButtonElement, ...HTMLButtonElement[]] {
+  return Array.from(root.querySelectorAll<HTMLButtonElement>('[role="tab"]')) as [
+    HTMLButtonElement,
+    HTMLButtonElement,
+    ...HTMLButtonElement[],
+  ];
 }
-function panels(root: ParentNode = document.body): HTMLElement[] {
-  return Array.from(root.querySelectorAll<HTMLElement>('[role="tabpanel"]'));
+function panels(root: ParentNode = document.body): [HTMLElement, HTMLElement, ...HTMLElement[]] {
+  return Array.from(root.querySelectorAll<HTMLElement>('[role="tabpanel"]')) as [
+    HTMLElement,
+    HTMLElement,
+    ...HTMLElement[],
+  ];
 }
 function press(el: Element, key: string): void {
   el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
@@ -152,10 +162,10 @@ describe('Tabs — keyboard navigation (automatic activation)', () => {
     buttons[0].focus();
 
     press(buttons[0], 'End');
-    expect(document.activeElement).toBe(buttons[2]);
-    expect(buttons[2].getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(buttons[2]!);
+    expect(buttons[2]!.getAttribute('aria-selected')).toBe('true');
 
-    press(buttons[2], 'Home');
+    press(buttons[2]!, 'Home');
     expect(document.activeElement).toBe(buttons[0]);
     expect(buttons[0].getAttribute('aria-selected')).toBe('true');
   });
@@ -175,17 +185,17 @@ describe('Tabs — keyboard navigation (automatic activation)', () => {
 
   it('skips disabled triggers and does not select them on click', () => {
     const c = mountTabs({ three: true, disabledC: true });
-    const [tabA, tabB, tabC] = tabButtons(c);
-    expect(tabC.hasAttribute('disabled')).toBe(true);
+    const [tabA, tabB, tabC] = tabButtons(c) as [HTMLButtonElement, HTMLButtonElement, HTMLButtonElement];
+    expect(tabC!.hasAttribute('disabled')).toBe(true);
 
     tabB.focus();
     press(tabB, 'ArrowRight'); // C disabled -> wrap to A
     expect(document.activeElement).toBe(tabA);
 
-    tabC.click();
+    tabC!.click();
     flushEffects();
     flushEffects();
-    expect(tabC.getAttribute('aria-selected')).toBe('false');
+    expect(tabC!.getAttribute('aria-selected')).toBe('false');
     expect(tabA.getAttribute('aria-selected')).toBe('true');
   });
 });
@@ -201,7 +211,7 @@ describe('Tabs — ui-value-change event', () => {
     flushEffects();
 
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect((onChange.mock.calls[0][0] as CustomEvent).detail).toEqual({ value: 'b' });
+    expect((onChange.mock.calls[0]![0] as CustomEvent).detail).toEqual({ value: 'b' });
   });
 
   it('does not re-dispatch when the already-selected trigger is clicked', () => {
@@ -210,7 +220,7 @@ describe('Tabs — ui-value-change event', () => {
     const onChange = vi.fn();
     host.addEventListener('ui-value-change', onChange as EventListener);
 
-    tabButtons(c)[0].click(); // 'a' already selected
+    tabButtons(c)[0]!.click(); // 'a' already selected
     flushEffects();
     expect(onChange).not.toHaveBeenCalled();
   });
