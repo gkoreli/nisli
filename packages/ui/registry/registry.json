@@ -681,6 +681,17 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "marker",
+      "type": "ui",
+      "description": "A styled marker row with icon and content parts. Port of shadcn/ui marker.",
+      "files": [
+        "ui/marker.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }

@@ -15,6 +15,7 @@ import { AspectRatio } from './src/nisli-ui/ui/aspect-ratio.js';
 import { Kbd, KbdGroup } from './src/nisli-ui/ui/kbd.js';
 import { Spinner } from './src/nisli-ui/ui/spinner.js';
 import { DirectionProvider } from './src/nisli-ui/ui/direction.js';
+import { Marker, MarkerContent, MarkerIcon } from './src/nisli-ui/ui/marker.js';
 import {
   ButtonGroup,
   ButtonGroupSeparator,
@@ -326,6 +327,17 @@ export function renderKitchenSink(): TemplateResult {
         direction: 'rtl',
         children: html`<p class="rounded-md border p-3 text-sm">مرحبا بالعالم</p>`,
       }),
+    )}
+
+    ${section(
+      'Marker',
+      html`<div class="space-y-3">
+        ${Marker({
+          children: html`${MarkerIcon({ children: '•' })}${MarkerContent({ children: 'Default marker' })}`,
+        })}
+        ${Marker({ variant: 'separator', children: MarkerContent({ children: 'Separator' }) })}
+        ${Marker({ variant: 'border', children: MarkerContent({ children: 'Border marker' }) })}
+      </div>`,
     )}
 
     ${section(
