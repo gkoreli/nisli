@@ -2,9 +2,12 @@
  * shell.ts — the outer HTML document around a rendered body fragment.
  * Per-page <title>/description, static CSS (dist/assets/site.css, compiled by
  * the Tailwind CLI), dark mode via a `.dark` class persisted in localStorage.
- * No client bundle — the only JS is inline progressive enhancement (the theme
- * toggle and the code copy-to-clipboard). The body fragment (nav + main + footer)
- * is a nisli template rendered by @nisli/ssg; this wrapper stays a string
+ * Baseline JS is inline progressive enhancement (the theme toggle and the code
+ * copy-to-clipboard). Additionally, /ui pages whose component has an interactive
+ * example inject the WWW-10 hydration bundle (/ui-preview/hydrate.js) via the
+ * `hydrate` option — the only external client bundle, and still strictly
+ * progressive (the static preview is the no-JS baseline). The body fragment
+ * (nav + main + footer) is a nisli template rendered by @nisli/ssg; this stays a string
  * because a full <!doctype html> document can't be mounted into a DOM host.
  * Asset/link paths are absolute (`/assets/...`) so they resolve from nested
  * routes like `/docs/signals/` too.

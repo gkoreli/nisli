@@ -14,14 +14,17 @@ type ExampleModule = { default: () => TemplateResult };
 const examples = import.meta.glob<ExampleModule>('../hydrate-examples/*.ts');
 
 function hydrate(frame: Element): void {
+  if (frame.hasAttribute('data-hydrated')) return; // idempotent — never mount twice
   const name = frame.getAttribute('data-preview');
   if (!name) return;
   const load = examples[`../hydrate-examples/${name}.ts`];
   if (!load) return; // no interactive example for this component — leave the static frame
+  // Mark synchronously so a repeat intersection (or re-observe) can't double-mount
+  // and leave a duplicate portaled overlay behind.
+  frame.setAttribute('data-hydrated', 'true');
   void load().then((mod) => {
     frame.replaceChildren();
     html`${mod.default()}`.mount(frame as HTMLElement);
-    frame.setAttribute('data-hydrated', 'true');
   });
 }
 

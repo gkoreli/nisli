@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { buildSite } from './build.js';
 import { components, primitives } from './registry.js';
 import { primaryTag } from './preview.js';
+import { hydrateSet } from './hydrate-set.js';
 
 describe('nisli website', () => {
   it('renders every route through the shell + chrome', async () => {
@@ -138,17 +139,29 @@ describe('nisli website', () => {
     expect(page).toContain('bg-chart-1'); // chart palette
   });
 
-  // WWW-10: the hydration runtime is injected only on /ui pages whose component
-  // has an interactive example — nowhere else (strict progressive enhancement).
-  it('injects the hydration runtime only on hydrating /ui pages', async () => {
+  // WWW-10: the hydration runtime is injected on EXACTLY the /ui pages whose
+  // component has an interactive example — set-driven from hydrateSet so it locks
+  // under- AND over-injection as the set grows (a batch-N page silently losing
+  // or gaining the runtime fails here).
+  it('injects the hydration runtime on exactly the hydrating /ui pages', async () => {
     const built = await buildSite();
-    const read = (path: string) => readFileSync(built.find((p) => p.path === path)!.filePath, 'utf8');
     const SCRIPT = '/ui-preview/hydrate.js';
+    const has = (path: string) => readFileSync(built.find((p) => p.path === path)!.filePath, 'utf8').includes(SCRIPT);
 
-    expect(read('/ui/dropdown-menu')).toContain(SCRIPT); // has a hydrate example
-    expect(read('/ui/tooltip')).toContain(SCRIPT);
-    expect(read('/ui/button')).not.toContain(SCRIPT); // static curated example
-    expect(read('/')).not.toContain(SCRIPT); // no preview frames
-    expect(read('/docs')).not.toContain(SCRIPT);
+    // every hydrate example maps to a built page (no dangling example)
+    for (const name of hydrateSet) {
+      expect(built.some((p) => p.path === `/ui/${name}`), `no built /ui/${name} for hydrate example`).toBe(true);
+    }
+
+    // exactly the hydrating /ui pages carry the script; every other /ui page does not
+    for (const page of built.filter((p) => p.path.startsWith('/ui/'))) {
+      const name = page.path.slice('/ui/'.length);
+      expect(has(page.path), `${page.path} injection`).toBe(hydrateSet.has(name));
+    }
+
+    // non-/ui pages never do
+    for (const page of built.filter((p) => !p.path.startsWith('/ui/'))) {
+      expect(has(page.path), `${page.path} must not inject`).toBe(false);
+    }
   });
 });
