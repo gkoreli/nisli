@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { component, html, signal, ref, onMount } from '@nisli/core';
+import { children, component, html, signal, ref, onMount } from '@nisli/core';
 import { defineRouter, notFound, numberParam, route } from '@nisli/router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildStaticSite } from './index.js';
@@ -139,6 +139,45 @@ describe('buildStaticSite', () => {
     // Present ONLY because tick() drained the projection sweep before snapshot;
     // and it landed INSIDE the inner slot, proving real projection ran.
     expect(output).toContain('<div data-slot="projected">projected-light-dom</div>');
+  });
+
+  it('projects factory children through buildStaticSite (ADR 0025 item 1)', async () => {
+    const outDir = tempDir();
+    const Btn = component<{ children?: string }>(
+      'ssg-proj-btn',
+      () => html`<button data-slot="btn">${children('DEFAULT')}</button>`,
+    );
+    void Btn;
+
+    await buildStaticSite({
+      outDir,
+      routes: [{ path: '/', render: () => Btn({ children: 'Click' }) }],
+    });
+
+    const output = readFileSync(join(outDir, 'index.html'), 'utf-8');
+    expect(output).toContain('data-slot="btn"');
+    expect(output).toContain('Click'); // factory children projected into the slot
+    expect(output).not.toContain('DEFAULT'); // fallback replaced
+  });
+
+  it('projects light-DOM children and settles the sweep via tick() (item 1 + §5)', async () => {
+    const outDir = tempDir();
+    const Btn2 = component(
+      'ssg-proj-btn2',
+      () => html`<button data-slot="btn2">${children('DEFAULT')}</button>`,
+    );
+    void Btn2;
+
+    await buildStaticSite({
+      // Plain-HTML light child; capture (+ any late sweep) settles under tick().
+      outDir,
+      routes: [{ path: '/', render: () => html`<ssg-proj-btn2>Projected</ssg-proj-btn2>` }],
+    });
+
+    const output = readFileSync(join(outDir, 'index.html'), 'utf-8');
+    expect(output).toContain('data-slot="btn2"');
+    expect(output).toContain('Projected');
+    expect(output).not.toContain('DEFAULT');
   });
 
   it('renders top-level Nisli component factory results', async () => {

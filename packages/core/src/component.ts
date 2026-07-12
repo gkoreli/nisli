@@ -322,13 +322,25 @@ export function component<P extends object = Record<string, never>>(
         const host = new ComponentHostImpl(this);
         this._host = host;
 
-        // Seed prop signals from current attributes (incl. declared defaults
-        // and 'forward' relocation) BEFORE setup, so the setup sees correct
-        // initial values. Live changes arrive via attributeChangedCallback.
-        // No-op when no attrs are declared. (ADR 0025 item 3 — PROTOTYPE.)
+        // Canonical pre-setup order: SEED → CAPTURE → CONTEXT (then setup).
+        //
+        // SEED (ADR 0025 item 3): write prop signals from current
+        // attributes (incl. declared defaults and 'forward' relocation) so setup
+        // sees correct initial values. No-op when no attrs are declared.
         if (attrEntries.size) this._seedAttrs();
 
+        // CAPTURE (ADR 0025 item 1): snapshot the host's light-DOM
+        // children so children() can project them. Snapshot only — children()
+        // removes/projects on demand — so non-projecting components are
+        // untouched. Zero-cost when the host has no light DOM.
+        if (this.childNodes.length) {
+          (this as unknown as { __capturedChildren?: Node[] }).__capturedChildren =
+            Array.from(this.childNodes);
+        }
+
         try {
+          // CONTEXT is established by runWithContext(host, …) below; setup then
+          // runs with seed + capture already in place.
           runWithContext(host, () => {
             this._templateResult = setup(this._propsProxy!.props, this);
           });
@@ -413,6 +425,15 @@ export function component<P extends object = Record<string, never>>(
         this._pinned.add(key);
       }
       this._propsProxy?.setProperty(key, value);
+    }
+
+    /**
+     * Read a prop's backing signal (framework-internal). Used by children()
+     * to fold the factory `children` prop into the projection slot (ADR 0025
+     * item 1) without a new public read API.
+     */
+    _propSignal(key: string): Signal<unknown> {
+      return (this._propsProxy!.props as Record<string, Signal<unknown>>)[key]!;
     }
   }
 

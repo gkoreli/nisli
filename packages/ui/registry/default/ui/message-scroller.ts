@@ -22,6 +22,7 @@
  */
 
 import {
+  children,
   component,
   createContext,
   computed,
@@ -256,20 +257,11 @@ export type MessageScrollerButtonProps = {
   children?: string | TemplateResult;
 };
 
-/** Non-whitespace light-DOM content counts as author-supplied children. */
-function hasContent(nodes: Node[]): boolean {
-  return nodes.some(
-    (n) => n.nodeType === 1 || (n.nodeType === 3 && (n.textContent ?? '').trim() !== ''),
-  );
-}
-
 export const MessageScrollerButton = component<MessageScrollerButtonProps>(
   'ui-message-scroller-button',
   (props, host) => {
     const state = MessageScrollerContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
-    const projectedChildren = hasContent(projected);
 
     const dirAttr = attr(props.direction, host, 'direction');
     const direction = computed<'start' | 'end'>(() =>
@@ -305,47 +297,16 @@ export const MessageScrollerButton = component<MessageScrollerButtonProps>(
       else state.scrollToStart();
     };
 
-    // Default content (arrow + sr-only label) shows only when the author
-    // supplied no children — via the factory prop or plain-DOM light children.
+    // ADR 0025 item 1: children(fallback) owns the conditional
+    // default. The default arrow + sr-only label renders only when the author
+    // supplied no meaningful children (factory prop OR light DOM, at setup OR
+    // late from the parser); author children REPLACE it. The hand-rolled
+    // capture/projectInto/defaultNodes swap is gone.
     const defaultContent = html`${arrowDownIcon}<span class="sr-only">${computed(() =>
       direction.value === 'end' ? 'Scroll to end' : 'Scroll to start',
     )}</span>`;
-    const factoryChildren = props.children.value;
-    // Author content known at setup time: factory children or already-parsed
-    // light children. Parser/innerHTML children arrive LATER (after upgrade),
-    // so this can be false even when the author did supply children.
-    const authorAtSetup = projectedChildren || (factoryChildren != null && factoryChildren !== '');
-
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      const el = root.current;
-      if (!el) return;
-
-      // Snapshot the default glyph/label so a late parser sweep can remove it
-      // — custom children must REPLACE the default, not append to it. This is
-      // a component-local concern (conditional default content); projectChildren
-      // in lib/utils is deliberately left generic.
-      const defaultNodes = authorAtSetup ? [] : Array.from(el.childNodes);
-      const projectInto = (nodes: Node[]): void => {
-        if (nodes.length === 0) return;
-        for (const node of defaultNodes) node.parentNode?.removeChild(node);
-        defaultNodes.length = 0;
-        el.append(...nodes);
-      };
-
-      // Light children captured at mount (createElement + append before connect).
-      projectInto(projected);
-      // Late parser-appended children (streaming / innerHTML upgrade).
-      queueMicrotask(() => {
-        const late = Array.from(host.childNodes).filter(
-          (n) => n !== el && !el.contains(n) && !n.contains(el),
-        );
-        projectInto(late);
-      });
-    });
 
     return html`<button
-      ref="${root}"
       type="button"
       data-slot="message-scroller-button"
       data-direction="${direction}"
@@ -354,6 +315,6 @@ export const MessageScrollerButton = component<MessageScrollerButtonProps>(
       data-active="${computed(() => (active.value ? 'true' : 'false'))}"
       class="${classes}"
       @click=${onClick}
-    >${authorAtSetup ? props.children : defaultContent}</button>`;
+    >${children(defaultContent)}</button>`;
   },
 );

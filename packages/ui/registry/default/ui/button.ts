@@ -10,20 +10,17 @@
  */
 
 import {
+  children,
   component,
   computed,
   html,
-  onMount,
-  ref,
   type TemplateResult,
 } from '@nisli/core';
 import {
   attr,
   boolAttr,
-  captureChildren,
   cn,
   cv,
-  projectChildren,
   transparentHost,
 } from '../lib/utils.js';
 
@@ -91,7 +88,6 @@ export type ButtonProps = {
 
 export const Button = component<ButtonProps>('ui-button', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
   const variant = attr(props.variant, host, 'variant');
   const size = attr(props.size, host, 'size');
@@ -103,18 +99,15 @@ export const Button = component<ButtonProps>('ui-button', (props, host) => {
     cn(buttonVariants({ variant: variant.value, size: size.value }), className.value),
   );
 
-  const root = ref<HTMLButtonElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
+  // ADR 0025 item 1: children() owns projection — light-DOM
+  // children AND the factory `children` prop route through the one slot. The
+  // captureChildren/projectChildren + onMount dance is gone.
   return html`<button
-    ref="${root}"
     data-slot="button"
     data-variant="${computed(() => variant.value ?? 'default')}"
     data-size="${computed(() => size.value ?? 'default')}"
     class="${classes}"
     type="${computed(() => type.value ?? 'button')}"
     disabled="${disabled}"
-  >${props.children}</button>`;
+  >${children()}</button>`;
 });

@@ -92,6 +92,11 @@ export {
   useHostEvent,
 } from './lifecycle.js';
 
+// ── Content projection (ADR 0025 item 1) ────────────────
+export {
+  children,
+} from './projection.js';
+
 // ── Declarative data loading ────────────────────────────────────────
 export {
   query,
