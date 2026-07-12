@@ -22,6 +22,7 @@ const TAG_OVERRIDES: Record<string, string> = {
   item: 'ui-item-group',
   sidebar: 'ui-sidebar-provider',
   direction: 'ui-direction-provider',
+  bubble: 'ui-bubble-group',
 };
 
 export function primaryTag(name: string): string {
