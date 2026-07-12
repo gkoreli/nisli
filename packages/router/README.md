@@ -6,9 +6,9 @@ development server, and static production builds.
 
 ## Install
 
-```sh
-npm install @nisli/core @nisli/router
-```
+Publication of `@nisli/router@0.1.0` is pending npm Trusted Publisher setup.
+Until `npm view @nisli/router version` succeeds, consume it only from this
+workspace; do not rely on the registry install path.
 
 ## Define routes in 30 seconds
 
@@ -79,6 +79,29 @@ Static builds pass the same `AppRouter` to `buildStaticSite({ router })` from
 The package progressively enhances eligible same-origin anchors while
 preserving native external, modifier-key, target, download, hash-only, and
 opt-out navigation behavior.
+
+## Scroll, focus, and history
+
+Navigation effects run after the new route has rendered:
+
+| Navigation | Scroll | Focus |
+| --- | --- | --- |
+| `router.navigate(href)` / intercepted link | Scrolls to the top by default; `{ scroll: 'preserve' }` keeps the current position. | Moves focus to the route outlet with `preventScroll` (unless the URL has a hash). |
+| `router.replace(href)` | Preserves by default; `{ scroll: 'top' }` opts into scrolling to the top. | Preserves focus. |
+| Back/forward (`popstate`) | Leaves restoration to the browser. | Preserves focus. |
+| Any routed URL with a hash | After rendering, finds the decoded fragment ID and calls `scrollIntoView()`. | Preserves focus. |
+
+That last row is the cross-page hash contract: a client-side navigation such
+as `/docs#install` must wait for `/docs` to render, so the router emulates the
+fragment jump with `scrollIntoView()`. A same-document hash link is not
+intercepted at all when its pathname and query already match; the browser keeps
+its native fragment navigation and history behavior.
+
+Initial direct loads render in place. If the initial URL has a hash, the same
+post-render fragment lookup is used; otherwise the router does not alter scroll
+or focus. `navigate()` writes with `history.pushState()`, `replace()` writes
+with `history.replaceState()`, and `popstate` renders without creating another
+history entry.
 
 See [ADR 0026: Typed Application Router](https://github.com/gkoreli/nisli/blob/main/docs/adr/0026-typed-application-router.md)
 for the architecture, shared browser/Vite/SSG contract, and scope.

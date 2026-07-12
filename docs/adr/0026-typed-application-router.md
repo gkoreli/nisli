@@ -641,3 +641,11 @@ HTML output paths and href construction, while the existing content/SEO/feed
 pipeline remains the renderer. Do not introduce a browser outlet merely to
 claim adoption; the initial value is one typed static route family with no
 parallel path list.
+
+### Navigation effects documentation (RTR-3)
+
+The package README now records the implemented push/replace/popstate/hash
+scroll and focus contract from amendment 5. Cross-page and initial-load hash
+jumps are post-render `scrollIntoView()` emulation; same-document hash anchors
+remain unintercepted and browser-native. This distinction closes the previous
+documentation gap without introducing a second navigation behavior.
