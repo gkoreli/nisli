@@ -63,8 +63,15 @@ const contents = (r: ParentNode = document.body): [HTMLElement, HTMLElement, ...
     HTMLElement,
     ...HTMLElement[],
   ];
-function fire(el: Element, type: string): void {
-  el.dispatchEvent(new Event(type, { bubbles: true }));
+// Pointer events carry a `pointerType` so the trigger's mouse-only hover gate
+// (UI-64 `whenMouse`) sees a real mouse vs touch; non-pointer events (click,
+// pointerdown-outside uses this too) fall back to a plain Event. Hover call
+// sites default to 'mouse' — the desktop path they were written for.
+function fire(el: Element, type: string, pointerType: 'mouse' | 'touch' | 'pen' = 'mouse'): void {
+  const event = type.startsWith('pointer')
+    ? new PointerEvent(type, { bubbles: true, pointerType })
+    : new Event(type, { bubbles: true });
+  el.dispatchEvent(event);
   flushEffects();
   flushEffects();
 }
@@ -174,6 +181,90 @@ describe('NavigationMenu — open/close', () => {
     expect(seen).toContain('products');
     key(t0, 'Escape');
     expect(seen[seen.length - 1]).toBe('');
+  });
+});
+
+describe('NavigationMenu — tap/click activation parity (UI-64)', () => {
+  // A touch tap emits a synthetic pointerenter[touch] THEN a click. Hover is
+  // gated to mouse (whenMouse), so the pointerenter is ignored and the click
+  // opens — the panel must END OPEN, not open-then-toggle-shut back to 0->0
+  // (the reported real390 defect).
+  it('opens on a touch tap (pointerenter[touch] + click)', () => {
+    const c = mountMenu();
+    const [t0] = triggers(c);
+    fire(t0, 'pointerenter', 'touch'); // ignored by the mouse-only hover gate
+    fire(t0, 'click');
+    expect(contents(c)[0].hasAttribute('hidden')).toBe(false);
+    expect(t0.getAttribute('aria-expanded')).toBe('true');
+    expect(t0.getAttribute('data-state')).toBe('open');
+  });
+
+  it('closes on a second touch tap', () => {
+    const c = mountMenu();
+    const [t0] = triggers(c);
+    fire(t0, 'pointerenter', 'touch');
+    fire(t0, 'click');
+    fire(t0, 'pointerenter', 'touch');
+    fire(t0, 'click');
+    expect(contents(c)[0].hasAttribute('hidden')).toBe(true);
+    expect(t0.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  // A mouse click always arrives as pointerenter[mouse] (hover-open) THEN click.
+  // The click rides in on the SAME gesture, so it keeps the panel open instead
+  // of toggling it shut: a single mouse click ends OPEN, matching the tap.
+  it('opens on a single mouse click (pointerenter[mouse] + click)', () => {
+    const c = mountMenu();
+    const [t0] = triggers(c);
+    fire(t0, 'pointerenter'); // mouse hover opens, arms the same-gesture flag
+    fire(t0, 'click'); // rides in on that hover — stays open, not toggled shut
+    expect(contents(c)[0].hasAttribute('hidden')).toBe(false);
+    expect(t0.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  // ...but an INDEPENDENT second click (the gesture flag already consumed)
+  // toggles closed — the panel stays user-dismissable by click.
+  it('closes on an independent second mouse click', () => {
+    const c = mountMenu();
+    const [t0] = triggers(c);
+    fire(t0, 'pointerenter');
+    fire(t0, 'click'); // opened; same-gesture flag consumed
+    fire(t0, 'click'); // genuine toggle → close
+    expect(contents(c)[0].hasAttribute('hidden')).toBe(true);
+  });
+
+  it('dismisses the open panel on a pointerdown outside the menu', () => {
+    const c = mountMenu();
+    const [t0] = triggers(c);
+    fire(t0, 'pointerenter');
+    expect(contents(c)[0].hasAttribute('hidden')).toBe(false);
+
+    document.body.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }),
+    );
+    flushEffects();
+    flushEffects();
+    expect(contents(c)[0].hasAttribute('hidden')).toBe(true);
+  });
+
+  it('does NOT dismiss on a pointerdown inside the menu', () => {
+    const c = mountMenu();
+    const [t0] = triggers(c);
+    fire(t0, 'pointerenter', 'touch');
+    fire(t0, 'click'); // open via tap
+    t0.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }));
+    flushEffects();
+    flushEffects();
+    expect(contents(c)[0].hasAttribute('hidden')).toBe(false);
+  });
+
+  it('removes the document pointerdown listener on disconnect', async () => {
+    const remove = vi.spyOn(document, 'removeEventListener');
+    const c = mountMenu();
+    c.remove();
+    await Promise.resolve(); // teardown runs one microtask after disconnect
+    expect(remove).toHaveBeenCalledWith('pointerdown', expect.any(Function));
+    remove.mockRestore();
   });
 });
 

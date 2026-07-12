@@ -26,9 +26,16 @@
  * NavigationMenuIndicator and NavigationMenuViewport are intentionally omitted.
  *
  * Triggers correlate with content by a shared `value` (like ui-tabs). Left/
- * right arrows roving-move focus between triggers (roving-focus lib); hover and
- * click open, pointer-leave (with a short grace) and Escape close. Selection
- * changes dispatch a bubbling `ui-value-change` CustomEvent from the root host.
+ * right arrows roving-move focus between triggers (roving-focus lib).
+ *
+ * ACTIVATION (UI-64): mouse hover opens (pointer hover is gated to
+ * `pointerType === 'mouse'`, Radix `whenMouse` parity); a click/tap opens too
+ * and toggles closed on a genuine second click. Because a tap emits both a
+ * synthetic pointerenter AND a click, hover is mouse-only so touch relies on
+ * the click alone, and a mouse click that rides in on the opening hover keeps
+ * the panel open rather than toggling it shut. Dismissal: pointer-leave (short
+ * grace), Escape, and a pointerdown outside the menu. Selection changes
+ * dispatch a bubbling `ui-value-change` CustomEvent from the root host.
  *
  * This file was copied into your project by `nisli-ui` — you own it.
  */
@@ -41,6 +48,7 @@ import {
   computed,
   html,
   onCleanup,
+  onMount,
   ref,
   signal,
   type ReadonlySignal,
@@ -133,9 +141,28 @@ export const NavigationMenu = component<NavigationMenuProps, typeof navigationMe
       ),
     );
 
-    onCleanup(() => clearTimeout(closeTimer));
+    const root = ref<HTMLDivElement>();
+
+    // Non-modal outside-dismiss: a pointerdown anywhere outside the menu closes
+    // the open panel. This is the touch dismiss path (touch has no pointer-leave
+    // grace to fall back on) and matches Radix's onPointerDownOutside; mouse
+    // users get click-away close for free. Registered on mount so `document`
+    // exists, torn down on disconnect.
+    const onDocumentPointerDown = (event: PointerEvent): void => {
+      if (value.value === '') return;
+      const el = root.current;
+      if (el && event.target instanceof Node && !el.contains(event.target)) {
+        state.close();
+      }
+    };
+    onMount(() => document.addEventListener('pointerdown', onDocumentPointerDown));
+    onCleanup(() => {
+      clearTimeout(closeTimer);
+      document.removeEventListener('pointerdown', onDocumentPointerDown);
+    });
 
     return html`<div
+      ref="${root}"
       data-slot="navigation-menu"
       data-viewport="false"
       class="${classes}"
@@ -256,6 +283,39 @@ export const NavigationMenuTrigger = component<NavigationMenuTriggerProps, typeo
     const className = props.className;
     const classes = computed(() => cn(navigationMenuTriggerStyle(), className.value));
 
+    // Hover-open is a MOUSE-only affordance (Radix `whenMouse` parity). Touch
+    // and pen fire a synthetic `pointerenter` too; if that opened the panel the
+    // trailing `click` of the same tap would toggle it straight back closed —
+    // the tap/click 0->0 defect (UI-64). Gating pointer hover to
+    // `pointerType === 'mouse'` makes touch rely solely on the click below.
+    const whenMouse = (run: () => void) => (event: PointerEvent): void => {
+      if (event.pointerType === 'mouse') run();
+    };
+
+    // True when THIS mouse-hover just opened the panel. A trailing click in the
+    // same gesture (a mouse click always emits pointerenter->click) then keeps
+    // it open — consuming the flag — instead of toggling it shut, so a single
+    // mouse click ends OPEN like a tap does. The next, independent click
+    // toggles normally.
+    let openedByHover = false;
+
+    const onPointerEnter = whenMouse(() => {
+      openedByHover = !isOpen.value;
+      state.open(own.value);
+    });
+    const onPointerLeave = whenMouse(() => {
+      openedByHover = false;
+      state.scheduleClose();
+    });
+    const onClick = (): void => {
+      if (openedByHover) {
+        openedByHover = false;
+        state.open(own.value); // already open from this hover — don't toggle shut
+        return;
+      }
+      state.toggle(own.value);
+    };
+
     return html`<button
       type="button"
       data-slot="navigation-menu-trigger"
@@ -264,9 +324,9 @@ export const NavigationMenuTrigger = component<NavigationMenuTriggerProps, typeo
       aria-expanded="${computed(() => (isOpen.value ? 'true' : 'false'))}"
       data-state="${computed(() => (isOpen.value ? 'open' : 'closed'))}"
       class="${classes}"
-      @pointerenter=${() => state.open(own.value)}
-      @pointerleave=${() => state.scheduleClose()}
-      @click=${() => state.toggle(own.value)}
+      @pointerenter=${onPointerEnter}
+      @pointerleave=${onPointerLeave}
+      @click=${onClick}
     >${children()}<svg
         class="relative top-[1px] ml-1 size-3 transition duration-300 group-data-[state=open]:rotate-180"
         xmlns="http://www.w3.org/2000/svg"
