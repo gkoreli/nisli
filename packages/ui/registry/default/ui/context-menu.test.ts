@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { flush, flushEffects, html, type TemplateResult } from '@nisli/core';
+import { flush, flushEffects, html, signal, type TemplateResult } from '@nisli/core';
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -171,6 +171,28 @@ describe('ContextMenu — checkbox + labels/separator', () => {
     flush2();
     expect(box.getAttribute('aria-checked')).toBe('true');
   });
+
+  it('controlled checkbox: a pinned `checked` signal is parent-authoritative — a click cannot dislodge it', async () => {
+    const checked = signal<boolean | undefined>(true);
+    const c = mountMenu(
+      html`${ContextMenuCheckboxItem({ checked, value: 'grid', children: 'Grid' })}`,
+    );
+    await rightClick(c);
+    const box = q(document, 'context-menu-checkbox-item');
+    // The pinned signal drives aria-checked (controlled).
+    expect(box.getAttribute('aria-checked')).toBe('true');
+
+    // A click toggles the internal signal, but the pin discriminator keeps the
+    // rendered state parent-authoritative — the click cannot flip it.
+    box.click();
+    flush2();
+    expect(box.getAttribute('aria-checked')).toBe('true');
+
+    // Only the parent updating the signal changes it.
+    checked.value = false;
+    flush2();
+    expect(box.getAttribute('aria-checked')).toBe('false');
+  });
 });
 
 describe('ContextMenu — submenu', () => {
@@ -249,6 +271,88 @@ describe('ContextMenu — portal', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(document.querySelector('[data-slot="context-menu-content"]')).toBeNull();
+  });
+});
+
+describe('ContextMenu — open is attribute-as-truth (UI-30)', () => {
+  it('a post-mount setAttribute("open") toggles the menu, and openAt reflects back', async () => {
+    const c = mountMenu();
+    const host = c.querySelector('ui-context-menu')!;
+    expect(isOpen(c)).toBe(false);
+    expect(host.hasAttribute('open')).toBe(false);
+
+    host.setAttribute('open', '');
+    flush2();
+    expect(isOpen(c)).toBe(true); // opened via the attribute
+
+    host.removeAttribute('open');
+    flush2();
+    expect(isOpen(c)).toBe(false);
+
+    // A right-click (openAt → setOpen) reflects the resolved state to [open].
+    await rightClick(c);
+    expect(host.hasAttribute('open')).toBe(true);
+  });
+
+  it('mounts open from literal `open` markup, then a real select closes it', async () => {
+    // The `open` attribute is present at PARSE, so the SEED-AT-CONNECT path (not
+    // attributeChangedCallback) must render the content OPEN at connect.
+    document.body.innerHTML =
+      '<ui-context-menu open>' +
+      '<ui-context-menu-trigger>area</ui-context-menu-trigger>' +
+      '<ui-context-menu-content portal="false">' +
+      '<ui-context-menu-item value="edit">Edit</ui-context-menu-item>' +
+      '</ui-context-menu-content>' +
+      '</ui-context-menu>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const host = document.querySelector('ui-context-menu')!;
+    const content = q(document, 'context-menu-content');
+    expect(content.hasAttribute('hidden')).toBe(false); // open at connect
+    expect(host.hasAttribute('open')).toBe(true);
+
+    // Close via the COMPONENT path (activating an item selects + closes).
+    q(document, 'context-menu-item').click();
+    flush2();
+    expect(content.hasAttribute('hidden')).toBe(true);
+    expect(host.hasAttribute('open')).toBe(false); // uncontrolled → attr cleared
+  });
+
+  it('controlled (factory open signal): setOpen is guarded, the parent stays in control', () => {
+    const open = signal<boolean | undefined>(true);
+    const c = mount(
+      html`${ContextMenu({
+        open,
+        children: html`${ContextMenuTrigger({ children: 'area' })}
+        ${ContextMenuContent({
+          portal: false,
+          children: ContextMenuItem({ value: 'edit', children: 'Edit' }),
+        })}`,
+      })}`,
+    );
+    const host = c.querySelector('ui-context-menu') as HTMLElement;
+    const onChange = vi.fn();
+    host.addEventListener('ui-open-change', onChange as EventListener);
+    flush2();
+    // The reflect effect mirrors the pinned signal onto the attribute.
+    expect(host.hasAttribute('open')).toBe(true);
+    expect(q(document, 'context-menu-content').hasAttribute('hidden')).toBe(false);
+
+    // A real select calls state.setOpen(false). Because `open` is a pinned factory
+    // prop (controlled), the guard skips the attribute write — the parent stays in
+    // control (attr NOT cleared, content still open) and only the event fires.
+    q(document, 'context-menu-item').click();
+    flush2();
+    expect(host.hasAttribute('open')).toBe(true); // guard held
+    expect(q(document, 'context-menu-content').hasAttribute('hidden')).toBe(false);
+    expect((onChange.mock.calls.at(-1)![0] as CustomEvent).detail).toEqual({ open: false });
+
+    // The parent responds by updating the signal → reflect effect closes it.
+    open.value = false;
+    flush2();
+    expect(host.hasAttribute('open')).toBe(false);
+    expect(q(document, 'context-menu-content').hasAttribute('hidden')).toBe(true);
   });
 });
 
