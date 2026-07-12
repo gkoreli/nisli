@@ -154,6 +154,14 @@ composition remains supported.
 
 ### Transparent-host child-selector census
 
+**ContextMenu touch parity (UI-63):** the trigger retains desktop
+`contextmenu` behavior and adds Radix's 700ms touch/pen long press, anchored at
+the initial touch point. A 10px movement threshold permits finger jitter;
+release, cancellation, scroll, and disconnect clear pending timers. Synthetic
+click/native-menu follow-ups are suppressed. Unit and actual-component CDP
+touch proofs cover positive duration plus short-tap/move/cancel negatives and
+desktop right-click at 390px.
+
 Mechanical audit of registry class lists for direct-child arbitrary variants,
 `*:` variants, positional first/last rules, and `divide-x/y` utilities. The
 classification is about the actual rendered target, not token similarity.

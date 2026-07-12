@@ -171,6 +171,12 @@ keeps its outer vertical stack, but groups the optional type icon and title in
 a min-width-safe flex row. Default toasts omit the icon without indentation;
 description and action-space remain independent rows for wrapping and controls.
 
+**ContextMenu touch trigger (UI-63):** ContextMenu follows Radix's 700ms
+touch/pen long-press contract in addition to desktop `contextmenu`. The initial
+touch point is the virtual anchor; movement beyond 10px, release, cancellation,
+scroll, or teardown cancels the timer, and synthetic follow-up activation is
+suppressed after a successful long press.
+
 ### 3. Styling and theming: Tailwind v4 + shadcn token layer
 
 - Consumers are expected to use **Tailwind CSS v4** (CSS-first config). The

@@ -8,7 +8,8 @@
  * -sub-content) are defined in the Submenu section near the end of this file.
  *
  * Unlike a dropdown menu there is no trigger button: ui-context-menu-trigger
- * is an area that opens the menu on a right-click (`contextmenu` event),
+ * is an area that opens on right-click or a Radix-parity 700ms touch/pen long
+ * press (cancelled by movement, release, pointer cancellation, or scroll),
  * positioned at the pointer via a virtual anchor rect (a getBoundingClientRect
  * shim over the cursor coords — lib/floating is not modified). Otherwise the
  * content is the same role=menu surface positioned with the floating lib,
@@ -88,6 +89,10 @@ const stateAttr = (open: boolean) => (open ? 'open' : 'closed');
 
 const ITEM_SELECTOR =
   '[role="menuitem"],[role="menuitemcheckbox"],[role="menuitemradio"]';
+
+/** Radix ContextMenu touch/pen long-press contract. */
+export const CONTEXT_MENU_LONG_PRESS_MS = 700;
+const CONTEXT_MENU_MOVE_THRESHOLD_PX = 10;
 
 // ── ui-context-menu (root) ──────────────────────────────────────────
 
@@ -188,10 +193,58 @@ export const ContextMenuTrigger = component<ContextMenuTriggerProps, typeof cont
 
     const classes = computed(() => cn(props.className.value));
 
+    let longPressTimer: ReturnType<typeof setTimeout> | undefined;
+    let startX = 0;
+    let startY = 0;
+    let suppressSyntheticUntil = 0;
+    const clearLongPress = (): void => {
+      if (longPressTimer) clearTimeout(longPressTimer);
+      longPressTimer = undefined;
+    };
+
+    const isTouchLike = (event: PointerEvent): boolean =>
+      event.pointerType === 'touch' || event.pointerType === 'pen';
+
+    const onPointerDown = (event: PointerEvent): void => {
+      if (!isTouchLike(event) || event.button !== 0) return;
+      clearLongPress();
+      startX = event.clientX;
+      startY = event.clientY;
+      longPressTimer = setTimeout(() => {
+        longPressTimer = undefined;
+        suppressSyntheticUntil = Date.now() + 1000;
+        state.openAt(startX, startY);
+      }, CONTEXT_MENU_LONG_PRESS_MS);
+    };
+
+    const onPointerMove = (event: PointerEvent): void => {
+      if (!longPressTimer || !isTouchLike(event)) return;
+      if (Math.hypot(event.clientX - startX, event.clientY - startY) > CONTEXT_MENU_MOVE_THRESHOLD_PX) {
+        clearLongPress();
+      }
+    };
+
+    const cancelTouch = (event: PointerEvent): void => {
+      if (isTouchLike(event)) clearLongPress();
+    };
+
+    onMount(() => {
+      window.addEventListener('scroll', clearLongPress, true);
+      return () => window.removeEventListener('scroll', clearLongPress, true);
+    });
+    onCleanup(clearLongPress);
+
     // Right-click anywhere in the trigger area opens the menu at the pointer.
     const onContextMenu = (event: MouseEvent): void => {
       event.preventDefault();
+      if (Date.now() < suppressSyntheticUntil) return;
       state.openAt(event.clientX, event.clientY);
+    };
+
+    const onClick = (event: MouseEvent): void => {
+      if (Date.now() >= suppressSyntheticUntil) return;
+      event.preventDefault();
+      event.stopPropagation();
     };
 
     return html`<div
@@ -199,7 +252,12 @@ export const ContextMenuTrigger = component<ContextMenuTriggerProps, typeof cont
       aria-controls="${`${state.baseId}-content`}"
       data-state="${computed(() => stateAttr(state.open.value))}"
       class="${classes}"
+      @pointerdown=${onPointerDown}
+      @pointermove=${onPointerMove}
+      @pointerup=${cancelTouch}
+      @pointercancel=${cancelTouch}
       @contextmenu=${onContextMenu}
+      @click=${onClick}
     >${children()}</div>`;
   },
   { attrs: contextMenuTriggerAttrs },

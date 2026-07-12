@@ -16,6 +16,7 @@ import {
   ContextMenuSub,
   ContextMenuSubTrigger,
   ContextMenuSubContent,
+  CONTEXT_MENU_LONG_PRESS_MS,
 } from './context-menu.js';
 
 beforeEach(async () => {
@@ -76,6 +77,14 @@ function press(key: string): void {
   flush2();
 }
 
+function pointer(target: Element, type: string, x: number, y: number, pointerType = 'touch'): Event {
+  const event = new MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'pointerType', { value: pointerType });
+  target.dispatchEvent(event);
+  flush2();
+  return event;
+}
+
 describe('ContextMenu — open on right-click', () => {
   it('is closed until a contextmenu event, then opens focused on the first item', async () => {
     const c = mountMenu();
@@ -94,6 +103,86 @@ describe('ContextMenu — open on right-click', () => {
     const ev = new MouseEvent('contextmenu', { clientX: 10, clientY: 10, bubbles: true, cancelable: true });
     q(c, 'context-menu-trigger').dispatchEvent(ev);
     expect(ev.defaultPrevented).toBe(true);
+  });
+});
+
+describe('ContextMenu — touch long press (UI-63)', () => {
+  it('opens at the touch point only after the Radix 700ms duration', async () => {
+    const c = mountMenu();
+    const trigger = q(c, 'context-menu-trigger');
+    pointer(trigger, 'pointerdown', 72, 96);
+    vi.advanceTimersByTime(CONTEXT_MENU_LONG_PRESS_MS - 1);
+    flush2();
+    expect(isOpen(c)).toBe(false);
+    vi.advanceTimersByTime(1);
+    flush2();
+    await Promise.resolve();
+    flush2();
+    expect(isOpen(c)).toBe(true);
+    expect(contentFor(c).style.position).toBe('fixed');
+  });
+
+  it.each(['pointerup', 'pointercancel'])('%s cancels a pending long press', (type) => {
+    const c = mountMenu();
+    const trigger = q(c, 'context-menu-trigger');
+    pointer(trigger, 'pointerdown', 20, 20);
+    pointer(trigger, type, 20, 20);
+    vi.advanceTimersByTime(CONTEXT_MENU_LONG_PRESS_MS + 1);
+    flush2();
+    expect(isOpen(c)).toBe(false);
+  });
+
+  it('movement beyond 10px and scroll cancel, while small jitter does not', () => {
+    const moved = mountMenu();
+    let trigger = q(moved, 'context-menu-trigger');
+    pointer(trigger, 'pointerdown', 20, 20);
+    pointer(trigger, 'pointermove', 31, 20);
+    vi.advanceTimersByTime(CONTEXT_MENU_LONG_PRESS_MS + 1);
+    expect(isOpen(moved)).toBe(false);
+
+    const scrolled = mountMenu();
+    trigger = q(scrolled, 'context-menu-trigger');
+    pointer(trigger, 'pointerdown', 20, 20);
+    window.dispatchEvent(new Event('scroll'));
+    vi.advanceTimersByTime(CONTEXT_MENU_LONG_PRESS_MS + 1);
+    expect(isOpen(scrolled)).toBe(false);
+
+    const jitter = mountMenu();
+    trigger = q(jitter, 'context-menu-trigger');
+    pointer(trigger, 'pointerdown', 20, 20);
+    pointer(trigger, 'pointermove', 25, 25);
+    vi.advanceTimersByTime(CONTEXT_MENU_LONG_PRESS_MS);
+    flush2();
+    expect(isOpen(jitter)).toBe(true);
+  });
+
+  it('suppresses the synthetic click/contextmenu after long press', () => {
+    const c = mountMenu();
+    const trigger = q(c, 'context-menu-trigger');
+    pointer(trigger, 'pointerdown', 20, 20);
+    vi.advanceTimersByTime(CONTEXT_MENU_LONG_PRESS_MS);
+    flush2();
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+    trigger.dispatchEvent(click);
+    const menu = new MouseEvent('contextmenu', { clientX: 20, clientY: 20, bubbles: true, cancelable: true });
+    trigger.dispatchEvent(menu);
+    expect(click.defaultPrevented).toBe(true);
+    expect(menu.defaultPrevented).toBe(true);
+    expect(isOpen(c)).toBe(true);
+  });
+
+  it('disconnect before 700ms clears the pending timer without opening', async () => {
+    const c = mountMenu();
+    const root = c.querySelector('ui-context-menu') as HTMLElement;
+    const onOpen = vi.fn();
+    root.addEventListener('ui-open-change', onOpen);
+    pointer(q(c, 'context-menu-trigger'), 'pointerdown', 20, 20);
+    root.remove();
+    await Promise.resolve();
+    vi.advanceTimersByTime(CONTEXT_MENU_LONG_PRESS_MS + 1);
+    flush2();
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(root.hasAttribute('open')).toBe(false);
   });
 });
 
