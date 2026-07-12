@@ -60,15 +60,6 @@ import {
   PaginationNext,
 } from './nisli-ui/ui/pagination.js';
 import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogFooter,
-  DialogTitle,
-  DialogDescription,
-} from './nisli-ui/ui/dialog.js';
-import {
   Command,
   CommandInput,
   CommandList,
@@ -85,6 +76,9 @@ import drawerExample from './hydrate-examples/drawer.js';
 import contextMenuExample from './hydrate-examples/context-menu.js';
 import menubarExample from './hydrate-examples/menubar.js';
 import hoverCardExample from './hydrate-examples/hover-card.js';
+import dialogExample from './hydrate-examples/dialog.js';
+import alertDialogExample from './hydrate-examples/alert-dialog.js';
+import sheetExample from './hydrate-examples/sheet.js';
 import {
   SidebarProvider,
   Sidebar,
@@ -122,6 +116,33 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from './nisli-ui/ui/resizable.js';
+// RC3 (WWW-11): curated examples so these compositional components paint real
+// content instead of an empty auto-default <ui-*> shell.
+import { AspectRatio } from './nisli-ui/ui/aspect-ratio.js';
+import { BubbleGroup, Bubble } from './nisli-ui/ui/bubble.js';
+import { ButtonGroup, ButtonGroupSeparator } from './nisli-ui/ui/button-group.js';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './nisli-ui/ui/collapsible.js';
+import { DirectionProvider } from './nisli-ui/ui/direction.js';
+import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from './nisli-ui/ui/input-otp.js';
+import { ItemGroup, Item, ItemMedia, ItemContent, ItemTitle, ItemDescription } from './nisli-ui/ui/item.js';
+import { Marker, MarkerContent } from './nisli-ui/ui/marker.js';
+import { MessageGroup, Message, MessageContent } from './nisli-ui/ui/message.js';
+import {
+  MessageScrollerProvider,
+  MessageScroller,
+  MessageScrollerViewport,
+  MessageScrollerContent,
+  MessageScrollerItem,
+} from './nisli-ui/ui/message-scroller.js';
+import {
+  NavigationMenu,
+  NavigationMenuList,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  navigationMenuTriggerStyle,
+} from './nisli-ui/ui/navigation-menu.js';
+import { ScrollArea } from './nisli-ui/ui/scroll-area.js';
+import { Toaster } from './nisli-ui/ui/toast.js';
 
 export const examples: Record<string, () => TemplateResult> = {
   button: () =>
@@ -269,25 +290,12 @@ export const examples: Record<string, () => TemplateResult> = {
         ${PaginationItem({ children: PaginationNext({ href: '#' }) })}`,
       }),
     })}`,
-  dialog: () =>
-    html`${Dialog({
-      children: html`${DialogTrigger({
-        className: buttonVariants({ variant: 'outline' }),
-        children: 'Open Dialog',
-      })}
-      ${DialogContent({
-        children: html`${DialogHeader({
-          children: html`${DialogTitle({ children: 'Edit profile' })}
-          ${DialogDescription({
-            children: "Make changes to your profile here. Click save when you're done.",
-          })}`,
-        })}
-        ${DialogFooter({
-          children: html`${Button({ variant: 'outline', children: 'Cancel' })}
-          ${Button({ children: 'Save changes' })}`,
-        })}`,
-      })}`,
-    })}`,
+  // Portaled overlays live in src/hydrate-examples/ (per-file, code-split, and
+  // in the hydrate-set so their content opens live — ADR 0025 item-6 means the
+  // overlay escapes the SSG snapshot, so hydration is the honest preview).
+  dialog: dialogExample,
+  'alert-dialog': alertDialogExample,
+  sheet: sheetExample,
   'dropdown-menu': dropdownMenuExample,
   popover: popoverExample,
   combobox: comboboxExample,
@@ -432,6 +440,147 @@ export const examples: Record<string, () => TemplateResult> = {
           children: html`<div class="flex h-full items-center justify-center p-6 text-sm">Content</div>`,
         })}`,
       })}
+    </div>`,
+  // ── RC3 curated examples (WWW-11): compositional components that render an
+  // empty auto-default shell otherwise. Static, SSG-safe resting state. ──
+  'aspect-ratio': () =>
+    html`<div class="w-full max-w-sm">
+      ${AspectRatio({
+        ratio: 16 / 9,
+        children: html`<div
+          class="flex h-full w-full items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground"
+        >
+          16 / 9
+        </div>`,
+      })}
+    </div>`,
+  bubble: () =>
+    html`${BubbleGroup({
+      children: html`${Bubble({ children: 'Hey — did the copy-in CLI work for you?' })}
+      ${Bubble({ variant: 'tinted', align: 'end', children: 'Yeah, added button + dialog in one command.' })}
+      ${Bubble({ children: 'Nice. You own the source now.' })}`,
+    })}`,
+  'button-group': () =>
+    html`${ButtonGroup({
+      children: html`${Button({ variant: 'outline', children: 'Cut' })}
+      ${Button({ variant: 'outline', children: 'Copy' })}
+      ${ButtonGroupSeparator({})}
+      ${Button({ variant: 'outline', children: 'Paste' })}`,
+    })}`,
+  collapsible: () =>
+    html`<div class="w-full max-w-sm">
+      ${Collapsible({
+        defaultOpen: true,
+        children: html`<div class="flex items-center justify-between gap-4">
+          <span class="text-sm font-semibold">@nisli starred 3 repositories</span>
+          ${CollapsibleTrigger({ className: buttonVariants({ variant: 'ghost', size: 'icon-sm' }), children: '⌄' })}
+        </div>
+        ${CollapsibleContent({
+          children: html`<div class="mt-2 grid gap-2">
+            <div class="rounded-md border px-4 py-2 text-sm">@nisli/core</div>
+            <div class="rounded-md border px-4 py-2 text-sm">@nisli/ui</div>
+          </div>`,
+        })}`,
+      })}
+    </div>`,
+  direction: () =>
+    html`${DirectionProvider({
+      dir: 'rtl',
+      children: html`<div class="flex w-full max-w-sm flex-col gap-2 rounded-lg border p-4 text-sm">
+        <p>مرحبا بك في nisli</p>
+        <div class="flex gap-2">${Button({ size: 'sm', children: 'إرسال' })}${Button({ size: 'sm', variant: 'outline', children: 'إلغاء' })}</div>
+      </div>`,
+    })}`,
+  'input-otp': () =>
+    html`${InputOTP({
+      maxLength: 6,
+      children: html`${InputOTPGroup({
+        children: html`${InputOTPSlot({ index: 0 })}${InputOTPSlot({ index: 1 })}${InputOTPSlot({ index: 2 })}`,
+      })}
+      ${InputOTPSeparator({})}
+      ${InputOTPGroup({
+        children: html`${InputOTPSlot({ index: 3 })}${InputOTPSlot({ index: 4 })}${InputOTPSlot({ index: 5 })}`,
+      })}`,
+    })}`,
+  item: () =>
+    html`<div class="w-full max-w-sm">
+      ${ItemGroup({
+        children: html`${Item({
+          variant: 'outline',
+          children: html`${ItemMedia({ variant: 'icon', children: '◆' })}
+          ${ItemContent({
+            children: html`${ItemTitle({ children: 'Basic plan' })}
+            ${ItemDescription({ children: 'Everything you need to get started.' })}`,
+          })}
+          ${Button({ size: 'sm', variant: 'outline', children: 'Upgrade' })}`,
+        })}`,
+      })}
+    </div>`,
+  marker: () =>
+    html`<div class="flex flex-col gap-2">
+      ${Marker({ children: MarkerContent({ children: 'Cloned the repository' }) })}
+      ${Marker({ children: MarkerContent({ children: 'Installed dependencies' }) })}
+      ${Marker({ variant: 'border', children: MarkerContent({ children: 'Ran the build' }) })}
+    </div>`,
+  message: () =>
+    html`<div class="w-full max-w-sm">
+      ${MessageGroup({
+        children: html`${Message({
+          children: MessageContent({ children: 'Can you copy in the dialog component?' }),
+        })}
+        ${Message({
+          align: 'end',
+          children: MessageContent({ children: 'Done — npx @nisli/ui add dialog.' }),
+        })}`,
+      })}
+    </div>`,
+  'message-scroller': () =>
+    html`<div class="h-56 w-full max-w-sm">
+      ${MessageScrollerProvider({
+        children: MessageScroller({
+          className: 'h-full rounded-lg border',
+          children: MessageScrollerViewport({
+            children: MessageScrollerContent({
+              className: 'p-4',
+              children: html`${[1, 2, 3, 4, 5, 6].map((n) =>
+                MessageScrollerItem({
+                  children: html`<div class="mb-2 rounded-md border px-3 py-2 text-sm">Message ${String(n)}</div>`,
+                }),
+              )}`,
+            }),
+          }),
+        }),
+      })}
+    </div>`,
+  'navigation-menu': () =>
+    html`${NavigationMenu({
+      children: NavigationMenuList({
+        children: html`${NavigationMenuItem({
+          children: NavigationMenuLink({ className: navigationMenuTriggerStyle(), href: '/docs', children: 'Docs' }),
+        })}
+        ${NavigationMenuItem({
+          children: NavigationMenuLink({ className: navigationMenuTriggerStyle(), href: '/ui', children: 'Components' }),
+        })}
+        ${NavigationMenuItem({
+          children: NavigationMenuLink({ className: navigationMenuTriggerStyle(), href: '/themes', children: 'Themes' }),
+        })}`,
+      }),
+    })}`,
+  'scroll-area': () =>
+    html`${ScrollArea({
+      className: 'h-56 w-56 rounded-md border',
+      children: html`<div class="p-4">
+        <h4 class="mb-3 text-sm font-medium leading-none">Tags</h4>
+        ${[...Array(24).keys()].map(
+          (i) => html`<div class="border-b py-2 text-sm">v1.2.0-beta.${String(i + 1)}</div>`,
+        )}
+      </div>`,
+    })}`,
+  toast: () =>
+    html`<div class="flex flex-col items-center gap-3">
+      ${Button({ variant: 'outline', children: 'Show toast' })}
+      ${Toaster({})}
+      <p class="text-xs text-muted-foreground">Toasts render into the ui-toaster region.</p>
     </div>`,
 };
 

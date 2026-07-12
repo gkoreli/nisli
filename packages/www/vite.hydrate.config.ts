@@ -9,6 +9,10 @@ import { resolve } from 'node:path';
  */
 export default defineConfig({
   configFile: false,
+  // Assets live under /ui-preview/; without this base the entry emits bare
+  // `chunks/*.js` import specifiers that resolve to /chunks/* (404) instead of
+  // /ui-preview/chunks/*, so every code-split example fails to hydrate (WS1).
+  base: '/ui-preview/',
   build: {
     outDir: 'dist/ui-preview',
     emptyOutDir: true,

@@ -10,6 +10,7 @@
     "render": "vitest run src/render.test.ts",
     "build": "pnpm run sync && pnpm run render && tailwindcss -i src/styles/input.css -o dist/assets/site.css --minify && pnpm run build:hydrate",
     "build:hydrate": "vite build --config vite.hydrate.config.ts",
+    "sweep": "node scripts/preview-sweep.mjs",
     "release": "pnpm run build && npx wrangler deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -22,6 +23,7 @@
     "@nisli/ui": "workspace:*",
     "@tailwindcss/cli": "^4.0.0",
     "@tailwindcss/vite": "^4.0.0",
+    "playwright": "1.61.1",
     "vite": "^7.1.5"
   }
 }

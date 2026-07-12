@@ -112,3 +112,69 @@ for navigation:**
   the WS1 fix set lands); eng2 joins for the layout components and owns any
   registry `sidebar` gaps the dogfooding surfaces. rev gates; deploy to
   nisli.dev on pass so Goga sees it.
+
+## WS1 — preview hydration fixes & the post-hydration guard (2026-07-12)
+
+Goga's `nisli.dev/ui` spot-check showed component demos rendering as bare
+static triggers. A real-browser sweep of all 58 `/ui/<name>` pages (local
+build + live) root-caused **four** distinct classes, not one:
+
+1. **Stale deploy** — live predated WWW-10, so no `hydrate.js` on any page;
+   every interactive preview was static. Fix: redeploy from `main`.
+2. **Class-B portal gap** — `dialog`, `alert-dialog`, `sheet` portal their
+   overlay (ADR 0025 item-6: it escapes the SSG snapshot) but had **no
+   hydrate-set entry**, so nothing could open them on the live page. Portaled
+   components structurally *require* the runtime; hydration is the honest
+   preview (they legitimately show only the trigger at rest, and open on
+   click). Fix: added `src/hydrate-examples/{dialog,alert-dialog,sheet}.ts`
+   (auto-joins the glob-derived hydrate-set + code-splits one chunk each).
+3. **Curation gap** — 13 compositional components (aspect-ratio, bubble,
+   button-group, collapsible, direction, input-otp, item, marker, message,
+   message-scroller, navigation-menu, scroll-area, toast) had no curated
+   example, so the auto-default rendered an empty `<ui-*>` shell. Fix:
+   curated examples in `src/examples.ts` so every preview paints real content.
+4. **Missing Vite base (the subtle one)** — `vite.hydrate.config.ts` set no
+   `base`, so `hydrate.js` emitted bare `chunks/*.js` import specifiers that
+   resolved to `/chunks/*` (404) instead of `/ui-preview/chunks/*`. Every
+   code-split example's `import()` rejected — interactive previews could not
+   hydrate **even after a redeploy**. Fix: `base: '/ui-preview/'`. This is why
+   the sweep runs *before* deploy: a redeploy alone would have shipped broken.
+
+### Decision — the permanent post-hydration guard
+
+`scripts/preview-sweep.mjs` (`pnpm --filter @nisli/www sweep`) is the guard.
+It serves the local `dist/` (or `--base=https://nisli.dev` for live), drives
+headless chromium over every built `/ui/<name>`, and per page asserts:
+
+- the `[data-preview]` frame contains an **upgraded, visibly-painted** `<ui-*>`
+  element (measuring a laid-out descendant, since hosts are
+  `display:contents`); lib primitives (no preview) are skipped, not failed;
+- for hydrate-set items, the trigger **opens** an overlay (right-click for
+  context-menu, hover for tooltip/hover-card, click otherwise) **and** the
+  frame gains the `data-hydrated` success marker (set only after mount
+  succeeds — a silent chunk failure can never read green);
+- **zero failed `/ui-preview/*` requests** and no unhandled page errors, so a
+  chunk 404 / dynamic-import rejection fails the page explicitly.
+
+It supersedes the static-only WWW-6 frame check as the end-to-end regression
+(the WWW-6 happy-dom guard stays as the fast static gate). `playwright` is a
+www devDependency; CI runs the sweep against the built `dist/` after `build`.
+
+### UI-47 — combobox context error (closed, no code change)
+
+`combobox` intermittently logs `Component <ui-combobox-item> setup error:
+Context "Combobox"` during hydration; the preview still opens. Browser
+investigation (build c04e8ac): could **not** reproduce in 12+ isolated loads
+incl. 6× under 6× CPU throttle — zero errors; it surfaced only in the full
+66-page sweep. Its `ui-combobox-item`s portal out of `ui-combobox` (portal
+default-ON post-UI-40) yet inject context fine on every clean load. eng1 ruled
+out a core `createContext` flaw, module duplication, and static-baseline
+upgrade; the throw is a **correct guardrail** (an item that momentarily can't
+resolve its provider), so it stays as-is rather than being weakened to
+optional. Because the built site serves full page loads, cross-*page*
+interleaving is impossible — the artifact is more likely a rare **within-page**
+race that the sweep's sequential pacing merely makes probable; a future
+investigator should not over-anchor on the harness as the cause. Disposition
+(arch): no core change, guardrail kept, re-evaluate on the fresh live deploy.
+The sweep now records full stack + URL + timing on any console error, so the
+next recurrence is diagnostic on first hit.
