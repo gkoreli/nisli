@@ -1,13 +1,20 @@
 /**
- * client/hydrate.ts — WWW-10 preview hydration bootstrap (the site's only client
- * bundle). Strict progressive enhancement: the SSG static preview frame is the
- * baseline; this upgrades it to a LIVE nisli component when it scrolls into view.
- * Scope is the [data-preview] frame on /ui pages and nothing else.
+ * client/hydrate.ts — the site's single client bundle. Strict progressive
+ * enhancement. It does two things on the DocsLayout pages that inject it:
  *
- * import.meta.glob gives Vite an auto-generated, per-file lazy map — so each
- * component's example is its own code-split chunk, loaded only when needed. The
- * failure-safe mount itself lives in hydrate-frame.ts (unit-tested).
+ *  1. WWW-13 chrome: registers the DocsLayout sidebar family so its custom
+ *     elements (ui-sidebar-provider/…/ui-sidebar-trigger + the mobile Sheet)
+ *     UPGRADE the SSG-rendered markup in place — that is what makes the mobile
+ *     off-canvas drawer open (the portaled Sheet is client-only, ADR 0025
+ *     item-6). Desktop needs no JS (real anchors + a fixed frame); this is the
+ *     mobile drawer + the theme toggle's peer.
+ *  2. WWW-10 previews: upgrades each [data-preview] frame to a LIVE component
+ *     when it scrolls into view. import.meta.glob gives Vite a per-file lazy
+ *     map, so each example is its own code-split chunk. The failure-safe mount
+ *     lives in hydrate-frame.ts (unit-tested). A page with no interactive
+ *     preview (e.g. /docs) simply finds no frames — a safe no-op.
  */
+import '../nisli-ui/ui/sidebar.js'; // WWW-13: upgrade the sidebar chrome (mobile drawer)
 import { hydrateFrame, type ExampleLoader } from './hydrate-frame.js';
 
 const examples = import.meta.glob('../hydrate-examples/*.ts');

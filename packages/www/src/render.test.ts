@@ -139,29 +139,35 @@ describe('nisli website', () => {
     expect(page).toContain('bg-chart-1'); // chart palette
   });
 
-  // WWW-10: the hydration runtime is injected on EXACTLY the /ui pages whose
-  // component has an interactive example — set-driven from hydrateSet so it locks
-  // under- AND over-injection as the set grows (a batch-N page silently losing
-  // or gaining the runtime fails here).
-  it('injects the hydration runtime on exactly the hydrating /ui pages', async () => {
+  // WWW-13: the client runtime (hydrate.js) is injected on EXACTLY the DocsLayout
+  // pages — /ui, /ui/<name>, /docs, /docs/<slug> — because they carry the sidebar
+  // chrome whose mobile drawer needs client JS (and the previews hydrate there
+  // too). Home, /themes, and the 404 render in SiteShell alone and stay
+  // runtime-free: the NEGATIVE assertion keeps the static-first tenet honest and
+  // locks the predicate so the next hydration consumer widens it deliberately.
+  it('injects the client runtime on exactly the DocsLayout pages (chrome + previews)', async () => {
     const built = await buildSite();
     const SCRIPT = '/ui-preview/hydrate.js';
     const has = (path: string) => readFileSync(built.find((p) => p.path === path)!.filePath, 'utf8').includes(SCRIPT);
+    const isDocsLayout = (path: string) =>
+      path === '/ui' || path.startsWith('/ui/') || path === '/docs' || path.startsWith('/docs/');
 
-    // every hydrate example maps to a built page (no dangling example)
+    // every hydrate example maps to a built (DocsLayout) page — no dangling example
     for (const name of hydrateSet) {
       expect(built.some((p) => p.path === `/ui/${name}`), `no built /ui/${name} for hydrate example`).toBe(true);
     }
 
-    // exactly the hydrating /ui pages carry the script; every other /ui page does not
-    for (const page of built.filter((p) => p.path.startsWith('/ui/'))) {
-      const name = page.path.slice('/ui/'.length);
-      expect(has(page.path), `${page.path} injection`).toBe(hydrateSet.has(name));
+    // every DocsLayout page carries the runtime; nothing else does
+    for (const page of built) {
+      expect(has(page.path), `${page.path} runtime injection`).toBe(isDocsLayout(page.path));
     }
 
-    // non-/ui pages never do
-    for (const page of built.filter((p) => !p.path.startsWith('/ui/'))) {
-      expect(has(page.path), `${page.path} must not inject`).toBe(false);
+    // and the docs-shaped pages that must have it, explicitly (chrome-only + preview)
+    for (const path of ['/ui', '/docs', '/docs/signals', '/ui/button']) {
+      expect(has(path), `${path} must inject the runtime`).toBe(true);
+    }
+    for (const path of ['/', '/themes', '/404.html']) {
+      expect(has(path), `${path} must stay runtime-free`).toBe(false);
     }
   });
 });

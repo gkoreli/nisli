@@ -15,12 +15,19 @@ import { fileURLToPath } from 'node:url';
 import { buildStaticSite } from '@nisli/ssg';
 import { shell, type ShellMeta } from './shell.js';
 import { AppRouter } from './app-router.js';
-import { hydrateSet } from './hydrate-set.js';
 
-/** A /ui/<name> page hydrates when its component has an interactive example. */
+/**
+ * Which pages inject the client runtime (hydrate.js). It is the DocsLayout
+ * pages — /ui, /ui/<name>, /docs, /docs/<slug> — because they carry the sidebar
+ * chrome whose mobile drawer needs client JS (WWW-13); home/themes/404 render in
+ * SiteShell alone (no drawer) and stay runtime-free, keeping the static-first
+ * tenet honest. This is a SUPERSET of the interactive-preview pages: WWW-10
+ * scoped injection to hydrateSet /ui pages, but WWW-12 added a second hydration
+ * consumer (the layout chrome), so the predicate is widened to every DocsLayout
+ * route. Preview hydration is a safe no-op on pages with no example (e.g. /docs).
+ */
 function hydratesPath(path: string): boolean {
-  const name = /^\/ui\/(.+)$/.exec(path)?.[1];
-  return name !== undefined && hydrateSet.has(name);
+  return path === '/ui' || path.startsWith('/ui/') || path === '/docs' || path.startsWith('/docs/');
 }
 
 const siteDir = dirname(dirname(fileURLToPath(import.meta.url)));

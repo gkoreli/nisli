@@ -204,3 +204,35 @@ investigator should not over-anchor on the harness as the cause. Disposition
 (arch): no core change, guardrail kept, re-evaluate on the fresh live deploy.
 The sweep now records full stack + URL + timing on any console error, so the
 next recurrence is diagnostic on first hit.
+
+## WWW-13 — page-level chrome hydration for DocsLayout (2026-07-12)
+
+WWW-12 shipped with a live gap eng2 caught on mobile: the DocsLayout sidebar
+drawer did not open. The desktop sidebar is zero-JS (real anchors + a fixed
+frame), but the **mobile** off-canvas drawer is a portaled `Sheet`
+(client-only, ADR 0025 item-6) that needs the sidebar custom elements to
+UPGRADE — and no DocsLayout page shipped the client runtime.
+
+**Why the gap existed** (recorded so the next hydration consumer widens the
+predicate deliberately, not by rediscovery): WWW-10 introduced the client
+runtime scoped to interactive-PREVIEW pages — `build.ts` injected `hydrate.js`
+only where `hydrateSet.has(name)`, and `hydrate.ts` only hydrated `[data-preview]`
+frames. WWW-12 added a SECOND hydration consumer — the layout chrome (the mobile
+drawer) — but the wiring review never widened the injection predicate, so the
+chrome never received a runtime. The static-first parts (nav anchors, theme
+toggle's inline script) masked it on desktop.
+
+**Fix — hydration is page-level for DocsLayout, not per-preview:**
+
+- `client/hydrate.ts` now also `import`s the sidebar family, upgrading the
+  SSG-rendered `ui-sidebar-*` elements in place so `SidebarProvider`'s mobile
+  state + the portaled `Sheet` work. It still lazily hydrates `[data-preview]`
+  frames; a page with no interactive preview (e.g. `/docs`) is a safe no-op.
+- `build.ts` injects the runtime on EVERY DocsLayout route — `/ui`, `/ui/<name>`,
+  `/docs`, `/docs/<slug>` — a superset of the interactive-preview pages. Home,
+  `/themes`, and the 404 render in `SiteShell` alone (no drawer) and stay
+  runtime-free — the NEGATIVE assertion keeps the static-first tenet honest.
+- **Guards**: `render.test` asserts the runtime is injected on exactly the
+  DocsLayout pages (and NOT on home/themes/404); `preview-sweep.mjs` adds a
+  real-browser mobile regression (390px viewport → click `SidebarTrigger` →
+  require a visible open `sheet-content` + the sidebar in `data-mobile` mode).

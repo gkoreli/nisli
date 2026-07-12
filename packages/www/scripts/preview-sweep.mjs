@@ -166,6 +166,37 @@ for (const name of names) {
   results.push({ name, upgrade, open, hydrated, assetFails: assetFails.slice(0, 3), err: errors[0] || '', artifacts });
   await page.close();
 }
+
+// WWW-13: the DocsLayout mobile drawer must OPEN on a narrow viewport. The
+// desktop sidebar works with zero JS (real anchors), but the mobile off-canvas
+// drawer is a portaled Sheet (client-only, ADR 0025 item-6) that only works if
+// the page injects the runtime AND the sidebar chrome registers. Drive it for
+// real: 390px, click the SidebarTrigger, require a VISIBLE open sheet-content
+// plus the sidebar in data-mobile mode.
+{
+  const mpage = await browser.newPage({ viewport: { width: 390, height: 800 } });
+  const mErrors = [];
+  mpage.on('pageerror', (e) => mErrors.push(String(e).split('\n')[0]));
+  let open = 'FAIL';
+  try {
+    await mpage.goto(`${base}/docs`, { waitUntil: 'networkidle', timeout: 20000 });
+    await mpage.waitForTimeout(400);
+    await mpage.locator('[data-slot="sidebar-trigger"]').first().click({ timeout: 3000 });
+    await mpage.waitForTimeout(600);
+    const opened = await mpage.evaluate(() => {
+      const sheet = [...document.querySelectorAll('[data-slot="sheet-content"][data-state="open"]')]
+        .some((e) => e.getBoundingClientRect().width > 1);
+      const mobile = !!document.querySelector('[data-slot="sidebar"][data-mobile="true"]');
+      return { sheet, mobile };
+    });
+    open = opened.sheet && opened.mobile ? 'OK' : `FAIL(sheet=${opened.sheet},mobile=${opened.mobile})`;
+  } catch (e) {
+    open = `ERR ${String(e.message).slice(0, 36)}`;
+  }
+  results.push({ name: 'mobile-drawer', upgrade: 'OK', open, hydrated: 'n/a', assetFails: [], err: mErrors[0] || '', artifacts: [] });
+  await mpage.close();
+}
+
 await browser.close();
 server?.close();
 
