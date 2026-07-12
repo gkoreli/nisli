@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { component, html, signal } from '@nisli/core';
+import { component, html, signal, ref, onMount } from '@nisli/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildStaticSite } from './index.js';
 
@@ -102,6 +102,42 @@ describe('buildStaticSite', () => {
     const output = readFileSync(join(outDir, 'index.html'), 'utf-8');
     expect(output).toContain('<ssg-article-card class="featured">');
     expect(output).toContain('<article><h2>Factory Component</h2></article>');
+  });
+
+  it('settles real content projection before snapshotting (ADR 0025 §5)', async () => {
+    // @nisli/ui projects plain-HTML-authored children into an inner root via a
+    // post-mount queueMicrotask sweep. This exercises the ACTUAL mechanism: the
+    // projector captures its host's light-DOM children at setup, detaches them,
+    // and re-appends them into an inner slot on a post-mount microtask. So the
+    // authored child is genuinely ABSENT from the DOM at synchronous-snapshot
+    // time and only reappears once tick() drains the sweep.
+    const outDir = tempDir();
+    const Projector = component('ssg-projector', (_props, host) => {
+      const captured = Array.from(host.childNodes);
+      for (const node of captured) host.removeChild(node);
+      const slot = ref<HTMLDivElement>();
+      onMount(() => {
+        queueMicrotask(() => {
+          if (slot.current) for (const node of captured) slot.current.appendChild(node);
+        });
+      });
+      return html`<div data-slot="projected" ref="${slot}"></div>`;
+    });
+    // Silence the unused-import lint: Projector is registered by the call above.
+    void Projector;
+
+    await buildStaticSite({
+      outDir,
+      // Plain-HTML-authored child (`projected-light-dom`) nested in the custom
+      // element — the template parser gives it to the host as a real childNode.
+      routes: [{ path: '/', render: () => html`<ssg-projector>projected-light-dom</ssg-projector>` }],
+    });
+
+    const output = readFileSync(join(outDir, 'index.html'), 'utf-8');
+    expect(output).toContain('data-slot="projected"');
+    // Present ONLY because tick() drained the projection sweep before snapshot;
+    // and it landed INSIDE the inner slot, proving real projection ran.
+    expect(output).toContain('<div data-slot="projected">projected-light-dom</div>');
   });
 
   it('renders top-level Nisli component factory results', async () => {

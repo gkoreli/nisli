@@ -12,6 +12,7 @@ import {
   isSignal,
   flush,
   flushEffects,
+  tick,
   SIGNAL_BRAND,
 } from './signal.js';
 
@@ -520,5 +521,80 @@ describe('integration', () => {
     signals[50].value = 1000;
     flushEffects();
     expect(fn).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('flush() drains cascades + tick()', () => {
+  it('settles a multi-hop effect cascade in ONE flush() call', () => {
+    // A writes `derived`; B reads `derived`. Before, B needed a second flush.
+    const source = signal(0);
+    const derived = signal(0);
+    const seen: number[] = [];
+    effect(() => {
+      derived.value = source.value * 10;
+    });
+    effect(() => {
+      seen.push(derived.value);
+    });
+    flush(); // initial run of both
+
+    source.value = 2;
+    flush(); // single call drains A → derived=20 → B
+    expect(derived.value).toBe(20);
+    expect(seen).toEqual([0, 20]);
+  });
+
+  it('does not double-run an effect that reads a computed which recomputes', () => {
+    const count = signal(1);
+    const doubled = computed(() => count.value * 2);
+    const results: number[] = [];
+    effect(() => results.push(doubled.value));
+    flush();
+    expect(results).toEqual([2]);
+
+    count.value = 5;
+    flush();
+    // Exactly one run per change — no spurious re-schedule from the lazy
+    // recompute during the effect's read.
+    expect(results).toEqual([2, 10]);
+  });
+
+  it('tick() settles effects AND queued microtask work', async () => {
+    const s = signal(0);
+    const log: number[] = [];
+    effect(() => log.push(s.value));
+    await tick();
+    expect(log).toEqual([0]);
+
+    s.value = 1;
+    // Some behavior schedules follow-up work via queueMicrotask; tick() drains
+    // both that and the effects it triggers.
+    let microtaskRan = false;
+    queueMicrotask(() => {
+      microtaskRan = true;
+      s.value = 2;
+    });
+    await tick();
+    expect(microtaskRan).toBe(true);
+    expect(log).toEqual([0, 1, 2]);
+  });
+
+  it('tick() settles a deep (3-level) microtask chain that writes a signal', async () => {
+    // rev's UI-22 repro: a self-extending queueMicrotask chain escapes a
+    // microtask-only drain (you can't introspect the queue to prove
+    // quiescence). Crossing a macrotask boundary runs the whole microtask
+    // queue — at any depth — before the timer fires, so the chain settles.
+    const s = signal(0);
+    const log: number[] = [];
+    effect(() => log.push(s.value));
+    await tick();
+    expect(log).toEqual([0]);
+
+    queueMicrotask(() => queueMicrotask(() => queueMicrotask(() => {
+      s.value = 3;
+    })));
+    await tick();
+    expect(s.value).toBe(3);
+    expect(log).toEqual([0, 3]);
   });
 });

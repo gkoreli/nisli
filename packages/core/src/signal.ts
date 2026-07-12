@@ -216,8 +216,12 @@ class ComputedImpl<T> implements ReadonlySignal<T> {
       if (!Object.is(this._node.value, newValue)) {
         this._node.value = newValue;
         this._node.lastChanged = ++globalEpoch;
-        // Notify downstream observers that our value changed
-        notifyObservers(this._node.observers);
+        // NOTE: no notifyObservers() here. This update() is a *lazy* recompute
+        // triggered by a read; every downstream observer was already marked
+        // dirty / scheduled eagerly when the source signal changed (notify()
+        // propagates through the computed chain). Re-notifying here would
+        // re-schedule the very effect performing this read — a spurious
+        // double-run that only surfaced once flush() began draining cascades.
       }
     } finally {
       this.computing = false;
@@ -493,8 +497,53 @@ export function untrack(fn: () => void): void {
  * flush() is idempotent: calling it with no pending effects is a no-op.
  */
 export function flush(): void {
-  flushPendingEffects();
+  // Drain cascades: an effect may write a signal that schedules more effects
+  // (e.g. A computes → B renders). Loop until the queue is empty so a single
+  // flush() settles the whole synchronous cascade — no double-flush idiom.
+  // Bounded to mirror the effect-loop guard; a runaway is a bug, not silence.
+  let guard = 0;
+  while (pendingEffects.size > 0) {
+    flushPendingEffects();
+    if (++guard > 100000) break;
+  }
 }
 
 /** Backward compat alias for tests. */
 export { flush as flushEffects };
+
+/**
+ * Settle the synchronous effect cascade AND all MICROTASK-scheduled work
+ * pending at await time (content-projection sweeps, query/command initial
+ * passes — at any queueMicrotask depth), plus the effects that work
+ * schedules. Replaces the hand-rolled `flush(); await Promise.resolve();
+ * flush()` and double-`flushEffects()` idioms.
+ *
+ * Bounded contract — deliberately NOT awaited: timers and other future
+ * TASKS scheduled by that microtask work (e.g. a microtask calling
+ * setTimeout) may fire after tick() resolves; awaiting arbitrary future
+ * tasks is unbounded. Self-perpetuating schedulers are cut off at the
+ * iteration cap.
+ *
+ * ```ts
+ * host.setProp('x', 1);
+ * await tick();
+ * expect(el.textContent).toBe('1');
+ * ```
+ */
+export async function tick(): Promise<void> {
+  flush(); // drain the synchronous effect cascade first
+  // Each iteration crosses a MACROTASK boundary (setTimeout 0). Doing so runs
+  // the ENTIRE microtask queue to completion first — including microtasks a
+  // microtask schedules, at any depth — so a 3-deep `queueMicrotask` chain is
+  // fully drained before the timer fires. After the drain we flush the effects
+  // that work scheduled. When a full iteration schedules no effects, the queue
+  // is quiescent and we return. Contract: microtask-scheduled work + effect
+  // cascades pending at await time settle; TIMER-scheduled work does not
+  // (see the doc above — bounded by design). The iteration cap is a
+  // documented backstop for self-perpetuating schedulers, not a silent hang.
+  for (let i = 0; i < 50; i++) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    if (pendingEffects.size === 0) return; // the microtask drain scheduled nothing
+    flush();
+  }
+}

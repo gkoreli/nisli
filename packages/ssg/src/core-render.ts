@@ -1,4 +1,4 @@
-import type { TemplateResult } from '@nisli/core';
+import { tick, type TemplateResult } from '@nisli/core';
 import { ensureSsgDomEnvironment } from './environment.js';
 
 interface ComponentFactoryResult {
@@ -39,7 +39,11 @@ function setFactoryProps(element: HTMLElement, factory: ComponentFactoryResult):
   }
 }
 
-export function renderToHtml(value: Renderable): string {
+// Async because ui relies on microtask work after mount — content-projection
+// sweeps and query/command initial passes run via queueMicrotask. `tick()`
+// settles those (and any effects they schedule) before we snapshot innerHTML,
+// so plain-HTML-authored nested content lands in static output (ADR 0025 §5).
+export async function renderToHtml(value: Renderable): Promise<string> {
   if (typeof value === 'string') {
     return value;
   }
@@ -51,6 +55,7 @@ export function renderToHtml(value: Renderable): string {
     document.body.appendChild(host);
     try {
       value.mount(host);
+      await tick();
       return host.innerHTML;
     } finally {
       value.dispose();
@@ -64,6 +69,7 @@ export function renderToHtml(value: Renderable): string {
     const element = document.createElement(value.tagName);
     setFactoryProps(element, value);
     host.appendChild(element);
+    await tick();
     const html = host.innerHTML;
     host.remove();
     return html;

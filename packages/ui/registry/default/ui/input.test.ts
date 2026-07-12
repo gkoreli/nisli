@@ -85,7 +85,9 @@ describe('Input via factory', () => {
     expect(input.value).toBe('a');
 
     value.value = 'b';
-    flushEffects();
+    // A single flushEffects() now drains the whole cascade (outer signal →
+    // _setProp → internal → effect); the double-flush idiom is retired
+    // (ADR 0025 §7).
     flushEffects();
 
     expect(input.value).toBe('b');

@@ -20,6 +20,7 @@ export {
   computed,
   effect,
   flush,
+  tick,
   isSignal,
   flushEffects,
   untrack,

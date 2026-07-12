@@ -74,15 +74,18 @@ plus a regression test.
 **Resolution**: fixed by the `fix(core)` commit graduating tracker items 4
 and 10; an initially `undefined` reactive slot now mounts later primitive text.
 
-### 5. SSG microtask settling — MEDIUM (in `@nisli/ssg`)
+### 5. SSG microtask settling — FIXED (2026-07-11)
 
-`renderToHtml` snapshots `innerHTML` synchronously after mount, but ui
+`renderToHtml` snapshotted `innerHTML` synchronously after mount, but ui
 relies on microtasks (projection sweeps, command's initial filter pass) —
-plain-HTML-authored nested content can be missing from static output.
-Factory composition (what demo/www use) is unaffected, which is why it has
+plain-HTML-authored nested content could be missing from static output.
+Factory composition (what demo/www use) was unaffected, which is why it had
 not bitten yet.
-**Proposal**: `await` a microtask drain (or an exported settle hook) before
-serializing.
+**Resolution**: `renderToHtml` is now `async` and `await`s `tick()` (§7)
+before serializing, so projection sweeps + effects land in the snapshot. Its
+sole caller (`build.ts`) already awaited `route.render`; `buildStaticSite`
+was already async, so no public-API ripple. Regression:
+`build.test.ts > settles microtask work before snapshotting`.
 
 ### 6. Portal primitive — MEDIUM
 
@@ -96,13 +99,21 @@ dispose/reactivity ownership) — the deferred `portal-lite` from ADR 0022,
 promoted to a framework concern. ADR 0023's move-resilience already
 removes the re-setup hazard for the move itself.
 
-### 7. Awaitable flush/tick — LOW
+### 7. Awaitable flush/tick — FIXED (2026-07-11)
 
-Sequencing after DOM bindings flush requires hand-rolled
+Sequencing after DOM bindings flush required hand-rolled
 `queueMicrotask` (focus trap activation after `hidden` flips; test suites'
 double-`flushEffects()` idiom for cascades).
-**Proposal**: export an awaitable `tick()`/`settled()` from core and teach
-`flushEffects()` to drain cascades, retiring the double-call idiom.
+**Resolution**: core now exports awaitable `tick()` (drains the effect
+cascade AND queued microtask work), and `flush()`/`flushEffects()` loops
+until the effect queue is empty so a single call settles a cascade. This
+surfaced a latent glitch — a *lazy* computed recompute during an effect's
+read re-notified (double-scheduled) that same effect; removed the redundant
+`notifyObservers` in `ComputedImpl.update()` (downstream is already scheduled
+eagerly by `notify()` propagation on the source change). Proof: the
+double-`flushEffects()` idiom retired in `input.test.ts`; new
+`signal.test.ts` drain/tick + no-double-run tests. Full sweep of the idiom
+across the suite is deferred.
 
 ### 8. Typed template events — FIXED (2026-07-11)
 

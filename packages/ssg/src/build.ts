@@ -53,7 +53,7 @@ export async function buildStaticSite<Context extends Record<string, unknown> = 
 
   const pages: StaticPageResult[] = [];
   for (const route of config.routes) {
-    const html = renderToHtml(await route.render(context));
+    const html = await renderToHtml(await route.render(context));
     const page = writeRoute(config.outDir, route.path, html);
     pages.push(page);
     await config.onPage?.(page);
