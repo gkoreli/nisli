@@ -76,6 +76,66 @@ describe('<ui-toaster>', () => {
     expect(titles(c)).toEqual([]);
   });
 
+  it('dismisses only the newest toast on Escape', () => {
+    const c = mount(html`${Toaster({})}`);
+    toast('older', { duration: Infinity });
+    toast('newer', { duration: Infinity });
+    flushEffects();
+
+    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    document.dispatchEvent(event);
+    flushEffects();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(titles(c)).toEqual(['older']);
+  });
+
+  it('consumes Escape once when multiple positioned toasters are connected', () => {
+    const first = mount(html`${Toaster({ position: 'top-left' })}`);
+    const second = mount(html`${Toaster({ position: 'bottom-right' })}`);
+    toast('older', { duration: Infinity });
+    toast('newer', { duration: Infinity });
+    flushEffects();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    flushEffects();
+
+    expect(titles(first)).toEqual(['older']);
+    expect(titles(second)).toEqual(['older']);
+    expect(toasts.value.map((item) => item.title)).toEqual(['older']);
+  });
+
+  it('removes the Escape listener when the toaster disconnects', async () => {
+    const c = mount(html`${Toaster({})}`);
+    toast('still active', { duration: Infinity });
+    flushEffects();
+    (c.querySelector('ui-toaster') as HTMLElement).remove();
+    await Promise.resolve(); // component teardown is move-safe and microtask-deferred
+
+    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    document.dispatchEvent(event);
+    flushEffects();
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(toasts.value.map((item) => item.title)).toEqual(['still active']);
+  });
+
+  it('does not steal or disturb focus while rendering and dismissing', () => {
+    const button = document.createElement('button');
+    document.body.appendChild(button);
+    button.focus();
+    const c = mount(html`${Toaster({})}`);
+
+    toast('background notice', { duration: Infinity });
+    flushEffects();
+    expect(document.activeElement).toBe(button);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    flushEffects();
+    expect(titles(c)).toEqual([]);
+    expect(document.activeElement).toBe(button);
+  });
+
   it('keeps Infinity-duration toasts until dismissed', () => {
     const c = mount(html`${Toaster({})}`);
     const id = toast('sticky', { duration: Infinity });

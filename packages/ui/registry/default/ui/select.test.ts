@@ -110,14 +110,44 @@ describe('Select native form participation', () => {
     expect(select.options[0]!.value).toBe('apple');
   });
 
-  it('forwards id/name and associates with <ui-label for>', () => {
+  it('forwards id/name and associates the native control with <ui-label for>', () => {
     const form = document.createElement('form');
     document.body.appendChild(form);
-    mount(html`${Select({ id: 'fruit', name: 'fruit', defaultValue: 'a', children: options })}`, form);
+    mount(html`<ui-label for="fruit">Fruit</ui-label>${Select({ id: 'fruit', name: 'fruit', defaultValue: 'a', children: options })}`, form);
 
     const select = getSelect(form);
+    const label = form.querySelector('label') as HTMLLabelElement;
     expect(select.id).toBe('fruit');
     expect(form.elements.namedItem('fruit')).toBe(select);
+    expect(label.htmlFor).toBe(select.id);
+    expect(select.labels).toContain(label);
+  });
+
+  it('keeps ArrowDown selection and change behavior on the native control', () => {
+    const onChange = vi.fn();
+    const c = mount(html`<div @change=${onChange}>${Select({ defaultValue: 'a', children: options })}</div>`);
+    const select = getSelect(c);
+    const keydown = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+
+    // happy-dom does not perform browser default actions, so model the native
+    // selection step after proving Nisli did not cancel or replace it.
+    expect(select.dispatchEvent(keydown)).toBe(true);
+    expect(keydown.defaultPrevented).toBe(false);
+    select.selectedIndex = 1;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(select.value).toBe('b');
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards disabled state to the native control', () => {
+    const form = document.createElement('form');
+    document.body.appendChild(form);
+    mount(html`${Select({ name: 'fruit', disabled: true, defaultValue: 'a', children: options })}`, form);
+
+    const select = getSelect(form);
+    expect(select.disabled).toBe(true);
+    expect(select.matches(':disabled')).toBe(true);
   });
 
   it('restores the initial selection on form.reset()', () => {

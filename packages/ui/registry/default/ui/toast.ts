@@ -27,6 +27,7 @@ import {
   effect,
   html,
   onCleanup,
+  onMount,
   signal,
   type ReadonlySignal,
 } from '@nisli/core';
@@ -137,6 +138,21 @@ export const Toaster = component<ToasterProps>('ui-toaster', (props, host) => {
     timers.clear();
   };
   onCleanup(disposeTimers);
+
+  // Escape dismisses the newest toast while leaving focus where the user put
+  // it. The listener is scoped to the connected toaster rather than installed
+  // permanently by the module-level store.
+  onMount(() => {
+    const onKeydown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      const newest = items.value.at(-1);
+      if (!newest) return;
+      event.preventDefault();
+      toast.dismiss(newest.id);
+    };
+    document.addEventListener('keydown', onKeydown);
+    return () => document.removeEventListener('keydown', onKeydown);
+  });
 
   const schedule = (item: ToastItem): void => {
     if (timers.has(item.id) || item.duration === Infinity || hovered.value) return;
