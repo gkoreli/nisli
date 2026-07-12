@@ -470,6 +470,11 @@ function replaceMarkerWithBinding(
           const el = mountFactoryResult(newValue as any, disposers);
           currentNodes.push(el);
           liveParent.insertBefore(el, endMarker);
+        } else if (newValue !== false) {
+          // Primitive reached from an initially null/undefined reactive slot.
+          const textNode = document.createTextNode(String(newValue));
+          currentNodes.push(textNode);
+          liveParent.insertBefore(textNode, endMarker);
         }
       });
       disposers.push(dispose);
@@ -518,6 +523,9 @@ function replaceMarkerWithBinding(
         (item as TemplateResult).mount(wrapper as unknown as HTMLElement);
         parent.insertBefore(wrapper, endMarker);
         disposers.push(() => (item as TemplateResult).dispose());
+      } else if (item && typeof item === 'object' && '__type' in item && (item as any).__type === 'factory') {
+        const el = mountFactoryResult(item as any, disposers);
+        parent.insertBefore(el, endMarker);
       } else {
         const textNode = document.createTextNode(String(item));
         parent.insertBefore(textNode, endMarker);

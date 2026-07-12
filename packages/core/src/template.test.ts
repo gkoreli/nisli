@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { html, when, type TemplateResult } from './template.js';
 import { signal, computed, effect, flushEffects } from './signal.js';
+import { component } from './component.js';
 
 beforeEach(() => {
   document.body.innerHTML = '';
@@ -89,6 +90,16 @@ describe('text bindings', () => {
     count.value = 10;
     flushEffects();
     expect(host.textContent).toContain('20');
+  });
+
+  it('renders a primitive after an initially undefined reactive slot', () => {
+    const value = signal<string | undefined>(undefined);
+    const host = mount(html`<span>${value}</span>`);
+
+    expect(host.querySelector('span')?.textContent).toBe('');
+    value.value = 'ready';
+    flushEffects();
+    expect(host.querySelector('span')?.textContent).toBe('ready');
   });
 });
 
@@ -269,6 +280,15 @@ describe('nested templates', () => {
     expect(lis[0].textContent).toContain('A');
     expect(lis[1].textContent).toContain('B');
     expect(lis[2].textContent).toContain('C');
+  });
+
+  it('renders a static array of component factory results', () => {
+    const Item = component('template-static-array-item', () => html`<span>Item</span>`);
+    const host = mount(html`${[Item({}), Item({})]}`);
+    document.body.appendChild(host);
+
+    expect(host.querySelectorAll('template-static-array-item')).toHaveLength(2);
+    expect(host.textContent).toBe('ItemItem');
   });
 });
 

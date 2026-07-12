@@ -61,7 +61,7 @@ nothing about.
 prop signals, with the ui boolean semantics; forwarding hooks for
 `id`/`name` so form controls stop hand-rolling it.
 
-### 4. Reactive-slot primitive transition gap — BUG (low severity)
+### 4. Reactive-slot primitive transition gap — FIXED (2026-07-11)
 
 `template.ts`: a slot whose signal is initially `null`/`undefined` becomes
 a reactive slot; if the signal later holds a **primitive** (string/number),
@@ -70,6 +70,9 @@ arrays). Avoided in ui by convention (children set before mount), noted
 during Button design.
 **Proposal**: handle primitives in the reactive-slot effect (text node),
 plus a regression test.
+
+**Resolution**: fixed by the `fix(core)` commit graduating tracker items 4
+and 10; an initially `undefined` reactive slot now mounts later primitive text.
 
 ### 5. SSG microtask settling — MEDIUM (in `@nisli/ssg`)
 
@@ -116,7 +119,7 @@ porting.
 **Proposal**: relax the constraint (e.g. `object`) or document the alias
 requirement in the framework skill.
 
-### 10. Static factory arrays don't mount in slots — BUG
+### 10. Static factory arrays don't mount in slots — FIXED (2026-07-11)
 
 `html\`${[Item(...), Item(...)]}\`` (a plain array of factory results in a
 slot) renders nothing/text under happy-dom: `template.ts`'s static-array
@@ -126,6 +129,10 @@ gap. Found by eng2 writing carousel tests; components avoid it via nested
 templates or `each()`.
 **Proposal**: handle `__type: 'factory'` items in the static-array branch
 (mirror the reactive path), plus a regression test.
+
+**Resolution**: fixed by the `fix(core)` commit graduating tracker items 4
+and 10; static factory arrays now use the same factory mounting helper as the
+reactive array path.
 
 ## Process
 
