@@ -119,9 +119,10 @@ No real visual drift found in batch 2; no registry source changes required.
   collision-flipped side while clamping toward the anchor;
   `origin-(--radix-tooltip-content-transform-origin)` var unset +
   exit animations unreachable (**UI-45**, registry-wide, architect); trigger
-  `data-state` uses open|closed vs Radix's delayed/instant-open trio (no
-  shipped selector depends); `aria-describedby` present while hidden (a11y
-  nit). Manual side-by-side: ☐
+  state/ARIA parity **resolved in UI-51**: `data-state` distinguishes
+  `closed|delayed-open|instant-open` from the timer/skip manager's real path,
+  and `aria-describedby` exists only while content is open. Manual
+  side-by-side: ☐
 
 Cross-cutting (recorded): the `aria-invalid:` variants in textarea/toggle/
 toggle-group class lists have no delivery path onto the inner element —

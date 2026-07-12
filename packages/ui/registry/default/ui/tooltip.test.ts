@@ -40,10 +40,14 @@ function mountTooltip(
 
 const q = (root: ParentNode, slot: string) =>
   root.querySelector<HTMLElement>(`[data-slot="${slot}"]`)!;
-// Content is portaled to <body>, so it's no longer under the tooltip host —
-// resolve it from the trigger's aria-describedby (each tooltip → its own id).
-const contentFor = (root: ParentNode): HTMLElement =>
-  document.getElementById(q(root, 'tooltip-trigger').getAttribute('aria-describedby')!)!;
+const contentFor = (root: ParentNode): HTMLElement => {
+  const host = root instanceof Element && root.matches('ui-tooltip')
+    ? root
+    : root.querySelector('ui-tooltip');
+  const hosts = [...document.querySelectorAll('ui-tooltip')];
+  const contents = [...document.querySelectorAll<HTMLElement>('[data-slot="tooltip-content"]')];
+  return contents[hosts.indexOf(host as HTMLElement)]!;
+};
 const isOpen = (root: ParentNode) => !contentFor(root).hasAttribute('hidden');
 function fire(el: Element, type: string): void {
   el.dispatchEvent(new Event(type, { bubbles: true }));
@@ -57,13 +61,13 @@ function advance(ms: number): void {
 }
 
 describe('Tooltip — structure and ARIA', () => {
-  it('wires trigger aria-describedby to the content, closed initially', () => {
+  it('omits aria-describedby while closed and wires it only while open', () => {
     const c = mountTooltip();
     const trigger = q(c, 'tooltip-trigger');
     const content = q(document, 'tooltip-content');
     expect(content.getAttribute('role')).toBe('tooltip');
     expect(content.id).toBeTruthy();
-    expect(trigger.getAttribute('aria-describedby')).toBe(content.id);
+    expect(trigger.hasAttribute('aria-describedby')).toBe(false);
     expect(content.hasAttribute('hidden')).toBe(true);
     expect(trigger.getAttribute('data-state')).toBe('closed');
     const arrow = q(content, 'tooltip-arrow');
@@ -72,6 +76,11 @@ describe('Tooltip — structure and ARIA', () => {
     expect(arrow.className).toBe(
       'z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-foreground fill-foreground',
     );
+
+    fire(trigger, 'pointerenter');
+    expect(trigger.getAttribute('aria-describedby')).toBe(content.id);
+    fire(trigger, 'pointerleave');
+    expect(trigger.hasAttribute('aria-describedby')).toBe(false);
   });
 });
 
@@ -82,13 +91,14 @@ describe('Tooltip — hover/focus with delay', () => {
     expect(isOpen(c)).toBe(false); // still within delay
     advance(500);
     expect(isOpen(c)).toBe(true);
-    expect(q(c, 'tooltip-trigger').getAttribute('data-state')).toBe('open');
+    expect(q(c, 'tooltip-trigger').getAttribute('data-state')).toBe('delayed-open');
   });
 
   it('opens instantly when delayDuration is 0', () => {
     const c = mountTooltip({ delayDuration: 0 });
     fire(q(c, 'tooltip-trigger'), 'pointerenter');
     expect(isOpen(c)).toBe(true);
+    expect(q(c, 'tooltip-trigger').dataset.state).toBe('instant-open');
   });
 
   it('opens on focus and closes on blur', () => {
@@ -154,6 +164,7 @@ describe('Tooltip — provider semantics', () => {
     // Within the skip window, B opens without waiting out its delay.
     fire(q(b, 'tooltip-trigger'), 'pointerenter');
     expect(isOpen(b)).toBe(true);
+    expect(q(b, 'tooltip-trigger').dataset.state).toBe('instant-open');
   });
 });
 
@@ -166,6 +177,13 @@ describe('Tooltip — controlled', () => {
     flushEffects();
     flushEffects();
     expect(isOpen(c)).toBe(true);
+    const trigger = q(c, 'tooltip-trigger');
+    expect(trigger.getAttribute('aria-describedby')).toBe(q(document, 'tooltip-content').id);
+    expect(trigger.dataset.state).toBe('instant-open');
+    open.value = false;
+    flushEffects();
+    flushEffects();
+    expect(trigger.hasAttribute('aria-describedby')).toBe(false);
   });
 });
 
@@ -199,6 +217,12 @@ describe('Tooltip — plain custom element usage', () => {
     expect(q(document, 'tooltip-content').textContent).toBe('Tip');
     expect(document.querySelectorAll('[data-slot="tooltip-arrow"]')).toHaveLength(1);
     expect(q(document, 'tooltip-arrow').tagName.toLowerCase()).toBe('svg');
+    const trigger = q(root, 'tooltip-trigger');
+    expect(trigger.hasAttribute('aria-describedby')).toBe(false);
+    fire(trigger, 'pointerenter');
+    expect(trigger.getAttribute('aria-describedby')).toBe(q(document, 'tooltip-content').id);
+    fire(trigger, 'pointerleave');
+    expect(trigger.hasAttribute('aria-describedby')).toBe(false);
   });
 });
 
