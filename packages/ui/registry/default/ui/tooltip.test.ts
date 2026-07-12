@@ -66,6 +66,12 @@ describe('Tooltip — structure and ARIA', () => {
     expect(trigger.getAttribute('aria-describedby')).toBe(content.id);
     expect(content.hasAttribute('hidden')).toBe(true);
     expect(trigger.getAttribute('data-state')).toBe('closed');
+    const arrow = q(content, 'tooltip-arrow');
+    expect(arrow.tagName.toLowerCase()).toBe('svg');
+    expect(arrow.querySelector('polygon')?.getAttribute('points')).toBe('0,0 30,0 15,10');
+    expect(arrow.className).toBe(
+      'z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-foreground fill-foreground',
+    );
   });
 });
 
@@ -191,6 +197,8 @@ describe('Tooltip — plain custom element usage', () => {
     expect(document.querySelectorAll('[data-slot="tooltip-content"]')).toHaveLength(1);
     expect(q(root, 'tooltip-trigger').textContent).toBe('Hover');
     expect(q(document, 'tooltip-content').textContent).toBe('Tip');
+    expect(document.querySelectorAll('[data-slot="tooltip-arrow"]')).toHaveLength(1);
+    expect(q(document, 'tooltip-arrow').tagName.toLowerCase()).toBe('svg');
   });
 });
 

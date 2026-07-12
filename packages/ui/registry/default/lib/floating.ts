@@ -8,8 +8,8 @@
  * overflows the viewport, and clamp along the align axis. Repositions on
  * scroll (capture) and resize until disposed.
  *
- * Deliberate v1 limits (document in consumers): no arrow positioning, no
- * `shift` beyond align-axis clamping, no anchor-resize observation, and
+ * Deliberate v1 limits (document in consumers): no `shift` beyond align-axis
+ * clamping, no anchor-resize observation, and
  * `position: fixed` is trapped by transformed/filtered ancestors (same caveat
  * as ui-dialog; upstream solves it with portals).
  *
@@ -26,6 +26,7 @@ import {
 
 export type Side = 'top' | 'right' | 'bottom' | 'left';
 export type Align = 'start' | 'center' | 'end';
+type FloatingArrowElement = HTMLElement | SVGSVGElement;
 
 export interface FloatingOptions {
   /** Preferred side of the anchor. Default `'bottom'`. */
@@ -40,6 +41,10 @@ export interface FloatingOptions {
   avoidCollisions?: boolean;
   /** Viewport edge padding used for collision math. Default `8`. */
   collisionPadding?: number;
+  /** Optional arrow rendered inside the floating element. */
+  arrow?: FloatingArrowElement;
+  /** Minimum arrow distance from the floating element's cross-axis edges. */
+  arrowPadding?: number;
 }
 
 export interface FloatingPosition {
@@ -50,12 +55,32 @@ export interface FloatingPosition {
   align: Align;
 }
 
+export interface FloatingArrowPosition {
+  left: number;
+  top: number;
+  side: Side;
+}
+
 const OPPOSITE: Record<Side, Side> = {
   top: 'bottom',
   bottom: 'top',
   left: 'right',
   right: 'left',
 };
+
+// The upstream arrow SVG's polygon points down, while its byte-identical
+// class adds a constant 45deg rotate. Counter that class rotation first, then
+// turn the visible polygon tip toward the anchor-facing edge.
+const ARROW_ROTATION: Record<Side, number> = {
+  top: -45,
+  bottom: 135,
+  left: -135,
+  right: 45,
+};
+
+export function arrowRotation(side: Side): number {
+  return ARROW_ROTATION[side];
+}
 
 const ORIGIN_VARIABLE_BY_SLOT: Record<string, string> = {
   'tooltip-content': '--radix-tooltip-content-transform-origin',
@@ -229,6 +254,36 @@ export function computePosition(
 }
 
 /**
+ * Place an arrow on the anchor-facing edge of a positioned floating element.
+ * Its cross-axis center follows the anchor and clamps inside rounded corners.
+ */
+export function computeArrowPosition(
+  anchor: Rect,
+  floating: Rect,
+  position: FloatingPosition,
+  arrow: Pick<Rect, 'width' | 'height'>,
+  padding = 4,
+): FloatingArrowPosition {
+  const horizontal = position.side === 'top' || position.side === 'bottom';
+  const anchorCenter = horizontal
+    ? anchor.x + anchor.width / 2 - position.x - arrow.width / 2
+    : anchor.y + anchor.height / 2 - position.y - arrow.height / 2;
+  const crossSize = horizontal ? floating.width : floating.height;
+  const arrowSize = horizontal ? arrow.width : arrow.height;
+  const cross = Math.min(
+    Math.max(anchorCenter, padding),
+    Math.max(padding, crossSize - arrowSize - padding),
+  );
+
+  switch (position.side) {
+    case 'top': return { left: cross, top: floating.height - arrow.height / 2, side: 'top' };
+    case 'bottom': return { left: cross, top: -arrow.height / 2, side: 'bottom' };
+    case 'left': return { left: floating.width - arrow.width / 2, top: cross, side: 'left' };
+    case 'right': return { left: -arrow.width / 2, top: cross, side: 'right' };
+  }
+}
+
+/**
  * Position `floating` against `anchor` and keep it positioned on scroll and
  * resize. Sets `position: fixed`, `left`/`top`, and `data-side`/`data-align`
  * (so shadcn `data-[side=…]` animation classes work). Returns a dispose
@@ -255,6 +310,22 @@ export function positionFloating(
     floating.setAttribute('data-align', pos.align);
     const variable = ORIGIN_VARIABLE_BY_SLOT[floating.dataset.slot ?? ''];
     if (variable) floating.style.setProperty(variable, transformOrigin(pos.side, pos.align));
+    if (options.arrow) {
+      const arrowRect = options.arrow.getBoundingClientRect();
+      const arrowPos = computeArrowPosition(
+        { x: a.x, y: a.y, width: a.width, height: a.height },
+        { x: f.x, y: f.y, width: f.width, height: f.height },
+        pos,
+        { width: arrowRect.width, height: arrowRect.height },
+        options.arrowPadding,
+      );
+      options.arrow.style.position = 'absolute';
+      options.arrow.style.left = `${arrowPos.left}px`;
+      options.arrow.style.top = `${arrowPos.top}px`;
+      options.arrow.style.transformOrigin = 'center';
+      options.arrow.style.transform = `rotate(${arrowRotation(arrowPos.side)}deg)`;
+      options.arrow.setAttribute('data-side', arrowPos.side);
+    }
   };
 
   update();

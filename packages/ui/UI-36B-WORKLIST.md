@@ -114,8 +114,10 @@ No real visual drift found in batch 2; no registry source changes required.
   tooltip.tsx:9 — Radix's raw 700 was wrong); `delay-duration`/`side-offset`
   declared as live number attrs; BUG found+fixed: per-call close-closure broke
   the module manager's identity tracking, so open→close→reopen self-closed —
-  one stable `close` per tooltip now. Deferred (ticketed): arrow not rendered
-  (**UI-46**); `origin-(--radix-tooltip-content-transform-origin)` var unset +
+  one stable `close` per tooltip now. Arrow parity **resolved in UI-46**:
+  upstream SVG/class DOM is rendered and shared floating positioning follows
+  collision-flipped side while clamping toward the anchor;
+  `origin-(--radix-tooltip-content-transform-origin)` var unset +
   exit animations unreachable (**UI-45**, registry-wide, architect); trigger
   `data-state` uses open|closed vs Radix's delayed/instant-open trio (no
   shipped selector depends); `aria-describedby` present while hidden (a11y

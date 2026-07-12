@@ -637,6 +637,30 @@ binds `aria-invalid="true"` (or omits it when false/absent) on the inner owner.
 Factory-prop and post-mount `setAttribute` regressions cover every fixed public
 surface, including the item-vs-root toggle-group boundary.
 
+### 15. Tooltip arrow parity — RESOLVED (UI-46, 2026-07-12)
+
+The Nisli tooltip omitted new-york-v4's `TooltipPrimitive.Arrow`, because the
+shared zero-dependency floating helper positioned only the content box. That
+left a visible parity gap even though tooltip portal, presence, and collision
+behavior were otherwise complete.
+
+**Resolution (UI-46)**: tooltip content now appends the upstream arrow SVG DOM
+and byte-identical class string after its projected children. `floating.ts`
+accepts an optional arrow element and positions it on the anchor-facing edge
+chosen after collision handling. Cross-axis placement follows the anchor's
+center after content alignment/viewport clamping, then clamps the arrow inside
+the content corners. A side-dependent transform counteracts the upstream
+class's constant 45-degree rotation before orienting the SVG polygon tip toward
+the anchor. Scroll/resize updates and the existing disposer cover content and
+arrow together; portal moves and exit-presence remain reference based and
+unchanged.
+
+**Proof**: pure math covers all four sides plus align-axis and corner clamps;
+DOM wiring covers collision-flip edge updates and listener teardown; tooltip
+factory and plain-element tests assert the SVG/class contract and portal
+cleanup. The production www browser proof opens the real hydrated tooltip and
+checks compiled size/background/rotation plus edge and anchor geometry.
+
 ## Process
 
 New friction found while building ui/www lands here first (PR review may

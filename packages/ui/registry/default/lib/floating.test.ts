@@ -13,6 +13,8 @@ import {
   signal,
 } from '@nisli/core';
 import {
+  arrowRotation,
+  computeArrowPosition,
   computePosition,
   floatingHidden,
   positionFloating,
@@ -74,6 +76,55 @@ describe('computePosition()', () => {
     const nearLeftEdge = { ...anchor, x: 0 };
     const pos = computePosition(nearLeftEdge, floating, viewport, { align: 'end' });
     expect(pos.x).toBe(8); // clamped to default padding, not -100
+  });
+});
+
+describe('computeArrowPosition()', () => {
+  const arrow = { width: 10, height: 10 };
+
+  it.each([
+    ['top', { left: 95, top: 95, side: 'top' }],
+    ['bottom', { left: 95, top: -5, side: 'bottom' }],
+    ['left', { left: 195, top: 45, side: 'left' }],
+    ['right', { left: -5, top: 45, side: 'right' }],
+  ] as const)('places the arrow on the anchor-facing %s edge', (side, expected) => {
+    const position = computePosition(anchor, floating, viewport, { side, avoidCollisions: false });
+    expect(computeArrowPosition(anchor, floating, position, arrow)).toEqual(expected);
+  });
+
+  it('follows the anchor after align-axis viewport clamping', () => {
+    const nearLeft = { ...anchor, x: 0 };
+    const position = computePosition(nearLeft, floating, viewport, { side: 'bottom', align: 'end' });
+    expect(position.x).toBe(8);
+    expect(computeArrowPosition(nearLeft, floating, position, arrow).left).toBe(37);
+  });
+
+  it('clamps the arrow toward the anchor without crossing rounded edges', () => {
+    const farLeft = { ...anchor, x: -100 };
+    const position = { x: 8, y: 40, side: 'bottom', align: 'center' } as const;
+    expect(computeArrowPosition(farLeft, floating, position, arrow, 12).left).toBe(12);
+  });
+});
+
+describe('arrowRotation()', () => {
+  it.each([
+    ['top', -45],
+    ['bottom', 135],
+    ['left', -135],
+    ['right', 45],
+  ] as const)('counter-rotates the upstream 45deg class so %s points toward its anchor', (side, degrees) => {
+    expect(arrowRotation(side)).toBe(degrees);
+  });
+
+  it.each([
+    ['top', { ...anchor, y: 0 }, 'bottom', 135],
+    ['bottom', { ...anchor, y: 720 }, 'top', -45],
+    ['left', { ...anchor, x: 0 }, 'right', 45],
+    ['right', { ...anchor, x: 920 }, 'left', -135],
+  ] as const)('orients a preferred %s arrow after collision flips it to %s', (preferred, edgeAnchor, used, degrees) => {
+    const position = computePosition(edgeAnchor, floating, viewport, { side: preferred });
+    expect(position.side).toBe(used);
+    expect(arrowRotation(position.side)).toBe(degrees);
   });
 });
 
@@ -149,6 +200,35 @@ describe('positionFloating()', () => {
     mockRect(anchorEl, { ...anchor, y: 500 });
     window.dispatchEvent(new Event('scroll'));
     expect(floatEl.style.top).toBe('140px'); // unchanged — disposed
+  });
+
+  it('updates the arrow edge after a collision flip and stops on dispose', () => {
+    const anchorEl = document.createElement('button');
+    const floatEl = document.createElement('div');
+    const arrowEl = document.createElement('div');
+    floatEl.appendChild(arrowEl);
+    document.body.append(anchorEl, floatEl);
+    mockRect(anchorEl, { ...anchor, y: 720 });
+    mockRect(floatEl, floating);
+    mockRect(arrowEl, { x: 0, y: 0, width: 10, height: 10 });
+
+    const dispose = positionFloating(anchorEl, floatEl, { side: 'bottom', arrow: arrowEl });
+    expect(floatEl.dataset.side).toBe('top');
+    expect(arrowEl.dataset.side).toBe('top');
+    expect(arrowEl.style.top).toBe('95px');
+    expect(arrowEl.style.transform).toBe('rotate(-45deg)');
+
+    mockRect(anchorEl, { ...anchor, y: 300 });
+    window.dispatchEvent(new Event('resize'));
+    expect(floatEl.dataset.side).toBe('bottom');
+    expect(arrowEl.dataset.side).toBe('bottom');
+    expect(arrowEl.style.top).toBe('-5px');
+    expect(arrowEl.style.transform).toBe('rotate(135deg)');
+
+    dispose();
+    mockRect(anchorEl, { ...anchor, y: 720 });
+    window.dispatchEvent(new Event('resize'));
+    expect(arrowEl.dataset.side).toBe('bottom');
   });
 });
 
