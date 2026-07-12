@@ -236,3 +236,44 @@ toggle's inline script) masked it on desktop.
   DocsLayout pages (and NOT on home/themes/404); `preview-sweep.mjs` adds a
   real-browser mobile regression (390px viewport → click `SidebarTrigger` →
   require a visible open `sheet-content` + the sidebar in `data-mobile` mode).
+
+## WWW-14 — wave-B curation batch + the side-effectful-example class (2026-07-12)
+
+Wave-B/wave-A manual passes surfaced curation gaps and one recurring ROOT CLASS.
+
+**Static curation vs. side-effectful example.** An example is *static* only if the
+SSG markup alone conveys it. Examples that call a component's RUNTIME behaviour —
+a side effect (`toast.*()`), a runtime stylesheet injection (`scroll-area`), or a
+data-state-toggled overlay (`navigation-menu`) — are INERT as static previews and
+MUST live in the hydrate-set. The RC3 `toast` looked populated (a button + a
+`Toaster`) yet was dead: its `ui-button`/`ui-toaster` were never registered, so
+the click did nothing — and it passed 67/67 because the paint check and the
+overlay-open check both structurally miss an inert island. Fixes: `toast`,
+`scroll-area`, and `navigation-menu` become hydrate-examples.
+
+**Guard extension (inert-island check).** The sweep now asserts that every `ui-*`
+element in a *hydrate-set* preview is DEFINED (`customElements.get` non-undefined)
+post-hydration. It is scoped to the hydrate-set deliberately: static previews are
+SSG-only and their components are intentionally NOT upgraded client-side —
+registering all components globally to upgrade them in place DOUBLE-RENDERS
+(the SSG markup + a client re-render coexist; verified: a button preview showed
+12 `<button>`s, not 6). The replace-based `hydrate-frame` is the only safe upgrade
+path, and it runs only on hydrate-set frames — which is exactly where an
+inert interactive island would hide.
+
+**Curation surfaces** (www-only; registry components unchanged): `toggle` (iconed
+Bold/Italic — the auto-default was an invisible childless button); `navigation-
+menu` (Trigger + Content dropdown, opens on hover); `avatar` (AvatarBadge +
+AvatarGroup + AvatarGroupCount so eng1's batch-2 ring/overlap/count surfaces are
+present for verification — authoring only; eng1 owns the visual verdict);
+`marker`/`message`/`message-scroller` (designed examples for the NO-UPSTREAM
+family — human-judgment, PENDING sign-off). `sidebar`: the preview frame is now
+bounded (an outer `overflow-hidden` clip; the app-shell `min-h-svh` is right for
+real consumers, wrong for a boxed preview) — its inflation/header-clip is fixed;
+the collapsible=none content-paint inside the box is a separate registry-vs-preview
+interaction, flagged PENDING (not auto-closed).
+
+**Baseline ledger (aligns ADR 0022).** `ui.shadcn.com` now defaults to
+Base-UI/"nova"; the pinned `new-york-v4` checkout (ADR 0022) remains the parity
+truth. Site parity comparisons must annotate nova drift rather than treat the
+live upstream as the reference.

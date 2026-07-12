@@ -112,16 +112,32 @@ for (const name of names) {
       upgrade = isPrimitive ? 'SKIP-primitive' : 'NO-FRAME(ui!)';
     } else {
       const info = await frame.first().evaluate((el) => {
-        const uiEl = [...el.querySelectorAll('*')].find((n) => n.tagName.toLowerCase().startsWith('ui-'));
+        const uiEls = [...el.querySelectorAll('*')].filter((n) => n.tagName.toLowerCase().startsWith('ui-'));
         // ui-* hosts are display:contents (transparentHost) so their own box is
         // 0×0 by design — measure whether ANY descendant actually painted a box.
         const painted = [...el.querySelectorAll('*')].some((n) => {
           const r = n.getBoundingClientRect();
           return r.height > 1 && r.width > 1;
         });
-        return { hasUi: !!uiEl, painted, text: el.textContent.trim().length };
+        // WWW-14 guard extension: a hydrate-set example's ui-* elements must be
+        // DEFINED (registered) post-hydration. A side-effectful example curated
+        // as static ships a ui-* island that never registers → INERT, which the
+        // paint + overlay-open checks miss (the old static toast passed 67/67
+        // while dead: its ui-button/ui-toaster were undefined). Scoped to the
+        // hydrate-set because static previews are SSG-only by design and their
+        // components are intentionally NOT upgraded client-side (a global
+        // upgrade double-renders them — the replace-based hydrate-frame is the
+        // only safe path, and it only runs on hydrate-set frames).
+        const undefinedTags = [...new Set(
+          uiEls.map((n) => n.tagName.toLowerCase()).filter((t) => customElements.get(t) === undefined),
+        )];
+        return { hasUi: uiEls.length > 0, painted, undefinedTags, text: el.textContent.trim().length };
       });
-      upgrade = info.hasUi && info.painted ? 'OK' : `WEAK ${JSON.stringify(info)}`;
+      const inert = HYDRATE.has(name) && info.undefinedTags.length;
+      upgrade =
+        inert ? `INERT ${info.undefinedTags.join(',')}`
+        : info.hasUi && info.painted ? 'OK'
+        : `WEAK ${JSON.stringify(info)}`;
     }
     if (HYDRATE.has(name)) {
       open = 'FAIL';
@@ -145,16 +161,31 @@ for (const name of names) {
           ).length,
         );
       try {
-        const trigger = frame.locator('button, [data-slot*="trigger"], [aria-haspopup]').first();
-        const before = await openOverlayCount();
-        // interaction model differs per family: context-menu opens on right-click,
-        // tooltip/hover-card on hover (with open-delay), the rest on click.
-        if (name === 'context-menu') await trigger.click({ button: 'right', timeout: 3000 });
-        else if (name === 'tooltip' || name === 'hover-card') { await trigger.hover({ timeout: 3000 }); await page.waitForTimeout(900); }
-        else await trigger.click({ timeout: 3000 });
-        await page.waitForTimeout(500);
-        const after = await openOverlayCount();
-        open = after > before ? 'OK' : `FAIL(${before}->${after})`;
+        if (name === 'scroll-area') {
+          // Not an overlay — it's in the hydrate-set so its runtime scrollbar
+          // stylesheet injects. Being hydrated + not-INERT (checked below/above)
+          // is the success signal; there is nothing to "open".
+          open = 'OK-nostate';
+        } else if (name === 'toast') {
+          // Side-effectful: clicking a trigger button must actually PUSH a toast
+          // (the RC3 static version was inert). Assert a toast item appears.
+          const before = await page.evaluate(() => document.querySelectorAll('[data-slot="toast"]').length);
+          await frame.locator('button').first().click({ timeout: 3000 });
+          await page.waitForTimeout(500);
+          const after = await page.evaluate(() => document.querySelectorAll('[data-slot="toast"]').length);
+          open = after > before ? 'OK' : `FAIL(no toast ${before}->${after})`;
+        } else {
+          const trigger = frame.locator('button, [data-slot*="trigger"], [aria-haspopup]').first();
+          const before = await openOverlayCount();
+          // interaction model differs per family: context-menu opens on right-click,
+          // tooltip/hover-card/navigation-menu on hover (with open-delay), the rest on click.
+          if (name === 'context-menu') await trigger.click({ button: 'right', timeout: 3000 });
+          else if (name === 'tooltip' || name === 'hover-card' || name === 'navigation-menu') { await trigger.hover({ timeout: 3000 }); await page.waitForTimeout(900); }
+          else await trigger.click({ timeout: 3000 });
+          await page.waitForTimeout(500);
+          const after = await openOverlayCount();
+          open = after > before ? 'OK' : `FAIL(${before}->${after})`;
+        }
       } catch (e) { open = `ERR ${String(e.message).slice(0, 36)}`; }
       // req 2: the success marker must be set — a silent chunk failure leaves it off
       hydrated = (await page.locator(`[data-preview="${name}"]`).first().getAttribute('data-hydrated')) ? 'OK' : 'MISSING';

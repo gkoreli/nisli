@@ -23,7 +23,7 @@ import { Slider } from './nisli-ui/ui/slider.js';
 import { Kbd } from './nisli-ui/ui/kbd.js';
 import { Spinner } from './nisli-ui/ui/spinner.js';
 import { Alert, AlertTitle, AlertDescription } from './nisli-ui/ui/alert.js';
-import { Avatar, AvatarFallback } from './nisli-ui/ui/avatar.js';
+import { Avatar, AvatarFallback, AvatarBadge, AvatarGroup, AvatarGroupCount } from './nisli-ui/ui/avatar.js';
 import {
   Card,
   CardHeader,
@@ -125,8 +125,8 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './nisli-ui/
 import { DirectionProvider } from './nisli-ui/ui/direction.js';
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from './nisli-ui/ui/input-otp.js';
 import { ItemGroup, Item, ItemMedia, ItemContent, ItemTitle, ItemDescription } from './nisli-ui/ui/item.js';
-import { Marker, MarkerContent } from './nisli-ui/ui/marker.js';
-import { MessageGroup, Message, MessageContent } from './nisli-ui/ui/message.js';
+import { Marker, MarkerIcon, MarkerContent } from './nisli-ui/ui/marker.js';
+import { MessageGroup, Message, MessageAvatar, MessageContent, MessageHeader } from './nisli-ui/ui/message.js';
 import {
   MessageScrollerProvider,
   MessageScroller,
@@ -134,15 +134,11 @@ import {
   MessageScrollerContent,
   MessageScrollerItem,
 } from './nisli-ui/ui/message-scroller.js';
-import {
-  NavigationMenu,
-  NavigationMenuList,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  navigationMenuTriggerStyle,
-} from './nisli-ui/ui/navigation-menu.js';
-import { ScrollArea } from './nisli-ui/ui/scroll-area.js';
-import { Toaster } from './nisli-ui/ui/toast.js';
+// WWW-14 curation surfaces
+import navigationMenuExample from './hydrate-examples/navigation-menu.js';
+import toastExample from './hydrate-examples/toast.js';
+import scrollAreaExample from './hydrate-examples/scroll-area.js';
+import { Toggle } from './nisli-ui/ui/toggle.js';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent, EmptyMedia } from './nisli-ui/ui/empty.js';
 import { InputGroup, InputGroupAddon, InputGroupInput } from './nisli-ui/ui/input-group.js';
 
@@ -197,7 +193,22 @@ export const examples: Record<string, () => TemplateResult> = {
         ${AlertDescription({ children: 'You can copy this component into your project and own it.' })}`,
       })}
     </div>`,
-  avatar: () => html`${Avatar({ children: AvatarFallback({ children: 'NS' }) })}`,
+  // WWW-14: exercise AvatarBadge (status ring) + AvatarGroup (overlap) +
+  // AvatarGroupCount (overflow chip) so eng1's batch-2 surfaces are present in
+  // the preview DOM for post-deploy verification (authoring only — eng1 owns
+  // the ring-paint / overlap-geometry / count-stack visual verdict).
+  avatar: () =>
+    html`<div class="flex items-center gap-8">
+      ${Avatar({
+        children: html`${AvatarFallback({ children: 'NS' })}${AvatarBadge({})}`,
+      })}
+      ${AvatarGroup({
+        children: html`${Avatar({ children: AvatarFallback({ children: 'AB' }) })}
+        ${Avatar({ children: AvatarFallback({ children: 'CD' }) })}
+        ${Avatar({ children: AvatarFallback({ children: 'EF' }) })}
+        ${AvatarGroupCount({ children: '+3' })}`,
+      })}
+    </div>`,
   card: () =>
     html`<div class="w-full max-w-sm">
       ${Card({
@@ -266,6 +277,20 @@ export const examples: Record<string, () => TemplateResult> = {
       ${ToggleGroupItem({ value: 'center', children: 'Center' })}
       ${ToggleGroupItem({ value: 'right', children: 'Right' })}`,
     })}`,
+  // WWW-14: the auto-default rendered a childless (invisible) toggle. An iconed
+  // example — the upstream Bold/Italic pattern — makes the pressed state visible.
+  toggle: () =>
+    html`<div class="flex items-center gap-2">
+      ${Toggle({
+        pressed: true,
+        children: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8" /></svg>`,
+      })}
+      ${Toggle({
+        variant: 'outline',
+        children: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" x2="10" y1="4" y2="4" /><line x1="14" x2="5" y1="20" y2="20" /><line x1="15" x2="9" y1="4" y2="20" /></svg>`,
+      })}
+      ${Toggle({ children: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3" /><path d="M9 20h6" /><path d="M12 4v16" /></svg> Aa` })}
+    </div>`,
   breadcrumb: () =>
     // Salvaged from packages/ui/demo/site.ts; the middle link points at /ui
     // (this site's components route) instead of the demo's /components — a
@@ -322,8 +347,14 @@ export const examples: Record<string, () => TemplateResult> = {
       })}
     </div>`,
   sidebar: () =>
-    html`${SidebarProvider({
-      children: html`<div class="flex h-64 w-full overflow-hidden rounded-lg border">
+    // WWW-14: the SidebarProvider is an APP-SHELL (min-h-svh) — correct for a
+    // real consumer, but in a boxed preview it inflated the frame to ~svh and the
+    // sticky site header clipped the top. Bound it with an OUTER max-h-64
+    // overflow-hidden clip (preview-only; the registry component and its inner
+    // demo layout are unchanged — the app-shell min-h-svh is right for consumers).
+    html`<div class="max-h-64 w-full overflow-hidden">
+      ${SidebarProvider({
+        children: html`<div class="flex h-64 w-full overflow-hidden rounded-lg border">
         ${Sidebar({
           collapsible: 'none',
           className: 'w-56 border-r',
@@ -350,7 +381,8 @@ export const examples: Record<string, () => TemplateResult> = {
         })}
         <div class="flex-1 p-4 text-sm text-muted-foreground">Main content</div>
       </div>`,
-    })}`,
+      })}
+    </div>`,
   calendar: () =>
     html`${Calendar({
       mode: 'range',
@@ -518,72 +550,96 @@ export const examples: Record<string, () => TemplateResult> = {
         })}`,
       })}
     </div>`,
+  // WWW-14 — NO-UPSTREAM family (marker/message/message-scroller): DESIGNED
+  // examples using the fuller API. Design is a human-judgment call and stays
+  // PENDING sign-off (no upstream reference to match); these are improvements
+  // over the bare WS1 placeholders, not a closed visual verdict.
   marker: () =>
-    html`<div class="flex flex-col gap-2">
-      ${Marker({ children: MarkerContent({ children: 'Cloned the repository' }) })}
-      ${Marker({ children: MarkerContent({ children: 'Installed dependencies' }) })}
-      ${Marker({ variant: 'border', children: MarkerContent({ children: 'Ran the build' }) })}
+    html`<div class="flex flex-col gap-3 text-sm">
+      ${Marker({
+        children: html`${MarkerIcon({
+          children: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path d="M20 6 9 17l-5-5" /></svg>`,
+        })}${MarkerContent({ children: 'Cloned the repository' })}`,
+      })}
+      ${Marker({
+        children: html`${MarkerIcon({
+          children: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path d="M20 6 9 17l-5-5" /></svg>`,
+        })}${MarkerContent({ children: 'Installed dependencies' })}`,
+      })}
+      ${Marker({
+        children: html`${MarkerIcon({
+          children: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground"><circle cx="12" cy="12" r="3" /></svg>`,
+        })}${MarkerContent({ children: html`Building the site<span class="text-muted-foreground"> — in progress</span>` })}`,
+      })}
     </div>`,
   message: () =>
-    html`<div class="w-full max-w-sm">
+    html`<div class="w-full max-w-md">
       ${MessageGroup({
         children: html`${Message({
-          children: MessageContent({ children: 'Can you copy in the dialog component?' }),
+          children: html`${MessageAvatar({
+            children: html`<span class="flex size-8 items-center justify-center rounded-full bg-muted text-xs font-medium">NS</span>`,
+          })}
+          ${MessageContent({
+            children: html`${MessageHeader({ children: html`<span class="font-medium">nisli</span> <span class="text-xs text-muted-foreground">2:14 PM</span>` })}
+            Can you copy in the dialog component?`,
+          })}`,
         })}
         ${Message({
           align: 'end',
-          children: MessageContent({ children: 'Done — npx @nisli/ui add dialog.' }),
+          children: html`${MessageAvatar({
+            children: html`<span class="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">You</span>`,
+          })}
+          ${MessageContent({
+            children: html`${MessageHeader({ children: html`<span class="font-medium">You</span> <span class="text-xs text-muted-foreground">2:15 PM</span>` })}
+            Done — <code class="rounded bg-muted px-1 py-0.5 text-xs">npx @nisli/ui add dialog</code>.`,
+          })}`,
         })}`,
       })}
     </div>`,
-  'message-scroller': () =>
-    html`<div class="h-56 w-full max-w-sm">
+  'message-scroller': () => {
+    const convo = [
+      { align: 'start' as const, text: 'Welcome to the nisli chat demo.' },
+      { align: 'end' as const, text: 'How do I install a component?' },
+      { align: 'start' as const, text: 'Run npx @nisli/ui add <name> — the source lands in your repo.' },
+      { align: 'end' as const, text: 'And I own the code after that?' },
+      { align: 'start' as const, text: 'Exactly. Edit it freely; it never auto-updates.' },
+      { align: 'end' as const, text: 'Perfect, thanks!' },
+    ];
+    return html`<div class="h-56 w-full max-w-sm">
       ${MessageScrollerProvider({
         children: MessageScroller({
           className: 'h-full rounded-lg border',
           children: MessageScrollerViewport({
             children: MessageScrollerContent({
-              className: 'p-4',
-              children: html`${[1, 2, 3, 4, 5, 6].map((n) =>
+              className: 'flex flex-col gap-3 p-4',
+              children: html`${convo.map((m) =>
                 MessageScrollerItem({
-                  children: html`<div class="mb-2 rounded-md border px-3 py-2 text-sm">Message ${String(n)}</div>`,
+                  children: Message({
+                    align: m.align,
+                    children: MessageContent({
+                      className:
+                        'rounded-lg px-3 py-2 ' +
+                        (m.align === 'end' ? 'bg-primary text-primary-foreground' : 'bg-muted'),
+                      children: m.text,
+                    }),
+                  }),
                 }),
               )}`,
             }),
           }),
         }),
       })}
-    </div>`,
-  'navigation-menu': () =>
-    html`${NavigationMenu({
-      children: NavigationMenuList({
-        children: html`${NavigationMenuItem({
-          children: NavigationMenuLink({ className: navigationMenuTriggerStyle(), href: '/docs', children: 'Docs' }),
-        })}
-        ${NavigationMenuItem({
-          children: NavigationMenuLink({ className: navigationMenuTriggerStyle(), href: '/ui', children: 'Components' }),
-        })}
-        ${NavigationMenuItem({
-          children: NavigationMenuLink({ className: navigationMenuTriggerStyle(), href: '/themes', children: 'Themes' }),
-        })}`,
-      }),
-    })}`,
-  'scroll-area': () =>
-    html`${ScrollArea({
-      className: 'h-56 w-56 rounded-md border',
-      children: html`<div class="p-4">
-        <h4 class="mb-3 text-sm font-medium leading-none">Tags</h4>
-        ${[...Array(24).keys()].map(
-          (i) => html`<div class="border-b py-2 text-sm">v1.2.0-beta.${String(i + 1)}</div>`,
-        )}
-      </div>`,
-    })}`,
-  toast: () =>
-    html`<div class="flex flex-col items-center gap-3">
-      ${Button({ variant: 'outline', children: 'Show toast' })}
-      ${Toaster({})}
-      <p class="text-xs text-muted-foreground">Toasts render into the ui-toaster region.</p>
-    </div>`,
+    </div>`;
+  },
+  // WWW-14: the dropdown surface (Trigger + Content panel) lives in the
+  // hydrate-set so it opens on hover and the panel is assessable — links-only
+  // couldn't show it. See src/hydrate-examples/navigation-menu.ts.
+  'navigation-menu': navigationMenuExample,
+  // WWW-14: scroll-area injects its thin-scrollbar stylesheet at RUNTIME, and
+  // toast is side-effectful (button → toast.*() → Toaster) — both were inert as
+  // static examples, so they join the hydrate-set. See src/hydrate-examples/.
+  'scroll-area': scrollAreaExample,
+  toast: toastExample,
   // Manual-pass gaps (WWW-12): both passed the sweep's paints-content check but
   // read near-blank to a human — curate real content.
   empty: () =>
