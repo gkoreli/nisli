@@ -1,6 +1,6 @@
 {
   "name": "@nisli/ui",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "shadcn-style component registry and CLI for the Nisli web component framework. Components are copied into your project as source you own.",
   "type": "module",
   "license": "MIT",

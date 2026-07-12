@@ -4,6 +4,60 @@ All notable changes to `@nisli/ui`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
+## 0.2.1 — 2026-07-12
+
+The published-consumer hardening release: the copy-in flow is now proven
+against the real npm package end to end, and the first systematic
+visual-parity sweep against the shadcn `new-york-v4` checkout landed its
+fixes. No API breaks; requires `@nisli/core` >= 0.52.0 (unchanged).
+
+### Fixed
+- **Published break**: `lib/utils.ts` carried a stale `@nisli/core` import
+  that failed a stock Vite strict `tsc` in consumer projects — the npm-e2e
+  gate caught it against the live 0.2.0 package. Also swept the three other
+  stock-strict offenders (calendar, carousel, input-otp).
+- **Tooltip**: default delay is now 0 (shadcn's `TooltipProvider` pins
+  `delayDuration={0}` — the Radix raw 700ms was wrong), and a re-opening
+  tooltip no longer closes itself (per-call close closures broke the
+  module manager's identity tracking).
+- **Toggle-group**: group-level `disabled` now actually disables every item
+  (it was a dead prop); `data-variant`/`data-size` are omitted when unset,
+  matching upstream's DOM contract.
+- **Resizable**: panels deregister on disconnect and live `min-size` writes
+  re-clamp the current layout (previously stale membership + inert
+  constraint changes).
+- **Input-OTP**: ported the missing active+invalid state tokens and made
+  `aria-invalid` actually reach the class-bearing slot element — the
+  reference mechanism for delivering ARIA state past a `display:contents`
+  host (registry-wide sweep in flight).
+- **Command dialog**: upstream `h-12` input height; sr-only DialogTitle/
+  Description restore the Radix-required dialog a11y contract.
+- **Checkbox**: background `url()` arbitrary value no longer trips
+  lightningcss (entity-encoded quotes).
+
+### Added
+- **Portal adoption completed to upstream parity** (audit of all floating
+  surfaces): hover-card, drawer, and the composed combobox now portal to
+  `<body>` by default (with the uniform `portal="false"` opt-out); native
+  select, toast, and navigation-menu stay inline because upstream does.
+- **Per-item `variant`/`size` on toggle-group items** (group wins when set,
+  upstream precedence) and **group `disabled` as a live attribute**.
+- **More live attributes**: tooltip `delay-duration`/`side-offset`, toaster
+  `visible-toasts` (declared `number` attrs; were factory-only).
+- **Toast**: Escape dismisses the newest toast without stealing focus.
+
+### Infrastructure
+- CI now runs on every push to `main`, runs the hermetic tarball e2e in the
+  test job, and runs a **published-npm consumer e2e** (real registry install
+  → init/add → rendered themed dialog → all-registry strict typecheck with
+  exact known-diagnostic gating) in an isolated job.
+- A registry-integrity test bans bare npm imports in every shipped registry
+  file (TS AST + CSS `@import`/`url()` scan) — zero-runtime-deps is now
+  enforced, not conventional.
+- Visual-parity worklists (`UI-36A/B-WORKLIST.md`) record the per-component
+  audit against the shadcn reference checkout, per the ADR 0022 process
+  amendment.
+
 ## 0.2.0 — 2026-07-11
 
 The registry rides the new core primitives end to end. Component names,
