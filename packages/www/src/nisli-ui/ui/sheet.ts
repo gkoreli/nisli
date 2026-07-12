@@ -210,6 +210,12 @@ export type SheetContentProps = {
    * transformed ancestors. Defaults to true; pass false to render inline.
    */
   portal?: boolean;
+  /**
+   * Inline style forwarded onto the content panel. Upstream spreads `{...props}`
+   * (style included); consumers set panel-scoped CSS vars this way — e.g. the
+   * sidebar's mobile drawer overrides `--sidebar-width` on the panel.
+   */
+  style?: string;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -295,6 +301,7 @@ export const SheetContent = component<SheetContentProps>('ui-sheet-content', (pr
       data-state="${dataState}"
       hidden="${hidden}"
       tabindex="-1"
+      style="${props.style}"
       class="${classes}"
     >${children()}${withClose ? closeButton : ''}</div>
   </div>`;
@@ -304,6 +311,7 @@ export const SheetContent = component<SheetContentProps>('ui-sheet-content', (pr
     side: 'string',
     showCloseButton: { type: 'boolean', default: true },
     portal: { type: 'boolean', default: true },
+    style: 'string',
     className: 'string',
   },
 });

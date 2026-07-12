@@ -76,7 +76,6 @@ import {
   type TemplateResult,
 } from '@nisli/core';
 import { cn, transparentHost } from '../lib/utils.js';
-import { buttonVariants } from './button.js';
 
 // ── Date helpers (no dependencies) ──────────────────────────────────
 

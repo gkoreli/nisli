@@ -38,7 +38,6 @@ import {
   ref,
   signal,
   when,
-  type ReadonlySignal,
   type TemplateResult,
 } from '@nisli/core';
 import { cn, transparentHost } from '../lib/utils.js';
@@ -244,12 +243,21 @@ export const InputOTPGroup = component<InputOTPGroupProps>(
 // ── ui-input-otp-slot ────────────────────────────────────────────────
 
 export const inputOTPSlotClasses =
-  'relative flex h-9 w-9 items-center justify-center border-y border-r border-input text-sm shadow-xs transition-all outline-none first:rounded-l-md first:border-l last:rounded-r-md aria-invalid:border-destructive data-[active=true]:z-10 data-[active=true]:border-ring data-[active=true]:ring-[3px] data-[active=true]:ring-ring/50 dark:bg-input/30';
+  'relative flex h-9 w-9 items-center justify-center border-y border-r border-input text-sm shadow-xs transition-all outline-none first:rounded-l-md first:border-l last:rounded-r-md aria-invalid:border-destructive data-[active=true]:z-10 data-[active=true]:border-ring data-[active=true]:ring-[3px] data-[active=true]:ring-ring/50 data-[active=true]:aria-invalid:border-destructive data-[active=true]:aria-invalid:ring-destructive/20 dark:bg-input/30 dark:data-[active=true]:aria-invalid:ring-destructive/40';
 
 export type InputOTPSlotProps = {
   /** Slot position (0-based). Required. */
   index?: number;
   className?: string;
+  /**
+   * Invalid state for THIS slot. Upstream spreads `{...props}`, landing
+   * `aria-invalid` on the slot div that carries the `aria-invalid:` /
+   * `data-[active=true]:aria-invalid:*` hooks. Our transparent host can't
+   * forward implicitly, so we bind it onto the inner element — without this
+   * the active+invalid parity tokens are unreachable dead CSS. Live boolean:
+   * `<ui-input-otp-slot aria-invalid="true">` flows through post-mount too.
+   */
+  ariaInvalid?: boolean;
 };
 
 export const InputOTPSlot = component<InputOTPSlotProps>('ui-input-otp-slot', (props, host) => {
@@ -267,6 +275,7 @@ export const InputOTPSlot = component<InputOTPSlotProps>('ui-input-otp-slot', (p
   return html`<div
     data-slot="input-otp-slot"
     data-active="${computed(() => (active.value ? 'true' : 'false'))}"
+    aria-invalid="${computed(() => (props.ariaInvalid.value ? 'true' : undefined))}"
     class="${classes}"
   >${char}${when(
     fakeCaret,
@@ -274,7 +283,7 @@ export const InputOTPSlot = component<InputOTPSlotProps>('ui-input-otp-slot', (p
       <div class="h-4 w-px animate-caret-blink bg-foreground duration-1000"></div>
     </div>`,
   )}</div>`;
-}, { attrs: { index: { type: 'number', default: 0 }, className: 'string' } });
+}, { attrs: { index: { type: 'number', default: 0 }, className: 'string', ariaInvalid: 'boolean' } });
 
 // ── ui-input-otp-separator ───────────────────────────────────────────
 

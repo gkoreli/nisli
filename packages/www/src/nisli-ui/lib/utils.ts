@@ -8,8 +8,6 @@
  * This file was copied into your project by `nisli-ui` — you own it.
  */
 
-import { computed, type ReadonlySignal } from '@nisli/core';
-
 // ── cn() — class name joiner ────────────────────────────────────────
 
 export type ClassValue =

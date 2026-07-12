@@ -7,7 +7,9 @@
  * panel-group / panel / handle class lists, data-slots, and the `withHandle`
  * grip) while the BEHAVIOR follows react-resizable-panels' conventions on plain
  * DOM: percentage-based flex sizing, pointer-drag on handles, and keyboard
- * arrows on a focused handle (role=separator with aria-valuenow).
+ * arrows on a focused handle (role=separator with aria-valuenow). Like the
+ * upstream primitive, panel registration follows mounted membership: removing
+ * a panel removes it from layout math, and constraint changes re-clamp live.
  *
  * Three elements:
  *   <ui-resizable-panel-group direction="horizontal">
@@ -37,6 +39,7 @@ import {
   onMount,
   ref,
   signal,
+  untrack,
   type ReadonlySignal,
   type Ref,
   type TemplateResult,
@@ -68,6 +71,8 @@ export interface ResizableGroupState {
     defaultSize: ReadonlySignal<number | undefined>,
     minSize: ReadonlySignal<number>,
   ): void;
+  /** Remove a disconnected panel from layout math and reflow survivors. */
+  unregisterPanel(el: HTMLElement): void;
   /** Register a handle; returns the gap index (between panel i and i+1). */
   registerHandle(): number;
   /** Move `deltaPercent` from the panel after the gap into the one before it. */
@@ -110,6 +115,30 @@ export const ResizablePanelGroup = component<ResizablePanelGroupProps>(
     // the panel list and re-subscribes to each panel's LIVE default-size signal.
     const reflowVersion = signal(0);
 
+    const clampToMins = (input: number[]): number[] => {
+      const sizes = [...input];
+      const rawMins = panels.map((panel) => Math.max(0, panel.minSize.value));
+      const minTotal = rawMins.reduce((sum, min) => sum + min, 0);
+      // Impossible constraints degrade deterministically to normalized minima.
+      const mins = minTotal > 100
+        ? rawMins.map((min) => (min * 100) / minTotal)
+        : rawMins;
+      for (let i = 0; i < sizes.length; i += 1) {
+        const min = mins[i] ?? 0;
+        if ((sizes[i] ?? 0) >= min) continue;
+        let deficit = min - (sizes[i] ?? 0);
+        sizes[i] = min;
+        for (let j = 0; j < sizes.length && deficit > 0; j += 1) {
+          if (j === i) continue;
+          const available = Math.max(0, (sizes[j] ?? 0) - (mins[j] ?? 0));
+          const take = Math.min(available, deficit);
+          sizes[j] = (sizes[j] ?? 0) - take;
+          deficit -= take;
+        }
+      }
+      return sizes;
+    };
+
     const finalize = (): void => {
       const n = panels.length;
       if (n === 0) return;
@@ -120,7 +149,14 @@ export const ResizablePanelGroup = component<ResizablePanelGroupProps>(
       let sizes = defs.map((d) => (d == null ? per : d));
       const total = sizes.reduce((a, b) => a + b, 0) || 1;
       sizes = sizes.map((s) => (s * 100) / total);
-      layout.value = sizes;
+      // Initial/default reflow respects current constraints without subscribing
+      // this effect to them; the dedicated min-size effect below preserves the
+      // current user layout on later constraint changes.
+      let clamped = sizes;
+      untrack(() => {
+        clamped = clampToMins(sizes);
+      });
+      layout.value = clamped;
     };
 
     const state: ResizableGroupState = {
@@ -129,6 +165,12 @@ export const ResizablePanelGroup = component<ResizablePanelGroupProps>(
       root,
       registerPanel: (el, defaultSize, minSize) => {
         panels.push({ el, defaultSize, minSize });
+        reflowVersion.value += 1;
+      },
+      unregisterPanel: (el) => {
+        const index = panels.findIndex((panel) => panel.el === el);
+        if (index === -1) return;
+        panels.splice(index, 1);
         reflowVersion.value += 1;
       },
       registerHandle: () => panels.length - 1,
@@ -191,6 +233,18 @@ export const ResizablePanelGroup = component<ResizablePanelGroupProps>(
       finalize();
     });
 
+    // Constraints are independent of default-size reflow: a live min-size
+    // change clamps the CURRENT layout instead of resetting a user-resized
+    // layout back to defaults. Membership bumps retrack the signal set.
+    effect(() => {
+      reflowVersion.value;
+      panels.forEach((panel) => panel.minSize.value);
+      const current = layout.value;
+      if (current.length !== panels.length || current.length === 0) return;
+      const next = clampToMins(current);
+      if (next.some((size, index) => size !== current[index])) layout.value = next;
+    });
+
     return html`<div
       ref="${root}"
       data-slot="resizable-panel-group"
@@ -232,8 +286,16 @@ export const ResizablePanel = component<ResizablePanelProps>('ui-resizable-panel
   const classes = computed(() => cn(className.value));
 
   const root = ref<HTMLDivElement>();
+  let registered: HTMLElement | null = null;
   onMount(() => {
-    if (root.current) group.registerPanel(root.current, defaultSize, minSize);
+    if (root.current) {
+      registered = root.current;
+      group.registerPanel(registered, defaultSize, minSize);
+    }
+  });
+  onCleanup(() => {
+    if (registered) group.unregisterPanel(registered);
+    registered = null;
   });
 
   return html`<div

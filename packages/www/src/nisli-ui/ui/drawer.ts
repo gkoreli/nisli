@@ -11,13 +11,13 @@
  * otherwise) and an overlay whose opacity tracks drag progress.
  *
  * Built on the same machinery as dialog/sheet: shared state via a
- * subtree-scoped `DrawerContext`, the
- * dismissable-layer + focus lib items, inline fixed overlay. Open/close
+ * subtree-scoped `DrawerContext`, the dismissable-layer + focus lib items, and
+ * an upstream-parity body portal around the fixed overlay + panel. Open/close
  * dispatches a bubbling `ui-open-change` CustomEvent from the `<ui-drawer>`
  * host.
  *
- * v1 limits (documented): no snap points (drag is open↔closed only); no portal
- * (position:fixed, same transformed-ancestor caveat as dialog).
+ * v1 limit (documented): no snap points (drag is open↔closed only). Pass
+ * `portal={false}` / `portal="false"` on content for inline/SSG rendering.
  *
  * This file was copied into your project by `nisli-ui` — you own it.
  */
@@ -37,6 +37,7 @@ import {
 import { cn, isPinned, transparentHost } from '../lib/utils.js';
 import { dismissableLayer } from '../lib/dismissable-layer.js';
 import { focusTrap } from '../lib/focus.js';
+import { portal } from '../lib/portal.js';
 
 export type DrawerDirection = 'top' | 'bottom' | 'left' | 'right';
 
@@ -182,6 +183,8 @@ const MIN_FLICK_DISTANCE = 40;
 const FALLBACK_SIZE = 320;
 
 export type DrawerContentProps = {
+  /** Move overlay + panel to document.body by default; false keeps them inline. */
+  portal?: boolean;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -197,8 +200,11 @@ export const DrawerContent = component<DrawerContentProps>('ui-drawer-content', 
   const className = props.className;
   const classes = computed(() => cn(contentClasses, className.value));
 
+  const portalRef = ref<HTMLDivElement>();
   const overlayRef = ref<HTMLDivElement>();
   const contentRef = ref<HTMLElement>();
+
+  portal(portalRef, { enabled: props.portal.value as boolean });
 
   const layer = dismissableLayer(contentRef, { onDismiss: () => state.setOpen(false) });
   const trap = focusTrap(contentRef);
@@ -300,7 +306,7 @@ export const DrawerContent = component<DrawerContentProps>('ui-drawer-content', 
     document.removeEventListener('pointercancel', endDrag);
   });
 
-  return html`<div data-slot="drawer-portal" style="display:contents">
+  return html`<div ref="${portalRef}" data-slot="drawer-portal" style="display:contents">
     <div
       ref="${overlayRef}"
       data-slot="drawer-overlay"
@@ -324,7 +330,12 @@ export const DrawerContent = component<DrawerContentProps>('ui-drawer-content', 
       @pointerdown=${onPointerDown}
     ><div data-slot="drawer-handle" class="${handleClasses}"></div>${children()}</div>
   </div>`;
-}, { attrs: { className: 'string' } });
+}, {
+  attrs: {
+    portal: { type: 'boolean', default: true },
+    className: 'string',
+  },
+});
 
 // ── ui-drawer-header / -footer / -title / -description ───────────────
 

@@ -12,14 +12,25 @@
  * supports the side / variant / collapsible variants via data-* attributes and
  * the group-data Tailwind selectors.
  *
+ * Mobile: the `Sidebar` frame renders an off-canvas `Sheet` when `isMobile`
+ * (upstream sidebar.tsx mobile branch — verbatim Sheet side, the
+ * `--sidebar-width` mobile override, `data-mobile`, and the sr-only header),
+ * driven by the provider's `openMobile` state and dismissable via the sheet's
+ * focus-trap + Escape. Upstream re-renders on `isMobile`; Nisli swaps the tree
+ * reactively via `when()` with a SINGLE captured `children()` slot placed into
+ * whichever branch is live (ADR 0025 item-1 re-mountable slot + ADR 0023
+ * move-resilience). See the ADR 0025 GAP-NOTE: a breakpoint flip re-mounts the
+ * subtree (state loss across the threshold) — the single-slot v1 limitation.
+ *
  * v1 deviations (documented):
- * - The dedicated MOBILE off-canvas Sheet is deferred. Upstream conditionally
- *   renders a completely different tree on mobile; that fights Nisli's
- *   single-projection children model. The provider still exposes
- *   isMobile/openMobile/toggle so the API is forward-compatible, and the
- *   desktop `collapsible="offcanvas"` variant provides a CSS-driven collapse.
  * - `asChild` is not supported (Nisli renders the native element directly).
+ *   Where upstream reaches for `asChild` to make a menu button a link
+ *   (`<SidebarMenuButton asChild><a href>`), `SidebarMenuButton`/`SubButton`
+ *   take an `href` prop and render a real `<a>` instead.
  * - No tooltip on a collapsed menu button.
+ * - `data-sidebar="sidebar"` / `data-slot="sidebar"` / `data-mobile="true"` sit
+ *   on the mobile panel's inner wrapper (upstream sets them on SheetContent
+ *   itself); the `--sidebar-width` override rides SheetContent's `style` prop.
  *
  * This file was copied into your project by `nisli-ui` — you own it.
  */
@@ -38,10 +49,18 @@ import {
 } from '@nisli/core';
 import { cn, cv, transparentHost } from '../lib/utils.js';
 import { useIsMobile } from '../lib/use-mobile.js';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from './sheet.js';
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state';
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = '16rem';
+const SIDEBAR_WIDTH_MOBILE = '18rem';
 const SIDEBAR_WIDTH_ICON = '3rem';
 const SIDEBAR_KEYBOARD_SHORTCUT = 'b';
 
@@ -180,17 +199,57 @@ export const Sidebar = component<SidebarProps>('ui-sidebar', (props, host) => {
   const variant = (props.variant.value as SidebarVariant) ?? 'sidebar';
   const collapsible = (props.collapsible.value as SidebarCollapsible) ?? 'offcanvas';
 
+  // Single-projection children, captured ONCE. It is placed into whichever tree
+  // (collapsible=none / mobile Sheet / desktop frame) is live; a breakpoint flip
+  // re-mounts it (ADR 0025 item-1 re-mountable slot + ADR 0023 move-resilience).
+  const kids = children();
+
   if (collapsible === 'none') {
     const classes = computed(() =>
       cn('flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground', props.className.value),
     );
-    return html`<div data-slot="sidebar" class="${classes}">${children()}</div>`;
+    return html`<div data-slot="sidebar" class="${classes}">${kids}</div>`;
   }
 
   const dataState = computed(() => state.state.value);
   const dataCollapsible = computed(() => (state.state.value === 'collapsed' ? collapsible : ''));
+  const notMobile = computed(() => !state.isMobile.value);
 
-  return html`<div
+  // The sheet's own dismissal (Escape / overlay click) dispatches a bubbling
+  // ui-open-change from the (non-portaled) <ui-sheet> host; sync it back to the
+  // provider's controlled openMobile so the frame closes. The desktop frame has
+  // no <ui-sheet>, so this never fires there.
+  useHostEvent(host, 'ui-open-change', (event: Event) => {
+    const detail = (event as CustomEvent<{ open: boolean }>).detail;
+    if (detail && state.isMobile.value) state.setOpenMobile(detail.open);
+  });
+
+  // Mobile: off-canvas Sheet, controlled by openMobile (upstream mobile branch).
+  const mobileSidebar = (): TemplateResult =>
+    Sheet({
+      open: state.openMobile,
+      children: SheetContent({
+        side,
+        showCloseButton: false,
+        style: `--sidebar-width:${SIDEBAR_WIDTH_MOBILE}`,
+        className:
+          'w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden',
+        children: html`${SheetHeader({
+          className: 'sr-only',
+          children: html`${SheetTitle({ children: 'Sidebar' })}${SheetDescription({
+            children: 'Displays the mobile sidebar.',
+          })}`,
+        })}<div
+          data-sidebar="sidebar"
+          data-slot="sidebar"
+          data-mobile="true"
+          class="flex h-full w-full flex-col"
+        >${kids}</div>`,
+      }),
+    });
+
+  // Desktop: the fixed frame.
+  const desktopSidebar = (): TemplateResult => html`<div
     class="group peer hidden text-sidebar-foreground md:block"
     data-state="${dataState}"
     data-collapsible="${dataCollapsible}"
@@ -204,9 +263,11 @@ export const Sidebar = component<SidebarProps>('ui-sidebar', (props, host) => {
         data-sidebar="sidebar"
         data-slot="sidebar-inner"
         class="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm"
-      >${children()}</div>
+      >${kids}</div>
     </div>
   </div>`;
+
+  return html`${when(state.isMobile, mobileSidebar)}${when(notMobile, desktopSidebar)}`;
 }, { attrs: { side: 'string', variant: 'string', collapsible: 'string', className: 'string' } });
 
 // ── ui-sidebar-trigger / -rail ───────────────────────────────────────
@@ -462,6 +523,13 @@ export type SidebarMenuButtonProps = {
   isActive?: boolean;
   variant?: SidebarMenuButtonVariant;
   size?: SidebarMenuButtonSize;
+  /**
+   * When set, the button renders as an `<a href>` — a real navigation link
+   * (works with zero JS). This is the Nisli translation of upstream's
+   * `<SidebarMenuButton asChild><a href>` (asChild unsupported), and mirrors
+   * `SidebarMenuSubButton`'s existing href/anchor mode.
+   */
+  href?: string;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -480,16 +548,41 @@ export const SidebarMenuButton = component<SidebarMenuButtonProps>(
         props.className.value,
       ),
     );
+    const dataSize = computed(() => props.size.value ?? 'default');
+    const dataActive = computed(() => (isActive.value ? 'true' : 'false'));
+    const ariaCurrent = computed(() => (isActive.value ? 'page' : undefined));
+    const kids = children();
+
+    // href → real anchor (static structural choice at setup, like asChild).
+    if (props.href.value != null) {
+      return html`<a
+        data-slot="sidebar-menu-button"
+        data-sidebar="menu-button"
+        data-size="${dataSize}"
+        data-active="${dataActive}"
+        href="${props.href}"
+        aria-current="${ariaCurrent}"
+        class="${classes}"
+      >${kids}</a>`;
+    }
     return html`<button
       type="button"
       data-slot="sidebar-menu-button"
       data-sidebar="menu-button"
-      data-size="${computed(() => props.size.value ?? 'default')}"
-      data-active="${computed(() => (isActive.value ? 'true' : 'false'))}"
+      data-size="${dataSize}"
+      data-active="${dataActive}"
       class="${classes}"
-    >${children()}</button>`;
+    >${kids}</button>`;
   },
-  { attrs: { isActive: 'boolean', variant: 'string', size: 'string', className: 'string' } },
+  {
+    attrs: {
+      isActive: 'boolean',
+      variant: 'string',
+      size: 'string',
+      href: 'string',
+      className: 'string',
+    },
+  },
 );
 
 // ── ui-sidebar-menu-action / -menu-badge / -menu-skeleton ────────────

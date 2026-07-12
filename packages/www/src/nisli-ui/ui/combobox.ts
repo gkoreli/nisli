@@ -39,7 +39,9 @@ import {
   computed,
   effect,
   html,
+  onCleanup,
   onMount,
+  ref,
   signal,
   useHostEvent,
   type ReadonlySignal,
@@ -60,6 +62,8 @@ export interface ComboboxState {
   multiple: boolean;
   isSelected(value: string): boolean;
   select(value: string): void;
+  registerItem(value: ReadonlySignal<string>, element: HTMLElement): void;
+  unregisterItem(element: HTMLElement): void;
   baseId: string;
 }
 
@@ -90,6 +94,8 @@ export type ComboboxProps = {
   placeholder?: string;
   searchPlaceholder?: string;
   emptyText?: string;
+  /** Move popup to document.body by default; false keeps it inline. */
+  portal?: boolean;
   className?: string;
   /** The ComboboxItem options (optionally in ui-command-groups). */
   children?: string | TemplateResult;
@@ -104,6 +110,8 @@ export const Combobox = component<ComboboxProps>('ui-combobox', (props, host) =>
 
   const open = signal<boolean>(false);
   const labelText = signal<string>('');
+  const registeredItems = new Map<HTMLElement, ReadonlySignal<string>>();
+  const itemRegistrationVersion = signal(0);
 
   // VALUE-STATE (ADR 0025 item 3): the `value` ATTRIBUTE is the uncontrolled
   // selection. `defaultValue` seeds it once; a pinned factory `value` is the
@@ -175,10 +183,8 @@ export const Combobox = component<ComboboxProps>('ui-combobox', (props, host) =>
     };
   }
 
-  const items = (): HTMLElement[] =>
-    Array.from(host.querySelectorAll<HTMLElement>('[data-slot="command-item"]'));
   const labelFor = (value: string): string => {
-    const el = items().find((e) => e.getAttribute('data-value') === value);
+    const el = [...registeredItems.entries()].find(([, itemValue]) => itemValue.value === value)?.[0];
     return el ? (el.textContent ?? '').trim() : value;
   };
   const updateLabel = (): void => {
@@ -191,6 +197,10 @@ export const Combobox = component<ComboboxProps>('ui-combobox', (props, host) =>
   // external/plain-HTML value writes). Item labels settle a microtask after
   // mount, so onMount re-runs it once the projected options exist.
   effect(() => {
+    itemRegistrationVersion.value;
+    // Track every registered live value signal. Registration bumps the version
+    // so items mounted after this effect's first pass are subscribed too.
+    for (const itemValue of registeredItems.values()) itemValue.value;
     selectedArray.value;
     updateLabel();
   });
@@ -199,6 +209,14 @@ export const Combobox = component<ComboboxProps>('ui-combobox', (props, host) =>
     multiple,
     isSelected: (value) => selectedArray.value.includes(value),
     select,
+    registerItem(value, element) {
+      registeredItems.set(element, value);
+      itemRegistrationVersion.value += 1;
+    },
+    unregisterItem(element) {
+      registeredItems.delete(element);
+      itemRegistrationVersion.value += 1;
+    },
     baseId: `ui-combobox-${++uid}`,
   };
   ComboboxContext.provide(host, state);
@@ -252,10 +270,10 @@ export const Combobox = component<ComboboxProps>('ui-combobox', (props, host) =>
     ${PopoverContent({
       className: 'w-[var(--cb-anchor-width)] p-0',
       align: 'start',
-      // Keep the popup inline: combobox manages its command-items by querying
-      // its own host subtree (and width-matches the trigger), so it opts out of
-      // the popover's default body-portal to preserve that self-contained model.
-      portal: false,
+      // Upstream Base UI Combobox uses a Portal. Our classic composition gets
+      // the same behavior through PopoverContent; captured contexts and item
+      // element registration survive the body move.
+      portal: props.portal,
       children: Command({
         children: html`${CommandInput({ placeholder: props.searchPlaceholder.value ?? 'Search…' })}
         ${CommandList({
@@ -274,6 +292,7 @@ export const Combobox = component<ComboboxProps>('ui-combobox', (props, host) =>
     placeholder: 'string',
     searchPlaceholder: 'string',
     emptyText: 'string',
+    portal: { type: 'boolean', default: true },
     className: 'string',
   },
 });
@@ -312,7 +331,21 @@ export const ComboboxItem = component<ComboboxItemProps>('ui-combobox-item', (pr
     if (!disabled.value) combo.select(own.value);
   };
 
+  const root = ref<HTMLDivElement>();
+  let registered: HTMLElement | null = null;
+  onMount(() => {
+    if (root.current) {
+      registered = root.current;
+      combo.registerItem(own, registered);
+    }
+  });
+  onCleanup(() => {
+    if (registered) combo.unregisterItem(registered);
+    registered = null;
+  });
+
   return html`<div
+    ref="${root}"
     data-slot="command-item"
     cmdk-item=""
     role="option"
