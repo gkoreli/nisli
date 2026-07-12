@@ -131,3 +131,41 @@ No real visual drift found in batch 2; no registry source changes required.
 Cross-cutting (recorded): the `aria-invalid:` variants in textarea/toggle/
 toggle-group class lists have no delivery path onto the inner element —
 ticketed **UI-44** (cdx2), reference mechanism = eng2's input-otp (70c0bb2).
+
+## Manual side-by-side pass — wave B (arch, 2026-07-12, vs live 39a8d36 + UI-53 contact sheets)
+
+**Baseline correction (process-significant):** ui.shadcn.com now defaults to
+the "Base UI" (nova) style — the LIVE SITE is no longer our parity baseline.
+Judgments below use the pinned `new-york-v4` CHECKOUT (class-verified in the
+batches above) as truth; site comparisons annotated where nova drift explains
+a visible delta. ADR 0022's manual-pass wording needs the same correction.
+
+**VERIFIED ☑ (12):** pagination, separator, select (native-first baseline),
+slider, spinner, switch, tabs, textarea, toggle-group, menubar (open-state
+verified) — no visible differences; radio-group ☑ (classic dot indicator per
+new-york-v4; site shows nova donut = baseline drift, not ours), progress ☑
+(h-2 per checkout; site's thinner bar = nova), skeleton ☑ (demo-markup
+delta only). *(That's 13 — recount: 10 clean + 3 nova-annotated.)*
+
+**RECHECK POST-UI-55 ⏸ (3):** table, scroll-area, resizable — class parity
+verified; the observed near-black borders are the missing base-layer
+border-color compat rule (UI-55, theme.css), a global token bug, not
+component drift. Flip after the UI-55 fix deploys. (scroll-area: also
+confirm the local scrollbar-thumb CSS actually paints a thumb.)
+
+**DEFECT — OPEN ✗:** sheet (UI-54: style-attr feedback loop paints
+display:contents onto the fixed panel; open state visibly broken on live).
+
+**INVESTIGATE:** popover open-state renders right-shifted vs centered under
+its trigger (floating `align` math or preview-frame interference — needs a
+browser look; queued behind UI-54 in the codex lane).
+
+**CURATION (eng3 batch, with empty/input-group):** toggle (auto-default
+renders empty/invisible — needs an iconed example), navigation-menu (demo
+is links-only; dropdown surface unassessable), sidebar (preview container
+inflated ~965px by min-h-svh; header clips demo top), marker + message +
+message-scroller (NO-UPSTREAM; current examples render bare/undesigned —
+human call: needs a designed example, not a component fix).
+
+**DEFERRED (stale live copies — next resync+deploy):** tooltip (UI-46 arrow
++ UI-51), toast (UI-50 icons).
