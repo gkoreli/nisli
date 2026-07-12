@@ -82,3 +82,109 @@ describe('Attachment', () => {
     expect(m.className).toContain('object-cover');
   });
 });
+
+describe('AttachmentAction / AttachmentTrigger — native button contract', () => {
+  it('the action reuses the canonical button variants (ghost / icon-xs default)', () => {
+    const c = mount(html`${AttachmentAction({ children: '✕' })}`);
+    flushEffects();
+    const btn = q(c, 'attachment-action');
+    // buttonVariants(ghost) base + icon-xs sizing tokens.
+    expect(btn.className).toContain('hover:bg-accent'); // ghost
+    expect(btn.className).toContain('size-6'); // icon-xs
+    expect(btn.getAttribute('type')).toBe('button');
+  });
+
+  it('the action forwards aria-label / disabled / type to the inner button', () => {
+    const c = mount(
+      html`${AttachmentAction({ ariaLabel: 'Remove file', disabled: true, type: 'submit', children: '✕' })}`,
+    );
+    flushEffects();
+    const btn = q(c, 'attachment-action');
+    expect(btn.getAttribute('aria-label')).toBe('Remove file');
+    expect(btn.hasAttribute('disabled')).toBe(true);
+    expect(btn.getAttribute('type')).toBe('submit');
+  });
+
+  it('the action honours variant / size overrides', () => {
+    const c = mount(html`${AttachmentAction({ variant: 'destructive', size: 'sm', children: '✕' })}`);
+    flushEffects();
+    const btn = q(c, 'attachment-action');
+    expect(btn.className).toContain('bg-destructive');
+    expect(btn.className).toContain('h-8'); // size sm
+  });
+
+  it('the trigger forwards aria-label / disabled / type', () => {
+    const c = mount(
+      html`${AttachmentTrigger({ ariaLabel: 'Open attachment', disabled: true, type: 'submit' })}`,
+    );
+    flushEffects();
+    const t = q(c, 'attachment-trigger');
+    expect(t.getAttribute('aria-label')).toBe('Open attachment');
+    expect(t.hasAttribute('disabled')).toBe(true);
+    expect(t.getAttribute('type')).toBe('submit');
+  });
+});
+
+describe('Attachment — plain custom elements', () => {
+  it('host is layout-transparent; styling lives on the inner element', () => {
+    const c = mount(html`${Attachment({ children: '' })}`);
+    flushEffects();
+    const host = c.querySelector('ui-attachment') as HTMLElement;
+    expect(host.style.display).toBe('contents');
+    expect(host.className).toBe('');
+    expect(host.querySelector('[data-slot="attachment"]')).not.toBeNull();
+  });
+
+  it('reads state/size/orientation from host attributes', () => {
+    const host = document.createElement('ui-attachment');
+    host.setAttribute('state', 'error');
+    host.setAttribute('size', 'xs');
+    host.setAttribute('orientation', 'vertical');
+    document.body.appendChild(host);
+    flushEffects();
+    const a = host.querySelector('[data-slot="attachment"]')!;
+    expect(a.getAttribute('data-state')).toBe('error');
+    expect(a.getAttribute('data-size')).toBe('xs');
+    expect(a.getAttribute('data-orientation')).toBe('vertical');
+  });
+
+  it('forwards the aria-label host attribute onto the inner action button', () => {
+    const host = document.createElement('ui-attachment-action');
+    host.setAttribute('aria-label', 'Remove');
+    document.body.appendChild(host);
+    flushEffects();
+    expect(host.querySelector('[data-slot="attachment-action"]')!.getAttribute('aria-label')).toBe(
+      'Remove',
+    );
+  });
+
+  it('projects pre-existing light-DOM children into the inner action button', () => {
+    const host = document.createElement('ui-attachment-action');
+    const icon = document.createElement('span');
+    icon.textContent = '✕';
+    host.append(icon);
+    document.body.appendChild(host);
+    flushEffects();
+    const btn = host.querySelector('[data-slot="attachment-action"]')!;
+    expect(btn.contains(icon)).toBe(true);
+  });
+
+  it('works via innerHTML parsing (children appended after upgrade)', async () => {
+    document.body.innerHTML = '<ui-attachment-title>report.pdf</ui-attachment-title>';
+    flushEffects();
+    await Promise.resolve();
+    const title = q(document.body, 'attachment-title');
+    expect(title.textContent).toBe('report.pdf');
+  });
+
+  it('explicit prop wins over the host attribute (action size)', () => {
+    const host = document.createElement('ui-attachment-action');
+    host.setAttribute('size', 'sm');
+    (host as unknown as { _setProp(k: string, v: unknown): void })._setProp('size', 'icon-xs');
+    document.body.appendChild(host);
+    flushEffects();
+    const btn = host.querySelector('[data-slot="attachment-action"]')!;
+    expect(btn.className).toContain('size-6'); // icon-xs wins
+    expect(btn.className).not.toContain('h-8'); // not sm
+  });
+});

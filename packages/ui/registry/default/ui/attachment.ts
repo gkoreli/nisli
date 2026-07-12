@@ -11,15 +11,25 @@
  * ui-attachment-content / ui-attachment-title / ui-attachment-description /
  * ui-attachment-actions / ui-attachment-action / ui-attachment-trigger.
  *
- * asChild is not supported (native elements rendered directly); the action
- * button is a self-contained ghost icon button (upstream's icon-xs size isn't
- * in our button variants).
+ * asChild is not supported (native elements rendered directly). The action
+ * button reuses the canonical button variants (ghost / icon-xs by default,
+ * like upstream) and forwards the native button props (aria-label, disabled,
+ * type); the trigger is a plain full-bleed button that forwards the same.
  *
  * This file was copied into your project by `nisli-ui` — you own it.
  */
 
 import { component, computed, html, onMount, ref, type TemplateResult } from '@nisli/core';
-import { attr, captureChildren, cn, cv, projectChildren, transparentHost } from '../lib/utils.js';
+import {
+  attr,
+  boolAttr,
+  captureChildren,
+  cn,
+  cv,
+  projectChildren,
+  transparentHost,
+} from '../lib/utils.js';
+import { buttonVariants, type ButtonSize, type ButtonVariant } from './button.js';
 
 // ── ui-attachment ────────────────────────────────────────────────────
 
@@ -238,9 +248,15 @@ export const AttachmentActions = component<AttachmentSectionProps>(
   },
 );
 
-// ── ui-attachment-action (self-contained ghost icon button) ──────────
+// ── ui-attachment-action (canonical ghost icon button) ───────────────
 
 export type AttachmentActionProps = {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  type?: 'button' | 'submit' | 'reset';
+  disabled?: boolean;
+  /** Forwarded to the inner <button> so icon-only actions stay accessible. */
+  ariaLabel?: string;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -250,10 +266,18 @@ export const AttachmentAction = component<AttachmentActionProps>(
   (props, host) => {
     transparentHost(host);
     const projected = captureChildren(host);
+    const variant = attr(props.variant, host, 'variant');
+    const size = attr(props.size, host, 'size');
+    const type = attr(props.type, host, 'type');
+    const ariaLabel = attr(props.ariaLabel, host, 'aria-label');
+    const disabled = boolAttr(props.disabled, host, 'disabled');
     const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
       cn(
-        "inline-flex size-6 shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-3.5 [&_svg]:shrink-0",
+        buttonVariants({
+          variant: (variant.value as ButtonVariant | undefined) ?? 'ghost',
+          size: (size.value as ButtonSize | undefined) ?? 'icon-xs',
+        }),
         className.value,
       ),
     );
@@ -261,13 +285,24 @@ export const AttachmentAction = component<AttachmentActionProps>(
     onMount(() => {
       if (root.current) projectChildren(host, root.current, projected);
     });
-    return html`<button ref="${root}" type="button" data-slot="attachment-action" class="${classes}">${props.children}</button>`;
+    return html`<button
+      ref="${root}"
+      data-slot="attachment-action"
+      class="${classes}"
+      type="${computed(() => type.value ?? 'button')}"
+      aria-label="${ariaLabel}"
+      disabled="${disabled}"
+    >${props.children}</button>`;
   },
 );
 
 // ── ui-attachment-trigger (fills the chip; the main click target) ────
 
 export type AttachmentTriggerProps = {
+  type?: 'button' | 'submit' | 'reset';
+  disabled?: boolean;
+  /** Forwarded to the inner <button> (the trigger has no visible text). */
+  ariaLabel?: string;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -277,12 +312,22 @@ export const AttachmentTrigger = component<AttachmentTriggerProps>(
   (props, host) => {
     transparentHost(host);
     const projected = captureChildren(host);
+    const type = attr(props.type, host, 'type');
+    const ariaLabel = attr(props.ariaLabel, host, 'aria-label');
+    const disabled = boolAttr(props.disabled, host, 'disabled');
     const className = attr(props.className, host, 'class-name');
     const classes = computed(() => cn('absolute inset-0 z-10 outline-none', className.value));
     const root = ref<HTMLButtonElement>();
     onMount(() => {
       if (root.current) projectChildren(host, root.current, projected);
     });
-    return html`<button ref="${root}" type="button" data-slot="attachment-trigger" class="${classes}">${props.children}</button>`;
+    return html`<button
+      ref="${root}"
+      data-slot="attachment-trigger"
+      class="${classes}"
+      type="${computed(() => type.value ?? 'button')}"
+      aria-label="${ariaLabel}"
+      disabled="${disabled}"
+    >${props.children}</button>`;
   },
 );

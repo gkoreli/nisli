@@ -58,3 +58,49 @@ describe('Message', () => {
     expect(m.className).toContain('data-[align=end]:flex-row-reverse');
   });
 });
+
+describe('Message — plain custom elements', () => {
+  it('host is layout-transparent; styling lives on the inner element', () => {
+    const c = mount(html`${Message({ children: '' })}`);
+    flushEffects();
+    const host = c.querySelector('ui-message') as HTMLElement;
+    expect(host.style.display).toBe('contents');
+    expect(host.className).toBe('');
+    expect(host.querySelector('[data-slot="message"]')).not.toBeNull();
+  });
+
+  it('reads align from the host attribute', () => {
+    const host = document.createElement('ui-message');
+    host.setAttribute('align', 'end');
+    document.body.appendChild(host);
+    flushEffects();
+    expect(host.querySelector('[data-slot="message"]')!.getAttribute('data-align')).toBe('end');
+  });
+
+  it('projects pre-existing light-DOM children into the inner root', () => {
+    const host = document.createElement('ui-message-content');
+    const span = document.createElement('span');
+    span.textContent = 'Hi';
+    host.append(span);
+    document.body.appendChild(host);
+    flushEffects();
+    const content = host.querySelector('[data-slot="message-content"]')!;
+    expect(content.contains(span)).toBe(true);
+  });
+
+  it('works via innerHTML parsing (children appended after upgrade)', async () => {
+    document.body.innerHTML = '<ui-message-header>Ada</ui-message-header>';
+    flushEffects();
+    await Promise.resolve();
+    expect(q(document.body, 'message-header').textContent).toBe('Ada');
+  });
+
+  it('explicit prop wins over the host attribute (align)', () => {
+    const host = document.createElement('ui-message');
+    host.setAttribute('align', 'start');
+    (host as unknown as { _setProp(k: string, v: unknown): void })._setProp('align', 'end');
+    document.body.appendChild(host);
+    flushEffects();
+    expect(host.querySelector('[data-slot="message"]')!.getAttribute('data-align')).toBe('end');
+  });
+});

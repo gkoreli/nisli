@@ -54,3 +54,52 @@ describe('Bubble', () => {
     expect(r.className).toContain('rounded-full');
   });
 });
+
+describe('Bubble — plain custom elements', () => {
+  it('host is layout-transparent; styling lives on the inner element', () => {
+    const c = mount(html`${Bubble({ children: '' })}`);
+    flushEffects();
+    const host = c.querySelector('ui-bubble') as HTMLElement;
+    expect(host.style.display).toBe('contents');
+    expect(host.className).toBe('');
+    expect(host.querySelector('[data-slot="bubble"]')).not.toBeNull();
+  });
+
+  it('reads variant/align from host attributes', () => {
+    const host = document.createElement('ui-bubble');
+    host.setAttribute('variant', 'secondary');
+    host.setAttribute('align', 'end');
+    document.body.appendChild(host);
+    flushEffects();
+    const b = host.querySelector('[data-slot="bubble"]')!;
+    expect(b.getAttribute('data-variant')).toBe('secondary');
+    expect(b.getAttribute('data-align')).toBe('end');
+  });
+
+  it('projects pre-existing light-DOM children into the inner root', () => {
+    const host = document.createElement('ui-bubble-content');
+    const span = document.createElement('span');
+    span.textContent = 'Hi';
+    host.append(span);
+    document.body.appendChild(host);
+    flushEffects();
+    const content = host.querySelector('[data-slot="bubble-content"]')!;
+    expect(content.contains(span)).toBe(true);
+  });
+
+  it('works via innerHTML parsing (children appended after upgrade)', async () => {
+    document.body.innerHTML = '<ui-bubble-content>Parsed</ui-bubble-content>';
+    flushEffects();
+    await Promise.resolve();
+    expect(q(document.body, 'bubble-content').textContent).toBe('Parsed');
+  });
+
+  it('explicit prop wins over the host attribute (variant)', () => {
+    const host = document.createElement('ui-bubble');
+    host.setAttribute('variant', 'default');
+    (host as unknown as { _setProp(k: string, v: unknown): void })._setProp('variant', 'secondary');
+    document.body.appendChild(host);
+    flushEffects();
+    expect(host.querySelector('[data-slot="bubble"]')!.getAttribute('data-variant')).toBe('secondary');
+  });
+});

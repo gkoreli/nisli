@@ -33,6 +33,7 @@ import {
   type TemplateResult,
 } from '@nisli/core';
 import { attr, boolAttr, captureChildren, cn, projectChildren, transparentHost } from '../lib/utils.js';
+import { buttonVariants, type ButtonSize, type ButtonVariant } from './button.js';
 
 const AT_EDGE_THRESHOLD = 2;
 
@@ -241,19 +242,33 @@ export const MessageScrollerItem = component<MessageScrollerItemProps>(
 
 // ── ui-message-scroller-button ───────────────────────────────────────
 
+// Lucide `arrow-down`, the default glyph — shown only when no children are
+// given (custom children REPLACE it, matching upstream).
 const arrowDownIcon = html`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="m19 12-7 7-7-7"></path></svg>`;
 
-const buttonBase =
-  'inline-flex items-center justify-center gap-2 rounded-md border text-sm font-medium shadow-sm size-8 [&_svg]:pointer-events-none [&_svg:not([class*=size-])]:size-4 [&_svg]:shrink-0';
-
+// Upstream renders a canonical <Button variant size> and merges these
+// position/animation classes on top; `bg-background`/`text-foreground` here
+// intentionally override the button variant's own background.
 const buttonPosition =
   'absolute inset-s-1/2 -translate-x-1/2 border-border bg-background text-foreground transition-[translate,scale,opacity] duration-200 hover:bg-muted hover:text-foreground data-[active=false]:pointer-events-none data-[active=false]:scale-95 data-[active=false]:opacity-0 data-[active=false]:duration-400 data-[active=false]:ease-[cubic-bezier(0.7,0,0.84,0)] data-[active=true]:translate-y-0 data-[active=true]:scale-100 data-[active=true]:opacity-100 data-[active=true]:ease-[cubic-bezier(0.23,1,0.32,1)] data-[direction=end]:bottom-4 data-[direction=end]:data-[active=false]:translate-y-full data-[direction=start]:top-4 data-[direction=start]:data-[active=false]:-translate-y-full rtl:translate-x-1/2 data-[direction=start]:[&_svg]:rotate-180';
 
 export type MessageScrollerButtonProps = {
   direction?: 'start' | 'end';
+  /** Button visual variant (default `secondary`, matching upstream). */
+  variant?: ButtonVariant;
+  /** Button size (default `icon-sm`, matching upstream). */
+  size?: ButtonSize;
   className?: string;
+  /** Replaces the default arrow icon + sr-only label when provided. */
   children?: string | TemplateResult;
 };
+
+/** Non-whitespace light-DOM content counts as author-supplied children. */
+function hasContent(nodes: Node[]): boolean {
+  return nodes.some(
+    (n) => n.nodeType === 1 || (n.nodeType === 3 && (n.textContent ?? '').trim() !== ''),
+  );
+}
 
 export const MessageScrollerButton = component<MessageScrollerButtonProps>(
   'ui-message-scroller-button',
@@ -261,6 +276,7 @@ export const MessageScrollerButton = component<MessageScrollerButtonProps>(
     const state = useScroller(host, 'ui-message-scroller-button');
     transparentHost(host);
     const projected = captureChildren(host);
+    const projectedChildren = hasContent(projected);
 
     const dirAttr = attr(props.direction, host, 'direction');
     const direction = computed<'start' | 'end'>(() =>
@@ -270,8 +286,26 @@ export const MessageScrollerButton = component<MessageScrollerButtonProps>(
       direction.value === 'end' ? !state.isAtEnd.value : !state.isAtStart.value,
     );
 
+    const variant = attr(props.variant, host, 'variant');
+    const size = attr(props.size, host, 'size');
+    const resolvedVariant = computed<ButtonVariant>(
+      () => (variant.value as ButtonVariant | undefined) ?? 'secondary',
+    );
+    const resolvedSize = computed<ButtonSize>(
+      () => (size.value as ButtonSize | undefined) ?? 'icon-sm',
+    );
+
     const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(buttonBase, buttonPosition, className.value));
+    // Canonical button variant classes, then the message-scroller position
+    // overrides, then the caller's className — same layering as upstream's
+    // `render={<Button variant size />}` + merged className.
+    const classes = computed(() =>
+      cn(
+        buttonVariants({ variant: resolvedVariant.value, size: resolvedSize.value }),
+        buttonPosition,
+        className.value,
+      ),
+    );
 
     const root = ref<HTMLButtonElement>();
     onMount(() => {
@@ -283,15 +317,24 @@ export const MessageScrollerButton = component<MessageScrollerButtonProps>(
       else state.scrollToStart();
     };
 
+    // Default content (arrow + sr-only label) only when the author supplied
+    // no children — via the factory prop or plain-DOM light children.
+    const defaultContent = html`${arrowDownIcon}<span class="sr-only">${computed(() =>
+      direction.value === 'end' ? 'Scroll to end' : 'Scroll to start',
+    )}</span>`;
+    const factoryChildren = props.children.value;
+    const authorChildren = projectedChildren || (factoryChildren != null && factoryChildren !== '');
+
     return html`<button
       ref="${root}"
       type="button"
       data-slot="message-scroller-button"
       data-direction="${direction}"
+      data-variant="${resolvedVariant}"
+      data-size="${resolvedSize}"
       data-active="${computed(() => (active.value ? 'true' : 'false'))}"
-      aria-label="${computed(() => (direction.value === 'end' ? 'Scroll to end' : 'Scroll to start'))}"
       class="${classes}"
       @click=${onClick}
-    >${arrowDownIcon}${props.children}</button>`;
+    >${authorChildren ? props.children : defaultContent}</button>`;
   },
 );

@@ -735,7 +735,8 @@
         "ui/attachment.ts"
       ],
       "registryDependencies": [
-        "utils"
+        "utils",
+        "button"
       ]
     },
     {
@@ -746,7 +747,8 @@
         "ui/message-scroller.ts"
       ],
       "registryDependencies": [
-        "utils"
+        "utils",
+        "button"
       ]
     }
   ]
