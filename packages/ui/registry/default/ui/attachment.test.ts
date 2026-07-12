@@ -188,3 +188,41 @@ describe('Attachment — plain custom elements', () => {
     expect(btn.className).not.toContain('h-8'); // not sm
   });
 });
+
+describe('Attachment — live attributes (UI-30 attrs{})', () => {
+  it('reacts to post-mount state / size / orientation on the chip', () => {
+    const host = document.createElement('ui-attachment');
+    document.body.appendChild(host);
+    flushEffects();
+    const el = host.querySelector('[data-slot="attachment"]')!;
+    expect(el.getAttribute('data-state')).toBe('done');
+    expect(el.getAttribute('data-size')).toBe('default');
+    expect(el.getAttribute('data-orientation')).toBe('horizontal');
+
+    host.setAttribute('state', 'error');
+    host.setAttribute('size', 'sm');
+    host.setAttribute('orientation', 'vertical');
+    flushEffects();
+    expect(el.getAttribute('data-state')).toBe('error');
+    expect(el.getAttribute('data-size')).toBe('sm');
+    expect(el.getAttribute('data-orientation')).toBe('vertical');
+    expect(el.className).toContain('w-24'); // vertical variant class applied live
+  });
+
+  it('reacts to a post-mount disabled toggle on the action button', () => {
+    const host = document.createElement('ui-attachment-action');
+    document.body.appendChild(host);
+    flushEffects();
+    const btn = host.querySelector('[data-slot="attachment-action"]') as HTMLButtonElement;
+    expect(btn.hasAttribute('disabled')).toBe(false);
+
+    host.setAttribute('disabled', '');
+    flushEffects();
+    expect(btn.hasAttribute('disabled')).toBe(true);
+
+    // Our boolean semantics: literal "false" → false, live.
+    host.setAttribute('disabled', 'false');
+    flushEffects();
+    expect(btn.hasAttribute('disabled')).toBe(false);
+  });
+});

@@ -19,16 +19,8 @@
  * This file was copied into your project by `nisli-ui` — you own it.
  */
 
-import { component, computed, html, onMount, ref, type TemplateResult } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  captureChildren,
-  cn,
-  cv,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { children, component, computed, html, type TemplateResult } from '@nisli/core';
+import { cn, cv, transparentHost } from '../lib/utils.js';
 import { buttonVariants, type ButtonSize, type ButtonVariant } from './button.js';
 
 // ── ui-attachment ────────────────────────────────────────────────────
@@ -66,33 +58,23 @@ export type AttachmentProps = {
 
 export const Attachment = component<AttachmentProps>('ui-attachment', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const state = attr(props.state, host, 'state');
-  const size = attr(props.size, host, 'size');
-  const orientation = attr(props.orientation, host, 'orientation');
-  const className = attr(props.className, host, 'class-name');
   const classes = computed(() =>
     cn(
       attachmentVariants({
-        size: size.value ?? 'default',
-        orientation: orientation.value ?? 'horizontal',
+        size: props.size.value ?? 'default',
+        orientation: props.orientation.value ?? 'horizontal',
       }),
-      className.value,
+      props.className.value,
     ),
   );
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
   return html`<div
-    ref="${root}"
     data-slot="attachment"
-    data-state="${computed(() => state.value ?? 'done')}"
-    data-size="${computed(() => size.value ?? 'default')}"
-    data-orientation="${computed(() => orientation.value ?? 'horizontal')}"
+    data-state="${computed(() => props.state.value ?? 'done')}"
+    data-size="${computed(() => props.size.value ?? 'default')}"
+    data-orientation="${computed(() => props.orientation.value ?? 'horizontal')}"
     class="${classes}"
-  >${props.children}</div>`;
-});
+  >${children()}</div>`;
+}, { attrs: { state: 'string', size: 'string', orientation: 'string', className: 'string' } });
 
 // ── ui-attachment-group ──────────────────────────────────────────────
 
@@ -105,20 +87,15 @@ export const AttachmentGroup = component<AttachmentSectionProps>(
   'ui-attachment-group',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
       cn(
         'flex min-w-0 scroll-fade-x snap-x snap-mandatory scroll-px-1 scrollbar-none gap-3 overflow-x-auto overscroll-x-contain py-1 *:data-[slot=attachment]:flex-none *:data-[slot=attachment]:snap-start',
-        className.value,
+        props.className.value,
       ),
     );
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<div ref="${root}" data-slot="attachment-group" class="${classes}">${props.children}</div>`;
+    return html`<div data-slot="attachment-group" class="${classes}">${children()}</div>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-attachment-media ──────────────────────────────────────────────
@@ -147,23 +124,16 @@ export const AttachmentMedia = component<AttachmentMediaProps>(
   'ui-attachment-media',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const variant = attr(props.variant, host, 'variant');
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
-      cn(attachmentMediaVariants({ variant: variant.value ?? 'icon' }), className.value),
+      cn(attachmentMediaVariants({ variant: props.variant.value ?? 'icon' }), props.className.value),
     );
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<div
-      ref="${root}"
       data-slot="attachment-media"
-      data-variant="${computed(() => variant.value ?? 'icon')}"
+      data-variant="${computed(() => props.variant.value ?? 'icon')}"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { variant: 'string', className: 'string' } },
 );
 
 // ── ui-attachment-content / -title / -description / -actions ─────────
@@ -172,80 +142,60 @@ export const AttachmentContent = component<AttachmentSectionProps>(
   'ui-attachment-content',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
       cn(
         'max-w-full min-w-0 flex-1 leading-tight group-data-[orientation=vertical]/attachment:px-1',
-        className.value,
+        props.className.value,
       ),
     );
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<div ref="${root}" data-slot="attachment-content" class="${classes}">${props.children}</div>`;
+    return html`<div data-slot="attachment-content" class="${classes}">${children()}</div>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export const AttachmentTitle = component<AttachmentSectionProps>(
   'ui-attachment-title',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
       cn(
         'block max-w-full min-w-0 truncate font-medium group-data-[state=processing]/attachment:shimmer group-data-[state=uploading]/attachment:shimmer',
-        className.value,
+        props.className.value,
       ),
     );
-    const root = ref<HTMLSpanElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<span ref="${root}" data-slot="attachment-title" class="${classes}">${props.children}</span>`;
+    return html`<span data-slot="attachment-title" class="${classes}">${children()}</span>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export const AttachmentDescription = component<AttachmentSectionProps>(
   'ui-attachment-description',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
       cn(
         'mt-0.5 block min-w-0 truncate text-xs text-muted-foreground group-data-[state=error]/attachment:text-destructive/80 max-w-full',
-        className.value,
+        props.className.value,
       ),
     );
-    const root = ref<HTMLSpanElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<span ref="${root}" data-slot="attachment-description" class="${classes}">${props.children}</span>`;
+    return html`<span data-slot="attachment-description" class="${classes}">${children()}</span>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export const AttachmentActions = component<AttachmentSectionProps>(
   'ui-attachment-actions',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
       cn(
         'relative z-20 flex shrink-0 items-center group-data-[orientation=vertical]/attachment:absolute group-data-[orientation=vertical]/attachment:top-3 group-data-[orientation=vertical]/attachment:right-3 group-data-[orientation=vertical]/attachment:gap-1',
-        className.value,
+        props.className.value,
       ),
     );
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<div ref="${root}" data-slot="attachment-actions" class="${classes}">${props.children}</div>`;
+    return html`<div data-slot="attachment-actions" class="${classes}">${children()}</div>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-attachment-action (canonical ghost icon button) ───────────────
@@ -265,35 +215,25 @@ export const AttachmentAction = component<AttachmentActionProps>(
   'ui-attachment-action',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const variant = attr(props.variant, host, 'variant');
-    const size = attr(props.size, host, 'size');
-    const type = attr(props.type, host, 'type');
-    const ariaLabel = attr(props.ariaLabel, host, 'aria-label');
-    const disabled = boolAttr(props.disabled, host, 'disabled');
-    const className = attr(props.className, host, 'class-name');
+    const disabled = computed<boolean>(() => props.disabled.value as boolean);
     const classes = computed(() =>
       cn(
         buttonVariants({
-          variant: (variant.value as ButtonVariant | undefined) ?? 'ghost',
-          size: (size.value as ButtonSize | undefined) ?? 'icon-xs',
+          variant: (props.variant.value as ButtonVariant | undefined) ?? 'ghost',
+          size: (props.size.value as ButtonSize | undefined) ?? 'icon-xs',
         }),
-        className.value,
+        props.className.value,
       ),
     );
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<button
-      ref="${root}"
       data-slot="attachment-action"
       class="${classes}"
-      type="${computed(() => type.value ?? 'button')}"
-      aria-label="${ariaLabel}"
+      type="${computed(() => props.type.value ?? 'button')}"
+      aria-label="${props.ariaLabel}"
       disabled="${disabled}"
-    >${props.children}</button>`;
+    >${children()}</button>`;
   },
+  { attrs: { variant: 'string', size: 'string', type: 'string', ariaLabel: 'string', disabled: 'boolean', className: 'string' } },
 );
 
 // ── ui-attachment-trigger (fills the chip; the main click target) ────
@@ -311,23 +251,15 @@ export const AttachmentTrigger = component<AttachmentTriggerProps>(
   'ui-attachment-trigger',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const type = attr(props.type, host, 'type');
-    const ariaLabel = attr(props.ariaLabel, host, 'aria-label');
-    const disabled = boolAttr(props.disabled, host, 'disabled');
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn('absolute inset-0 z-10 outline-none', className.value));
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
+    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const classes = computed(() => cn('absolute inset-0 z-10 outline-none', props.className.value));
     return html`<button
-      ref="${root}"
       data-slot="attachment-trigger"
       class="${classes}"
-      type="${computed(() => type.value ?? 'button')}"
-      aria-label="${ariaLabel}"
+      type="${computed(() => props.type.value ?? 'button')}"
+      aria-label="${props.ariaLabel}"
       disabled="${disabled}"
-    >${props.children}</button>`;
+    >${children()}</button>`;
   },
+  { attrs: { type: 'string', ariaLabel: 'string', disabled: 'boolean', className: 'string' } },
 );
