@@ -62,6 +62,29 @@ describe('Attachment', () => {
     expect(trigger.className).toContain('absolute inset-0');
   });
 
+  it('DOM regression (UI-60): [data-slot=attachment] is a DESCENDANT, not a direct child of the group — `**:` required, `*:` dead', () => {
+    const c = mount(
+      html`${AttachmentGroup({
+        children: Attachment({ children: AttachmentMedia({ variant: 'icon', children: '📄' }) }),
+      })}`,
+    );
+    flushEffects();
+    const group = q(c, 'attachment-group');
+    // The layout-transparent <ui-attachment> host sits between the group and the
+    // painted slot, so it's a GRANDCHILD — upstream's `*:` (`& > *`) is dead here.
+    expect(group.querySelector(':scope > [data-slot="attachment"]')).toBeNull();
+    expect(group.querySelector('ui-attachment > [data-slot="attachment"]')).not.toBeNull();
+    expect(group.className).toContain('**:data-[slot=attachment]');
+    // The media's spinner-slot reach is translated too (painted behind ui-spinner).
+    expect(q(c, 'attachment-media').className).toContain('**:data-[slot=spinner]');
+    // Reachable plain-element `*:[img]` (image variant) is left as child form —
+    // a real <img> is a direct child, so it is NOT rewritten.
+    expect(
+      q(mount(html`${AttachmentMedia({ variant: 'image', children: '' })}`), 'attachment-media')
+        .className,
+    ).toContain('*:[img]');
+  });
+
   it('reflects state/size/orientation variants', () => {
     const c = mount(
       html`${Attachment({ state: 'error', size: 'xs', orientation: 'vertical', children: '' })}`,

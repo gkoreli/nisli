@@ -36,6 +36,23 @@ describe('Bubble', () => {
     expect(q(c, 'bubble-content').className).toContain('rounded-xl');
   });
 
+  it('DOM regression (UI-60): [data-slot=bubble-content] is a DESCENDANT, not a direct child of the bubble — so `**:`/`[&_` is required, `*:`/`[&>` is dead', () => {
+    const c = mount(
+      html`${Bubble({ children: BubbleContent({ children: 'Hi' }) })}`,
+    );
+    flushEffects();
+    const bubble = q(c, 'bubble');
+    // The layout-transparent <ui-bubble-content> host sits between the bubble
+    // owner and the painted slot, so the painted div is a GRANDCHILD: upstream's
+    // child reach (`*:` = `& > *`, `[&>` ) never matches through the host.
+    expect(bubble.querySelector(':scope > [data-slot="bubble-content"]')).toBeNull();
+    expect(bubble.querySelector('ui-bubble-content > [data-slot="bubble-content"]')).not.toBeNull();
+    // The repair is present: the owner carries the descendant-form selectors
+    // (Tailwind v4 compiles `**:` → `& *` and `[&_` → `& `).
+    expect(bubble.className).toContain('**:data-[slot=bubble-content]');
+    expect(bubble.className).toContain('[&_[data-slot=bubble-content]');
+  });
+
   it('reflects variant + end alignment', () => {
     const c = mount(html`${Bubble({ variant: 'secondary', align: 'end', children: 'Hi' })}`);
     flushEffects();

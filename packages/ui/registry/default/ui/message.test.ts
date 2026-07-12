@@ -50,6 +50,25 @@ describe('Message', () => {
     expect(q(c, 'message-footer').textContent).toBe('2:30 PM');
   });
 
+  it('DOM regression (UI-60): message-content [data-slot] children are DESCENDANTS — align-end self-end reach needs `**:` (was `*:`, dead)', () => {
+    const c = mount(
+      html`${Message({
+        align: 'end',
+        children: MessageContent({ children: MessageHeader({ children: 'Ada' }) }),
+      })}`,
+    );
+    flushEffects();
+    const content = q(c, 'message-content');
+    // The <ui-message-header> host sits between message-content and its painted
+    // [data-slot=message-header] div → GRANDCHILD. So `*:data-slot` (child) was
+    // dead and align-end never self-ended the content's slots (live symptom: the
+    // avatar detached bottom-right). The `**:` descendant form reaches it.
+    expect(content.querySelector(':scope > [data-slot="message-header"]')).toBeNull();
+    expect(content.querySelector('ui-message-header > [data-slot="message-header"]')).not.toBeNull();
+    expect(content.className).toContain('**:data-slot:self-end');
+    expect(q(c, 'message').getAttribute('data-align')).toBe('end');
+  });
+
   it('align="end" flips the row', () => {
     const c = mount(html`${Message({ align: 'end', children: 'Hi' })}`);
     flushEffects();

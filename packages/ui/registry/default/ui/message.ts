@@ -47,7 +47,7 @@ export const MessageAvatar = messageSection(
 export const MessageContent = messageSection(
   'ui-message-content',
   'message-content',
-  'flex w-full min-w-0 flex-col gap-2.5 wrap-break-word group-data-[align=end]/message:*:data-slot:self-end',
+  'flex w-full min-w-0 flex-col gap-2.5 wrap-break-word group-data-[align=end]/message:**:data-slot:self-end',
 );
 
 export const MessageHeader = messageSection(
