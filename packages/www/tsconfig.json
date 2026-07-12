@@ -4,8 +4,9 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["node"],
     "declaration": false,
-    "sourceMap": false
+    "sourceMap": false,
+    "resolveJsonModule": true
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "../ui/registry/registry.json"],
   "exclude": ["src/**/*.test.ts", "src/nisli-ui/**/*.test.ts"]
 }

@@ -2,20 +2,21 @@
   "name": "@nisli/www",
   "version": "0.0.0",
   "private": true,
-  "description": "The nisli website \u2014 home, docs, design showcase, and component gallery, rendered static by @nisli/ssg.",
+  "description": "The nisli website — home, docs, design showcase, and component gallery, rendered static by @nisli/ssg.",
   "type": "module",
   "scripts": {
     "dev": "vite --configLoader runner",
     "sync": "pnpm --filter @nisli/ui build && node scripts/sync.mjs",
     "render": "vitest run src/render.test.ts",
     "build": "pnpm run sync && pnpm run render && tailwindcss -i src/styles/input.css -o dist/assets/site.css --minify",
-    "deploy": "pnpm run build && npx wrangler deploy",
+    "release": "pnpm run build && npx wrangler deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
     "@nisli/core": "workspace:*",
+    "@nisli/router": "workspace:*",
     "@nisli/ssg": "workspace:*",
     "@nisli/ui": "workspace:*",
     "@tailwindcss/cli": "^4.0.0",

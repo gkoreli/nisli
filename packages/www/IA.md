@@ -142,8 +142,8 @@ Cloudflare **Workers Builds** (git-connected, like the blog): push to `main` →
 build + deploy in ~60s. Build is self-contained (`pnpm install && pnpm --filter @nisli/www
 build`), runs the `@nisli/ui` copy-in, and deploys via `wrangler deploy` with root dir
 `packages/www`. Watched paths: `packages/www/**`, `packages/ui/**`, `packages/core/**`.
-`pnpm --filter @nisli/www deploy` remains the manual escape hatch. Details in
-[`README.md`](./README.md).
+`pnpm --filter @nisli/www release` remains the manual deploy path (named `release`, not
+`deploy`, which is a reserved pnpm builtin). Details in [`README.md`](./README.md).
 
 ---
 

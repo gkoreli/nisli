@@ -63,6 +63,9 @@ importers:
       '@nisli/core':
         specifier: workspace:*
         version: link:../core
+      '@nisli/router':
+        specifier: workspace:*
+        version: link:../router
       '@nisli/ssg':
         specifier: workspace:*
         version: link:../ssg

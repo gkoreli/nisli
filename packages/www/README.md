@@ -16,7 +16,7 @@ Information architecture and roadmap: [`IA.md`](./IA.md).
 | `sync`      | Reinstall the site's `src/nisli-ui/` component copies through the real `@nisli/ui` CLI (`init` + `add` every registry item). Run after registry changes, then commit the refreshed copies. |
 | `render`    | Render the site to `dist/` via `@nisli/ssg`, driven by `src/render.test.ts` (vitest is the repo's TS runner on Node 20). |
 | `build`     | **Self-contained**: `sync` (build `@nisli/ui` + copy-in) → `render` → compile `dist/assets/site.css` with the Tailwind v4 CLI. Produces a complete `dist/` from a cold checkout. |
-| `deploy`    | `build` + `npx wrangler deploy` — the manual escape hatch (publishes `dist/` to Cloudflare worker `nisli-www`). |
+| `release`   | `build` + `npx wrangler deploy` — the manual deploy path (publishes `dist/` to Cloudflare worker `nisli-www`). Named `release`, not `deploy`, because `pnpm deploy` is a reserved pnpm builtin. |
 | `test`      | `vitest run` — the render test doubles as an end-to-end regression.       |
 | `typecheck` | `tsc --noEmit`.                                                            |
 
@@ -51,7 +51,7 @@ copies even without a `packages/www` change.
 
 ### Manual escape hatch
 
-`pnpm --filter @nisli/www deploy` (build + `npx wrangler deploy`) still works from an
+`pnpm --filter @nisli/www release` (build + `npx wrangler deploy`) still works from an
 authenticated machine (`npx wrangler whoami`; `npx wrangler login` once if needed) — use it
 when you need to deploy without pushing.
 

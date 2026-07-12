@@ -7,16 +7,18 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { buildSite } from './build.js';
-import { routes } from './routes.js';
 import { components, primitives } from './registry.js';
 import { primaryTag } from './preview.js';
 
 describe('nisli website', () => {
   it('renders every route through the shell + chrome', async () => {
     const built = await buildSite();
+    const paths = new Set(built.map((p) => p.path));
 
-    // one built page per declared route
-    expect(built.map((p) => p.path).sort()).toEqual(routes.map((r) => r.path).sort());
+    // the AppRouter's static routes + the notFound page are all emitted
+    for (const path of ['/', '/ui', '/themes', '/docs', '/404.html']) {
+      expect(paths.has(path), `missing built page ${path}`).toBe(true);
+    }
 
     for (const page of built) {
       const html = readFileSync(page.filePath, 'utf8');

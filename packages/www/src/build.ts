@@ -1,18 +1,20 @@
 /**
- * build.ts — render every route to dist/ with @nisli/ssg.
+ * build.ts — render the whole site to dist/ from the AppRouter (ADR 0026).
  * Driven by src/render.test.ts (vitest is the repo's TS runner); the package
  * build script then compiles dist/assets/site.css with the Tailwind CLI.
  *
- * @nisli/ssg renders each route's body fragment and writes it to its per-route
- * file (writeRoute: `/` → dist/index.html, `/docs/x` → dist/docs/x/index.html);
- * we then wrap each fragment in the full HTML document (shell) and overwrite.
+ * buildStaticSite expands the AppRouter's routes (static + entries()-expanded
+ * dynamic ones) and writes each match's body fragment to its per-route file
+ * (`/` → dist/index.html, `/ui/button` → dist/ui/button/index.html, the
+ * notFound → dist/404.html). The `shell` callback captures each page's metadata;
+ * we then wrap every written fragment in the full HTML document (shell.ts).
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildStaticSite } from '@nisli/ssg';
-import { shell } from './shell.js';
-import { routes } from './routes.js';
+import { shell, type ShellMeta } from './shell.js';
+import { AppRouter } from './app-router.js';
 
 const siteDir = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -22,18 +24,29 @@ export interface BuiltPage {
 }
 
 export async function buildSite(outDir: string = join(siteDir, 'dist')): Promise<BuiltPage[]> {
+  const metaByPath = new Map<string, ShellMeta>();
+
   const result = await buildStaticSite({
     outDir,
-    routes: routes.map((route) => ({ path: route.path, render: () => route.body() })),
+    router: AppRouter,
+    // The router build renders each match's content; we return it as the body
+    // fragment (SSG writes it to disk) and record its metadata for the wrap.
+    shell: (page) => {
+      metaByPath.set(page.path, {
+        title: page.metadata?.title ?? 'nisli',
+        description: page.metadata?.meta?.description ?? '',
+      });
+      return page.content;
+    },
   });
 
   mkdirSync(join(outDir, 'assets'), { recursive: true });
 
   const built: BuiltPage[] = [];
   for (const page of result.pages) {
-    const route = routes.find((r) => r.path === page.path);
-    if (!route) throw new Error(`no route metadata for rendered page ${page.path}`);
-    writeFileSync(page.filePath, shell(page.html, route.meta));
+    const meta = metaByPath.get(page.path) ?? { title: 'nisli', description: '' };
+    const fragment = readFileSync(page.filePath, 'utf8');
+    writeFileSync(page.filePath, shell(fragment, meta));
     built.push({ path: page.path, filePath: page.filePath });
   }
   return built;

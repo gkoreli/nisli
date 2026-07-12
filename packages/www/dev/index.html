@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>nisli — reactive web components, shadcn-style UI you own</title>
+    <title>nisli — the reactive web-component framework</title>
     <meta
       name="description"
-      content="nisli is a reactive web-component framework; @nisli/ui is its shadcn-style component library, installed as source you own."
+      content="nisli is a reactive web-component framework; @nisli/ui is its batteries-included component library, copied into your project as source you own."
     />
     <script>
       try {
@@ -18,16 +18,9 @@
       } catch {}
     </script>
   </head>
-  <body>
-    <div class="fixed top-4 right-4 z-[200]">
-      <button
-        id="theme-toggle"
-        aria-label="Toggle dark mode"
-        class="rounded-md border bg-background px-3 py-1.5 text-sm font-medium text-foreground shadow-xs hover:bg-accent"
-      >
-        Theme
-      </button>
-    </div>
+  <body class="bg-background text-foreground antialiased">
+    <!-- The site chrome (nav with #theme-toggle, footer) renders inside #app via
+         the AppRouter outlet; enhancement is wired in main.ts by delegation. -->
     <div id="app"></div>
     <script type="module" src="/main.ts"></script>
   </body>

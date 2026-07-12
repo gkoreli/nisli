@@ -1,14 +1,19 @@
 /**
  * registry.ts — the site's view of the @nisli/ui registry.
- * Enumerated from loadRegistry() (the same source the copy-in CLI reads), so
+ * Enumerated from the registry JSON (the same source the copy-in CLI reads), so
  * the /ui gallery is registry-driven: adding a registry item produces a page
  * with no change here. No hand-maintained component list.
+ *
+ * We import the JSON directly rather than @nisli/ui's loadRegistry(): that reads
+ * it via node:fs, which the browser can't run, and the dev client router renders
+ * /ui pages client-side. The type comes from @nisli/ui (type-only, erased).
  */
-import { loadRegistry, type RegistryItem } from '@nisli/ui';
+import type { RegistryItem } from '@nisli/ui';
+import registryData from '../../ui/registry/registry.json';
 
 export type { RegistryItem };
 
-const registry = loadRegistry();
+const registry = registryData as { items: RegistryItem[] };
 
 const byName = (a: RegistryItem, b: RegistryItem) => a.name.localeCompare(b.name);
 
