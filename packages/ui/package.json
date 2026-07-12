@@ -57,6 +57,8 @@
     "e2e:theme": "node scripts/theme-e2e.mjs",
     "e2e:theme:cleanup": "node scripts/theme-e2e.mjs --self-test-cleanup",
     "e2e:button-group": "node scripts/button-group-e2e.mjs",
-    "e2e:button-group:cleanup": "node scripts/button-group-e2e.mjs --self-test-cleanup"
+    "e2e:button-group:cleanup": "node scripts/button-group-e2e.mjs --self-test-cleanup",
+    "e2e:positional-host": "node scripts/positional-host-e2e.mjs",
+    "e2e:positional-host:cleanup": "node scripts/positional-host-e2e.mjs --self-test-cleanup"
   }
 }

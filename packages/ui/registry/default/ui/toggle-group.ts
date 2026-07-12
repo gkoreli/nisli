@@ -173,9 +173,11 @@ export const ToggleGroup = component<ToggleGroupProps, typeof toggleGroupAttrs>(
   );
 
   const className = props.className;
+  // Positional utilities on each painted item see only that item's transparent
+  // host. Translate the host sequence back onto the painted descendant.
   const classes = computed(() =>
     cn(
-      'group/toggle-group flex w-fit items-center gap-[--spacing(var(--gap))] rounded-md data-[spacing=default]:data-[variant=outline]:shadow-xs',
+      "group/toggle-group flex w-fit items-center gap-[--spacing(var(--gap))] rounded-md data-[spacing=default]:data-[variant=outline]:shadow-xs [&>[data-slot=toggle-group-item]:first-child[data-spacing='0']]:rounded-l-md [&>[data-slot=toggle-group-item]:last-child[data-spacing='0']]:rounded-r-md [&>[data-slot=toggle-group-item]:first-child[data-spacing='0'][data-variant=outline]]:border-l [&>ui-toggle-group-item:first-child>[data-slot=toggle-group-item][data-spacing='0']]:rounded-l-md [&>ui-toggle-group-item:last-child>[data-slot=toggle-group-item][data-spacing='0']]:rounded-r-md [&>ui-toggle-group-item:first-child>[data-slot=toggle-group-item][data-spacing='0'][data-variant=outline]]:border-l",
       className.value,
     ),
   );
@@ -241,7 +243,7 @@ export const ToggleGroupItem = component<ToggleGroupItemProps, typeof toggleGrou
       cn(
         toggleVariants({ variant: variant.value, size: size.value }),
         'w-auto min-w-0 shrink-0 px-3 focus:z-10 focus-visible:z-10',
-        'data-[spacing=0]:rounded-none data-[spacing=0]:shadow-none data-[spacing=0]:first:rounded-l-md data-[spacing=0]:last:rounded-r-md data-[spacing=0]:data-[variant=outline]:border-l-0 data-[spacing=0]:data-[variant=outline]:first:border-l',
+        'data-[spacing=0]:rounded-none data-[spacing=0]:shadow-none data-[spacing=0]:data-[variant=outline]:border-l-0',
         className.value,
       ),
     );

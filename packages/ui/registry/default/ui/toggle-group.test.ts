@@ -83,6 +83,23 @@ describe('ToggleGroup multiple', () => {
 });
 
 describe('ToggleGroup rendering', () => {
+  it('puts positional selectors on the group across transparent item hosts', () => {
+    const c = mountGroup({ variant: 'outline', spacing: 0 });
+    const group = c.querySelector<HTMLElement>('[data-slot="toggle-group"]')!;
+    expect([...group.children].map((child) => child.tagName)).toEqual([
+      'UI-TOGGLE-GROUP-ITEM', 'UI-TOGGLE-GROUP-ITEM', 'UI-TOGGLE-GROUP-ITEM',
+    ]);
+    expect(group.className).toContain(
+      "[&>ui-toggle-group-item:first-child>[data-slot=toggle-group-item][data-spacing='0']]:rounded-l-md",
+    );
+    expect(group.className).toContain(
+      "[&>ui-toggle-group-item:last-child>[data-slot=toggle-group-item][data-spacing='0']]:rounded-r-md",
+    );
+    expect(item(c, 1).className).not.toContain('first:rounded-l-md');
+    expect(item(c, 1).className).not.toContain('last:rounded-r-md');
+    expect(item(c, 1).className).not.toContain('first:border-l');
+  });
+
   it('carries group data attributes and forwards variant/size to items', () => {
     const c = mountGroup({ variant: 'outline', size: 'sm', defaultValue: 'bold' });
     const group = c.querySelector('[data-slot="toggle-group"]') as HTMLElement;

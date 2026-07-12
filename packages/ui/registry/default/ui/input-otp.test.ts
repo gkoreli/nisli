@@ -75,6 +75,23 @@ describe('InputOTP — structure', () => {
     expect((c.querySelector('ui-input-otp') as HTMLElement).style.display).toBe('contents');
   });
 
+  it('targets first and last painted slots through their transparent hosts', () => {
+    const c = mountOTP({}, 3);
+    const group = c.querySelector<HTMLElement>('[data-slot="input-otp-group"]')!;
+    expect([...group.children].map((child) => child.tagName)).toEqual([
+      'UI-INPUT-OTP-SLOT', 'UI-INPUT-OTP-SLOT', 'UI-INPUT-OTP-SLOT',
+    ]);
+    expect(group.className).toContain(
+      '[&>ui-input-otp-slot:first-child>[data-slot=input-otp-slot]]:border-l',
+    );
+    expect(group.className).toContain(
+      '[&>ui-input-otp-slot:last-child>[data-slot=input-otp-slot]]:rounded-r-md',
+    );
+    expect(slotEls(c)[1].className).not.toContain('first:rounded-l-md');
+    expect(slotEls(c)[1].className).not.toContain('last:rounded-r-md');
+    expect(slotEls(c)[1].className).not.toContain('first:border-l');
+  });
+
   it('renders a minus separator', () => {
     const c = mount(html`${InputOTP({ maxLength: 2, children: InputOTPSeparator({}) })}`);
     const sep = c.querySelector('[data-slot="input-otp-separator"]') as HTMLElement;

@@ -77,6 +77,20 @@ function press(el: Element, key: string): void {
 }
 
 describe('Accordion — structure and ARIA', () => {
+  it('targets the last painted item through the transparent item host', () => {
+    const c = mountAccordion();
+    const root = c.querySelector<HTMLElement>('[data-slot="accordion"]')!;
+    expect([...root.children].map((child) => child.tagName)).toEqual([
+      'UI-ACCORDION-ITEM', 'UI-ACCORDION-ITEM',
+    ]);
+    expect(root.className).toContain(
+      '[&>ui-accordion-item:last-child>[data-slot=accordion-item]]:border-b-0',
+    );
+    const items = root.querySelectorAll<HTMLElement>('[data-slot="accordion-item"]');
+    expect(items[0]!.className).toContain('border-b');
+    expect(items[0]!.className).not.toContain('last:border-b-0');
+  });
+
   it('renders header/button/region with wired ids, closed by default', () => {
     const c = mountAccordion();
     const [btnA] = triggers(c);

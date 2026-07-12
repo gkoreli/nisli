@@ -167,24 +167,25 @@ candidate exists in the registry at this census.
 | `avatar.ts` | overlap and ring on avatar boxes | TRANSLATED | Explicit-depth overlap and `**:` ring paths already cross the transparent avatar hosts. |
 | `item.ts`, `empty.ts`, `marker.ts` | direct projected anchors | REACHABLE | Text/content inner nodes own projected native anchors. |
 | `form-field.ts` | `&>*`, direct field label/content | DEAD — UI-58 | Field root sees transparent field component hosts rather than their painted slots. |
-| `input-otp.ts` | slot `first:` / `last:` rounding and border | DEAD — UI-57 | Each slot's inner node is both first and last inside its own transparent host; position belongs to the host sequence. |
+| `input-otp.ts` | slot `first:` / `last:` rounding and border | TRANSLATED — UI-57 | Group-owned selectors carry host-sequence position to the painted slot. |
 | `button-group.ts` | nested gap, focus, shared border, first/last corners | TRANSLATED — current change | Parallel explicit paths target button/text painted slots while retaining upstream native-child rules. |
-| `message.ts` | direct self-end message child | DEAD — UI-60 | The slot-bearing painted node is behind a transparent component host. |
+| `message.ts` | direct self-end message child | TRANSLATED — UI-60 | An explicit descendant path reaches the slot-bearing painted node behind its transparent host. |
 | `breadcrumb.ts` | separator `>svg` | REACHABLE | The separator inner node directly owns its SVG. |
 | `input-group.ts` | direct textarea/input/alignment/addon button/kbd | DEAD — UI-58 | Composition interposes input/addon/button hosts; descendant raw-SVG rules remain reachable. |
 | `alert.ts`, `badge.ts`, `alert-dialog.ts` | direct/projected SVG and alert description | REACHABLE | The styled inner nodes directly own the native/projected targets. |
 | `table.ts` | footer `>tr`, cell/header direct checkbox | DEAD — UI-59 | Table section/cell hosts interpose between styled inner elements and painted row/control; descendant `tr:last-child` remains reachable. |
-| `attachment.ts` | direct attachment, spinner, and image | DEAD — UI-60 | Slot-bearing boxes are descendants of transparent attachment/media hosts. |
+| `attachment.ts` | attachment, spinner, and direct image | MIXED / TRANSLATED — UI-60 | AttachmentGroup attachment slots and AttachmentMedia spinner slots use translated descendant painted paths; the real direct `img` selector remains REACHABLE / UNCHANGED. |
 | `calendar.ts` | cell/button/span first/last and direct descendants | N/A | DayPicker generates the native table/button/span structure within the painted calendar root. |
-| `toggle-group.ts` | item `first:` / `last:` corners and border | DEAD — UI-57 | Every item button is sole child of its own host; group position must be read from the host sequence. |
+| `toggle-group.ts` | item `first:` / `last:` corners and border | TRANSLATED — UI-57 | Group-owned selectors carry host-sequence position to zero-spacing painted items. |
 | `command.ts` | `**:` command descendants | TRANSLATED | Descendant variants intentionally cross transparent command hosts. |
-| `accordion.ts` | item `last:border-b-0` | DEAD — UI-57 | Each painted item root is sole child of its host, so every item reads as last. |
-| `bubble.ts` | direct bubble-content variants and hover paths | DEAD — UI-60 | Bubble content's slot-bearing box sits behind a transparent child host. |
+| `accordion.ts` | item `last:border-b-0` | TRANSLATED — UI-57 | The accordion root now targets the painted descendant of its last item host. |
+| `bubble.ts` | direct bubble-content variants and hover paths | TRANSLATED — UI-60 | Descendant variant and hover paths reach bubble content behind its transparent host. |
 | `pagination.ts` | compositional-root child contract | N/A | No direct-child utility targets a component-hosted painted child; icon rules live on native controls. |
 
-Only ButtonGroup is fixed in this change. UI-57 owns toggle-group, input-OTP,
-and accordion positional semantics; UI-58 owns form-field/input-group; UI-59
-owns table; UI-60 owns attachment/message/bubble. The census is deliberately
+UI-61 fixed ButtonGroup. UI-57 closes toggle-group, input-OTP, and accordion
+positional semantics with DOM and built Tailwind/Chromium first/middle/last
+coverage at desktop and 390px. UI-58 owns form-field/input-group; UI-59
+owns table; UI-60 closes attachment/message/bubble. The census is deliberately
 ticketed rather than silently broadening this parity fix.
 
 ## Manual side-by-side pass — wave B (arch, 2026-07-12, vs live 39a8d36 + UI-53 contact sheets)
