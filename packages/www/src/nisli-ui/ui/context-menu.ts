@@ -36,6 +36,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   effect,
@@ -97,14 +98,20 @@ export type ContextMenuProps = {
   children?: string | TemplateResult;
 };
 
-export const ContextMenu = component<ContextMenuProps>(
+const contextMenuAttrs = {
+  open: 'boolean',
+  defaultOpen: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<ContextMenuProps>;
+
+export const ContextMenu = component<ContextMenuProps, typeof contextMenuAttrs>(
   'ui-context-menu',
   (props, host) => {
     transparentHost(host);
 
     // PATTERN A (ADR 0025 item 3): the `open` ATTRIBUTE is the uncontrolled state
     // (like native <dialog open>/<details open>). The attribute IS the truth.
-    const open = computed<boolean>(() => props.open.value ?? false);
+    const open = computed<boolean>(() => props.open.value);
 
     const setOpen = (next: boolean): void => {
       if (next === open.value) return;
@@ -159,7 +166,7 @@ export const ContextMenu = component<ContextMenuProps>(
       class="${classes}"
     >${children()}</div>`;
   },
-  { attrs: { open: 'boolean', defaultOpen: 'boolean', className: 'string' } },
+  { attrs: contextMenuAttrs },
 );
 
 // ── ui-context-menu-trigger ─────────────────────────────────────────
@@ -169,7 +176,11 @@ export type ContextMenuTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const ContextMenuTrigger = component<ContextMenuTriggerProps>(
+const contextMenuTriggerAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<ContextMenuTriggerProps>;
+
+export const ContextMenuTrigger = component<ContextMenuTriggerProps, typeof contextMenuTriggerAttrs>(
   'ui-context-menu-trigger',
   (props, host) => {
     const state = ContextMenuContext.inject();
@@ -191,7 +202,7 @@ export const ContextMenuTrigger = component<ContextMenuTriggerProps>(
       @contextmenu=${onContextMenu}
     >${children()}</div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: contextMenuTriggerAttrs },
 );
 
 // ── ui-context-menu-content ─────────────────────────────────────────
@@ -352,7 +363,15 @@ function wireMenuSurface(cfg: MenuSurfaceConfig): {
   return { onKeyDown, onPointerOver };
 }
 
-export const ContextMenuContent = component<ContextMenuContentProps>(
+const contextMenuContentAttrs = {
+  side: 'string',
+  align: 'string',
+  sideOffset: 'number',
+  portal: { type: 'boolean', default: true },
+  className: 'string',
+} satisfies ComponentAttrs<ContextMenuContentProps>;
+
+export const ContextMenuContent = component<ContextMenuContentProps, typeof contextMenuContentAttrs>(
   'ui-context-menu-content',
   (props, host) => {
     const state = ContextMenuContext.inject();
@@ -384,7 +403,7 @@ export const ContextMenuContent = component<ContextMenuContentProps>(
     const content = ref<HTMLElement>();
     // Portal the menu surface to <body> (default on) so its fixed positioning
     // escapes transformed ancestors; the wired behavior operates by reference.
-    portal(content, { enabled: props.portal.value as boolean });
+    portal(content, { enabled: props.portal.value });
     const { onKeyDown, onPointerOver } = wireMenuSurface({
       content,
       open: state.open,
@@ -409,7 +428,7 @@ export const ContextMenuContent = component<ContextMenuContentProps>(
       @pointerover=${onPointerOver}
     >${children()}</div>`;
   },
-  { attrs: { side: 'string', align: 'string', sideOffset: 'number', portal: { type: 'boolean', default: true }, className: 'string' } },
+  { attrs: contextMenuContentAttrs },
 );
 
 // ── Item selection helper ────────────────────────────────────────────
@@ -442,13 +461,21 @@ export type ContextMenuItemProps = {
   children?: string | TemplateResult;
 };
 
-export const ContextMenuItem = component<ContextMenuItemProps>(
+const contextMenuItemAttrs = {
+  inset: 'boolean',
+  variant: 'string',
+  disabled: 'boolean',
+  value: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<ContextMenuItemProps>;
+
+export const ContextMenuItem = component<ContextMenuItemProps, typeof contextMenuItemAttrs>(
   'ui-context-menu-item',
   (props, host) => {
     const state = ContextMenuContext.inject();
     transparentHost(host);
 
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
     const classes = computed(() => cn(itemClasses, props.className.value));
 
     const root = ref<HTMLDivElement>();
@@ -471,7 +498,7 @@ export const ContextMenuItem = component<ContextMenuItemProps>(
       @click=${onClick}
     >${children()}</div>`;
   },
-  { attrs: { inset: 'boolean', variant: 'string', disabled: 'boolean', value: 'string', className: 'string' } },
+  { attrs: contextMenuItemAttrs },
 );
 
 // ── ui-context-menu-checkbox-item ───────────────────────────────────
@@ -489,13 +516,20 @@ export type ContextMenuCheckboxItemProps = {
   children?: string | TemplateResult;
 };
 
-export const ContextMenuCheckboxItem = component<ContextMenuCheckboxItemProps>(
+const contextMenuCheckboxItemAttrs = {
+  checked: 'boolean',
+  disabled: 'boolean',
+  value: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<ContextMenuCheckboxItemProps>;
+
+export const ContextMenuCheckboxItem = component<ContextMenuCheckboxItemProps, typeof contextMenuCheckboxItemAttrs>(
   'ui-context-menu-checkbox-item',
   (props, host) => {
     const state = ContextMenuContext.inject();
     transparentHost(host);
 
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
     // Controlled when the factory PINS `checked`; else uncontrolled internal.
     const internal = signal<boolean>(Boolean(props.checked.value));
     const checked = computed<boolean>(() =>
@@ -524,7 +558,7 @@ export const ContextMenuCheckboxItem = component<ContextMenuCheckboxItemProps>(
       @click=${onClick}
     ><span class="${indicatorSpan}">${when(checked, () => checkIcon)}</span><span style="display:contents">${children()}</span></div>`;
   },
-  { attrs: { checked: 'boolean', disabled: 'boolean', value: 'string', className: 'string' } },
+  { attrs: contextMenuCheckboxItemAttrs },
 );
 
 // ── ui-context-menu-radio-group + radio-item ────────────────────────
@@ -543,7 +577,13 @@ export type ContextMenuRadioGroupProps = {
   children?: string | TemplateResult;
 };
 
-export const ContextMenuRadioGroup = component<ContextMenuRadioGroupProps>(
+const contextMenuRadioGroupAttrs = {
+  value: 'string',
+  defaultValue: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<ContextMenuRadioGroupProps>;
+
+export const ContextMenuRadioGroup = component<ContextMenuRadioGroupProps, typeof contextMenuRadioGroupAttrs>(
   'ui-context-menu-radio-group',
   (props, host) => {
     transparentHost(host);
@@ -559,7 +599,7 @@ export const ContextMenuRadioGroup = component<ContextMenuRadioGroupProps>(
 
     return html`<div role="group" data-slot="context-menu-radio-group" style="display:contents" class="${classes}">${children()}</div>`;
   },
-  { attrs: { value: 'string', defaultValue: 'string', className: 'string' } },
+  { attrs: contextMenuRadioGroupAttrs },
 );
 
 const radioItemClasses = checkboxItemClasses;
@@ -571,14 +611,20 @@ export type ContextMenuRadioItemProps = {
   children?: string | TemplateResult;
 };
 
-export const ContextMenuRadioItem = component<ContextMenuRadioItemProps>(
+const contextMenuRadioItemAttrs = {
+  value: 'string',
+  disabled: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<ContextMenuRadioItemProps>;
+
+export const ContextMenuRadioItem = component<ContextMenuRadioItemProps, typeof contextMenuRadioItemAttrs>(
   'ui-context-menu-radio-item',
   (props, host) => {
     const state = ContextMenuContext.inject();
     const group = ContextMenuRadioGroupContext.inject.optional();
     transparentHost(host);
 
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
     const checked = computed<boolean>(
       () => group != null && group.value.value === (props.value.value ?? ''),
     );
@@ -605,7 +651,7 @@ export const ContextMenuRadioItem = component<ContextMenuRadioItemProps>(
       @click=${onClick}
     ><span class="${indicatorSpan}">${when(checked, () => circleIcon)}</span><span style="display:contents">${children()}</span></div>`;
   },
-  { attrs: { value: 'string', disabled: 'boolean', className: 'string' } },
+  { attrs: contextMenuRadioItemAttrs },
 );
 
 // ── ui-context-menu-label / -separator / -shortcut / -group ─────────
@@ -616,7 +662,12 @@ export type ContextMenuLabelProps = {
   children?: string | TemplateResult;
 };
 
-export const ContextMenuLabel = component<ContextMenuLabelProps>(
+const contextMenuLabelAttrs = {
+  inset: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<ContextMenuLabelProps>;
+
+export const ContextMenuLabel = component<ContextMenuLabelProps, typeof contextMenuLabelAttrs>(
   'ui-context-menu-label',
   (props, host) => {
     transparentHost(host);
@@ -629,19 +680,23 @@ export const ContextMenuLabel = component<ContextMenuLabelProps>(
       class="${classes}"
     >${children()}</div>`;
   },
-  { attrs: { inset: 'boolean', className: 'string' } },
+  { attrs: contextMenuLabelAttrs },
 );
 
 export type ContextMenuSeparatorProps = { className?: string };
 
-export const ContextMenuSeparator = component<ContextMenuSeparatorProps>(
+const contextMenuSeparatorAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<ContextMenuSeparatorProps>;
+
+export const ContextMenuSeparator = component<ContextMenuSeparatorProps, typeof contextMenuSeparatorAttrs>(
   'ui-context-menu-separator',
   (props, host) => {
     transparentHost(host);
     const classes = computed(() => cn('-mx-1 my-1 h-px bg-border', props.className.value));
     return html`<div role="separator" aria-orientation="horizontal" data-slot="context-menu-separator" class="${classes}"></div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: contextMenuSeparatorAttrs },
 );
 
 export type ContextMenuShortcutProps = {
@@ -649,7 +704,11 @@ export type ContextMenuShortcutProps = {
   children?: string | TemplateResult;
 };
 
-export const ContextMenuShortcut = component<ContextMenuShortcutProps>(
+const contextMenuShortcutAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<ContextMenuShortcutProps>;
+
+export const ContextMenuShortcut = component<ContextMenuShortcutProps, typeof contextMenuShortcutAttrs>(
   'ui-context-menu-shortcut',
   (props, host) => {
     transparentHost(host);
@@ -658,7 +717,7 @@ export const ContextMenuShortcut = component<ContextMenuShortcutProps>(
     );
     return html`<span data-slot="context-menu-shortcut" class="${classes}">${children()}</span>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: contextMenuShortcutAttrs },
 );
 
 export type ContextMenuGroupProps = {
@@ -666,14 +725,18 @@ export type ContextMenuGroupProps = {
   children?: string | TemplateResult;
 };
 
-export const ContextMenuGroup = component<ContextMenuGroupProps>(
+const contextMenuGroupAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<ContextMenuGroupProps>;
+
+export const ContextMenuGroup = component<ContextMenuGroupProps, typeof contextMenuGroupAttrs>(
   'ui-context-menu-group',
   (props, host) => {
     transparentHost(host);
     const classes = computed(() => cn(props.className.value));
     return html`<div role="group" data-slot="context-menu-group" style="display:contents" class="${classes}">${children()}</div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: contextMenuGroupAttrs },
 );
 
 // ── Submenu: ui-context-menu-sub / -sub-trigger / -sub-content ──────
@@ -715,7 +778,12 @@ export type ContextMenuSubProps = {
   children?: string | TemplateResult;
 };
 
-export const ContextMenuSub = component<ContextMenuSubProps>(
+const contextMenuSubAttrs = {
+  defaultOpen: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<ContextMenuSubProps>;
+
+export const ContextMenuSub = component<ContextMenuSubProps, typeof contextMenuSubAttrs>(
   'ui-context-menu-sub',
   (props, host) => {
     ContextMenuContext.inject();
@@ -763,7 +831,7 @@ export const ContextMenuSub = component<ContextMenuSubProps>(
 
     return html`<div data-slot="context-menu-sub" style="display:contents" class="${classes}">${children()}</div>`;
   },
-  { attrs: { defaultOpen: 'boolean', className: 'string' } },
+  { attrs: contextMenuSubAttrs },
 );
 
 const subTriggerClasses =
@@ -776,13 +844,19 @@ export type ContextMenuSubTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const ContextMenuSubTrigger = component<ContextMenuSubTriggerProps>(
+const contextMenuSubTriggerAttrs = {
+  inset: 'boolean',
+  disabled: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<ContextMenuSubTriggerProps>;
+
+export const ContextMenuSubTrigger = component<ContextMenuSubTriggerProps, typeof contextMenuSubTriggerAttrs>(
   'ui-context-menu-sub-trigger',
   (props, host) => {
     const sub = ContextMenuSubContext.inject();
     transparentHost(host);
 
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
     const classes = computed(() => cn(subTriggerClasses, props.className.value));
 
     const item = ref<HTMLDivElement>();
@@ -826,7 +900,7 @@ export const ContextMenuSubTrigger = component<ContextMenuSubTriggerProps>(
       @keydown=${onKeyDown}
     ><span style="display:contents">${children()}</span>${chevronRightIcon}</div>`;
   },
-  { attrs: { inset: 'boolean', disabled: 'boolean', className: 'string' } },
+  { attrs: contextMenuSubTriggerAttrs },
 );
 
 const subContentClasses =
@@ -843,7 +917,13 @@ export type ContextMenuSubContentProps = {
   children?: string | TemplateResult;
 };
 
-export const ContextMenuSubContent = component<ContextMenuSubContentProps>(
+const contextMenuSubContentAttrs = {
+  sideOffset: 'number',
+  portal: { type: 'boolean', default: true },
+  className: 'string',
+} satisfies ComponentAttrs<ContextMenuSubContentProps>;
+
+export const ContextMenuSubContent = component<ContextMenuSubContentProps, typeof contextMenuSubContentAttrs>(
   'ui-context-menu-sub-content',
   (props, host) => {
     const sub = ContextMenuSubContext.inject();
@@ -854,7 +934,7 @@ export const ContextMenuSubContent = component<ContextMenuSubContentProps>(
     const contentId = `${sub.baseId}-content`;
 
     const content = ref<HTMLElement>();
-    portal(content, { enabled: props.portal.value as boolean });
+    portal(content, { enabled: props.portal.value });
     const closeAndFocusTrigger = (): void => {
       sub.setOpen(false);
       sub.trigger.current?.focus();
@@ -886,5 +966,5 @@ export const ContextMenuSubContent = component<ContextMenuSubContentProps>(
       @pointerleave=${() => sub.hoverClose()}
     >${children()}</div>`;
   },
-  { attrs: { sideOffset: 'number', portal: { type: 'boolean', default: true }, className: 'string' } },
+  { attrs: contextMenuSubContentAttrs },
 );

@@ -32,6 +32,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   computed,
   effect,
   html,
@@ -70,21 +71,36 @@ export type SelectProps = {
   children?: string | TemplateResult;
 };
 
-export const Select = component<SelectProps>('ui-select', (props, host) => {
+// ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
+// (className → class-name, defaultValue → default-value). 'forward' relocates
+// id/name off the transparent host onto the inner control.
+const selectAttrs = {
+  value: 'string',
+  defaultValue: 'string',
+  size: 'string',
+  className: 'string',
+  id: 'forward',
+  name: 'forward',
+  disabled: 'boolean',
+  required: 'boolean',
+  ariaInvalid: 'boolean',
+} satisfies ComponentAttrs<SelectProps>;
+
+export const Select = component<SelectProps, typeof selectAttrs>('ui-select', (props, host) => {
   transparentHost(host);
 
   // ADR 0025 item 3: attribute fallbacks declared via the `attrs` option below
   // and delivered as plain, LIVE prop signals — no userland attr()/boolAttr()/
   // forwardedAttr(). 'forward' relocates id/name off the transparent host onto
   // the inner control. Declared booleans are runtime-guaranteed non-undefined
-  // (the `as boolean` is the typing stopgap).
+  // and now TYPE as `boolean` via the second type arg (ADR 0025 candidate (b)).
   const value = props.value;
   const defaultValue = props.defaultValue;
   const size = props.size;
   const id = props.id;
   const name = props.name;
-  const disabled = computed<boolean>(() => props.disabled.value as boolean);
-  const required = computed<boolean>(() => props.required.value as boolean);
+  const disabled = computed<boolean>(() => props.disabled.value);
+  const required = computed<boolean>(() => props.required.value);
   const className = props.className;
 
   const classes = computed(() => cn(selectClasses, className.value));
@@ -142,19 +158,4 @@ export const Select = component<SelectProps>('ui-select', (props, host) => {
       stroke-linejoin="round"
     ><path d="m6 9 6 6 6-6"></path></svg>
   </div>`;
-}, {
-  // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
-  // (className → class-name, defaultValue → default-value). 'forward' relocates
-  // id/name off the transparent host onto the inner control.
-  attrs: {
-    value: 'string',
-    defaultValue: 'string',
-    size: 'string',
-    className: 'string',
-    id: 'forward',
-    name: 'forward',
-    disabled: 'boolean',
-    required: 'boolean',
-    ariaInvalid: 'boolean',
-  },
-});
+}, { attrs: selectAttrs });

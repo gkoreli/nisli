@@ -16,7 +16,7 @@
  * This file was copied into your project by `nisli-ui` — you own it.
  */
 
-import { component, computed, html } from '@nisli/core';
+import { component, type ComponentAttrs, computed, html } from '@nisli/core';
 import { cn, transparentHost } from '../lib/utils.js';
 
 export type SeparatorOrientation = 'horizontal' | 'vertical';
@@ -29,7 +29,16 @@ export type SeparatorProps = {
   className?: string;
 };
 
-export const Separator = component<SeparatorProps>('ui-separator', (props, host) => {
+// ADR 0025 item 3: opt-in attribute reactivity. Passed as component()'s second
+// type argument (`typeof separatorAttrs`) so declared `decorative` narrows to
+// `boolean` (ADR 0025 candidate (b)) — no `as boolean` stopgap.
+const separatorAttrs = {
+  orientation: 'string',
+  decorative: { type: 'boolean', default: true },
+  className: 'string',
+} satisfies ComponentAttrs<SeparatorProps>;
+
+export const Separator = component<SeparatorProps, typeof separatorAttrs>('ui-separator', (props, host) => {
   transparentHost(host);
 
   const orientation = computed<SeparatorOrientation>(
@@ -38,7 +47,7 @@ export const Separator = component<SeparatorProps>('ui-separator', (props, host)
 
   // decorative defaults to true; plain-HTML consumers opt into a semantic
   // separator with `decorative="false"`. An explicit prop always wins.
-  const decorative = computed<boolean>(() => props.decorative.value as boolean);
+  const decorative = computed<boolean>(() => props.decorative.value);
 
   const role = computed(() => (decorative.value ? 'none' : 'separator'));
   const ariaOrientation = computed(() =>
@@ -60,4 +69,4 @@ export const Separator = component<SeparatorProps>('ui-separator', (props, host)
     aria-orientation="${ariaOrientation}"
     class="${classes}"
   ></div>`;
-}, { attrs: { orientation: 'string', decorative: { type: 'boolean', default: true }, className: 'string' } });
+}, { attrs: separatorAttrs });

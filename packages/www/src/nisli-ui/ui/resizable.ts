@@ -31,6 +31,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   effect,
@@ -96,7 +97,12 @@ export type ResizablePanelGroupProps = {
   children?: string | TemplateResult;
 };
 
-export const ResizablePanelGroup = component<ResizablePanelGroupProps>(
+const resizablePanelGroupAttrs = {
+  direction: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<ResizablePanelGroupProps>;
+
+export const ResizablePanelGroup = component<ResizablePanelGroupProps, typeof resizablePanelGroupAttrs>(
   'ui-resizable-panel-group',
   (props, host) => {
     transparentHost(host);
@@ -252,12 +258,7 @@ export const ResizablePanelGroup = component<ResizablePanelGroupProps>(
       class="${classes}"
     >${children()}</div>`;
   },
-  {
-    attrs: {
-      direction: 'string',
-      className: 'string',
-    },
-  },
+  { attrs: resizablePanelGroupAttrs },
 );
 
 // ── ui-resizable-panel ───────────────────────────────────────────────
@@ -269,7 +270,13 @@ export type ResizablePanelProps = {
   children?: string | TemplateResult;
 };
 
-export const ResizablePanel = component<ResizablePanelProps>('ui-resizable-panel', (props, host) => {
+const resizablePanelAttrs = {
+  defaultSize: 'number',
+  minSize: 'number',
+  className: 'string',
+} satisfies ComponentAttrs<ResizablePanelProps>;
+
+export const ResizablePanel = component<ResizablePanelProps, typeof resizablePanelAttrs>('ui-resizable-panel', (props, host) => {
   const group = ResizableContext.inject();
   transparentHost(host);
 
@@ -304,13 +311,7 @@ export const ResizablePanel = component<ResizablePanelProps>('ui-resizable-panel
     style="overflow:hidden"
     class="${classes}"
   >${children()}</div>`;
-}, {
-  attrs: {
-    defaultSize: 'number',
-    minSize: 'number',
-    className: 'string',
-  },
-});
+}, { attrs: resizablePanelAttrs });
 
 // ── ui-resizable-handle ──────────────────────────────────────────────
 
@@ -325,17 +326,23 @@ export type ResizableHandleProps = {
   className?: string;
 };
 
-export const ResizableHandle = component<ResizableHandleProps>(
+const resizableHandleAttrs = {
+  withHandle: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<ResizableHandleProps>;
+
+export const ResizableHandle = component<ResizableHandleProps, typeof resizableHandleAttrs>(
   'ui-resizable-handle',
   (props, host) => {
     const group = ResizableContext.inject();
     transparentHost(host);
 
     // ADR 0025 item 3: with-handle is a declared 'boolean' (runtime-guaranteed
-    // non-undefined; the `as boolean` is the typing stopgap) and class-name a
-    // LIVE 'string' — both come from the `attrs` option below as prop signals,
-    // so post-mount setAttribute flows through. No raw host attribute reads.
-    const withHandle = computed<boolean>(() => props.withHandle.value as boolean);
+    // non-undefined, and now TYPED `boolean` via the second type arg — ADR 0025
+    // candidate (b)) and class-name a LIVE 'string' — both come from the `attrs`
+    // option as prop signals, so post-mount setAttribute flows through. No raw
+    // host attribute reads.
+    const withHandle = computed<boolean>(() => props.withHandle.value);
     const className = props.className;
     const classes = computed(() => cn(handleClasses, className.value));
 
@@ -418,10 +425,5 @@ export const ResizableHandle = component<ResizableHandleProps>(
       @keydown=${onKeyDown}
     >${computed(() => (withHandle.value ? html`<div class="${gripBox}">${gripIcon}</div>` : null))}</div>`;
   },
-  {
-    attrs: {
-      withHandle: 'boolean',
-      className: 'string',
-    },
-  },
+  { attrs: resizableHandleAttrs },
 );

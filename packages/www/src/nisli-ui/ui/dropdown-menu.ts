@@ -32,6 +32,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   effect,
@@ -91,14 +92,20 @@ export type DropdownMenuProps = {
   children?: string | TemplateResult;
 };
 
-export const DropdownMenu = component<DropdownMenuProps>(
+const dropdownMenuAttrs = {
+  open: 'boolean',
+  defaultOpen: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<DropdownMenuProps>;
+
+export const DropdownMenu = component<DropdownMenuProps, typeof dropdownMenuAttrs>(
   'ui-dropdown-menu',
   (props, host) => {
     transparentHost(host);
 
     // PATTERN A (ADR 0025 item 3): the `open` ATTRIBUTE is the uncontrolled state
     // (like native <dialog open>/<details open>). The attribute IS the truth.
-    const open = computed<boolean>(() => props.open.value ?? false);
+    const open = computed<boolean>(() => props.open.value);
 
     const setOpen = (next: boolean): void => {
       if (next === open.value) return;
@@ -145,7 +152,7 @@ export const DropdownMenu = component<DropdownMenuProps>(
       class="${classes}"
     >${children()}</div>`;
   },
-  { attrs: { open: 'boolean', defaultOpen: 'boolean', className: 'string' } },
+  { attrs: dropdownMenuAttrs },
 );
 
 // ── ui-dropdown-menu-trigger ─────────────────────────────────────────
@@ -155,7 +162,11 @@ export type DropdownMenuTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const DropdownMenuTrigger = component<DropdownMenuTriggerProps>(
+const dropdownMenuTriggerAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<DropdownMenuTriggerProps>;
+
+export const DropdownMenuTrigger = component<DropdownMenuTriggerProps, typeof dropdownMenuTriggerAttrs>(
   'ui-dropdown-menu-trigger',
   (props, host) => {
     const state = DropdownMenuContext.inject();
@@ -196,7 +207,7 @@ export const DropdownMenuTrigger = component<DropdownMenuTriggerProps>(
       @keydown=${onKeyDown}
     >${children()}</button>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: dropdownMenuTriggerAttrs },
 );
 
 // ── ui-dropdown-menu-content ─────────────────────────────────────────
@@ -357,7 +368,15 @@ function wireMenuSurface(cfg: MenuSurfaceConfig): {
   return { onKeyDown, onPointerOver };
 }
 
-export const DropdownMenuContent = component<DropdownMenuContentProps>(
+const dropdownMenuContentAttrs = {
+  side: 'string',
+  align: 'string',
+  sideOffset: 'number',
+  portal: { type: 'boolean', default: true },
+  className: 'string',
+} satisfies ComponentAttrs<DropdownMenuContentProps>;
+
+export const DropdownMenuContent = component<DropdownMenuContentProps, typeof dropdownMenuContentAttrs>(
   'ui-dropdown-menu-content',
   (props, host) => {
     const state = DropdownMenuContext.inject();
@@ -373,7 +392,7 @@ export const DropdownMenuContent = component<DropdownMenuContentProps>(
     const content = ref<HTMLElement>();
     // Portal the menu surface to <body> (default on) so its fixed positioning
     // escapes transformed ancestors; the wired behavior operates by reference.
-    portal(content, { enabled: props.portal.value as boolean });
+    portal(content, { enabled: props.portal.value });
     const { onKeyDown, onPointerOver } = wireMenuSurface({
       content,
       open: state.open,
@@ -402,7 +421,7 @@ export const DropdownMenuContent = component<DropdownMenuContentProps>(
       @pointerover=${onPointerOver}
     >${children()}</div>`;
   },
-  { attrs: { side: 'string', align: 'string', sideOffset: 'number', portal: { type: 'boolean', default: true }, className: 'string' } },
+  { attrs: dropdownMenuContentAttrs },
 );
 
 // ── Item selection helper ────────────────────────────────────────────
@@ -436,13 +455,21 @@ export type DropdownMenuItemProps = {
   children?: string | TemplateResult;
 };
 
-export const DropdownMenuItem = component<DropdownMenuItemProps>(
+const dropdownMenuItemAttrs = {
+  inset: 'boolean',
+  variant: 'string',
+  disabled: 'boolean',
+  value: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<DropdownMenuItemProps>;
+
+export const DropdownMenuItem = component<DropdownMenuItemProps, typeof dropdownMenuItemAttrs>(
   'ui-dropdown-menu-item',
   (props, host) => {
     const state = DropdownMenuContext.inject();
     transparentHost(host);
 
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
     const classes = computed(() => cn(itemClasses, props.className.value));
 
     const root = ref<HTMLDivElement>();
@@ -465,7 +492,7 @@ export const DropdownMenuItem = component<DropdownMenuItemProps>(
       @click=${onClick}
     >${children()}</div>`;
   },
-  { attrs: { inset: 'boolean', variant: 'string', disabled: 'boolean', value: 'string', className: 'string' } },
+  { attrs: dropdownMenuItemAttrs },
 );
 
 // ── ui-dropdown-menu-checkbox-item ───────────────────────────────────
@@ -483,13 +510,20 @@ export type DropdownMenuCheckboxItemProps = {
   children?: string | TemplateResult;
 };
 
-export const DropdownMenuCheckboxItem = component<DropdownMenuCheckboxItemProps>(
+const dropdownMenuCheckboxItemAttrs = {
+  checked: 'boolean',
+  disabled: 'boolean',
+  value: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<DropdownMenuCheckboxItemProps>;
+
+export const DropdownMenuCheckboxItem = component<DropdownMenuCheckboxItemProps, typeof dropdownMenuCheckboxItemAttrs>(
   'ui-dropdown-menu-checkbox-item',
   (props, host) => {
     const state = DropdownMenuContext.inject();
     transparentHost(host);
 
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
     // Controlled when the factory PINS `checked`; else uncontrolled internal
     // state (a declared 'boolean' is false-when-absent, so pin state — not
     // `?? undefined` — is the discriminator).
@@ -520,7 +554,7 @@ export const DropdownMenuCheckboxItem = component<DropdownMenuCheckboxItemProps>
       @click=${onClick}
     ><span class="${indicatorSpan}">${when(checked, () => checkIcon)}</span><span style="display:contents">${children()}</span></div>`;
   },
-  { attrs: { checked: 'boolean', disabled: 'boolean', value: 'string', className: 'string' } },
+  { attrs: dropdownMenuCheckboxItemAttrs },
 );
 
 // ── ui-dropdown-menu-radio-group + radio-item ────────────────────────
@@ -539,7 +573,13 @@ export type DropdownMenuRadioGroupProps = {
   children?: string | TemplateResult;
 };
 
-export const DropdownMenuRadioGroup = component<DropdownMenuRadioGroupProps>(
+const dropdownMenuRadioGroupAttrs = {
+  value: 'string',
+  defaultValue: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<DropdownMenuRadioGroupProps>;
+
+export const DropdownMenuRadioGroup = component<DropdownMenuRadioGroupProps, typeof dropdownMenuRadioGroupAttrs>(
   'ui-dropdown-menu-radio-group',
   (props, host) => {
     transparentHost(host);
@@ -555,7 +595,7 @@ export const DropdownMenuRadioGroup = component<DropdownMenuRadioGroupProps>(
 
     return html`<div role="group" data-slot="dropdown-menu-radio-group" style="display:contents" class="${classes}">${children()}</div>`;
   },
-  { attrs: { value: 'string', defaultValue: 'string', className: 'string' } },
+  { attrs: dropdownMenuRadioGroupAttrs },
 );
 
 const radioItemClasses = checkboxItemClasses;
@@ -567,14 +607,20 @@ export type DropdownMenuRadioItemProps = {
   children?: string | TemplateResult;
 };
 
-export const DropdownMenuRadioItem = component<DropdownMenuRadioItemProps>(
+const dropdownMenuRadioItemAttrs = {
+  value: 'string',
+  disabled: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<DropdownMenuRadioItemProps>;
+
+export const DropdownMenuRadioItem = component<DropdownMenuRadioItemProps, typeof dropdownMenuRadioItemAttrs>(
   'ui-dropdown-menu-radio-item',
   (props, host) => {
     const state = DropdownMenuContext.inject();
     const group = DropdownMenuRadioGroupContext.inject.optional();
     transparentHost(host);
 
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
     const checked = computed<boolean>(
       () => group != null && group.value.value === (props.value.value ?? ''),
     );
@@ -601,7 +647,7 @@ export const DropdownMenuRadioItem = component<DropdownMenuRadioItemProps>(
       @click=${onClick}
     ><span class="${indicatorSpan}">${when(checked, () => circleIcon)}</span><span style="display:contents">${children()}</span></div>`;
   },
-  { attrs: { value: 'string', disabled: 'boolean', className: 'string' } },
+  { attrs: dropdownMenuRadioItemAttrs },
 );
 
 // ── ui-dropdown-menu-label / -separator / -shortcut / -group ─────────
@@ -612,7 +658,12 @@ export type DropdownMenuLabelProps = {
   children?: string | TemplateResult;
 };
 
-export const DropdownMenuLabel = component<DropdownMenuLabelProps>(
+const dropdownMenuLabelAttrs = {
+  inset: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<DropdownMenuLabelProps>;
+
+export const DropdownMenuLabel = component<DropdownMenuLabelProps, typeof dropdownMenuLabelAttrs>(
   'ui-dropdown-menu-label',
   (props, host) => {
     transparentHost(host);
@@ -625,19 +676,23 @@ export const DropdownMenuLabel = component<DropdownMenuLabelProps>(
       class="${classes}"
     >${children()}</div>`;
   },
-  { attrs: { inset: 'boolean', className: 'string' } },
+  { attrs: dropdownMenuLabelAttrs },
 );
 
 export type DropdownMenuSeparatorProps = { className?: string };
 
-export const DropdownMenuSeparator = component<DropdownMenuSeparatorProps>(
+const dropdownMenuSeparatorAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<DropdownMenuSeparatorProps>;
+
+export const DropdownMenuSeparator = component<DropdownMenuSeparatorProps, typeof dropdownMenuSeparatorAttrs>(
   'ui-dropdown-menu-separator',
   (props, host) => {
     transparentHost(host);
     const classes = computed(() => cn('-mx-1 my-1 h-px bg-border', props.className.value));
     return html`<div role="separator" aria-orientation="horizontal" data-slot="dropdown-menu-separator" class="${classes}"></div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: dropdownMenuSeparatorAttrs },
 );
 
 export type DropdownMenuShortcutProps = {
@@ -645,7 +700,11 @@ export type DropdownMenuShortcutProps = {
   children?: string | TemplateResult;
 };
 
-export const DropdownMenuShortcut = component<DropdownMenuShortcutProps>(
+const dropdownMenuShortcutAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<DropdownMenuShortcutProps>;
+
+export const DropdownMenuShortcut = component<DropdownMenuShortcutProps, typeof dropdownMenuShortcutAttrs>(
   'ui-dropdown-menu-shortcut',
   (props, host) => {
     transparentHost(host);
@@ -654,7 +713,7 @@ export const DropdownMenuShortcut = component<DropdownMenuShortcutProps>(
     );
     return html`<span data-slot="dropdown-menu-shortcut" class="${classes}">${children()}</span>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: dropdownMenuShortcutAttrs },
 );
 
 export type DropdownMenuGroupProps = {
@@ -662,14 +721,18 @@ export type DropdownMenuGroupProps = {
   children?: string | TemplateResult;
 };
 
-export const DropdownMenuGroup = component<DropdownMenuGroupProps>(
+const dropdownMenuGroupAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<DropdownMenuGroupProps>;
+
+export const DropdownMenuGroup = component<DropdownMenuGroupProps, typeof dropdownMenuGroupAttrs>(
   'ui-dropdown-menu-group',
   (props, host) => {
     transparentHost(host);
     const classes = computed(() => cn(props.className.value));
     return html`<div role="group" data-slot="dropdown-menu-group" style="display:contents" class="${classes}">${children()}</div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: dropdownMenuGroupAttrs },
 );
 
 // ── Submenu: ui-dropdown-menu-sub / -sub-trigger / -sub-content ──────
@@ -711,7 +774,12 @@ export type DropdownMenuSubProps = {
   children?: string | TemplateResult;
 };
 
-export const DropdownMenuSub = component<DropdownMenuSubProps>(
+const dropdownMenuSubAttrs = {
+  defaultOpen: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<DropdownMenuSubProps>;
+
+export const DropdownMenuSub = component<DropdownMenuSubProps, typeof dropdownMenuSubAttrs>(
   'ui-dropdown-menu-sub',
   (props, host) => {
     DropdownMenuContext.inject();
@@ -759,7 +827,7 @@ export const DropdownMenuSub = component<DropdownMenuSubProps>(
 
     return html`<div data-slot="dropdown-menu-sub" style="display:contents" class="${classes}">${children()}</div>`;
   },
-  { attrs: { defaultOpen: 'boolean', className: 'string' } },
+  { attrs: dropdownMenuSubAttrs },
 );
 
 const subTriggerClasses =
@@ -772,13 +840,19 @@ export type DropdownMenuSubTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const DropdownMenuSubTrigger = component<DropdownMenuSubTriggerProps>(
+const dropdownMenuSubTriggerAttrs = {
+  inset: 'boolean',
+  disabled: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<DropdownMenuSubTriggerProps>;
+
+export const DropdownMenuSubTrigger = component<DropdownMenuSubTriggerProps, typeof dropdownMenuSubTriggerAttrs>(
   'ui-dropdown-menu-sub-trigger',
   (props, host) => {
     const sub = DropdownMenuSubContext.inject();
     transparentHost(host);
 
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    const disabled = computed<boolean>(() => props.disabled.value);
     const classes = computed(() => cn(subTriggerClasses, props.className.value));
 
     const item = ref<HTMLDivElement>();
@@ -822,7 +896,7 @@ export const DropdownMenuSubTrigger = component<DropdownMenuSubTriggerProps>(
       @keydown=${onKeyDown}
     ><span style="display:contents">${children()}</span>${chevronRightIcon}</div>`;
   },
-  { attrs: { inset: 'boolean', disabled: 'boolean', className: 'string' } },
+  { attrs: dropdownMenuSubTriggerAttrs },
 );
 
 const subContentClasses =
@@ -839,7 +913,13 @@ export type DropdownMenuSubContentProps = {
   children?: string | TemplateResult;
 };
 
-export const DropdownMenuSubContent = component<DropdownMenuSubContentProps>(
+const dropdownMenuSubContentAttrs = {
+  sideOffset: 'number',
+  portal: { type: 'boolean', default: true },
+  className: 'string',
+} satisfies ComponentAttrs<DropdownMenuSubContentProps>;
+
+export const DropdownMenuSubContent = component<DropdownMenuSubContentProps, typeof dropdownMenuSubContentAttrs>(
   'ui-dropdown-menu-sub-content',
   (props, host) => {
     const sub = DropdownMenuSubContext.inject();
@@ -850,7 +930,7 @@ export const DropdownMenuSubContent = component<DropdownMenuSubContentProps>(
     const contentId = `${sub.baseId}-content`;
 
     const content = ref<HTMLElement>();
-    portal(content, { enabled: props.portal.value as boolean });
+    portal(content, { enabled: props.portal.value });
     const closeAndFocusTrigger = (): void => {
       sub.setOpen(false);
       sub.trigger.current?.focus();
@@ -882,5 +962,5 @@ export const DropdownMenuSubContent = component<DropdownMenuSubContentProps>(
       @pointerleave=${() => sub.hoverClose()}
     >${children()}</div>`;
   },
-  { attrs: { sideOffset: 'number', portal: { type: 'boolean', default: true }, className: 'string' } },
+  { attrs: dropdownMenuSubContentAttrs },
 );

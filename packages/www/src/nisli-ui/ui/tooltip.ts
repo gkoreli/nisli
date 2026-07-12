@@ -32,6 +32,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   effect,
@@ -118,7 +119,12 @@ export type TooltipProps = {
   children?: string | TemplateResult;
 };
 
-export const Tooltip = component<TooltipProps>('ui-tooltip', (props, host) => {
+const tooltipAttrs = {
+  className: 'string',
+  delayDuration: 'number',
+} satisfies ComponentAttrs<TooltipProps>;
+
+export const Tooltip = component<TooltipProps, typeof tooltipAttrs>('ui-tooltip', (props, host) => {
   transparentHost(host);
 
   // NOTE: no PATTERN A here. Tooltip opens on hover/focus via internal state;
@@ -166,7 +172,7 @@ export const Tooltip = component<TooltipProps>('ui-tooltip', (props, host) => {
     style="display:contents"
     class="${classes}"
   >${children()}</div>`;
-}, { attrs: { className: 'string', delayDuration: 'number' } });
+}, { attrs: tooltipAttrs });
 
 // ── ui-tooltip-trigger ───────────────────────────────────────────────
 
@@ -175,7 +181,9 @@ export type TooltipTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const TooltipTrigger = component<TooltipTriggerProps>(
+const tooltipTriggerAttrs = { className: 'string' } satisfies ComponentAttrs<TooltipTriggerProps>;
+
+export const TooltipTrigger = component<TooltipTriggerProps, typeof tooltipTriggerAttrs>(
   'ui-tooltip-trigger',
   (props, host) => {
     const state = TooltipContext.inject();
@@ -205,7 +213,7 @@ export const TooltipTrigger = component<TooltipTriggerProps>(
       @pointerdown=${() => state.requestClose()}
     >${children()}</button>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: tooltipTriggerAttrs },
 );
 
 // ── ui-tooltip-content ───────────────────────────────────────────────
@@ -226,7 +234,15 @@ export type TooltipContentProps = {
   children?: string | TemplateResult;
 };
 
-export const TooltipContent = component<TooltipContentProps>(
+// PATTERN B: `portal` is a default-true boolean (absent → true, "false" → false).
+const tooltipContentAttrs = {
+  side: 'string',
+  sideOffset: 'number',
+  portal: { type: 'boolean', default: true },
+  className: 'string',
+} satisfies ComponentAttrs<TooltipContentProps>;
+
+export const TooltipContent = component<TooltipContentProps, typeof tooltipContentAttrs>(
   'ui-tooltip-content',
   (props, host) => {
     const state = TooltipContext.inject();
@@ -244,8 +260,8 @@ export const TooltipContent = component<TooltipContentProps>(
     // Portal the content to <body> (default on) so its fixed positioning
     // escapes transformed ancestors. Floating positioning and Escape handling
     // operate on `content` by reference — move-safe. PATTERN B: `portal` is a
-    // default-true boolean (absent → on, "false" → off).
-    const portalEnabled = props.portal.value as boolean;
+    // default-true boolean (absent → on, "false" → off; now narrows to `boolean`).
+    const portalEnabled = props.portal.value;
     portal(content, { enabled: portalEnabled });
 
     let disposePosition: (() => void) | null = null;
@@ -293,13 +309,5 @@ export const TooltipContent = component<TooltipContentProps>(
       class="${classes}"
     >${children()}</div>`;
   },
-  {
-    // PATTERN B: `portal` is a default-true boolean (absent → true, "false" → false).
-    attrs: {
-      side: 'string',
-      sideOffset: 'number',
-      portal: { type: 'boolean', default: true },
-      className: 'string',
-    },
-  },
+  { attrs: tooltipContentAttrs },
 );

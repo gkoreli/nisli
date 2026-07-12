@@ -25,6 +25,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   effect,
@@ -65,12 +66,21 @@ export type DrawerProps = {
   children?: string | TemplateResult;
 };
 
-export const Drawer = component<DrawerProps>('ui-drawer', (props, host) => {
+// PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
+const drawerAttrs = {
+  open: 'boolean',
+  defaultOpen: 'boolean',
+  direction: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<DrawerProps>;
+
+export const Drawer = component<DrawerProps, typeof drawerAttrs>('ui-drawer', (props, host) => {
   transparentHost(host);
 
   // PATTERN A (ADR 0025 item 3): the `open` ATTRIBUTE is the uncontrolled state
-  // (like native <dialog open>/<details open>). The attribute IS the truth.
-  const open = computed<boolean>(() => props.open.value ?? false);
+  // (like native <dialog open>/<details open>). The attribute IS the truth. The
+  // declared 'boolean' now narrows to `boolean`, so no `?? false` is needed.
+  const open = computed<boolean>(() => props.open.value);
 
   const setOpen = (next: boolean): void => {
     if (next === open.value) return;
@@ -110,15 +120,7 @@ export const Drawer = component<DrawerProps>('ui-drawer', (props, host) => {
   const classes = computed(() => cn(className.value));
 
   return html`<div data-slot="drawer" style="display:contents" class="${classes}">${children()}</div>`;
-}, {
-  // PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
-  attrs: {
-    open: 'boolean',
-    defaultOpen: 'boolean',
-    direction: 'string',
-    className: 'string',
-  },
-});
+}, { attrs: drawerAttrs });
 
 // ── ui-drawer-trigger / -close ───────────────────────────────────────
 
@@ -127,7 +129,9 @@ export type DrawerTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const DrawerTrigger = component<DrawerTriggerProps>('ui-drawer-trigger', (props, host) => {
+const drawerTriggerAttrs = { className: 'string' } satisfies ComponentAttrs<DrawerTriggerProps>;
+
+export const DrawerTrigger = component<DrawerTriggerProps, typeof drawerTriggerAttrs>('ui-drawer-trigger', (props, host) => {
   const state = DrawerContext.inject();
   transparentHost(host);
   const className = props.className;
@@ -142,14 +146,16 @@ export const DrawerTrigger = component<DrawerTriggerProps>('ui-drawer-trigger', 
     class="${classes}"
     @click=${() => state.setOpen(true)}
   >${children()}</button>`;
-}, { attrs: { className: 'string' } });
+}, { attrs: drawerTriggerAttrs });
 
 export type DrawerCloseProps = {
   className?: string;
   children?: string | TemplateResult;
 };
 
-export const DrawerClose = component<DrawerCloseProps>('ui-drawer-close', (props, host) => {
+const drawerCloseAttrs = { className: 'string' } satisfies ComponentAttrs<DrawerCloseProps>;
+
+export const DrawerClose = component<DrawerCloseProps, typeof drawerCloseAttrs>('ui-drawer-close', (props, host) => {
   const state = DrawerContext.inject();
   transparentHost(host);
   const className = props.className;
@@ -160,7 +166,7 @@ export const DrawerClose = component<DrawerCloseProps>('ui-drawer-close', (props
     class="${classes}"
     @click=${() => state.setOpen(false)}
   >${children()}</button>`;
-}, { attrs: { className: 'string' } });
+}, { attrs: drawerCloseAttrs });
 
 // ── ui-drawer-content (overlay + draggable panel) ────────────────────
 
@@ -189,7 +195,12 @@ export type DrawerContentProps = {
   children?: string | TemplateResult;
 };
 
-export const DrawerContent = component<DrawerContentProps>('ui-drawer-content', (props, host) => {
+const drawerContentAttrs = {
+  portal: { type: 'boolean', default: true },
+  className: 'string',
+} satisfies ComponentAttrs<DrawerContentProps>;
+
+export const DrawerContent = component<DrawerContentProps, typeof drawerContentAttrs>('ui-drawer-content', (props, host) => {
   const state = DrawerContext.inject();
   transparentHost(host);
 
@@ -204,7 +215,7 @@ export const DrawerContent = component<DrawerContentProps>('ui-drawer-content', 
   const overlayRef = ref<HTMLDivElement>();
   const contentRef = ref<HTMLElement>();
 
-  portal(portalRef, { enabled: props.portal.value as boolean });
+  portal(portalRef, { enabled: props.portal.value });
 
   const layer = dismissableLayer(contentRef, { onDismiss: () => state.setOpen(false) });
   const trap = focusTrap(contentRef);
@@ -330,12 +341,7 @@ export const DrawerContent = component<DrawerContentProps>('ui-drawer-content', 
       @pointerdown=${onPointerDown}
     ><div data-slot="drawer-handle" class="${handleClasses}"></div>${children()}</div>
   </div>`;
-}, {
-  attrs: {
-    portal: { type: 'boolean', default: true },
-    className: 'string',
-  },
-});
+}, { attrs: drawerContentAttrs });
 
 // ── ui-drawer-header / -footer / -title / -description ───────────────
 
@@ -344,13 +350,15 @@ export type DrawerSectionProps = {
   children?: string | TemplateResult;
 };
 
+const drawerSectionAttrs = { className: 'string' } satisfies ComponentAttrs<DrawerSectionProps>;
+
 function drawerSection(tag: string, slot: string, base: string) {
-  return component<DrawerSectionProps>(tag, (props, host) => {
+  return component<DrawerSectionProps, typeof drawerSectionAttrs>(tag, (props, host) => {
     transparentHost(host);
     const className = props.className;
     const classes = computed(() => cn(base, className.value));
     return html`<div data-slot="${slot}" class="${classes}">${children()}</div>`;
-  }, { attrs: { className: 'string' } });
+  }, { attrs: drawerSectionAttrs });
 }
 
 export const DrawerHeader = drawerSection(
@@ -370,7 +378,9 @@ export type DrawerTitleProps = {
   children?: string | TemplateResult;
 };
 
-export const DrawerTitle = component<DrawerTitleProps>('ui-drawer-title', (props, host) => {
+const drawerTitleAttrs = { className: 'string' } satisfies ComponentAttrs<DrawerTitleProps>;
+
+export const DrawerTitle = component<DrawerTitleProps, typeof drawerTitleAttrs>('ui-drawer-title', (props, host) => {
   const state = DrawerContext.inject();
   transparentHost(host);
   const className = props.className;
@@ -380,14 +390,16 @@ export const DrawerTitle = component<DrawerTitleProps>('ui-drawer-title', (props
     id="${`${state.baseId}-title`}"
     class="${classes}"
   >${children()}</h2>`;
-}, { attrs: { className: 'string' } });
+}, { attrs: drawerTitleAttrs });
 
 export type DrawerDescriptionProps = {
   className?: string;
   children?: string | TemplateResult;
 };
 
-export const DrawerDescription = component<DrawerDescriptionProps>(
+const drawerDescriptionAttrs = { className: 'string' } satisfies ComponentAttrs<DrawerDescriptionProps>;
+
+export const DrawerDescription = component<DrawerDescriptionProps, typeof drawerDescriptionAttrs>(
   'ui-drawer-description',
   (props, host) => {
     const state = DrawerContext.inject();
@@ -400,5 +412,5 @@ export const DrawerDescription = component<DrawerDescriptionProps>(
       class="${classes}"
     >${children()}</p>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: drawerDescriptionAttrs },
 );

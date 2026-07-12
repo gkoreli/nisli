@@ -26,6 +26,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   effect,
@@ -63,12 +64,20 @@ export type CollapsibleProps = {
   children?: string | TemplateResult;
 };
 
-export const Collapsible = component<CollapsibleProps>('ui-collapsible', (props, host) => {
+// PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
+const collapsibleAttrs = {
+  open: 'boolean',
+  defaultOpen: 'boolean',
+  disabled: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<CollapsibleProps>;
+
+export const Collapsible = component<CollapsibleProps, typeof collapsibleAttrs>('ui-collapsible', (props, host) => {
   transparentHost(host);
 
   // PATTERN A (ADR 0025 item 3): the `open` ATTRIBUTE is the uncontrolled state
   // (like native <dialog open>/<details open>). The attribute IS the truth.
-  const open = computed<boolean>(() => props.open.value ?? false);
+  const open = computed<boolean>(() => props.open.value);
 
   const setOpen = (next: boolean): void => {
     if (next === open.value) return;
@@ -97,7 +106,7 @@ export const Collapsible = component<CollapsibleProps>('ui-collapsible', (props,
     host.toggleAttribute('open', open.value);
   });
 
-  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const disabled = computed<boolean>(() => props.disabled.value);
 
   const state: CollapsibleState = {
     open,
@@ -116,15 +125,7 @@ export const Collapsible = component<CollapsibleProps>('ui-collapsible', (props,
     data-disabled="${computed(() => (disabled.value ? '' : undefined))}"
     class="${classes}"
   >${children()}</div>`;
-}, {
-  // PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
-  attrs: {
-    open: 'boolean',
-    defaultOpen: 'boolean',
-    disabled: 'boolean',
-    className: 'string',
-  },
-});
+}, { attrs: collapsibleAttrs });
 
 // ── ui-collapsible-trigger ───────────────────────────────────────────
 
@@ -133,7 +134,11 @@ export type CollapsibleTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const CollapsibleTrigger = component<CollapsibleTriggerProps>(
+const collapsibleTriggerAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<CollapsibleTriggerProps>;
+
+export const CollapsibleTrigger = component<CollapsibleTriggerProps, typeof collapsibleTriggerAttrs>(
   'ui-collapsible-trigger',
   (props, host) => {
     const state = CollapsibleContext.inject();
@@ -158,7 +163,7 @@ export const CollapsibleTrigger = component<CollapsibleTriggerProps>(
       @click=${onToggle}
     >${children()}</button>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: collapsibleTriggerAttrs },
 );
 
 // ── ui-collapsible-content ───────────────────────────────────────────
@@ -168,7 +173,11 @@ export type CollapsibleContentProps = {
   children?: string | TemplateResult;
 };
 
-export const CollapsibleContent = component<CollapsibleContentProps>(
+const collapsibleContentAttrs = {
+  className: 'string',
+} satisfies ComponentAttrs<CollapsibleContentProps>;
+
+export const CollapsibleContent = component<CollapsibleContentProps, typeof collapsibleContentAttrs>(
   'ui-collapsible-content',
   (props, host) => {
     const state = CollapsibleContext.inject();
@@ -185,5 +194,5 @@ export const CollapsibleContent = component<CollapsibleContentProps>(
       class="${classes}"
     >${children()}</div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: collapsibleContentAttrs },
 );

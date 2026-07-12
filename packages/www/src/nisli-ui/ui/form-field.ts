@@ -41,6 +41,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   computed,
   effect,
   html,
@@ -85,17 +86,26 @@ export type FormFieldProps = {
   children?: string | TemplateResult;
 };
 
-export const FormField = component<FormFieldProps>('ui-form-field', (props, host) => {
+// ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
+// (className → class-name). Passed as component()'s second type argument
+// (`typeof formFieldAttrs`) so declared `invalid` narrows to `boolean` (ADR 0025
+// candidate (b)) — no `as boolean` stopgap.
+const formFieldAttrs = {
+  orientation: 'string',
+  className: 'string',
+  invalid: 'boolean',
+} satisfies ComponentAttrs<FormFieldProps>;
+
+export const FormField = component<FormFieldProps, typeof formFieldAttrs>('ui-form-field', (props, host) => {
   transparentHost(host);
 
-  // ADR 0025 item 3: attribute fallbacks are declared via the `attrs` option
-  // below and delivered as live prop signals — no userland attr()/boolAttr().
-  // Declared booleans are runtime-guaranteed non-undefined; `as boolean` is the
-  // typing stopgap.
+  // Attribute fallbacks are declared via `formFieldAttrs` and delivered as live
+  // prop signals — no userland attr()/boolAttr(). Declared booleans now TYPE as
+  // `boolean` (narrowed via `typeof formFieldAttrs`), so there is no `as boolean`.
   const orientation = computed<FieldOrientation>(() =>
     props.orientation.value === 'horizontal' ? 'horizontal' : 'vertical',
   );
-  const invalid = computed<boolean>(() => props.invalid.value as boolean);
+  const invalid = computed<boolean>(() => props.invalid.value);
   const className = props.className;
 
   const classes = computed(() =>
@@ -163,15 +173,7 @@ export const FormField = component<FormFieldProps>('ui-form-field', (props, host
     data-invalid="${computed(() => (invalid.value ? 'true' : undefined))}"
     class="${classes}"
   >${slot}</div>`;
-}, {
-  // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
-  // (className → class-name).
-  attrs: {
-    orientation: 'string',
-    className: 'string',
-    invalid: 'boolean',
-  },
-});
+}, { attrs: formFieldAttrs });
 
 // ── ui-form-field-description ───────────────────────────────────────
 
@@ -183,7 +185,9 @@ export type FieldTextProps = {
   children?: string | TemplateResult;
 };
 
-export const FieldDescription = component<FieldTextProps>(
+const fieldDescriptionAttrs = { className: 'string' } satisfies ComponentAttrs<FieldTextProps>;
+
+export const FieldDescription = component<FieldTextProps, typeof fieldDescriptionAttrs>(
   'ui-form-field-description',
   (props, host) => {
     transparentHost(host);
@@ -196,14 +200,16 @@ export const FieldDescription = component<FieldTextProps>(
       class="${classes}"
     >${children()}</p>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: fieldDescriptionAttrs },
 );
 
 // ── ui-form-field-error ─────────────────────────────────────────────
 
 export const fieldErrorClasses = 'text-sm font-normal text-destructive';
 
-export const FieldError = component<FieldTextProps>(
+const fieldErrorAttrs = { className: 'string' } satisfies ComponentAttrs<FieldTextProps>;
+
+export const FieldError = component<FieldTextProps, typeof fieldErrorAttrs>(
   'ui-form-field-error',
   (props, host) => {
     transparentHost(host);
@@ -217,5 +223,5 @@ export const FieldError = component<FieldTextProps>(
       class="${classes}"
     >${children()}</div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: fieldErrorAttrs },
 );

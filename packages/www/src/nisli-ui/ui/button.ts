@@ -12,6 +12,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   computed,
   html,
   type TemplateResult,
@@ -82,14 +83,26 @@ export type ButtonProps = {
   children?: string | TemplateResult;
 };
 
-export const Button = component<ButtonProps>('ui-button', (props, host) => {
+// ADR 0025 item 3: opt-in attribute reactivity. Passed as component()'s second
+// type argument (`typeof buttonAttrs`) so declared `disabled` narrows to
+// `boolean` (ADR 0025 candidate (b)) — no `as boolean` stopgap.
+const buttonAttrs = {
+  variant: 'string',
+  size: 'string',
+  type: 'string',
+  className: 'string',
+  disabled: 'boolean',
+  ariaInvalid: 'boolean',
+} satisfies ComponentAttrs<ButtonProps>;
+
+export const Button = component<ButtonProps, typeof buttonAttrs>('ui-button', (props, host) => {
   transparentHost(host);
 
   const variant = props.variant;
   const size = props.size;
   const type = props.type;
   const className = props.className;
-  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const disabled = computed<boolean>(() => props.disabled.value);
 
   const classes = computed(() =>
     cn(buttonVariants({ variant: variant.value, size: size.value }), className.value),
@@ -107,13 +120,4 @@ export const Button = component<ButtonProps>('ui-button', (props, host) => {
     disabled="${disabled}"
     aria-invalid="${computed(() => (props.ariaInvalid.value ? 'true' : undefined))}"
   >${children()}</button>`;
-}, {
-  attrs: {
-    variant: 'string',
-    size: 'string',
-    type: 'string',
-    className: 'string',
-    disabled: 'boolean',
-    ariaInvalid: 'boolean',
-  },
-});
+}, { attrs: buttonAttrs });

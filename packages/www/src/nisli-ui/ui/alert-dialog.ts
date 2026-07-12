@@ -32,6 +32,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   effect,
@@ -72,12 +73,20 @@ export type AlertDialogProps = {
   children?: string | TemplateResult;
 };
 
-export const AlertDialog = component<AlertDialogProps>('ui-alert-dialog', (props, host) => {
+// PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
+const alertDialogAttrs = {
+  open: 'boolean',
+  defaultOpen: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<AlertDialogProps>;
+
+export const AlertDialog = component<AlertDialogProps, typeof alertDialogAttrs>('ui-alert-dialog', (props, host) => {
   transparentHost(host);
 
   // PATTERN A (ADR 0025 item 3): the `open` ATTRIBUTE is the uncontrolled state
-  // (like native <dialog open>/<details open>). The attribute IS the truth.
-  const open = computed<boolean>(() => props.open.value ?? false);
+  // (like native <dialog open>/<details open>). The attribute IS the truth. The
+  // declared 'boolean' now narrows to `boolean`, so no `?? false` is needed.
+  const open = computed<boolean>(() => props.open.value);
 
   const setOpen = (next: boolean): void => {
     if (next === open.value) return;
@@ -117,14 +126,7 @@ export const AlertDialog = component<AlertDialogProps>('ui-alert-dialog', (props
     style="display:contents"
     class="${classes}"
   >${children()}</div>`;
-}, {
-  // PATTERN A: `open` is the attribute-as-truth state; `defaultOpen` seeds it.
-  attrs: {
-    open: 'boolean',
-    defaultOpen: 'boolean',
-    className: 'string',
-  },
-});
+}, { attrs: alertDialogAttrs });
 
 // ── ui-alert-dialog-trigger ──────────────────────────────────────────
 
@@ -133,7 +135,9 @@ export type AlertDialogTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const AlertDialogTrigger = component<AlertDialogTriggerProps>(
+const alertDialogTriggerAttrs = { className: 'string' } satisfies ComponentAttrs<AlertDialogTriggerProps>;
+
+export const AlertDialogTrigger = component<AlertDialogTriggerProps, typeof alertDialogTriggerAttrs>(
   'ui-alert-dialog-trigger',
   (props, host) => {
     const state = AlertDialogContext.inject();
@@ -153,7 +157,7 @@ export const AlertDialogTrigger = component<AlertDialogTriggerProps>(
       @click=${() => state.setOpen(true)}
     >${children()}</button>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: alertDialogTriggerAttrs },
 );
 
 // ── ui-alert-dialog-content (overlay + panel) ────────────────────────
@@ -175,7 +179,14 @@ export type AlertDialogContentProps = {
   children?: string | TemplateResult;
 };
 
-export const AlertDialogContent = component<AlertDialogContentProps>(
+// PATTERN B: `portal` is a default-true boolean (absent → true, "false" → false).
+const alertDialogContentAttrs = {
+  size: 'string',
+  portal: { type: 'boolean', default: true },
+  className: 'string',
+} satisfies ComponentAttrs<AlertDialogContentProps>;
+
+export const AlertDialogContent = component<AlertDialogContentProps, typeof alertDialogContentAttrs>(
   'ui-alert-dialog-content',
   (props, host) => {
     const state = AlertDialogContext.inject();
@@ -197,8 +208,8 @@ export const AlertDialogContent = component<AlertDialogContentProps>(
     // positioning escapes transformed ancestors. Static setup-time decision
     // (PATTERN B): `portal` is a default-true boolean — absent → on, "false" →
     // off. Escape dismissal (document listener) and the focus trap (by ref)
-    // keep working after the move.
-    const portalEnabled = props.portal.value as boolean;
+    // keep working after the move. Declared 'boolean' now narrows to `boolean`.
+    const portalEnabled = props.portal.value;
     portal(portalRef, { enabled: portalEnabled });
 
     // Escape closes (Radix default); outside-pointer never dismisses an alert
@@ -245,14 +256,7 @@ export const AlertDialogContent = component<AlertDialogContentProps>(
       >${children()}</div>
     </div>`;
   },
-  {
-    // PATTERN B: `portal` is a default-true boolean (absent → true, "false" → false).
-    attrs: {
-      size: 'string',
-      portal: { type: 'boolean', default: true },
-      className: 'string',
-    },
-  },
+  { attrs: alertDialogContentAttrs },
 );
 
 // ── ui-alert-dialog-header / -footer / -media ────────────────────────
@@ -262,13 +266,15 @@ export type AlertDialogSectionProps = {
   children?: string | TemplateResult;
 };
 
+const alertDialogSectionAttrs = { className: 'string' } satisfies ComponentAttrs<AlertDialogSectionProps>;
+
 function alertDialogSection(tag: string, slot: string, base: string) {
-  return component<AlertDialogSectionProps>(tag, (props, host) => {
+  return component<AlertDialogSectionProps, typeof alertDialogSectionAttrs>(tag, (props, host) => {
     transparentHost(host);
     const className = props.className;
     const classes = computed(() => cn(base, className.value));
     return html`<div data-slot="${slot}" class="${classes}">${children()}</div>`;
-  }, { attrs: { className: 'string' } });
+  }, { attrs: alertDialogSectionAttrs });
 }
 
 export const AlertDialogHeader = alertDialogSection(
@@ -296,7 +302,9 @@ export type AlertDialogTitleProps = {
   children?: string | TemplateResult;
 };
 
-export const AlertDialogTitle = component<AlertDialogTitleProps>(
+const alertDialogTitleAttrs = { className: 'string' } satisfies ComponentAttrs<AlertDialogTitleProps>;
+
+export const AlertDialogTitle = component<AlertDialogTitleProps, typeof alertDialogTitleAttrs>(
   'ui-alert-dialog-title',
   (props, host) => {
     const state = AlertDialogContext.inject();
@@ -314,7 +322,7 @@ export const AlertDialogTitle = component<AlertDialogTitleProps>(
       class="${classes}"
     >${children()}</h2>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: alertDialogTitleAttrs },
 );
 
 export type AlertDialogDescriptionProps = {
@@ -322,7 +330,9 @@ export type AlertDialogDescriptionProps = {
   children?: string | TemplateResult;
 };
 
-export const AlertDialogDescription = component<AlertDialogDescriptionProps>(
+const alertDialogDescriptionAttrs = { className: 'string' } satisfies ComponentAttrs<AlertDialogDescriptionProps>;
+
+export const AlertDialogDescription = component<AlertDialogDescriptionProps, typeof alertDialogDescriptionAttrs>(
   'ui-alert-dialog-description',
   (props, host) => {
     const state = AlertDialogContext.inject();
@@ -335,7 +345,7 @@ export const AlertDialogDescription = component<AlertDialogDescriptionProps>(
       class="${classes}"
     >${children()}</p>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: alertDialogDescriptionAttrs },
 );
 
 // ── ui-alert-dialog-action / -cancel ─────────────────────────────────
@@ -348,7 +358,13 @@ export type AlertDialogActionProps = {
 };
 
 /** Confirm button — styled like Button, closes the dialog on click. */
-export const AlertDialogAction = component<AlertDialogActionProps>(
+const alertDialogActionAttrs = {
+  variant: 'string',
+  size: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<AlertDialogActionProps>;
+
+export const AlertDialogAction = component<AlertDialogActionProps, typeof alertDialogActionAttrs>(
   'ui-alert-dialog-action',
   (props, host) => {
     const state = AlertDialogContext.inject();
@@ -371,7 +387,7 @@ export const AlertDialogAction = component<AlertDialogActionProps>(
       @click=${() => state.setOpen(false)}
     >${children()}</button>`;
   },
-  { attrs: { variant: 'string', size: 'string', className: 'string' } },
+  { attrs: alertDialogActionAttrs },
 );
 
 export type AlertDialogCancelProps = {
@@ -382,7 +398,13 @@ export type AlertDialogCancelProps = {
 };
 
 /** Dismiss button — styled like an outline Button, closes the dialog. */
-export const AlertDialogCancel = component<AlertDialogCancelProps>(
+const alertDialogCancelAttrs = {
+  variant: 'string',
+  size: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<AlertDialogCancelProps>;
+
+export const AlertDialogCancel = component<AlertDialogCancelProps, typeof alertDialogCancelAttrs>(
   'ui-alert-dialog-cancel',
   (props, host) => {
     const state = AlertDialogContext.inject();
@@ -405,5 +427,5 @@ export const AlertDialogCancel = component<AlertDialogCancelProps>(
       @click=${() => state.setOpen(false)}
     >${children()}</button>`;
   },
-  { attrs: { variant: 'string', size: 'string', className: 'string' } },
+  { attrs: alertDialogCancelAttrs },
 );

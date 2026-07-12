@@ -30,6 +30,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   effect,
@@ -73,7 +74,23 @@ export type InputOTPProps = {
   children?: string | TemplateResult;
 };
 
-export const InputOTP = component<InputOTPProps>('ui-input-otp', (props, host) => {
+// ADR 0025 item 3: opt-in attribute reactivity. Passed as component()'s second
+// type argument (`typeof inputOtpAttrs`) so declared booleans narrow to
+// `boolean` (ADR 0025 candidate (b)) — no `as boolean` stopgap.
+const inputOtpAttrs = {
+  maxLength: { type: 'number', default: 6 },
+  pattern: 'string',
+  inputMode: 'string',
+  value: 'string',
+  defaultValue: 'string',
+  className: 'string',
+  containerClassName: 'string',
+  id: 'forward',
+  name: 'forward',
+  disabled: 'boolean',
+} satisfies ComponentAttrs<InputOTPProps>;
+
+export const InputOTP = component<InputOTPProps, typeof inputOtpAttrs>('ui-input-otp', (props, host) => {
   transparentHost(host);
 
   // maxLength ('number', default 6) and pattern ('string') are declared in the
@@ -90,7 +107,7 @@ export const InputOTP = component<InputOTPProps>('ui-input-otp', (props, host) =
   const defaultValue = props.defaultValue;
   const id = props.id;
   const name = props.name;
-  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const disabled = computed<boolean>(() => props.disabled.value);
   const className = props.className;
   const containerClassName = props.containerClassName;
 
@@ -207,20 +224,7 @@ export const InputOTP = component<InputOTPProps>('ui-input-otp', (props, host) =
     />
     ${children()}
   </div>`;
-}, {
-  attrs: {
-    maxLength: { type: 'number', default: 6 },
-    pattern: 'string',
-    inputMode: 'string',
-    value: 'string',
-    defaultValue: 'string',
-    className: 'string',
-    containerClassName: 'string',
-    id: 'forward',
-    name: 'forward',
-    disabled: 'boolean',
-  },
-});
+}, { attrs: inputOtpAttrs });
 
 // ── ui-input-otp-group ───────────────────────────────────────────────
 
@@ -229,7 +233,9 @@ export type InputOTPGroupProps = {
   children?: string | TemplateResult;
 };
 
-export const InputOTPGroup = component<InputOTPGroupProps>(
+const inputOtpGroupAttrs = { className: 'string' } satisfies ComponentAttrs<InputOTPGroupProps>;
+
+export const InputOTPGroup = component<InputOTPGroupProps, typeof inputOtpGroupAttrs>(
   'ui-input-otp-group',
   (props, host) => {
     transparentHost(host);
@@ -237,7 +243,7 @@ export const InputOTPGroup = component<InputOTPGroupProps>(
     const classes = computed(() => cn('flex items-center', className.value));
     return html`<div data-slot="input-otp-group" class="${classes}">${children()}</div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: inputOtpGroupAttrs },
 );
 
 // ── ui-input-otp-slot ────────────────────────────────────────────────
@@ -260,7 +266,13 @@ export type InputOTPSlotProps = {
   ariaInvalid?: boolean;
 };
 
-export const InputOTPSlot = component<InputOTPSlotProps>('ui-input-otp-slot', (props, host) => {
+const inputOtpSlotAttrs = {
+  index: { type: 'number', default: 0 },
+  className: 'string',
+  ariaInvalid: 'boolean',
+} satisfies ComponentAttrs<InputOTPSlotProps>;
+
+export const InputOTPSlot = component<InputOTPSlotProps, typeof inputOtpSlotAttrs>('ui-input-otp-slot', (props, host) => {
   const state = InputOTPContext.inject();
   transparentHost(host);
 
@@ -283,7 +295,7 @@ export const InputOTPSlot = component<InputOTPSlotProps>('ui-input-otp-slot', (p
       <div class="h-4 w-px animate-caret-blink bg-foreground duration-1000"></div>
     </div>`,
   )}</div>`;
-}, { attrs: { index: { type: 'number', default: 0 }, className: 'string', ariaInvalid: 'boolean' } });
+}, { attrs: inputOtpSlotAttrs });
 
 // ── ui-input-otp-separator ───────────────────────────────────────────
 
@@ -291,7 +303,9 @@ export type InputOTPSeparatorProps = {
   className?: string;
 };
 
-export const InputOTPSeparator = component<InputOTPSeparatorProps>(
+const inputOtpSeparatorAttrs = { className: 'string' } satisfies ComponentAttrs<InputOTPSeparatorProps>;
+
+export const InputOTPSeparator = component<InputOTPSeparatorProps, typeof inputOtpSeparatorAttrs>(
   'ui-input-otp-separator',
   (props, host) => {
     transparentHost(host);
@@ -309,5 +323,5 @@ export const InputOTPSeparator = component<InputOTPSeparatorProps>(
         aria-hidden="true"
       ><path d="M5 12h14"></path></svg></div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: inputOtpSeparatorAttrs },
 );

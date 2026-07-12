@@ -23,6 +23,7 @@
 
 import {
   component,
+  type ComponentAttrs,
   computed,
   effect,
   html,
@@ -58,7 +59,24 @@ export type SliderProps = {
   className?: string;
 };
 
-export const Slider = component<SliderProps>('ui-slider', (props, host) => {
+// ADR 0025 item 3 (+ v1.1 'number' kind). Kebab-case attr names
+// (className → class-name, defaultValue → default-value). 'forward' relocates
+// id/name off the transparent host onto the inner control. Passed as
+// component()'s second type argument (`typeof sliderAttrs`) so declared
+// `disabled` narrows to `boolean` (ADR 0025 candidate (b)) — no `as boolean`.
+const sliderAttrs = {
+  value: 'number',
+  defaultValue: 'number',
+  min: 'number',
+  max: 'number',
+  step: 'number',
+  className: 'string',
+  id: 'forward',
+  name: 'forward',
+  disabled: 'boolean',
+} satisfies ComponentAttrs<SliderProps>;
+
+export const Slider = component<SliderProps, typeof sliderAttrs>('ui-slider', (props, host) => {
   transparentHost(host);
 
   // ADR 0025 item 3 (+ v1.1 'number' kind): attribute fallbacks declared via the
@@ -74,7 +92,7 @@ export const Slider = component<SliderProps>('ui-slider', (props, host) => {
   const defaultValue = props.defaultValue;
   const id = props.id;
   const name = props.name;
-  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const disabled = computed<boolean>(() => props.disabled.value);
   const className = props.className;
 
   const classes = computed(() => cn(sliderClasses, className.value));
@@ -127,19 +145,4 @@ export const Slider = component<SliderProps>('ui-slider', (props, host) => {
     disabled="${disabled}"
     @input=${syncFill}
   />`;
-}, {
-  // ADR 0025 item 3 (+ v1.1 'number' kind). Kebab-case attr names
-  // (className → class-name, defaultValue → default-value). 'forward' relocates
-  // id/name off the transparent host onto the inner control.
-  attrs: {
-    value: 'number',
-    defaultValue: 'number',
-    min: 'number',
-    max: 'number',
-    step: 'number',
-    className: 'string',
-    id: 'forward',
-    name: 'forward',
-    disabled: 'boolean',
-  },
-});
+}, { attrs: sliderAttrs });

@@ -28,6 +28,7 @@
 
 import {
   component,
+  type ComponentAttrs,
   computed,
   effect,
   html,
@@ -54,19 +55,33 @@ export type CheckboxProps = {
   className?: string;
 };
 
-export const Checkbox = component<CheckboxProps>('ui-checkbox', (props, host) => {
+// ADR 0025 item 3: opt-in attribute reactivity. 'forward' relocates id/name
+// onto the inner control (native form participation). Passed as component()'s
+// second type argument (`typeof checkboxAttrs`) so declared booleans narrow to
+// `boolean` (ADR 0025 candidate (b)) — the `as boolean` stopgap is retired.
+const checkboxAttrs = {
+  value: 'string',
+  className: 'string',
+  id: 'forward',
+  name: 'forward',
+  checked: 'boolean',
+  disabled: 'boolean',
+  required: 'boolean',
+  ariaInvalid: 'boolean',
+} satisfies ComponentAttrs<CheckboxProps>;
+
+export const Checkbox = component<CheckboxProps, typeof checkboxAttrs>('ui-checkbox', (props, host) => {
   transparentHost(host);
 
-  // Attribute fallbacks are declared in the `attrs` option below (ADR 0025
-  // item 3) — no userland attr()/boolAttr()/forwardedAttr(). Declared-default
-  // booleans are runtime-guaranteed non-undefined (`as boolean` is the typing
-  // stopgap until ReactiveProps carries the declared type).
+  // Attribute fallbacks are declared via `checkboxAttrs` (ADR 0025 item 3) — no
+  // userland attr()/boolAttr()/forwardedAttr(). Declared booleans now TYPE as
+  // `boolean` (narrowed via `typeof checkboxAttrs`), so there is no `as boolean`.
   const value = props.value;
   const id = props.id;
   const name = props.name;
-  const checked = computed<boolean>(() => props.checked.value as boolean);
-  const disabled = computed<boolean>(() => props.disabled.value as boolean);
-  const required = computed<boolean>(() => props.required.value as boolean);
+  const checked = computed<boolean>(() => props.checked.value);
+  const disabled = computed<boolean>(() => props.disabled.value);
+  const required = computed<boolean>(() => props.required.value);
   const className = props.className;
 
   const classes = computed(() => cn(checkboxClasses, className.value));
@@ -114,17 +129,4 @@ export const Checkbox = component<CheckboxProps>('ui-checkbox', (props, host) =>
     aria-invalid="${computed(() => (props.ariaInvalid.value ? 'true' : undefined))}"
     @change=${syncState}
   />`;
-}, {
-  // ADR 0025 item 3: opt-in attribute reactivity. 'forward' relocates id/name
-  // onto the inner control (native form participation).
-  attrs: {
-    value: 'string',
-    className: 'string',
-    id: 'forward',
-    name: 'forward',
-    checked: 'boolean',
-    disabled: 'boolean',
-    required: 'boolean',
-    ariaInvalid: 'boolean',
-  },
-});
+}, { attrs: checkboxAttrs });

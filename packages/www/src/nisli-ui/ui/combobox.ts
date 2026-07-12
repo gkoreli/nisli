@@ -35,6 +35,7 @@
 
 import {
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   effect,
@@ -101,12 +102,27 @@ export type ComboboxProps = {
   children?: string | TemplateResult;
 };
 
-export const Combobox = component<ComboboxProps>('ui-combobox', (props, host) => {
+// VALUE-STATE: `value` is the attribute-as-truth selection; `defaultValue` seeds
+// it. `value`/`defaultValue` are plain `string` (a single value, or comma-encoded
+// for multiple) — so combobox is string-only and carries NO residual value cast;
+// `multiple` narrows to `boolean` from its declaration (ADR 0025 candidate (b)).
+const comboboxAttrs = {
+  value: 'string',
+  defaultValue: 'string',
+  multiple: 'boolean',
+  placeholder: 'string',
+  searchPlaceholder: 'string',
+  emptyText: 'string',
+  portal: { type: 'boolean', default: true },
+  className: 'string',
+} satisfies ComponentAttrs<ComboboxProps>;
+
+export const Combobox = component<ComboboxProps, typeof comboboxAttrs>('ui-combobox', (props, host) => {
   transparentHost(host);
 
-  // `multiple` is a declared 'boolean' attr (runtime-guaranteed non-undefined),
-  // read ONCE at setup — it selects the value-state shape (string vs array).
-  const multiple = props.multiple.value as boolean;
+  // `multiple` is a declared 'boolean' attr (now typed `boolean`), read ONCE at
+  // setup — it selects the value-state shape (string vs array).
+  const multiple = props.multiple.value;
 
   const open = signal<boolean>(false);
   const labelText = signal<string>('');
@@ -283,18 +299,7 @@ export const Combobox = component<ComboboxProps>('ui-combobox', (props, host) =>
     })}`,
   })}</div>`;
 }, {
-  // VALUE-STATE: `value` is the attribute-as-truth selection; `defaultValue`
-  // seeds it. `multiple` selects the value shape. The rest are plain strings.
-  attrs: {
-    value: 'string',
-    defaultValue: 'string',
-    multiple: 'boolean',
-    placeholder: 'string',
-    searchPlaceholder: 'string',
-    emptyText: 'string',
-    portal: { type: 'boolean', default: true },
-    className: 'string',
-  },
+  attrs: comboboxAttrs,
 });
 
 // ── ui-combobox-item ─────────────────────────────────────────────────
@@ -311,11 +316,18 @@ export type ComboboxItemProps = {
   children?: string | TemplateResult;
 };
 
-export const ComboboxItem = component<ComboboxItemProps>('ui-combobox-item', (props, host) => {
+const comboboxItemAttrs = {
+  value: 'string',
+  keywords: 'string',
+  disabled: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<ComboboxItemProps>;
+
+export const ComboboxItem = component<ComboboxItemProps, typeof comboboxItemAttrs>('ui-combobox-item', (props, host) => {
   const combo = ComboboxContext.inject();
   transparentHost(host);
 
-  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const disabled = computed<boolean>(() => props.disabled.value);
   const own = computed(() => props.value.value ?? '');
   const chosen = computed(() => combo.isSelected(own.value));
 
@@ -368,10 +380,5 @@ export const ComboboxItem = component<ComboboxItemProps>('ui-combobox-item', (pr
         aria-hidden="true"
       ><path d="M20 6 9 17l-5-5"></path></svg></span></div>`;
 }, {
-  attrs: {
-    value: 'string',
-    keywords: 'string',
-    disabled: 'boolean',
-    className: 'string',
-  },
+  attrs: comboboxItemAttrs,
 });

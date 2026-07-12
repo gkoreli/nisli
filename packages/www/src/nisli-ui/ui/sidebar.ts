@@ -38,6 +38,7 @@
 import {
   children,
   component,
+  type ComponentAttrs,
   createContext,
   computed,
   html,
@@ -88,7 +89,12 @@ export type SidebarProviderProps = {
   children?: string | TemplateResult;
 };
 
-export const SidebarProvider = component<SidebarProviderProps>(
+const sidebarProviderAttrs = {
+  defaultOpen: { type: 'boolean', default: true },
+  className: 'string',
+} satisfies ComponentAttrs<SidebarProviderProps>;
+
+export const SidebarProvider = component<SidebarProviderProps, typeof sidebarProviderAttrs>(
   'ui-sidebar-provider',
   (props, host) => {
     transparentHost(host);
@@ -153,7 +159,7 @@ export const SidebarProvider = component<SidebarProviderProps>(
       class="${classes}"
     >${children()}</div>`;
   },
-  { attrs: { defaultOpen: { type: 'boolean', default: true }, className: 'string' } },
+  { attrs: sidebarProviderAttrs },
 );
 
 // ── ui-sidebar (desktop frame) ───────────────────────────────────────
@@ -191,7 +197,14 @@ const containerClasses = (side: SidebarSide, variant: SidebarVariant): string =>
       : 'group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l',
   );
 
-export const Sidebar = component<SidebarProps>('ui-sidebar', (props, host) => {
+const sidebarAttrs = {
+  side: 'string',
+  variant: 'string',
+  collapsible: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<SidebarProps>;
+
+export const Sidebar = component<SidebarProps, typeof sidebarAttrs>('ui-sidebar', (props, host) => {
   const state = SidebarContext.inject();
   transparentHost(host);
 
@@ -268,7 +281,7 @@ export const Sidebar = component<SidebarProps>('ui-sidebar', (props, host) => {
   </div>`;
 
   return html`${when(state.isMobile, mobileSidebar)}${when(notMobile, desktopSidebar)}`;
-}, { attrs: { side: 'string', variant: 'string', collapsible: 'string', className: 'string' } });
+}, { attrs: sidebarAttrs });
 
 // ── ui-sidebar-trigger / -rail ───────────────────────────────────────
 
@@ -279,7 +292,9 @@ export type SidebarTriggerProps = {
   children?: string | TemplateResult;
 };
 
-export const SidebarTrigger = component<SidebarTriggerProps>(
+const sidebarTriggerAttrs = { className: 'string' } satisfies ComponentAttrs<SidebarTriggerProps>;
+
+export const SidebarTrigger = component<SidebarTriggerProps, typeof sidebarTriggerAttrs>(
   'ui-sidebar-trigger',
   (props, host) => {
     const state = SidebarContext.inject();
@@ -299,14 +314,16 @@ export const SidebarTrigger = component<SidebarTriggerProps>(
       @click=${() => state.toggleSidebar()}
     >${panelLeftIcon}<span class="sr-only">Toggle Sidebar</span>${children()}</button>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: sidebarTriggerAttrs },
 );
 
 export type SidebarRailProps = {
   className?: string;
 };
 
-export const SidebarRail = component<SidebarRailProps>('ui-sidebar-rail', (props, host) => {
+const sidebarRailAttrs = { className: 'string' } satisfies ComponentAttrs<SidebarRailProps>;
+
+export const SidebarRail = component<SidebarRailProps, typeof sidebarRailAttrs>('ui-sidebar-rail', (props, host) => {
   const state = SidebarContext.inject();
   transparentHost(host);
   const classes = computed(() =>
@@ -330,7 +347,7 @@ export const SidebarRail = component<SidebarRailProps>('ui-sidebar-rail', (props
     class="${classes}"
     @click=${() => state.toggleSidebar()}
   ></button>`;
-}, { attrs: { className: 'string' } });
+}, { attrs: sidebarRailAttrs });
 
 // ── ui-sidebar-inset / -input / -header / -footer / -separator / -content
 
@@ -339,6 +356,8 @@ export type SidebarSectionProps = {
   children?: string | TemplateResult;
 };
 
+const sidebarSectionAttrs = { className: 'string' } satisfies ComponentAttrs<SidebarSectionProps>;
+
 function sidebarSection(
   tag: string,
   slot: string,
@@ -346,13 +365,13 @@ function sidebarSection(
   base: string,
   element: 'div' | 'main' = 'div',
 ) {
-  return component<SidebarSectionProps>(tag, (props, host) => {
+  return component<SidebarSectionProps, typeof sidebarSectionAttrs>(tag, (props, host) => {
     transparentHost(host);
     const classes = computed(() => cn(base, props.className.value));
     return element === 'main'
       ? html`<main data-slot="${slot}" data-sidebar="${sidebarAttr}" class="${classes}">${children()}</main>`
       : html`<div data-slot="${slot}" data-sidebar="${sidebarAttr}" class="${classes}">${children()}</div>`;
-  }, { attrs: { className: 'string' } });
+  }, { attrs: sidebarSectionAttrs });
 }
 
 export const SidebarInset = sidebarSection(
@@ -390,7 +409,13 @@ export type SidebarInputProps = {
   className?: string;
 };
 
-export const SidebarInput = component<SidebarInputProps>('ui-sidebar-input', (props, host) => {
+const sidebarInputAttrs = {
+  type: 'string',
+  placeholder: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<SidebarInputProps>;
+
+export const SidebarInput = component<SidebarInputProps, typeof sidebarInputAttrs>('ui-sidebar-input', (props, host) => {
   transparentHost(host);
   const classes = computed(() =>
     cn(
@@ -405,11 +430,13 @@ export const SidebarInput = component<SidebarInputProps>('ui-sidebar-input', (pr
     placeholder="${props.placeholder}"
     class="${classes}"
   />`;
-}, { attrs: { type: 'string', placeholder: 'string', className: 'string' } });
+}, { attrs: sidebarInputAttrs });
 
 export type SidebarSeparatorProps = { className?: string };
 
-export const SidebarSeparator = component<SidebarSeparatorProps>(
+const sidebarSeparatorAttrs = { className: 'string' } satisfies ComponentAttrs<SidebarSeparatorProps>;
+
+export const SidebarSeparator = component<SidebarSeparatorProps, typeof sidebarSeparatorAttrs>(
   'ui-sidebar-separator',
   (props, host) => {
     transparentHost(host);
@@ -425,7 +452,7 @@ export const SidebarSeparator = component<SidebarSeparatorProps>(
       class="${classes}"
     ></div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: sidebarSeparatorAttrs },
 );
 
 // ── Group family: ui-sidebar-group / -group-label / -group-action / -group-content
@@ -437,7 +464,9 @@ export const SidebarGroup = sidebarSection(
   'relative flex w-full min-w-0 flex-col p-2',
 );
 
-export const SidebarGroupLabel = component<SidebarSectionProps>(
+const sidebarGroupLabelAttrs = { className: 'string' } satisfies ComponentAttrs<SidebarSectionProps>;
+
+export const SidebarGroupLabel = component<SidebarSectionProps, typeof sidebarGroupLabelAttrs>(
   'ui-sidebar-group-label',
   (props, host) => {
     transparentHost(host);
@@ -450,10 +479,12 @@ export const SidebarGroupLabel = component<SidebarSectionProps>(
     );
     return html`<div data-slot="sidebar-group-label" data-sidebar="group-label" class="${classes}">${children()}</div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: sidebarGroupLabelAttrs },
 );
 
-export const SidebarGroupAction = component<SidebarSectionProps>(
+const sidebarGroupActionAttrs = { className: 'string' } satisfies ComponentAttrs<SidebarSectionProps>;
+
+export const SidebarGroupAction = component<SidebarSectionProps, typeof sidebarGroupActionAttrs>(
   'ui-sidebar-group-action',
   (props, host) => {
     transparentHost(host);
@@ -467,7 +498,7 @@ export const SidebarGroupAction = component<SidebarSectionProps>(
     );
     return html`<button type="button" data-slot="sidebar-group-action" data-sidebar="group-action" class="${classes}">${children()}</button>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: sidebarGroupActionAttrs },
 );
 
 export const SidebarGroupContent = sidebarSection(
@@ -479,20 +510,24 @@ export const SidebarGroupContent = sidebarSection(
 
 // ── Menu: ui-sidebar-menu / -menu-item ───────────────────────────────
 
-export const SidebarMenu = component<SidebarSectionProps>('ui-sidebar-menu', (props, host) => {
+const sidebarMenuAttrs = { className: 'string' } satisfies ComponentAttrs<SidebarSectionProps>;
+
+export const SidebarMenu = component<SidebarSectionProps, typeof sidebarMenuAttrs>('ui-sidebar-menu', (props, host) => {
   transparentHost(host);
   const classes = computed(() => cn('flex w-full min-w-0 flex-col gap-1', props.className.value));
   return html`<ul data-slot="sidebar-menu" data-sidebar="menu" class="${classes}">${children()}</ul>`;
-}, { attrs: { className: 'string' } });
+}, { attrs: sidebarMenuAttrs });
 
-export const SidebarMenuItem = component<SidebarSectionProps>(
+const sidebarMenuItemAttrs = { className: 'string' } satisfies ComponentAttrs<SidebarSectionProps>;
+
+export const SidebarMenuItem = component<SidebarSectionProps, typeof sidebarMenuItemAttrs>(
   'ui-sidebar-menu-item',
   (props, host) => {
     transparentHost(host);
     const classes = computed(() => cn('group/menu-item relative', props.className.value));
     return html`<li data-slot="sidebar-menu-item" data-sidebar="menu-item" class="${classes}">${children()}</li>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: sidebarMenuItemAttrs },
 );
 
 // ── ui-sidebar-menu-button ───────────────────────────────────────────
@@ -539,11 +574,19 @@ export type SidebarMenuButtonProps = {
   children?: string | TemplateResult;
 };
 
-export const SidebarMenuButton = component<SidebarMenuButtonProps>(
+const sidebarMenuButtonAttrs = {
+  isActive: 'boolean',
+  variant: 'string',
+  size: 'string',
+  href: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<SidebarMenuButtonProps>;
+
+export const SidebarMenuButton = component<SidebarMenuButtonProps, typeof sidebarMenuButtonAttrs>(
   'ui-sidebar-menu-button',
   (props, host) => {
     transparentHost(host);
-    const isActive = computed<boolean>(() => props.isActive.value as boolean);
+    const isActive = computed<boolean>(() => props.isActive.value);
     const classes = computed(() =>
       cn(
         sidebarMenuButtonVariants({
@@ -579,15 +622,7 @@ export const SidebarMenuButton = component<SidebarMenuButtonProps>(
       class="${classes}"
     >${kids}</button>`;
   },
-  {
-    attrs: {
-      isActive: 'boolean',
-      variant: 'string',
-      size: 'string',
-      href: 'string',
-      className: 'string',
-    },
-  },
+  { attrs: sidebarMenuButtonAttrs },
 );
 
 // ── ui-sidebar-menu-action / -menu-badge / -menu-skeleton ────────────
@@ -598,11 +633,16 @@ export type SidebarMenuActionProps = {
   children?: string | TemplateResult;
 };
 
-export const SidebarMenuAction = component<SidebarMenuActionProps>(
+const sidebarMenuActionAttrs = {
+  showOnHover: 'boolean',
+  className: 'string',
+} satisfies ComponentAttrs<SidebarMenuActionProps>;
+
+export const SidebarMenuAction = component<SidebarMenuActionProps, typeof sidebarMenuActionAttrs>(
   'ui-sidebar-menu-action',
   (props, host) => {
     transparentHost(host);
-    const showOnHover = computed<boolean>(() => props.showOnHover.value as boolean);
+    const showOnHover = computed<boolean>(() => props.showOnHover.value);
     const classes = computed(() =>
       cn(
         'absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground ring-sidebar-ring outline-hidden transition-transform peer-hover/menu-button:text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0',
@@ -618,10 +658,12 @@ export const SidebarMenuAction = component<SidebarMenuActionProps>(
     );
     return html`<button type="button" data-slot="sidebar-menu-action" data-sidebar="menu-action" class="${classes}">${children()}</button>`;
   },
-  { attrs: { showOnHover: 'boolean', className: 'string' } },
+  { attrs: sidebarMenuActionAttrs },
 );
 
-export const SidebarMenuBadge = component<SidebarSectionProps>(
+const sidebarMenuBadgeAttrs = { className: 'string' } satisfies ComponentAttrs<SidebarSectionProps>;
+
+export const SidebarMenuBadge = component<SidebarSectionProps, typeof sidebarMenuBadgeAttrs>(
   'ui-sidebar-menu-badge',
   (props, host) => {
     transparentHost(host);
@@ -638,7 +680,7 @@ export const SidebarMenuBadge = component<SidebarSectionProps>(
     );
     return html`<div data-slot="sidebar-menu-badge" data-sidebar="menu-badge" class="${classes}">${children()}</div>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: sidebarMenuBadgeAttrs },
 );
 
 export type SidebarMenuSkeletonProps = {
@@ -649,11 +691,17 @@ export type SidebarMenuSkeletonProps = {
   className?: string;
 };
 
-export const SidebarMenuSkeleton = component<SidebarMenuSkeletonProps>(
+const sidebarMenuSkeletonAttrs = {
+  showIcon: 'boolean',
+  width: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<SidebarMenuSkeletonProps>;
+
+export const SidebarMenuSkeleton = component<SidebarMenuSkeletonProps, typeof sidebarMenuSkeletonAttrs>(
   'ui-sidebar-menu-skeleton',
   (props, host) => {
     transparentHost(host);
-    const showIcon = computed<boolean>(() => props.showIcon.value as boolean);
+    const showIcon = computed<boolean>(() => props.showIcon.value);
     const classes = computed(() =>
       cn('flex h-8 items-center gap-2 rounded-md px-2', props.className.value),
     );
@@ -667,12 +715,14 @@ export const SidebarMenuSkeleton = component<SidebarMenuSkeletonProps>(
         style="${computed(() => `--skeleton-width:${props.width.value ?? '70%'}`)}"
       ></div></div>`;
   },
-  { attrs: { showIcon: 'boolean', width: 'string', className: 'string' } },
+  { attrs: sidebarMenuSkeletonAttrs },
 );
 
 // ── ui-sidebar-menu-sub / -menu-sub-item / -menu-sub-button ──────────
 
-export const SidebarMenuSub = component<SidebarSectionProps>(
+const sidebarMenuSubAttrs = { className: 'string' } satisfies ComponentAttrs<SidebarSectionProps>;
+
+export const SidebarMenuSub = component<SidebarSectionProps, typeof sidebarMenuSubAttrs>(
   'ui-sidebar-menu-sub',
   (props, host) => {
     transparentHost(host);
@@ -685,17 +735,19 @@ export const SidebarMenuSub = component<SidebarSectionProps>(
     );
     return html`<ul data-slot="sidebar-menu-sub" data-sidebar="menu-sub" class="${classes}">${children()}</ul>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: sidebarMenuSubAttrs },
 );
 
-export const SidebarMenuSubItem = component<SidebarSectionProps>(
+const sidebarMenuSubItemAttrs = { className: 'string' } satisfies ComponentAttrs<SidebarSectionProps>;
+
+export const SidebarMenuSubItem = component<SidebarSectionProps, typeof sidebarMenuSubItemAttrs>(
   'ui-sidebar-menu-sub-item',
   (props, host) => {
     transparentHost(host);
     const classes = computed(() => cn('group/menu-sub-item relative', props.className.value));
     return html`<li data-slot="sidebar-menu-sub-item" data-sidebar="menu-sub-item" class="${classes}">${children()}</li>`;
   },
-  { attrs: { className: 'string' } },
+  { attrs: sidebarMenuSubItemAttrs },
 );
 
 export type SidebarMenuSubButtonProps = {
@@ -706,11 +758,18 @@ export type SidebarMenuSubButtonProps = {
   children?: string | TemplateResult;
 };
 
-export const SidebarMenuSubButton = component<SidebarMenuSubButtonProps>(
+const sidebarMenuSubButtonAttrs = {
+  size: 'string',
+  isActive: 'boolean',
+  href: 'string',
+  className: 'string',
+} satisfies ComponentAttrs<SidebarMenuSubButtonProps>;
+
+export const SidebarMenuSubButton = component<SidebarMenuSubButtonProps, typeof sidebarMenuSubButtonAttrs>(
   'ui-sidebar-menu-sub-button',
   (props, host) => {
     transparentHost(host);
-    const isActive = computed<boolean>(() => props.isActive.value as boolean);
+    const isActive = computed<boolean>(() => props.isActive.value);
     const classes = computed(() =>
       cn(
         'flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground',
@@ -730,5 +789,5 @@ export const SidebarMenuSubButton = component<SidebarMenuSubButtonProps>(
       class="${classes}"
     >${children()}</a>`;
   },
-  { attrs: { size: 'string', isActive: 'boolean', href: 'string', className: 'string' } },
+  { attrs: sidebarMenuSubButtonAttrs },
 );

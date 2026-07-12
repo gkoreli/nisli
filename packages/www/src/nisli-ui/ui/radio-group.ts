@@ -36,6 +36,7 @@
 
 import {
   component,
+  type ComponentAttrs,
   createContext,
   children,
   computed,
@@ -81,16 +82,27 @@ export type RadioGroupProps = {
   children?: string | TemplateResult;
 };
 
-export const RadioGroup = component<RadioGroupProps>('ui-radio-group', (props, host) => {
+// ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
+// (className → class-name, defaultValue → default-value). 'forward' relocates
+// `name` off the transparent host onto the inner radios.
+const radioGroupAttrs = {
+  value: 'string',
+  defaultValue: 'string',
+  name: 'forward',
+  className: 'string',
+  disabled: 'boolean',
+} satisfies ComponentAttrs<RadioGroupProps>;
+
+export const RadioGroup = component<RadioGroupProps, typeof radioGroupAttrs>('ui-radio-group', (props, host) => {
   transparentHost(host);
 
   // ADR 0025 item 3: attribute fallbacks are declared via the `attrs` option
   // below and delivered as plain, LIVE prop signals — no userland
-  // attr()/boolAttr()/forwardedAttr() at setup. Declared-default booleans are
-  // runtime-guaranteed non-undefined (the `as boolean` is the typing stopgap).
-  // 'forward' relocates `name` off the transparent host so it lives only on the
-  // inner radios.
-  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  // attr()/boolAttr()/forwardedAttr() at setup. Declared booleans are runtime-
+  // guaranteed non-undefined and now TYPE as `boolean` via the second type arg
+  // (ADR 0025 candidate (b)). 'forward' relocates `name` off the transparent
+  // host so it lives only on the inner radios.
+  const disabled = computed<boolean>(() => props.disabled.value);
   const name = props.name.value ?? `ui-radio-group-${++uid}`;
 
   // Uncontrolled state, seeded from default-value (or a parse-time value attr).
@@ -118,18 +130,7 @@ export const RadioGroup = component<RadioGroupProps>('ui-radio-group', (props, h
     aria-disabled="${computed(() => (disabled.value ? 'true' : undefined))}"
     class="${classes}"
   >${children()}</div>`;
-}, {
-  // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
-  // (className → class-name, defaultValue → default-value). 'forward' relocates
-  // `name` off the transparent host onto the inner radios.
-  attrs: {
-    value: 'string',
-    defaultValue: 'string',
-    name: 'forward',
-    className: 'string',
-    disabled: 'boolean',
-  },
-});
+}, { attrs: radioGroupAttrs });
 
 // ── ui-radio-group-item ─────────────────────────────────────────────
 
@@ -151,7 +152,18 @@ export type RadioGroupItemProps = {
   className?: string;
 };
 
-export const RadioGroupItem = component<RadioGroupItemProps>(
+// ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
+// (className → class-name). 'forward' relocates `id` off the transparent
+// host onto the inner radio (native form participation + label binding).
+const radioGroupItemAttrs = {
+  value: 'string',
+  id: 'forward',
+  className: 'string',
+  disabled: 'boolean',
+  ariaInvalid: 'boolean',
+} satisfies ComponentAttrs<RadioGroupItemProps>;
+
+export const RadioGroupItem = component<RadioGroupItemProps, typeof radioGroupItemAttrs>(
   'ui-radio-group-item',
   (props, host) => {
     const group = RadioGroupContext.inject();
@@ -163,7 +175,7 @@ export const RadioGroupItem = component<RadioGroupItemProps>(
     // the transparent host onto the inner radio (native label association).
     const own = computed(() => props.value.value ?? '');
     const id = props.id;
-    const ownDisabled = computed<boolean>(() => props.disabled.value as boolean);
+    const ownDisabled = computed<boolean>(() => props.disabled.value);
     const disabled = computed(() => ownDisabled.value || group.disabled.value);
     const checked = computed(() => own.value !== '' && group.value.value === own.value);
     const classes = computed(() => cn(radioItemClasses, props.className.value));
@@ -203,16 +215,5 @@ export const RadioGroupItem = component<RadioGroupItemProps>(
       @change=${onChange}
     />`;
   },
-  {
-    // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
-    // (className → class-name). 'forward' relocates `id` off the transparent
-    // host onto the inner radio (native form participation + label binding).
-    attrs: {
-      value: 'string',
-      id: 'forward',
-      className: 'string',
-      disabled: 'boolean',
-      ariaInvalid: 'boolean',
-    },
-  },
+  { attrs: radioGroupItemAttrs },
 );
