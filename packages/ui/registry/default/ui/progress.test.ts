@@ -86,3 +86,30 @@ describe('Progress', () => {
     expect(b.getAttribute('aria-valuemax')).toBe('50');
   });
 });
+
+describe('Progress — live attributes (UI-30 attrs{})', () => {
+  it('reacts to post-mount value / max attribute changes', () => {
+    document.body.innerHTML = '<ui-progress value="20"></ui-progress>';
+    flushEffects();
+    const host = document.querySelector('ui-progress')!;
+    const b = bar();
+    expect(b.getAttribute('aria-valuenow')).toBe('20');
+    expect(b.getAttribute('data-state')).toBe('loading');
+
+    host.setAttribute('value', '100');
+    flushEffects();
+    expect(b.getAttribute('aria-valuenow')).toBe('100');
+    expect(b.getAttribute('data-state')).toBe('complete');
+
+    host.setAttribute('max', '200');
+    flushEffects();
+    expect(b.getAttribute('aria-valuemax')).toBe('200');
+    expect(b.getAttribute('data-state')).toBe('loading'); // 100 < 200 again
+
+    // Removing value → indeterminate (no aria-valuenow).
+    host.removeAttribute('value');
+    flushEffects();
+    expect(b.hasAttribute('aria-valuenow')).toBe(false);
+    expect(b.getAttribute('data-state')).toBe('indeterminate');
+  });
+});

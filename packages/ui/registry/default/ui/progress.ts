@@ -15,7 +15,7 @@
  */
 
 import { component, computed, html } from '@nisli/core';
-import { attr, cn, transparentHost } from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 export const progressClasses =
   'relative h-2 w-full overflow-hidden rounded-full bg-primary/20';
@@ -33,16 +33,12 @@ export type ProgressProps = {
 export const Progress = component<ProgressProps>('ui-progress', (props, host) => {
   transparentHost(host);
 
-  const valueFallback = host.hasAttribute('value')
-    ? Number(host.getAttribute('value'))
-    : undefined;
-  const value = computed(() => props.value.value ?? valueFallback);
+  // value is 'number' with NO default → absent/garbage resolves to undefined
+  // (indeterminate). max defaults to 100.
+  const value = computed(() => props.value.value);
+  const max = computed(() => props.max.value ?? 100);
 
-  const maxFallback = host.hasAttribute('max') ? Number(host.getAttribute('max')) : 100;
-  const max = computed(() => props.max.value ?? maxFallback);
-
-  const className = attr(props.className, host, 'class-name');
-  const classes = computed(() => cn(progressClasses, className.value));
+  const classes = computed(() => cn(progressClasses, props.className.value));
 
   const state = computed(() => {
     const v = value.value;
@@ -68,4 +64,4 @@ export const Progress = component<ProgressProps>('ui-progress', (props, host) =>
       class="${progressIndicatorClasses}"
       style="${indicatorStyle}"
     ></div></div>`;
-});
+}, { attrs: { value: 'number', max: { type: 'number', default: 100 }, className: 'string' } });
