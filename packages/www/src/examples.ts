@@ -69,6 +69,41 @@ import {
   DialogTitle,
   DialogDescription,
 } from './nisli-ui/ui/dialog.js';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuItem,
+  DropdownMenuShortcut,
+  DropdownMenuCheckboxItem,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+} from './nisli-ui/ui/dropdown-menu.js';
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from './nisli-ui/ui/command.js';
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarHeader,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarFooter,
+} from './nisli-ui/ui/sidebar.js';
+import { Calendar } from './nisli-ui/ui/calendar.js';
 
 export const examples: Record<string, () => TemplateResult> = {
   button: () =>
@@ -238,6 +273,94 @@ export const examples: Record<string, () => TemplateResult> = {
           ${Button({ children: 'Save changes' })}`,
         })}`,
       })}`,
+    })}`,
+  // Floating overlay: its open content uses inline fixed positioning that only
+  // the client can anchor, and its items require the menu context (they error
+  // standalone) — so the SSG-safe preview is the trigger. The full menu (label,
+  // shortcut, checkbox items, submenu, destructive item) is composed here and
+  // shown live once the client runtime lands.
+  'dropdown-menu': () =>
+    html`${DropdownMenu({
+      children: html`${DropdownMenuTrigger({
+        className: buttonVariants({ variant: 'outline' }),
+        children: 'Open menu',
+      })}
+      ${DropdownMenuContent({
+        className: 'w-56',
+        children: html`${DropdownMenuLabel({ children: 'My Account' })}
+        ${DropdownMenuSeparator({})}
+        ${DropdownMenuItem({
+          value: 'profile',
+          children: html`Profile ${DropdownMenuShortcut({ children: '⇧⌘P' })}`,
+        })}
+        ${DropdownMenuItem({ value: 'settings', children: 'Settings' })}
+        ${DropdownMenuSeparator({})}
+        ${DropdownMenuCheckboxItem({ checked: true, children: 'Status Bar' })}
+        ${DropdownMenuCheckboxItem({ children: 'Activity Bar' })}
+        ${DropdownMenuSeparator({})}
+        ${DropdownMenuSub({
+          children: html`${DropdownMenuSubTrigger({ children: 'Invite users' })}
+          ${DropdownMenuSubContent({
+            children: html`${DropdownMenuItem({ value: 'email', children: 'Email' })}
+            ${DropdownMenuItem({ value: 'message', children: 'Message' })}`,
+          })}`,
+        })}
+        ${DropdownMenuSeparator({})}
+        ${DropdownMenuItem({ value: 'logout', variant: 'destructive', children: 'Log out' })}`,
+      })}`,
+    })}`,
+  command: () =>
+    html`<div class="w-full max-w-sm">
+      ${Command({
+        className: 'rounded-lg border shadow-sm',
+        children: html`${CommandInput({ placeholder: 'Type a command or search…' })}
+        ${CommandList({
+          children: html`${CommandEmpty({ children: 'No results found.' })}
+          ${CommandGroup({
+            heading: 'Suggestions',
+            children: html`${CommandItem({ value: 'calendar', children: 'Calendar' })}
+            ${CommandItem({ value: 'emoji', children: 'Search Emoji' })}
+            ${CommandItem({ value: 'calculator', children: 'Calculator' })}`,
+          })}`,
+        })}`,
+      })}
+    </div>`,
+  sidebar: () =>
+    html`${SidebarProvider({
+      children: html`<div class="flex h-64 w-full overflow-hidden rounded-lg border">
+        ${Sidebar({
+          collapsible: 'none',
+          className: 'w-56 border-r',
+          children: html`${SidebarHeader({
+            children: html`<div class="px-2 py-1 text-sm font-semibold">Acme Inc</div>`,
+          })}
+          ${SidebarContent({
+            children: SidebarGroup({
+              children: html`${SidebarGroupLabel({ children: 'Platform' })}
+              ${SidebarGroupContent({
+                children: SidebarMenu({
+                  children: html`${SidebarMenuItem({
+                    children: SidebarMenuButton({ isActive: true, children: 'Dashboard' }),
+                  })}
+                  ${SidebarMenuItem({ children: SidebarMenuButton({ children: 'Projects' }) })}
+                  ${SidebarMenuItem({ children: SidebarMenuButton({ children: 'Settings' }) })}`,
+                }),
+              })}`,
+            }),
+          })}
+          ${SidebarFooter({
+            children: html`<div class="px-2 py-1 text-sm text-muted-foreground">shadcn</div>`,
+          })}`,
+        })}
+        <div class="flex-1 p-4 text-sm text-muted-foreground">Main content</div>
+      </div>`,
+    })}`,
+  calendar: () =>
+    html`${Calendar({
+      mode: 'range',
+      defaultMonth: new Date(2024, 5, 1),
+      selected: { from: new Date(2024, 5, 9), to: new Date(2024, 5, 15) },
+      className: 'rounded-md border',
     })}`,
 };
 
