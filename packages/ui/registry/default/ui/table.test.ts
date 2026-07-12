@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { html, type TemplateResult } from '@nisli/core';
+import { flushEffects, html, type TemplateResult } from '@nisli/core';
 import {
   Table,
   TableHeader,
@@ -100,5 +100,40 @@ describe('Table', () => {
   it('merges className last on a part', () => {
     const c = mount(html`${Table({ children: TableRow({ className: 'cursor-pointer', children: TableCell({ children: 'x' }) }) })}`);
     expect(bySlot('table-row', c).className.endsWith('cursor-pointer')).toBe(true);
+  });
+});
+
+describe('Table — colspan/rowspan passthrough (UI-30 live number attrs)', () => {
+  it('factory colSpan/rowSpan render on the native td/th', () => {
+    const c = mount(html`${TableCell({ colSpan: 2, rowSpan: 3, children: 'x' })}`);
+    const td = bySlot('table-cell', c);
+    expect(td.tagName).toBe('TD');
+    expect(td.getAttribute('colspan')).toBe('2');
+    expect(td.getAttribute('rowspan')).toBe('3');
+
+    const c2 = mount(html`${TableHead({ colSpan: 4, children: 'h' })}`);
+    expect(bySlot('table-head', c2).getAttribute('colspan')).toBe('4');
+  });
+
+  it('omits colspan/rowspan when absent, and reacts to live attribute changes', () => {
+    const host = document.createElement('ui-table-cell');
+    document.body.appendChild(host);
+    flushEffects();
+    const td = host.querySelector('td')!;
+    expect(td.hasAttribute('colspan')).toBe(false); // absent → omitted
+    expect(td.hasAttribute('rowspan')).toBe(false);
+
+    host.setAttribute('colspan', '3');
+    flushEffects();
+    expect(td.getAttribute('colspan')).toBe('3');
+
+    host.setAttribute('rowspan', '2');
+    flushEffects();
+    expect(td.getAttribute('rowspan')).toBe('2');
+
+    // Live removal clears it again.
+    host.removeAttribute('colspan');
+    flushEffects();
+    expect(td.hasAttribute('colspan')).toBe(false);
   });
 });

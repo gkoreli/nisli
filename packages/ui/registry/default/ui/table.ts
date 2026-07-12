@@ -27,22 +27,14 @@
  */
 
 import {
+  children,
   component,
   computed,
   html,
-  onMount,
-  ref,
   type ReadonlySignal,
-  type Ref,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 export type TablePartProps = {
   /** Merged last into the inner element's class list via cn(). */
@@ -52,96 +44,117 @@ export type TablePartProps = {
 
 /**
  * Build a single-root table part: sets up the transparent host, className
- * merge, and light-DOM children projection, then defers to `render` for the
+ * merge, and light-DOM children rendering, then defers to `render` for the
  * literal table element (tag names cannot be interpolated into `html`).
  */
 function tablePart(
   tag: string,
   base: string,
-  render: (ctx: {
-    classes: ReadonlySignal<string>;
-    root: Ref<HTMLElement>;
-    children: unknown;
-  }) => TemplateResult,
+  render: (classes: ReadonlySignal<string>) => TemplateResult,
 ) {
-  return component<TablePartProps>(tag, (props, host) => {
-    transparentHost(host);
-    const projected = captureChildren(host);
-
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(base, className.value));
-
-    const root = ref<HTMLElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
-    return render({ classes, root, children: props.children });
-  });
+  return component<TablePartProps>(
+    tag,
+    (props, host) => {
+      transparentHost(host);
+      const classes = computed(() => cn(base, props.className.value));
+      return render(classes);
+    },
+    { attrs: { className: 'string' } },
+  );
 }
 
 export const Table = component<TablePartProps>('ui-table', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-
-  const className = attr(props.className, host, 'class-name');
-  const classes = computed(() => cn('w-full caption-bottom text-sm', className.value));
-
-  const root = ref<HTMLTableElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
+  const classes = computed(() => cn('w-full caption-bottom text-sm', props.className.value));
 
   return html`<div data-slot="table-container" class="relative w-full overflow-x-auto">
-    <table ref="${root}" data-slot="table" class="${classes}">${props.children}</table>
+    <table data-slot="table" class="${classes}">${children()}</table>
   </div>`;
-});
+}, { attrs: { className: 'string' } });
 
 export const TableHeader = tablePart(
   'ui-table-header',
   '[&_tr]:border-b',
-  ({ classes, root, children }) =>
-    html`<thead ref="${root}" data-slot="table-header" class="${classes}">${children}</thead>`,
+  (classes) => html`<thead data-slot="table-header" class="${classes}">${children()}</thead>`,
 );
 
 export const TableBody = tablePart(
   'ui-table-body',
   '[&_tr:last-child]:border-0',
-  ({ classes, root, children }) =>
-    html`<tbody ref="${root}" data-slot="table-body" class="${classes}">${children}</tbody>`,
+  (classes) => html`<tbody data-slot="table-body" class="${classes}">${children()}</tbody>`,
 );
 
 export const TableFooter = tablePart(
   'ui-table-footer',
   'border-t bg-muted/50 font-medium [&>tr]:last:border-b-0',
-  ({ classes, root, children }) =>
-    html`<tfoot ref="${root}" data-slot="table-footer" class="${classes}">${children}</tfoot>`,
+  (classes) => html`<tfoot data-slot="table-footer" class="${classes}">${children()}</tfoot>`,
 );
 
 export const TableRow = tablePart(
   'ui-table-row',
   'border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted',
-  ({ classes, root, children }) =>
-    html`<tr ref="${root}" data-slot="table-row" class="${classes}">${children}</tr>`,
+  (classes) => html`<tr data-slot="table-row" class="${classes}">${children()}</tr>`,
 );
 
-export const TableHead = tablePart(
+/**
+ * TableHead / TableCell carry live `colspan`/`rowspan` passthrough (upstream
+ * spreads them onto the native th/td). Declared as `number` attrs with an
+ * `attr` override — the native HTML attribute is `colspan`/`rowspan`, not the
+ * `col-span`/`row-span` kebab derivation. Absent → undefined → attribute omitted.
+ */
+export type TableCellProps = TablePartProps & {
+  colSpan?: number;
+  rowSpan?: number;
+};
+
+const spanAttrs = {
+  className: 'string',
+  colSpan: { type: 'number', attr: 'colspan' },
+  rowSpan: { type: 'number', attr: 'rowspan' },
+} as const;
+
+export const TableHead = component<TableCellProps>(
   'ui-table-head',
-  'h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
-  ({ classes, root, children }) =>
-    html`<th ref="${root}" data-slot="table-head" class="${classes}">${children}</th>`,
+  (props, host) => {
+    transparentHost(host);
+    const classes = computed(() =>
+      cn(
+        'h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+        props.className.value,
+      ),
+    );
+    return html`<th
+      data-slot="table-head"
+      colspan="${props.colSpan}"
+      rowspan="${props.rowSpan}"
+      class="${classes}"
+    >${children()}</th>`;
+  },
+  { attrs: spanAttrs },
 );
 
-export const TableCell = tablePart(
+export const TableCell = component<TableCellProps>(
   'ui-table-cell',
-  'p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
-  ({ classes, root, children }) =>
-    html`<td ref="${root}" data-slot="table-cell" class="${classes}">${children}</td>`,
+  (props, host) => {
+    transparentHost(host);
+    const classes = computed(() =>
+      cn(
+        'p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+        props.className.value,
+      ),
+    );
+    return html`<td
+      data-slot="table-cell"
+      colspan="${props.colSpan}"
+      rowspan="${props.rowSpan}"
+      class="${classes}"
+    >${children()}</td>`;
+  },
+  { attrs: spanAttrs },
 );
 
 export const TableCaption = tablePart(
   'ui-table-caption',
   'mt-4 text-sm text-muted-foreground',
-  ({ classes, root, children }) =>
-    html`<caption ref="${root}" data-slot="table-caption" class="${classes}">${children}</caption>`,
+  (classes) => html`<caption data-slot="table-caption" class="${classes}">${children()}</caption>`,
 );
