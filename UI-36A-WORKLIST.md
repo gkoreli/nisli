@@ -15,7 +15,7 @@ Never ported from memory (NORTH-STAR tenet 3).
 | 3 | alert-dialog | MATCH | ☑ | open-state verified (centered modal, Cancel/Continue) |
 | 4 | aspect-ratio | MATCH | ☑ | 16/9 box |
 | 5 | attachment | MATCH | N/A | nisli-custom — no ui.shadcn.com demo |
-| 6 | avatar | SCOPE → PORT (batch 2) | ☑ | fallback renders; #A AvatarBadge/AvatarGroup/AvatarGroupCount PORT as batch-2 (eng1) |
+| 6 | avatar | PORTED (batch 2) ✅ | ☑ | fallback renders; #A AvatarBadge/AvatarGroup/AvatarGroupCount ported (eng1) — Badge/Count verbatim, AvatarGroup ring+overlap TRANSLATED for the transparent host (see cross-cutting rule) |
 | 7 | badge | MATCH | ☑ | default/secondary/outline/destructive pills |
 | 8 | breadcrumb | MATCH | ☑ | — |
 | 9 | bubble | MATCH | N/A | nisli-custom — no ui.shadcn.com demo |
@@ -43,7 +43,7 @@ Never ported from memory (NORTH-STAR tenet 3).
 | 31 | kbd | MATCH | ☑ | ⌘K keys |
 | 32 | label | MATCH | ☑ | — |
 
-**Class-diff tally (non-overlapping, sums to 32):** 25 MATCH · 2 DRIFT-FIXED (command, input-otp) · 3 INTENTIONAL (button-group, input-group, combobox) · 2 SCOPE (avatar→port batch-2, form-field→defer).
+**Class-diff tally (non-overlapping, sums to 32):** 25 MATCH · 2 DRIFT-FIXED (command, input-otp) · 3 INTENTIONAL (button-group, input-group, combobox) · 1 PORTED (avatar, batch-2 ✅) · 1 SCOPE (form-field→defer).
 **Manual side-by-side (2026-07-12):** 22 ☑ verified-match · 5 ⏸ deferred (calendar/carousel/checkbox/command/input-otp — live renders pre-fix copies until the WWW-12 series' resync `67c44ab` deploys) · 3 N/A (attachment/bubble/direction — nisli-custom) · 2 ⚠ flagged (empty/input-group — live preview renders sparse; class parity holds, so likely a www preview-example gap, not a component defect — flagged to eng3). All overlay open-states (dialog/alert-dialog/dropdown-menu/context-menu/hover-card/drawer/combobox) captured + verified. Re-run the 5 deferred + sidebar after the WWW-12 series deploys.
 
 ---
@@ -77,10 +77,33 @@ cdx1 found our command lacks ALL `aria-activedescendant` wiring + item `id`s (up
 
 ---
 
+## Batch 2 — changes (avatar sub-component port)
+
+### #A avatar — port AvatarBadge / AvatarGroup / AvatarGroupCount  [SCOPE → ✅ PORTED]
+Ported the three sub-components upstream added to `avatar.tsx`, diffed against the canonical checkout:
+- `AvatarBadge` → `ui-avatar-badge` (`<span data-slot="avatar-badge">`): status-dot classes VERBATIM, incl. all three `group-data-[size=sm|default|lg]/avatar:` size + `[&>svg]` rules that read the ancestor avatar's `data-size`.
+- `AvatarGroup` → `ui-avatar-group` (`<div data-slot="avatar-group">`): TRANSLATED (rev-gated) — upstream `-space-x-2 *:data-[slot=avatar]:ring-2 *:data-[slot=avatar]:ring-background` uses DIRECT-CHILD utilities, dead through our layout-transparent `<ui-avatar>` hosts (see the cross-cutting box-model rule). Retargeted to the boxed descendant: `[&>*:not(:first-child)>*]:-ms-2` (overlap, also covering the count chip) + `**:data-[slot=avatar]:ring-2 **:data-[slot=avatar]:ring-background` (ring). Same visual, `*:`→`**:` / space-x→descendant-margin translation; `group/avatar-group flex` unchanged.
+- `AvatarGroupCount` → `ui-avatar-group-count` (`<div data-slot="avatar-group-count">`): the "+N" overflow chip, incl. the `group-has-data-[size=lg|sm]/avatar-group:` responsive sizing (`:has()`-based, descendant-safe), VERBATIM.
+
+Platform translation (expected, not drift): standalone custom elements via `component()` + `transparentHost` + `children()` projection; `className` merged via clsx-style `cn`; `{...props}` spread → `className` attr. No shared state / no `AvatarContext` — matches upstream (pure presentational, CSS-driven), so they compose freely. Registry entry unchanged: same `ui/avatar.ts` file, `registryDependencies: ["utils"]` still correct.
+
+Tests (`avatar.test.ts` +6): badge classes/transparency/className+children; group descendant overlap+ring class forms; a DOM-STRUCTURE regression proving `[data-slot="avatar"]` is a DESCENDANT (not a direct child) of the group through the `<ui-avatar>` host (the applicability proof for why `*:` is dead and `**:` is required); count chip classes/text; group/count host transparency. Full ui suite green; typecheck clean. No attr casts (className-only). Compiled-CSS + side-by-side browser check pending the shared Manual side-by-side gate (avatar's own ☑ above verified the fallback render; the batch-2 sub-components' overlap/ring want a live re-check once the gallery reflects this commit).
+
+---
+
 ## SCOPE rulings (arch)
 
-### #A avatar — PORT AvatarBadge/AvatarGroup/AvatarGroupCount (own batch 2)
-In-surface parity for an existing component; arch ruled PORT, but as a dedicated batch-2 item, NOT jammed into the fix cycle. The 3 currently-ported parts (Avatar/AvatarImage/AvatarFallback) MATCH verbatim.
+### #A avatar — PORT AvatarBadge/AvatarGroup/AvatarGroupCount (own batch 2) — ✅ PORTED
+In-surface parity for an existing component; arch ruled PORT, but as a dedicated batch-2 item, NOT jammed into the fix cycle. The 3 previously-ported parts (Avatar/AvatarImage/AvatarFallback) MATCH verbatim.
+**Resolution (batch 2):** the three upstream additions are ported — `AvatarBadge`
+(`ui-avatar-badge`), `AvatarGroup` (`ui-avatar-group`), `AvatarGroupCount`
+(`ui-avatar-group-count`), all standalone custom elements with NO `AvatarContext` (pure
+presentational, CSS-driven, matching upstream). Badge + Count class lists are byte-for-byte;
+**AvatarGroup's overlap + ring are TRANSLATED** (rev-gated) because upstream's direct-child
+`-space-x-2` / `*:data-[slot=avatar]:ring-*` are dead through the layout-transparent
+`<ui-avatar>` host — retargeted to the boxed descendant (`**:` ring +
+`[&>*:not(:first-child)>*]:-ms-2` overlap; see the cross-cutting box-model rule). See the
+Batch 2 changes section for the full detail + the DOM-structure applicability regression.
 
 ### #B form-field — DEFER responsive orientation + horizontal checkbox-token
 `fieldVariants`: upstream `horizontal` ends with `has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px` (field.tsx:66); the `responsive` orientation (`flex-col @md/field-group:flex-row …`, :68–72) is absent. Both depend on unported `FieldGroup` (`@container/field-group`) + `FieldContent`; adding them = dead selectors. Arch ruled DEFER; recorded here AND as a not-ported one-liner in `packages/ui/NORTH-STAR.md`.
@@ -101,10 +124,13 @@ Upstream delegates to `@base-ui/react` Combobox; ours is the classic Popover+Com
 ### General platform notes (all components)
 No `asChild`/`Slot`, no `forwardRef`/React event props/`"use client"`; `transparentHost` + `children()` projection; kebab-case reactive attrs; native form controls (input/checkbox/label/textarea) per ADR 0022 §5; Button-composed ports inline the twMerge-resolved class list because our `cn` is clsx-style (no tailwind-merge). Framework-agnostic translation, expected, not drift.
 
+### CROSS-CUTTING RULE — box-model utilities never cross a `display:contents` host
+A layout-transparent host (`transparentHost` → `display:contents`) generates **no box**, so box-model utilities — **ring/box-shadow, margin, `space-x`/`space-y`, padding, border, background** — placed by a selector that MATCHES the host neither paint on it nor take effect, AND the real boxed element the utility is meant for is one level deeper (a DESCENDANT of the host). Any upstream **direct-child** selector (`*:`, `> *`, `space-*`, adjacent/sibling combinators) that assumes the slot-bearing element is a direct child is therefore DEAD through our hosts. Translation: target the boxed descendant — `**:` (descendant) instead of `*:` (child), and an explicit descendant margin (e.g. `[&>*:not(:first-child)>*]:-ms-2`) instead of `space-*`. Selector MATCHING crosses `display:contents` fine (it is layout, not the DOM tree); only PAINTING/box-model does not. **This is now the THIRD instance of the class: checkbox/switch (native-control translation), command (`**:data-[slot=command-input-wrapper]`), avatar (AvatarGroup overlap+ring).** Wave-B and all future ports must check every direct-child/`space-*`/ring-on-child selector against this rule.
+
 ---
 
 ## Batch plan
 - **Batch 1** (green, awaiting rev re-review): parity #1 #2 + #C a11y (arch ruling) + folded tsc-strict (calendar/carousel/input-otp) + www hygiene (checkbox). input-otp forwarding is rev-gated.
 - **Manual side-by-side pass**: 0/32 — needs www gallery preview live (coordinate with eng3); flip ☐→☑ per component as verified. Required for final UI-36A closure.
-- **Batch 2**: #A avatar sub-component port.
+- **Batch 2** (✅ done, awaiting rev): #A avatar sub-component port — Badge/Count verbatim, AvatarGroup ring+overlap translated for the transparent host (cross-cutting box-model rule), +6 tests incl. the DOM-structure applicability regression.
 - **Deferred / other-ticket**: #B form-field (NORTH-STAR note), #D dialog showCloseButton, #F command UI-43 (arch queue).
