@@ -15,6 +15,15 @@
 - `pnpm test`
 - `pnpm typecheck`
 
+## Worktree Discipline
+
+- This repo runs many agents in parallel git worktrees; each worktree has its
+  own `node_modules`.
+- After rebasing past a landing that ADDS a workspace package or dependency,
+  run `pnpm install` before trusting red tests/typecheck — "Cannot find
+  module @nisli/…" after a rebase is almost always a stale install, not a
+  repo defect (this has caused two false alarms).
+
 ## Framework Work
 
 - Use `.agents/skills/nisli-framework` when writing, reviewing, or debugging Nisli components.
