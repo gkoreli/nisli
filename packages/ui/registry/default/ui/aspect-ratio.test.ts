@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { html, type TemplateResult } from '@nisli/core';
+import { flushEffects, html, type TemplateResult } from '@nisli/core';
 import { AspectRatio, aspectRatioClasses } from './aspect-ratio.js';
 
 beforeEach(() => {
@@ -98,5 +98,19 @@ describe('AspectRatio as a plain custom element', () => {
     const el = getAspectRatio(host);
     expect(el.contains(image)).toBe(true);
     expect([...host.childNodes].every((node) => node === el)).toBe(true);
+  });
+});
+
+describe('AspectRatio — live attribute (UI-30 attrs{})', () => {
+  it('reacts to a post-mount `ratio` attribute change', () => {
+    document.body.innerHTML = '<ui-aspect-ratio ratio="1.5">x</ui-aspect-ratio>';
+    flushEffects();
+    const el = getAspectRatio();
+    expect(el.style.aspectRatio).toContain('1.5');
+
+    document.querySelector('ui-aspect-ratio')!.setAttribute('ratio', '2');
+    flushEffects();
+    expect(el.style.aspectRatio).toContain('2');
+    expect(el.style.aspectRatio).not.toContain('1.5');
   });
 });
