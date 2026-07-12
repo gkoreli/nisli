@@ -53,6 +53,8 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "e2e:pack": "pnpm build && node scripts/pack-e2e.mjs",
-    "e2e:npm": "node scripts/npm-e2e.mjs"
+    "e2e:npm": "node scripts/npm-e2e.mjs",
+    "e2e:theme": "node scripts/theme-e2e.mjs",
+    "e2e:theme:cleanup": "node scripts/theme-e2e.mjs --self-test-cleanup"
   }
 }

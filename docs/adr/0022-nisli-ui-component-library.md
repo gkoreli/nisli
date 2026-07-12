@@ -168,6 +168,12 @@ layouts.
 - Theming = overriding the CSS variables. Dark mode = a `.dark` class on any
   ancestor. Identical mental model to shadcn, so their theme ecosystem ports
   directly.
+- Upstream's v4 style also applies `border-border outline-ring/50` to every
+  element in the base layer. **UI-55** mirrors that rule so Tailwind's bare
+  `border` and `outline` utilities resolve the design tokens instead of CSS
+  `currentColor`. `packages/ui/scripts/theme-e2e.mjs` compiles the real copied
+  theme with Tailwind v4 and compares bare versus explicit token utilities in
+  Chromium; the packed-CLI E2E also asserts the rule survives distribution.
 - `@nisli/ui` itself has **zero runtime npm dependencies**. Instead of
   `class-variance-authority` + `clsx` + `tailwind-merge`, the registry ships
   a vendored `lib/utils.ts`:

@@ -132,6 +132,13 @@ Cross-cutting (recorded): the `aria-invalid:` variants in textarea/toggle/
 toggle-group class lists have no delivery path onto the inner element —
 ticketed **UI-44** (cdx2), reference mechanism = eng2's input-otp (70c0bb2).
 
+Cross-cutting base-style drift **implemented in UI-55**: the copied theme now
+faithfully includes upstream's `* { @apply border-border outline-ring/50; }`
+base rule. Bare Tailwind v4 borders no longer fall back to near-black
+`currentColor`; wave-B border holds share this registry-level fix. A real
+Tailwind build + Chromium computed-style proof covers both coupled defaults.
+The three manual holds below remain open until post-deploy human recheck.
+
 ## Manual side-by-side pass — wave B (arch, 2026-07-12, vs live 39a8d36 + UI-53 contact sheets)
 
 **Baseline correction (process-significant):** ui.shadcn.com now defaults to

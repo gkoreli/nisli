@@ -10,7 +10,7 @@
  *   pnpm --filter @nisli/ui e2e:pack
  */
 import { execFileSync, execSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -44,6 +44,9 @@ try {
   check('packed CLI: list works', run('list').includes('button'));
   const initOutput = run('init', '--dir', 'src/ui');
   check('packed CLI: init copies base files', existsSync(join(consumer, 'src/ui/lib/utils.ts')));
+  const copiedTheme = readFileSync(join(consumer, 'src/ui/styles/theme.css'), 'utf8');
+  check('packed CLI: theme carries upstream base border/outline defaults',
+    copiedTheme.includes('@apply border-border outline-ring/50;'));
   check('packed CLI: init reports animation build dependency',
     initOutput.includes('npm install -D tw-animate-css'));
   check('packed CLI: init reports the required CSS import',
