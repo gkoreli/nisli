@@ -79,6 +79,12 @@ import {
 // Floating-overlay examples: per-file so the WWW-10 client runtime code-splits them.
 import dropdownMenuExample from './hydrate-examples/dropdown-menu.js';
 import tooltipExample from './hydrate-examples/tooltip.js';
+import popoverExample from './hydrate-examples/popover.js';
+import comboboxExample from './hydrate-examples/combobox.js';
+import drawerExample from './hydrate-examples/drawer.js';
+import contextMenuExample from './hydrate-examples/context-menu.js';
+import menubarExample from './hydrate-examples/menubar.js';
+import hoverCardExample from './hydrate-examples/hover-card.js';
 import {
   SidebarProvider,
   Sidebar,
@@ -98,6 +104,7 @@ import {
   TableCaption,
   TableHeader,
   TableBody,
+  TableFooter,
   TableRow,
   TableHead,
   TableCell,
@@ -282,6 +289,12 @@ export const examples: Record<string, () => TemplateResult> = {
       })}`,
     })}`,
   'dropdown-menu': dropdownMenuExample,
+  popover: popoverExample,
+  combobox: comboboxExample,
+  drawer: drawerExample,
+  'context-menu': contextMenuExample,
+  menubar: menubarExample,
+  'hover-card': hoverCardExample,
   command: () =>
     html`<div class="w-full max-w-sm">
       ${Command({
@@ -335,36 +348,48 @@ export const examples: Record<string, () => TemplateResult> = {
       selected: { from: new Date(2024, 5, 9), to: new Date(2024, 5, 15) },
       className: 'rounded-md border',
     })}`,
-  table: () =>
-    html`<div class="w-full max-w-md">
+  table: () => {
+    const invoices = [
+      { invoice: 'INV001', status: 'Paid', method: 'Credit Card', amount: '$250.00' },
+      { invoice: 'INV002', status: 'Pending', method: 'PayPal', amount: '$150.00' },
+      { invoice: 'INV003', status: 'Unpaid', method: 'Bank Transfer', amount: '$350.00' },
+      { invoice: 'INV004', status: 'Paid', method: 'Credit Card', amount: '$450.00' },
+      { invoice: 'INV005', status: 'Paid', method: 'PayPal', amount: '$550.00' },
+      { invoice: 'INV006', status: 'Pending', method: 'Bank Transfer', amount: '$200.00' },
+      { invoice: 'INV007', status: 'Unpaid', method: 'Credit Card', amount: '$300.00' },
+    ];
+    return html`<div class="w-full max-w-lg">
       ${Table({
-        children: html`${TableCaption({ children: 'Recent invoices.' })}
+        children: html`${TableCaption({ children: 'A list of your recent invoices.' })}
         ${TableHeader({
           children: TableRow({
-            children: html`${TableHead({ children: 'Invoice' })}${TableHead({ children: 'Status' })}${TableHead({
-              children: 'Amount',
-            })}`,
+            children: html`${TableHead({ className: 'w-[100px]', children: 'Invoice' })}${TableHead({
+              children: 'Status',
+            })}${TableHead({ children: 'Method' })}${TableHead({ className: 'text-right', children: 'Amount' })}`,
           }),
         })}
         ${TableBody({
-          children: html`${TableRow({
-            children: html`${TableCell({ children: 'INV-001' })}${TableCell({ children: 'Paid' })}${TableCell({
-              children: '$250.00',
+          children: html`${invoices.map((row) =>
+            TableRow({
+              children: html`${TableCell({ className: 'font-medium', children: row.invoice })}${TableCell({
+                children: row.status,
+              })}${TableCell({ children: row.method })}${TableCell({ className: 'text-right', children: row.amount })}`,
+            }),
+          )}`,
+        })}
+        ${TableFooter({
+          children: TableRow({
+            // TableCell has no colSpan prop (a gap vs shadcn); a raw <td colspan>
+            // matching its classes spans the first three columns.
+            children: html`<td colspan="3" class="p-2 align-middle font-medium">Total</td>${TableCell({
+              className: 'text-right',
+              children: '$2,500.00',
             })}`,
-          })}
-          ${TableRow({
-            children: html`${TableCell({ children: 'INV-002' })}${TableCell({ children: 'Pending' })}${TableCell({
-              children: '$150.00',
-            })}`,
-          })}
-          ${TableRow({
-            children: html`${TableCell({ children: 'INV-003' })}${TableCell({ children: 'Unpaid' })}${TableCell({
-              children: '$350.00',
-            })}`,
-          })}`,
+          }),
         })}`,
       })}
-    </div>`,
+    </div>`;
+  },
   'form-field': () =>
     html`<div class="w-full max-w-sm">
       ${FormField({
