@@ -4,20 +4,40 @@ All notable changes to `@nisli/ui`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
-## Unreleased
+## 0.2.0 — 2026-07-11
+
+The registry rides the new core primitives end to end. Component names,
+tags, and props are unchanged — but every attribute is now LIVE, state
+roots follow the native `dialog[open]` model, and the userland helper
+layer is gone. **Requires `@nisli/core` >= 0.52.0.**
 
 ### Added
+- **Live attributes everywhere** — all 58 components declare their
+  attributes via core's `attrs` option: `setAttribute()` after mount now
+  updates the component (previously parse-time-only). Boolean semantics
+  unchanged (bare = true, literal `"false"` = false, declared defaults);
+  numeric attributes (slider, progress, resizable, table spans, calendar)
+  are parsed live with garbage-behaves-as-absent semantics.
+- **Attribute-as-truth state roots** — overlays (`open`), selection roots
+  (`value`, comma-separated when multiple), and toggle (`pressed`) treat
+  the attribute as the uncontrolled state, exactly like native
+  `<dialog open>`: plain-HTML authoring, live toggling, and CSS attribute
+  selectors all work; controlled (factory-signal) usage still wins and
+  reflects.
 - **subtree context migration** — registry families now use the core
   `createContext` flow instead of the `__uiX`/`closest()` convention. Misuse
   errors are actionable element-language — `<ui-dialog-content> must be used
   inside <ui-dialog>` — at every family.
-- **switch**, **button**, **message-scroller** — migrated onto the core
-  attrs / children primitives, preserving the public API while removing the
-  remaining userland wiring.
+- **table** — `colSpan`/`rowSpan` on `TableHead`/`TableCell` (live).
+- **label** — `htmlFor` maps to the native `for` attribute.
 
 ### Changed
-- **switch** now reflects live attribute updates correctly on the custom
-  element surface.
+- Content projection is core's `children()` primitive; the copied
+  `captureChildren`/`projectChildren` dance is gone from every component.
+- **Removed from `lib/utils.ts`**: `attr`, `boolAttr`, `forwardedAttr`,
+  `projectChildren` — the registry no longer uses them. If your copied
+  code calls them, migrate to the `attrs` option / `children()`
+  (`captureChildren` remains for native text-value capture).
 
 ## 0.1.3 — 2026-07-11
 

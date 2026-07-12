@@ -4,7 +4,7 @@ All notable changes to `@nisli/ssg`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
-## Unreleased
+## 0.3.0 — 2026-07-11
 
 - Typed router mode: `buildStaticSite` consumes a `StaticApplicationRouter`
   directly — `entries()` expansion through typed `href()`, re-match-before-

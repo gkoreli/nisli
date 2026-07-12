@@ -4,7 +4,7 @@ All notable changes to `@nisli/core`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
-## Unreleased
+## 0.52.0 — 2026-07-11
 
 - Subtree-scoped context: `createContext` with typed `provide`/`inject`/`peek`,
   portal-safe capture-at-setup, and actionable missing-provider errors via
