@@ -422,6 +422,15 @@ rendering deltas for marginal signal):
    annotated, not fixed. A checkbox additionally requires the live copy to
    be the CURRENT sync generation (the stale-artifact rule — verify which
    registry generation the deployed www copy renders before judging).
+   **Rubric correction (2026-07-12, from Goga's phone findings):** the
+   original rubric verified appearance only — and a static preview
+   screenshots identically to a hydrated one, so waves A/B verified pages
+   whose interactive components did not respond to input at all. The manual
+   pass now has an INTERACTION dimension: for every component that is
+   interactive in the upstream docs, the checkbox additionally requires
+   observing the interaction work on the live page (tap/click drives the
+   state change), on a phone-width viewport for touch-first components.
+   Screenshots prove paint; only interaction proves the component.
 
 The component roadmap and v1 milestone live in
 [`packages/ui/NORTH-STAR.md`](../../packages/ui/NORTH-STAR.md).
