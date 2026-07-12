@@ -15,7 +15,7 @@ Never ported from memory (NORTH-STAR tenet 3).
 | 3 | alert-dialog | MATCH | ☑ | open-state verified (centered modal, Cancel/Continue) |
 | 4 | aspect-ratio | MATCH | ☑ | 16/9 box |
 | 5 | attachment | MATCH | N/A | nisli-custom — no ui.shadcn.com demo |
-| 6 | avatar | PORTED (batch 2) ✅ | ☑ baseline | BASELINE only (Avatar/Image/Fallback, my earlier live capture). The NEWLY-ported Badge/AvatarGroup/AvatarGroupCount surface (ring+overlap TRANSLATED for the transparent host, cross-cutting rule) needs compiled-CSS + browser side-by-side — PENDING (batch-2, eng1/rev); excluded from the verified-new-surface claim |
+| 6 | avatar | PORTED (batch 2) ✅ | ☑ baseline | BASELINE verified live (Avatar/Image/Fallback). NEW-surface Badge/AvatarGroup/AvatarGroupCount still UNVERIFIED — the live /ui/avatar preview does NOT demo them (DOM at bca6c5d1: 1 basic avatar, 0 group/badge/count), so the translated ring+overlap can't be observed; needs a curated avatar-group demo. FINDING routed to architect/eng1 |
 | 7 | badge | MATCH | ☑ | default/secondary/outline/destructive pills |
 | 8 | breadcrumb | MATCH | ☑ | — |
 | 9 | bubble | MATCH | N/A | nisli-custom — no ui.shadcn.com demo |
@@ -33,19 +33,19 @@ Never ported from memory (NORTH-STAR tenet 3).
 | 21 | direction | MATCH | N/A | provider — no visual / no ui.shadcn.com demo |
 | 22 | drawer | MATCH | ☑ | open-state verified (bottom Move-goal + drag handle) |
 | 23 | dropdown-menu | MATCH | ☑ | open-state verified (checkbox item, shortcut, submenu, destructive) |
-| 24 | empty | MATCH | ⚠ OPEN | live preview rendered blank; class parity holds (likely a www preview-example gap). eng3 curated in `examples.ts` — recapture after that deploys to close |
+| 24 | empty | MATCH | ☑ | fresh-live (bca6c5d1): renders the proper empty-state (folder icon, "No projects yet" + description + New-project button) — matches shadcn. NB formal curation tracked WWW-14; re-confirm if it changes |
 | 25 | form-field | SCOPE → DEFER | ☑ | invalid-state verified (red border/label/error); #B responsive/horizontal DEFER (NORTH-STAR note) |
 | 26 | hover-card | MATCH | ☑ | open-state verified (floating framework card) |
 | 27 | input | MATCH | ☑ | labeled email input |
-| 28 | input-group | INTENTIONAL | ⚠ OPEN | live preview rendered near-empty; class parity holds. eng3 curated in `examples.ts` — recapture after deploy to close. #E extra data-slot, kept |
+| 28 | input-group | INTENTIONAL | ☑ | fresh-live (bca6c5d1): renders proper addons (search input + @nisli.dev suffix) — matches shadcn. NB formal curation tracked WWW-14; re-confirm if it changes. #E extra data-slot, kept |
 | 29 | input-otp | DRIFT-FIXED | ☑ | fresh-live: 6 slots + minus separator — matches shadcn (aria-invalid fix is state-specific, not shown at rest); ✅ #1 tokens+forwarding · ✅ tsc fix |
 | 30 | item | MATCH | ☑ | media + title + action |
 | 31 | kbd | MATCH | ☑ | ⌘K keys |
 | 32 | label | MATCH | ☑ | — |
 
 **Class-diff tally (non-overlapping, sums to 32):** 25 MATCH · 2 DRIFT-FIXED (command, input-otp) · 3 INTENTIONAL (button-group, input-group, combobox) · 1 PORTED (avatar, batch-2 ✅) · 1 SCOPE (form-field→defer).
-**Manual side-by-side — WAVE-A 27-ROW RE-RUN COMPLETE (2026-07-12, vs fresh live 39a8d36); overall UI-36A manual criterion still OPEN.** Row accounting: 27 ☑ · 3 N/A (attachment/bubble/direction — nisli-custom, no ui.shadcn.com demo) · 2 ⚠ (empty/input-group — OPEN) = 32. The 5 previously-deferred (calendar/carousel/checkbox/command/input-otp) were re-run + verified on current-gen live copies — checkbox's rendered checkmark confirms the `url()` %27 fix; corroborated by cdx1's UI-53 contact sheets. All overlay open-states captured. **OPEN for criterion closure (not covered by the 27):** (a) avatar batch-2 Badge/AvatarGroup/AvatarGroupCount NEW-surface visual — compiled CSS + browser side-by-side (the avatar ☑ is BASELINE-only); (b) empty + input-group recapture after eng3's landed curation; (c) mobile sidebar/DocsLayout drawer → WWW-13.
-**WWW-12 layout — live verification (2026-07-12):** desktop DocsLayout VERIFIED on fresh live — SidebarNav offset correctly below the top bar (the `--header-height` offset works), derived grouped nav (docs sections + Components/Primitives) with active highlight, prose capped at `max-w-3xl` (article-level), /ui gallery full-width. **BLOCKER → WWW-13 (eng3):** the mobile sidebar DRAWER does NOT open on `/docs` — the page ships no hydration script, so the `SidebarTrigger` click yields no sheet-content/mobile-panel. The ADR 0024 amendment requires the drawer's portaled Sheet in the hydrate set for DocsLayout pages; that wiring is missing (www hydration lane). Mobile sidebar/DocsLayout stays UNVERIFIED (checkbox held) until WWW-13 lands + redeploys; desktop is verified.
+**Manual side-by-side — WAVE-A ROW LEDGER CLOSED (2026-07-12).** Row accounting: 29 ☑ · 3 N/A (attachment/bubble/direction — nisli-custom, no ui.shadcn.com demo) = 32 rows resolved. The 5 formerly-deferred (calendar/carousel/checkbox/command/input-otp) verified on current-gen live (39a8d36) — checkbox's rendered checkmark confirms the `url()` %27 fix (corroborated by cdx1's UI-53 contact sheets); empty + input-group verified on the payoff deploy (bca6c5d1), both now rendering the intended shadcn-matching demos (formal curation tracked WWW-14 — re-confirm if it changes). Mobile sidebar/DocsLayout drawer VERIFIED live post-WWW-13 (opens painted, data-state=open). All overlay open-states captured. **ONE RESIDUAL (a demo gap, not a row):** avatar batch-2's NEW Badge/AvatarGroup/AvatarGroupCount surface is still UNVERIFIED — the live /ui/avatar preview does not exercise it (0 group/badge/count in the DOM), so the translated ring+overlap can't be observed; needs a curated avatar-group demo. Routed to architect/eng1. (Avatar's ☑ is BASELINE-only.)
+**WWW-12 layout — live verification (2026-07-12, VERIFIED desktop + mobile):** desktop DocsLayout — SidebarNav offset below the top bar (the `--header-height` offset works), derived grouped nav (docs sections + Components/Primitives) with active highlight, prose capped at `max-w-3xl` (article-level), /ui gallery full-width. Mobile drawer — after WWW-13 (5f0a76d, deploy bca6c5d1): the `SidebarTrigger` on `/docs` at 390px now OPENS the off-canvas Sheet (data-state=open, data-mobile panel painted over a dimmed backdrop). The earlier no-hydration blocker is CLOSED.
 
 ---
 
@@ -132,6 +132,6 @@ A layout-transparent host (`transparentHost` → `display:contents`) generates *
 
 ## Batch plan
 - **Batch 1** (green, awaiting rev re-review): parity #1 #2 + #C a11y (arch ruling) + folded tsc-strict (calendar/carousel/input-otp) + www hygiene (checkbox). input-otp forwarding is rev-gated.
-- **Manual side-by-side pass**: wave-A 27-row RE-RUN complete vs fresh live (39a8d36); overall UI-36A manual criterion still OPEN. Accounting 27 ☑ + 3 N/A + 2 ⚠ = 32. OPEN for closure: avatar batch-2 NEW-surface visual (avatar ☑ is baseline-only); empty + input-group recapture after eng3 curation; mobile drawer WWW-13.
+- **Manual side-by-side pass**: wave-A ROW LEDGER CLOSED — 29 ☑ + 3 N/A = 32 rows resolved (vs live 39a8d36 + payoff deploy bca6c5d1); mobile DocsLayout drawer verified post-WWW-13. ONE residual (demo gap, not a row): avatar batch-2 NEW-surface visual — the live /ui/avatar preview doesn't exercise Badge/Group/Count; routed to architect/eng1.
 - **Batch 2** (✅ done, awaiting rev): #A avatar sub-component port — Badge/Count verbatim, AvatarGroup ring+overlap translated for the transparent host (cross-cutting box-model rule), +6 tests incl. the DOM-structure applicability regression.
 - **Deferred / other-ticket**: #B form-field (NORTH-STAR note), #D dialog showCloseButton, #F command UI-43 (arch queue).
