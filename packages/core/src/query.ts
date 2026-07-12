@@ -31,7 +31,11 @@ export interface QueryResult<T> {
   loading: ReadonlySignal<boolean>;
   /** The error if the fetch failed, null otherwise */
   error: Signal<Error | null>;
-  /** Manually trigger a refetch */
+  /** Manually trigger a refetch. Bypasses staleTime's fresh-cache
+   *  suppression — a manual refetch inside the freshness window is never a
+   *  silent no-op (react-query semantics). It does not bypass in-flight
+   *  deduplication: if a request for the same key is already running, this
+   *  joins it rather than starting a second fetch. */
   refetch(): void;
 }
 
@@ -185,7 +189,14 @@ export function query<T>(
   let fetchGeneration = 0;
   let disposed = false;
 
-  const doFetch = async () => {
+  // `force` is set by the manual refetch() path. An explicit refetch is a
+  // force (react-query semantics): it skips the fresh-cache short-circuit, so a
+  // manual refetch inside the freshness window is never a silent no-op. It does
+  // NOT skip in-flight deduplication — a same-key request already running is
+  // joined, not duplicated — and the generation guards are unchanged. The
+  // automatic (effect-driven) path leaves `force` false and stays cache-first.
+  // (ADR 0025 item 12.)
+  const doFetch = async (force = false) => {
     if (disposed) return;
 
     // Check enabled
@@ -195,8 +206,8 @@ export function query<T>(
     const serialized = serializeKey(key);
     const generation = ++fetchGeneration;
 
-    // Check cache freshness
-    if (staleTime > 0 && client.isFresh(serialized, staleTime)) {
+    // Check cache freshness (automatic path only — an explicit refetch forces).
+    if (!force && staleTime > 0 && client.isFresh(serialized, staleTime)) {
       const cached = client.getCached<T>(serialized);
       if (cached !== undefined) {
         data.value = cached;
@@ -285,7 +296,7 @@ export function query<T>(
 
   const refetch = () => {
     fetchGeneration++; // invalidate any in-flight
-    doFetch().catch(() => {});
+    doFetch(true).catch(() => {}); // force: bypass staleTime (ADR 0025 item 12)
   };
 
   return {

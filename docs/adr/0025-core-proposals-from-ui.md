@@ -190,17 +190,28 @@ Goga for tracking.
 first-class documentation of the createElement-in-onMount pattern with a
 helper. Design work — the parser itself should stay static.
 
-### 12. `refetch()` is suppressed by `staleTime` — DESIGN QUESTION
+### 12. `refetch()` is suppressed by `staleTime` — FIXED (2026-07-11)
 
-`QueryResult.refetch()` increments the generation and calls `doFetch()`,
-but `doFetch()` returns fresh cached data first when `staleTime > 0` — so a
-manual refetch inside the freshness window never invokes the fetcher. Found
+`QueryResult.refetch()` incremented the generation and called `doFetch()`,
+but `doFetch()` returned fresh cached data first when `staleTime > 0` — so a
+manual refetch inside the freshness window never invoked the fetcher. Found
 by rev fact-checking www's query docs. Every mainstream data library treats
 an explicit refetch as a force; a silent no-op is surprising.
-**Proposal**: decide the contract — either `refetch()` bypasses freshness
-(react-query semantics, likely right) or it is documented loudly as
-cache-first. Core change + tests either way; www docs currently describe
-the actual (suppressing) behavior.
+**Resolution** (arch ruling): a manual `refetch()` bypasses `staleTime`'s
+fresh-cache suppression (react-query semantics) — but still joins a same-key
+in-flight request. Two-stage contract: (1) it skips the fresh-cache
+short-circuit, so a refetch inside the freshness window is never a silent
+no-op; (2) it does NOT skip in-flight deduplication — if a request for the
+same key is already running, refetch joins that promise rather than starting a
+second fetch. `doFetch()` takes a `force` flag (set only by the manual
+`refetch()` path) that gates only step 1; the in-flight check and the
+generation guards are unchanged, so a forced refetch still discards superseded
+responses. The automatic (effect-driven) path leaves `force` false and stays
+cache-first. Proof: `query.test.ts` — fresh-window manual refetch invokes the
+fetcher; a same-key refetch during an in-flight request dedups (fetcher spy
+stays at one call) and a superseded response is still discarded; the automatic
+path stays cache-first. www's `/docs/query` `staleTime` sentence updated to the
+new contract in the same commit.
 
 ## Process
 

@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { query, QueryClient } from './query.js';
 import { signal, flushEffects } from './signal.js';
-import { provide, resetInjector } from './injector.js';
+import { resetInjector } from './injector.js';
 
 beforeEach(() => {
   resetInjector();
@@ -311,5 +311,79 @@ describe('refetch()', () => {
     await vi.waitFor(() => {
       expect(result.data.value).toBe(2);
     });
+  });
+});
+
+// ── refetch() bypasses staleTime (ADR 0025 item 12) ─────────────────
+
+describe('refetch() bypasses staleTime (ADR 0025 item 12)', () => {
+  it('a manual refetch inside a FRESH cache window still invokes the fetcher', async () => {
+    let counter = 0;
+    const fetcher = vi.fn(async () => ++counter);
+
+    const result = query(
+      () => ['fresh'],
+      fetcher,
+      { staleTime: 60_000 }, // cache stays fresh for a full minute
+    );
+
+    flushEffects();
+    await vi.waitFor(() => expect(result.data.value).toBe(1));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // The entry is fresh — the AUTOMATIC path would serve it from cache. An
+    // explicit refetch is a force: it bypasses staleTime and hits the fetcher.
+    result.refetch();
+    await vi.waitFor(() => expect(result.data.value).toBe(2));
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('the AUTOMATIC path stays cache-first within the fresh window', async () => {
+    // Both queries share the auto-singleton QueryClient (inject() creates it on
+    // first use; resetInjector() in beforeEach clears it between tests).
+    const fetcher = vi.fn(async () => 'value');
+
+    const q1 = query(() => ['shared'], fetcher, { staleTime: 60_000 });
+    flushEffects();
+    await vi.waitFor(() => expect(q1.data.value).toBe('value'));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // A second query for the same key in the same fresh window is served from
+    // cache — the automatic path never forces, so the fetcher is not re-invoked.
+    const q2 = query(() => ['shared'], fetcher, { staleTime: 60_000 });
+    flushEffects();
+    await vi.waitFor(() => expect(q2.data.value).toBe('value'));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('a same-key refetch during an in-flight request DEDUPS (no second fetch), and supersession still discards', async () => {
+    const key = signal('a');
+    const gates: Record<string, ReturnType<typeof deferred<string>>> = {
+      a: deferred<string>(),
+      b: deferred<string>(),
+    };
+    // A spy (not a same-deferred stub) so a wrongly-doubled fetch is caught.
+    const fetcher = vi.fn(() => gates[key.value]!.promise);
+
+    const result = query(() => [key.value], fetcher, { staleTime: 60_000 });
+    flushEffects(); // fetch 'a' is in-flight
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // A manual refetch WHILE 'a' is still in-flight forces past the fresh cache
+    // but must JOIN the in-flight request — it does NOT start a second fetch.
+    result.refetch();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // Supersede with a newer key so the older 'a' response must be discarded.
+    key.value = 'b';
+    flushEffects(); // 'b' fetch in-flight, now the latest generation
+    expect(fetcher).toHaveBeenCalledTimes(2);
+
+    // Resolve the OLD 'a' after 'b' is pending — 'a' must be discarded.
+    gates.a!.resolve('data-a');
+    await Promise.resolve();
+    gates.b!.resolve('data-b');
+    await vi.waitFor(() => expect(result.data.value).toBe('data-b'));
+    expect(result.data.value).toBe('data-b'); // stale 'a' never clobbered it
   });
 });

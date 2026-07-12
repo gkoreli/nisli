@@ -300,7 +300,7 @@ component('user-card', (props) => {
 });`,
     )}
     ${H2('Refetch & caching')}
-    ${P(html`Call ${code('user.refetch()')} to reload. ${code('staleTime')} (ms) marks cached data fresh for that window — while it is fresh, ${code('query()')} serves the cache and skips fetching entirely, including an explicit ${code('refetch()')} (a manual refetch inside the window is a no-op). Only once ${code('staleTime')} expires does it fetch again. Use ${code('QueryClient')} to prefetch.`)}
+    ${P(html`Call ${code('user.refetch()')} to reload. ${code('staleTime')} (ms) marks cached data fresh for that window — while it is fresh, the automatic query (on mount or when the key changes) serves the cache and skips fetching. An explicit ${code('refetch()')} bypasses ${code('staleTime')} — it is never a no-op inside the fresh window — though if the same query is already in flight it joins that request rather than firing a second. Only once ${code('staleTime')} expires does the automatic path fetch again. Use ${code('QueryClient')} to prefetch.`)}
   </div>`,
 };
 
