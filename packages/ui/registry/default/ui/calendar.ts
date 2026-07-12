@@ -196,6 +196,41 @@ export const Calendar = component<CalendarProps>('ui-calendar', (props, host) =>
     internalMonth.value = addMonths(month.value, 1);
   };
 
+  // ── Keyboard grid navigation (WAI-ARIA date-grid pattern) ──
+  /** Shift by whole months, clamping the day to the target month's length. */
+  const monthShift = (d: Date, delta: number): Date => {
+    const m = new Date(d.getFullYear(), d.getMonth() + delta, 1);
+    const lastDay = endOfMonth(m).getDate();
+    return new Date(m.getFullYear(), m.getMonth(), Math.min(d.getDate(), lastDay));
+  };
+  const focusOn = (target: Date): void => {
+    focused.value = target;
+    if (!isSameMonth(target, month.value)) internalMonth.value = startOfMonth(target);
+    // Focus the (persisted or newly rendered) day button after the DOM settles.
+    queueMicrotask(() => {
+      const btn = host.querySelector<HTMLElement>(`[data-day="${ymd(target)}"] button`);
+      btn?.focus();
+    });
+  };
+  const onGridKeydown = (e: KeyboardEvent): void => {
+    const cur = focused.value;
+    const dow = (cur.getDay() - weekStartsOn + 7) % 7;
+    let target: Date | null = null;
+    switch (e.key) {
+      case 'ArrowLeft': target = addDays(cur, -1); break;
+      case 'ArrowRight': target = addDays(cur, 1); break;
+      case 'ArrowUp': target = addDays(cur, -7); break;
+      case 'ArrowDown': target = addDays(cur, 7); break;
+      case 'Home': target = addDays(cur, -dow); break; // start of week
+      case 'End': target = addDays(cur, 6 - dow); break; // end of week
+      case 'PageUp': target = monthShift(cur, e.shiftKey ? -12 : -1); break;
+      case 'PageDown': target = monthShift(cur, e.shiftKey ? 12 : 1); break;
+      default: return;
+    }
+    e.preventDefault();
+    focusOn(target);
+  };
+
   // ── Derived view ──
   const weeks = computed<Date[][]>(() => buildWeeks(month.value, weekStartsOn));
   const weekdayNames = computed<string[]>(() => {
@@ -310,6 +345,7 @@ export const Calendar = component<CalendarProps>('ui-calendar', (props, host) =>
         data-slot="calendar-grid"
         aria-labelledby="${baseId}"
         class="w-full border-collapse"
+        @keydown=${onGridKeydown}
       >
         <thead>
           <tr role="row" class="flex">${each(

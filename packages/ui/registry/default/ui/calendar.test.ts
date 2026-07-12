@@ -135,3 +135,100 @@ describe('Calendar — today', () => {
     expect(td.getAttribute('aria-current')).toBe('date');
   });
 });
+
+describe('Calendar — range selection', () => {
+  it('selects a from/to range and styles start/middle/end', () => {
+    const onSelect = vi.fn();
+    const c = mount(html`${Calendar({ mode: 'range', defaultMonth: JAN_2026 })}`);
+    (c.querySelector('ui-calendar') as HTMLElement).addEventListener('ui-select', (e) =>
+      onSelect((e as CustomEvent).detail.value),
+    );
+
+    day(c, '2026-01-10').click();
+    flushEffects();
+    flushEffects();
+    expect(day(c, '2026-01-10').getAttribute('data-range-start')).toBe('true');
+
+    day(c, '2026-01-14').click();
+    flushEffects();
+    flushEffects();
+    expect(day(c, '2026-01-10').getAttribute('data-range-start')).toBe('true');
+    expect(day(c, '2026-01-14').getAttribute('data-range-end')).toBe('true');
+    expect(day(c, '2026-01-12').getAttribute('data-range-middle')).toBe('true');
+
+    const last = onSelect.mock.calls.at(-1)![0] as { from: Date; to: Date };
+    expect(last.from.getDate()).toBe(10);
+    expect(last.to.getDate()).toBe(14);
+  });
+
+  it('orders the range when the second click precedes the first', () => {
+    const c = mount(html`${Calendar({ mode: 'range', defaultMonth: JAN_2026 })}`);
+    day(c, '2026-01-20').click();
+    flushEffects();
+    day(c, '2026-01-15').click();
+    flushEffects();
+    flushEffects();
+    expect(day(c, '2026-01-15').getAttribute('data-range-start')).toBe('true');
+    expect(day(c, '2026-01-20').getAttribute('data-range-end')).toBe('true');
+  });
+
+  it('a third click starts a fresh range', () => {
+    const c = mount(html`${Calendar({ mode: 'range', defaultMonth: JAN_2026 })}`);
+    day(c, '2026-01-10').click();
+    flushEffects();
+    day(c, '2026-01-14').click();
+    flushEffects();
+    day(c, '2026-01-20').click();
+    flushEffects();
+    flushEffects();
+    expect(day(c, '2026-01-20').getAttribute('data-range-start')).toBe('true');
+    expect(day(c, '2026-01-14').getAttribute('data-range-end')).toBe('false');
+    expect(day(c, '2026-01-12').getAttribute('data-range-middle')).toBe('false');
+  });
+});
+
+describe('Calendar — keyboard grid navigation', () => {
+  const press = (r: ParentNode, key: string, shiftKey = false) => {
+    q(r, '[data-slot="calendar-grid"]').dispatchEvent(
+      new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true }),
+    );
+    flushEffects();
+    flushEffects();
+  };
+  const focusedYmd = (r: ParentNode) =>
+    (r.querySelector('[data-day] button[tabindex="0"]')!.closest('[data-day]') as HTMLElement).getAttribute(
+      'data-day',
+    );
+
+  it('moves focus by day/week/row with arrows, Home/End, PageUp/Down', () => {
+    const c = mount(html`${Calendar({ selected: new Date(2026, 0, 15), defaultMonth: JAN_2026 })}`);
+    expect(focusedYmd(c)).toBe('2026-01-15');
+
+    press(c, 'ArrowRight');
+    expect(focusedYmd(c)).toBe('2026-01-16');
+    press(c, 'ArrowLeft');
+    press(c, 'ArrowLeft');
+    expect(focusedYmd(c)).toBe('2026-01-14');
+    press(c, 'ArrowDown');
+    expect(focusedYmd(c)).toBe('2026-01-21');
+    press(c, 'ArrowUp');
+    press(c, 'ArrowUp');
+    expect(focusedYmd(c)).toBe('2026-01-07');
+
+    press(c, 'Home'); // week starts Sunday (weekStartsOn 0) → 2026-01-04
+    expect(focusedYmd(c)).toBe('2026-01-04');
+    press(c, 'End');
+    expect(focusedYmd(c)).toBe('2026-01-10');
+  });
+
+  it('PageUp/PageDown move by month and re-render the grid', () => {
+    const c = mount(html`${Calendar({ selected: new Date(2026, 0, 15), defaultMonth: JAN_2026 })}`);
+    press(c, 'PageDown');
+    expect(caption(c)).toContain('February 2026');
+    expect(focusedYmd(c)).toBe('2026-02-15');
+    press(c, 'PageUp');
+    press(c, 'PageUp');
+    expect(caption(c)).toContain('December 2025');
+    expect(focusedYmd(c)).toBe('2025-12-15');
+  });
+});
