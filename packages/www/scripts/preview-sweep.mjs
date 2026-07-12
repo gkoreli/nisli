@@ -12,6 +12,12 @@
  *
  * Seed of the permanent post-hydration guard (ADR 0024). The component list is
  * read from the built dist/ui/ tree so it stays correct-by-construction.
+ *
+ * COLD-EDGE NOTE (do not "fix" this): the FIRST sweep run immediately after a
+ * deploy may fail a page whose brand-new code-split chunk is still propagating
+ * to the CDN edge (observed once on alert-dialog, WS1). This is a real signal —
+ * the guard catching a cold edge — not a false positive. Settle ~30s and
+ * re-sweep before treating a lone post-deploy failure as a regression.
  */
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
