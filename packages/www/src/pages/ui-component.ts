@@ -6,7 +6,7 @@
  */
 import { html, type TemplateResult } from '@nisli/core';
 import { addCommand, getItem, itemPath, type RegistryItem } from '../registry.js';
-import { getExample } from '../examples.js';
+import { componentPreview } from '../preview.js';
 
 function typeLabel(item: RegistryItem): string {
   return item.type === 'lib' ? 'Primitive' : 'Component';
@@ -23,7 +23,9 @@ function DepLinks(names: readonly string[]): TemplateResult {
 }
 
 export function uiComponentPage(item: RegistryItem): TemplateResult {
-  const example = getExample(item.name);
+  // Components (ui) always open with a live preview — curated or auto-default
+  // (WWW-6). Primitives (lib) are behavioral; they have no visual preview.
+  const showPreview = item.type === 'ui';
   const registryDeps = item.registryDependencies ?? [];
   const npmDeps = item.dependencies ?? [];
 
@@ -42,13 +44,14 @@ export function uiComponentPage(item: RegistryItem): TemplateResult {
       ? html`<p class="mt-3 max-w-2xl text-lg text-muted-foreground text-pretty">${item.description}</p>`
       : ''}
 
-    ${example
+    ${showPreview
       ? html`<div class="mt-8">
           <h2 class="text-sm font-medium text-muted-foreground">Preview</h2>
           <div
+            data-preview="${item.name}"
             class="mt-2 flex min-h-40 items-center justify-center rounded-xl border bg-card p-8"
           >
-            ${example()}
+            ${componentPreview(item)}
           </div>
         </div>`
       : ''}

@@ -1,0 +1,60 @@
+/**
+ * preview-elements.ts — side-effect barrel that imports every @nisli/ui
+ * component module, registering its custom elements so the default preview
+ * (see preview.ts) can render any component by tag. Regenerate when the
+ * registry gains components; the WWW-6 enforcement test guards coverage.
+ */
+import './nisli-ui/ui/accordion.js';
+import './nisli-ui/ui/alert.js';
+import './nisli-ui/ui/alert-dialog.js';
+import './nisli-ui/ui/aspect-ratio.js';
+import './nisli-ui/ui/avatar.js';
+import './nisli-ui/ui/badge.js';
+import './nisli-ui/ui/breadcrumb.js';
+import './nisli-ui/ui/button.js';
+import './nisli-ui/ui/button-group.js';
+import './nisli-ui/ui/calendar.js';
+import './nisli-ui/ui/card.js';
+import './nisli-ui/ui/carousel.js';
+import './nisli-ui/ui/checkbox.js';
+import './nisli-ui/ui/collapsible.js';
+import './nisli-ui/ui/combobox.js';
+import './nisli-ui/ui/command.js';
+import './nisli-ui/ui/context-menu.js';
+import './nisli-ui/ui/dialog.js';
+import './nisli-ui/ui/direction.js';
+import './nisli-ui/ui/drawer.js';
+import './nisli-ui/ui/dropdown-menu.js';
+import './nisli-ui/ui/empty.js';
+import './nisli-ui/ui/form-field.js';
+import './nisli-ui/ui/hover-card.js';
+import './nisli-ui/ui/input.js';
+import './nisli-ui/ui/input-group.js';
+import './nisli-ui/ui/input-otp.js';
+import './nisli-ui/ui/item.js';
+import './nisli-ui/ui/kbd.js';
+import './nisli-ui/ui/label.js';
+import './nisli-ui/ui/marker.js';
+import './nisli-ui/ui/menubar.js';
+import './nisli-ui/ui/navigation-menu.js';
+import './nisli-ui/ui/pagination.js';
+import './nisli-ui/ui/popover.js';
+import './nisli-ui/ui/progress.js';
+import './nisli-ui/ui/radio-group.js';
+import './nisli-ui/ui/resizable.js';
+import './nisli-ui/ui/scroll-area.js';
+import './nisli-ui/ui/select.js';
+import './nisli-ui/ui/separator.js';
+import './nisli-ui/ui/sheet.js';
+import './nisli-ui/ui/sidebar.js';
+import './nisli-ui/ui/skeleton.js';
+import './nisli-ui/ui/slider.js';
+import './nisli-ui/ui/spinner.js';
+import './nisli-ui/ui/switch.js';
+import './nisli-ui/ui/table.js';
+import './nisli-ui/ui/tabs.js';
+import './nisli-ui/ui/textarea.js';
+import './nisli-ui/ui/toast.js';
+import './nisli-ui/ui/toggle.js';
+import './nisli-ui/ui/toggle-group.js';
+import './nisli-ui/ui/tooltip.js';

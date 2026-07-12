@@ -1,9 +1,12 @@
 /**
  * examples.ts — curated live previews for /ui/<component> pages.
- * Optional by design: a component with no entry here still gets a full page
- * (description, add command, dependencies) — the preview is just omitted.
- * Every preview is real @nisli/ui, rendered to static HTML by @nisli/ssg in an
- * SSG-safe state (interactive components show their resting/trigger state).
+ * These are the OVERRIDE path (WWW-6): a component listed here renders this
+ * hand-authored composition; a component NOT listed here still gets a live
+ * preview, auto-generated from its registry entry (see preview.ts). Curate an
+ * entry when the auto-default renders sparse (compositional components) or when
+ * a richer example tells the story better. Every preview is real @nisli/ui,
+ * rendered to static HTML by @nisli/ssg in an SSG-safe state (interactive
+ * components show their resting/trigger state).
  */
 import { html, type TemplateResult } from '@nisli/core';
 import { Button } from './nisli-ui/ui/button.js';
@@ -28,6 +31,44 @@ import {
   CardDescription,
   CardContent,
 } from './nisli-ui/ui/card.js';
+import { buttonVariants } from './nisli-ui/ui/button.js';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './nisli-ui/ui/tabs.js';
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from './nisli-ui/ui/accordion.js';
+import { Select } from './nisli-ui/ui/select.js';
+import { RadioGroup, RadioGroupItem } from './nisli-ui/ui/radio-group.js';
+import { ToggleGroup, ToggleGroupItem } from './nisli-ui/ui/toggle-group.js';
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from './nisli-ui/ui/breadcrumb.js';
+import { Tooltip, TooltipTrigger, TooltipContent } from './nisli-ui/ui/tooltip.js';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationPrevious,
+  PaginationLink,
+  PaginationEllipsis,
+  PaginationNext,
+} from './nisli-ui/ui/pagination.js';
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from './nisli-ui/ui/dialog.js';
 
 export const examples: Record<string, () => TemplateResult> = {
   button: () =>
@@ -91,6 +132,113 @@ export const examples: Record<string, () => TemplateResult> = {
         ${CardContent({ children: html`<p class="text-sm text-muted-foreground">Card body content.</p>` })}`,
       })}
     </div>`,
+  tabs: () =>
+    html`<div class="w-full max-w-sm">
+      ${Tabs({
+        defaultValue: 'account',
+        children: html`${TabsList({
+          children: html`${TabsTrigger({ value: 'account', children: 'Account' })}
+          ${TabsTrigger({ value: 'password', children: 'Password' })}`,
+        })}
+        ${TabsContent({ value: 'account', children: 'Account settings live here.' })}
+        ${TabsContent({ value: 'password', children: 'Change your password here.' })}`,
+      })}
+    </div>`,
+  accordion: () =>
+    html`<div class="w-full max-w-md">
+      ${Accordion({
+        type: 'single',
+        collapsible: true,
+        children: html`${AccordionItem({
+          value: 'a11y',
+          children: html`${AccordionTrigger({ children: 'Is it accessible?' })}
+          ${AccordionContent({ children: 'Yes. It follows the WAI-ARIA accordion pattern.' })}`,
+        })}
+        ${AccordionItem({
+          value: 'own',
+          children: html`${AccordionTrigger({ children: 'Do I own the code?' })}
+          ${AccordionContent({ children: 'Yes. nisli-ui add copies the source into your project.' })}`,
+        })}`,
+      })}
+    </div>`,
+  select: () =>
+    html`${Select({
+      name: 'fruit',
+      defaultValue: 'apple',
+      className: 'w-56',
+      children: html`<option value="apple">Apple</option>
+        <option value="banana">Banana</option>
+        <option value="pear">Pear</option>`,
+    })}`,
+  'radio-group': () =>
+    html`${RadioGroup({
+      name: 'plan',
+      defaultValue: 'pro',
+      children: html`<div class="flex items-center gap-2">
+          ${RadioGroupItem({ value: 'free', id: 'plan-free' })}${Label({ htmlFor: 'plan-free', children: 'Free' })}
+        </div>
+        <div class="flex items-center gap-2">
+          ${RadioGroupItem({ value: 'pro', id: 'plan-pro' })}${Label({ htmlFor: 'plan-pro', children: 'Pro' })}
+        </div>`,
+    })}`,
+  'toggle-group': () =>
+    html`${ToggleGroup({
+      type: 'single',
+      variant: 'outline',
+      defaultValue: 'center',
+      children: html`${ToggleGroupItem({ value: 'left', children: 'Left' })}
+      ${ToggleGroupItem({ value: 'center', children: 'Center' })}
+      ${ToggleGroupItem({ value: 'right', children: 'Right' })}`,
+    })}`,
+  breadcrumb: () =>
+    // Salvaged from packages/ui/demo/site.ts; the middle link points at /ui
+    // (this site's components route) instead of the demo's /components — a
+    // deliberate site adaptation, approved in the WWW-6 review.
+    html`${Breadcrumb({
+      children: BreadcrumbList({
+        children: html`${BreadcrumbItem({ children: BreadcrumbLink({ href: '/', children: 'Home' }) })}${BreadcrumbSeparator({})}
+        ${BreadcrumbItem({ children: BreadcrumbLink({ href: '/ui', children: 'Components' }) })}${BreadcrumbSeparator({})}
+        ${BreadcrumbItem({ children: BreadcrumbPage({ children: 'Breadcrumb' }) })}`,
+      }),
+    })}`,
+  tooltip: () =>
+    html`${Tooltip({
+      children: html`${TooltipTrigger({
+        className: buttonVariants({ variant: 'outline' }),
+        children: 'Hover me',
+      })}
+      ${TooltipContent({ children: 'Rendered statically; opens on hover.' })}`,
+    })}`,
+  pagination: () =>
+    html`${Pagination({
+      children: PaginationContent({
+        children: html`${PaginationItem({ children: PaginationPrevious({ href: '#' }) })}
+        ${PaginationItem({ children: PaginationLink({ href: '#', children: '1' }) })}
+        ${PaginationItem({ children: PaginationLink({ href: '#', isActive: true, children: '2' }) })}
+        ${PaginationItem({ children: PaginationLink({ href: '#', children: '3' }) })}
+        ${PaginationItem({ children: PaginationEllipsis({}) })}
+        ${PaginationItem({ children: PaginationNext({ href: '#' }) })}`,
+      }),
+    })}`,
+  dialog: () =>
+    html`${Dialog({
+      children: html`${DialogTrigger({
+        className: buttonVariants({ variant: 'outline' }),
+        children: 'Open Dialog',
+      })}
+      ${DialogContent({
+        children: html`${DialogHeader({
+          children: html`${DialogTitle({ children: 'Edit profile' })}
+          ${DialogDescription({
+            children: "Make changes to your profile here. Click save when you're done.",
+          })}`,
+        })}
+        ${DialogFooter({
+          children: html`${Button({ variant: 'outline', children: 'Cancel' })}
+          ${Button({ children: 'Save changes' })}`,
+        })}`,
+      })}`,
+    })}`,
 };
 
 export function getExample(name: string): (() => TemplateResult) | undefined {

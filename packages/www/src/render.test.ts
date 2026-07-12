@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { buildSite } from './build.js';
 import { routes } from './routes.js';
 import { components, primitives } from './registry.js';
+import { primaryTag } from './preview.js';
 
 describe('nisli website', () => {
   it('renders every route through the shell + chrome', async () => {
@@ -85,6 +86,44 @@ describe('nisli website', () => {
     expect(page).toContain("component('x-counter'");
     expect(page).toContain("from '@nisli/core'");
     expect(page).toContain('href="/docs/signals"'); // sidebar nav
+  });
+
+  // WWW-6 permanent guard: every ui-type registry item must open with a live,
+  // upgraded component preview on its /ui/<name> page. This absorbs the demo
+  // package's dogfood role — www is now the sole end-to-end regression.
+  it('renders a live preview for every ui component (WWW-6 guard)', async () => {
+    const built = await buildSite();
+
+    for (const item of components) {
+      const page = built.find((p) => p.path === `/ui/${item.name}`);
+      expect(page, `missing page for ${item.name}`).toBeDefined();
+      const htmlText = readFileSync(page!.filePath, 'utf8');
+
+      // How to fix a failure here — this guard replaces packages/ui/demo, so
+      // the message must teach the remedy, not just name the item.
+      const remedy =
+        `\nFIX "${item.name}":\n` +
+        `  1. Copy the component in:  pnpm --filter @nisli/www sync\n` +
+        `  2. Regenerate the import barrel src/preview-elements.ts so it imports the new module.\n` +
+        `  3. Expected primary tag is "${primaryTag(item.name)}". If the component's real\n` +
+        `     custom-element tag differs, add a TAG_OVERRIDES entry in src/preview.ts\n` +
+        `     (or add a curated example in src/examples.ts).`;
+
+      // isolate the preview frame (up to the Installation heading that follows)
+      const start = htmlText.indexOf(`data-preview="${item.name}"`);
+      expect(start, `no preview frame for "${item.name}" — page did not render.${remedy}`).toBeGreaterThan(-1);
+      const frame = htmlText.slice(start, htmlText.indexOf('Installation', start));
+
+      // a real @nisli/ui custom element that actually upgraded (not a bare tag)
+      expect(/<ui-[a-z-]+/.test(frame), `"${item.name}": no <ui-*> element in preview.${remedy}`).toBe(true);
+      expect(
+        /display: contents|data-slot=|role=|aria-/.test(frame),
+        `"${item.name}": preview <ui-*> did not upgrade (empty/unregistered tag).${remedy}`,
+      ).toBe(true);
+    }
+
+    // primitives (lib) are behavioral — they intentionally have no preview
+    expect(primitives.every((p) => p.type === 'lib')).toBe(true);
   });
 
   it('renders the themes token showcase', async () => {
