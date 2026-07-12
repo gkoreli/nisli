@@ -4,13 +4,14 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { flush, flushEffects, html, type TemplateResult } from '@nisli/core';
+import { flush, flushEffects, html, signal, type TemplateResult } from '@nisli/core';
 import {
   Menubar,
   MenubarMenu,
   MenubarTrigger,
   MenubarContent,
   MenubarItem,
+  MenubarCheckboxItem,
   MenubarSeparator,
   MenubarRadioGroup,
   MenubarRadioItem,
@@ -259,6 +260,56 @@ describe('Menubar — multi-context resolution (UI-28 acceptance)', () => {
     (document.querySelectorAll('[role="menuitemradio"]')[0] as HTMLElement).click();
     flush2();
     expect(onSelect).toHaveBeenCalled();
+  });
+});
+
+describe('Menubar — checkbox items (checked pin discriminator)', () => {
+  function mountCheckbox(checked?: ReturnType<typeof signal<boolean | undefined>>): HTMLElement {
+    return mount(
+      html`${Menubar({
+        children: MenubarMenu({
+          children: html`${MenubarTrigger({ children: 'View' })}
+          ${MenubarContent({
+            children: MenubarCheckboxItem(
+              checked
+                ? { checked, value: 'grid', children: 'Grid' }
+                : { value: 'grid', children: 'Grid' },
+            ),
+          })}`,
+        }),
+      })}`,
+    );
+  }
+  const box = () => document.querySelector<HTMLElement>('[data-slot="menubar-checkbox-item"]')!;
+
+  it('uncontrolled: a click toggles aria-checked', async () => {
+    const c = mountCheckbox();
+    triggers(c)[0]!.click();
+    await settle();
+    expect(box().getAttribute('aria-checked')).toBe('false');
+    box().click();
+    flush2();
+    expect(box().getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('controlled: a pinned `checked` signal is parent-authoritative — a click cannot dislodge it', async () => {
+    const checked = signal<boolean | undefined>(true);
+    const c = mountCheckbox(checked);
+    triggers(c)[0]!.click();
+    await settle();
+    // The pinned signal drives aria-checked (controlled).
+    expect(box().getAttribute('aria-checked')).toBe('true');
+
+    // A click toggles the internal signal, but the pin discriminator keeps the
+    // rendered state parent-authoritative — the click cannot flip it.
+    box().click();
+    flush2();
+    expect(box().getAttribute('aria-checked')).toBe('true');
+
+    // Only the parent updating the signal changes it.
+    checked.value = false;
+    flush2();
+    expect(box().getAttribute('aria-checked')).toBe('false');
   });
 });
 
