@@ -113,6 +113,19 @@ for navigation:**
   registry `sidebar` gaps the dogfooding surfaces. rev gates; deploy to
   nisli.dev on pass so Goga sees it.
 
+- **Dogfood outcomes (2026-07-12)**: two registry `sidebar` gaps were fixed in
+  `packages/ui` first — the mobile off-canvas `Sheet` (was a documented v1
+  deferral; now the upstream-faithful `isMobile` `when()`-swap) and a
+  `SidebarMenuButton` `href`/anchor mode (zero-JS nav links, mirroring
+  `SidebarMenuSubButton`). **Consumption pattern (not a gap):** the registry
+  Sidebar's desktop frame is `fixed inset-y-0` (app-shell shaped); a docs shell
+  under a sticky top bar offsets it with a `className` override
+  (`top-(--header-height)!` on the frame, `--header-height` set once on
+  `SiteShell`) — the source-copy analogue of shadcn's own header+sidebar
+  examples. An in-flow/sticky desktop sidebar mode graduates to a registry
+  enhancement only when a second docs-shaped consumer appears (second-consumer
+  discipline).
+
 ## WS1 — preview hydration fixes & the post-hydration guard (2026-07-12)
 
 Goga's `nisli.dev/ui` spot-check showed component demos rendering as bare
