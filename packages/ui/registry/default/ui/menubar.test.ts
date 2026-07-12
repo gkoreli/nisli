@@ -264,15 +264,21 @@ describe('Menubar — multi-context resolution (UI-28 acceptance)', () => {
 
 describe('Menubar — misuse', () => {
   it('a trigger outside <ui-menubar> renders an error fallback', () => {
+    const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('ui-menubar-trigger');
     document.body.appendChild(host);
     expect(host.querySelector('[role="menuitem"]')).toBeNull();
     expect(host.textContent).toContain('Error');
+    expect(String(__err.mock.calls.flat())).toContain('must be used inside <ui-menubar>');
+    __err.mockRestore();
   });
 
   it('an item outside <ui-menubar-menu> renders an error fallback', () => {
+    const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('ui-menubar-item');
     document.body.appendChild(host);
     expect(host.textContent).toContain('Error');
+    expect(String(__err.mock.calls.flat())).toContain('must be used inside <ui-menubar-menu>');
+    __err.mockRestore();
   });
 });

@@ -126,10 +126,13 @@ describe('Collapsible — controlled', () => {
 
 describe('Collapsible — misuse', () => {
   it('a trigger used outside <ui-collapsible> renders an error fallback', () => {
+    const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('ui-collapsible-trigger');
     document.body.appendChild(host);
     expect(host.querySelector('[data-slot="collapsible-trigger"]')).toBeNull();
     expect(host.textContent).toContain('Error');
+    expect(String(__err.mock.calls.flat())).toContain('must be used inside <ui-collapsible>');
+    __err.mockRestore();
   });
 });
 

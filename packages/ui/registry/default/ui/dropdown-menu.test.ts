@@ -302,9 +302,12 @@ describe('DropdownMenu — portal', () => {
 
 describe('DropdownMenu — misuse', () => {
   it('an item used outside <ui-dropdown-menu> renders an error fallback', () => {
+    const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('ui-dropdown-menu-item');
     document.body.appendChild(host);
     expect(host.querySelector('[role="menuitem"]')).toBeNull();
     expect(host.textContent).toContain('Error');
+    expect(String(__err.mock.calls.flat())).toContain('must be used inside <ui-dropdown-menu>');
+    __err.mockRestore();
   });
 });

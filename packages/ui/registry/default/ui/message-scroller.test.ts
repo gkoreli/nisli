@@ -286,9 +286,12 @@ describe('MessageScroller — plain custom elements', () => {
 
 describe('MessageScroller — misuse', () => {
   it('a viewport outside <ui-message-scroller> renders an error fallback', () => {
+    const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('ui-message-scroller-viewport');
     document.body.appendChild(host);
     expect(host.querySelector('[data-slot="message-scroller-viewport"]')).toBeNull();
     expect(host.textContent).toContain('Error');
+    expect(String(__err.mock.calls.flat())).toContain('must be used inside <ui-message-scroller>');
+    __err.mockRestore();
   });
 });

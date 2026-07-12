@@ -251,10 +251,13 @@ describe('Accordion — controlled value', () => {
 
 describe('Accordion — misuse', () => {
   it('a trigger used outside <ui-accordion> renders an error fallback', () => {
+    const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('ui-accordion-trigger');
     document.body.appendChild(host);
     expect(host.querySelector('[data-slot="accordion-trigger"]')).toBeNull();
     expect(host.textContent).toContain('Error');
+    expect(String(__err.mock.calls.flat())).toContain('must be used inside <ui-accordion>');
+    __err.mockRestore();
   });
 });
 

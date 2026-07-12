@@ -304,10 +304,13 @@ describe('Dialog — portal', () => {
 
 describe('Dialog — misuse', () => {
   it('content used outside <ui-dialog> renders an error fallback', () => {
+    const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('ui-dialog-content');
     document.body.appendChild(host);
     expect(host.querySelector('[data-slot="dialog-content"]')).toBeNull();
     expect(host.textContent).toContain('Error');
+    expect(String(__err.mock.calls.flat())).toContain('must be used inside <ui-dialog>');
+    __err.mockRestore();
   });
 });
 

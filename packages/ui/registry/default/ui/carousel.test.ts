@@ -165,9 +165,12 @@ describe('Carousel — single slide', () => {
 
 describe('Carousel — misuse', () => {
   it('content used outside <ui-carousel> renders an error fallback', () => {
+    const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('ui-carousel-content');
     document.body.appendChild(host);
     expect(host.querySelector('[data-slot="carousel-content"]')).toBeNull();
     expect(host.textContent).toContain('Error');
+    expect(String(__err.mock.calls.flat())).toContain('must be used inside <ui-carousel>');
+    __err.mockRestore();
   });
 });

@@ -208,10 +208,13 @@ describe('Popover — portal', () => {
 
 describe('Popover — misuse', () => {
   it('content used outside <ui-popover> renders an error fallback', () => {
+    const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('ui-popover-content');
     document.body.appendChild(host);
     expect(host.querySelector('[data-slot="popover-content"]')).toBeNull();
     expect(host.textContent).toContain('Error');
+    expect(String(__err.mock.calls.flat())).toContain('must be used inside <ui-popover>');
+    __err.mockRestore();
   });
 });
 

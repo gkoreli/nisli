@@ -210,15 +210,21 @@ describe('Sidebar — menu + group parts', () => {
 
 describe('Sidebar — misuse', () => {
   it('the frame used outside a provider renders an error fallback', () => {
+    const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('ui-sidebar');
     document.body.appendChild(host);
     expect(host.querySelector('[data-slot="sidebar"]')).toBeNull();
     expect(host.textContent).toContain('Error');
+    expect(String(__err.mock.calls.flat())).toContain('must be used inside <ui-sidebar-provider>');
+    __err.mockRestore();
   });
 
   it('the trigger used outside a provider renders an error fallback', () => {
+    const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('ui-sidebar-trigger');
     document.body.appendChild(host);
     expect(host.textContent).toContain('Error');
+    expect(String(__err.mock.calls.flat())).toContain('must be used inside <ui-sidebar-provider>');
+    __err.mockRestore();
   });
 });

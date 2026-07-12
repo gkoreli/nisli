@@ -307,6 +307,7 @@ describe('Tabs — plain custom element usage', () => {
 
 describe('Tabs — misuse', () => {
   it('a trigger used outside <ui-tabs> renders an error fallback', () => {
+    const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('ui-tabs-trigger');
     host.setAttribute('value', 'a');
     document.body.appendChild(host);
@@ -315,5 +316,7 @@ describe('Tabs — misuse', () => {
     // no [role="tab"] is produced.
     expect(host.querySelector('[role="tab"]')).toBeNull();
     expect(host.textContent).toContain('Error');
+    expect(String(__err.mock.calls.flat())).toContain('must be used inside <ui-tabs>');
+    __err.mockRestore();
   });
 });

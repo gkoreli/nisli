@@ -165,10 +165,13 @@ describe('Tooltip — controlled', () => {
 
 describe('Tooltip — misuse', () => {
   it('a trigger used outside <ui-tooltip> renders an error fallback', () => {
+    const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('ui-tooltip-trigger');
     document.body.appendChild(host);
     expect(host.querySelector('[data-slot="tooltip-trigger"]')).toBeNull();
     expect(host.textContent).toContain('Error');
+    expect(String(__err.mock.calls.flat())).toContain('must be used inside <ui-tooltip>');
+    __err.mockRestore();
   });
 });
 

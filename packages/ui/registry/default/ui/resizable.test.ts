@@ -177,9 +177,12 @@ describe('Resizable — with-handle grip + misuse', () => {
   });
 
   it('a panel outside a group renders an error fallback', () => {
+    const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('ui-resizable-panel');
     document.body.appendChild(host);
     expect(host.querySelector('[data-slot="resizable-panel"]')).toBeNull();
     expect(host.textContent).toContain('Error');
+    expect(String(__err.mock.calls.flat())).toContain('must be used inside <ui-resizable-panel-group>');
+    __err.mockRestore();
   });
 });

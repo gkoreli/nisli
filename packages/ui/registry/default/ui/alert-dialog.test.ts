@@ -221,10 +221,13 @@ describe('AlertDialog — portal', () => {
 
 describe('AlertDialog — misuse', () => {
   it('content used outside <ui-alert-dialog> renders an error fallback', () => {
+    const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('ui-alert-dialog-content');
     document.body.appendChild(host);
     expect(host.querySelector('[data-slot="alert-dialog-content"]')).toBeNull();
     expect(host.textContent).toContain('Error');
+    expect(String(__err.mock.calls.flat())).toContain('must be used inside <ui-alert-dialog>');
+    __err.mockRestore();
   });
 });
 

@@ -254,9 +254,12 @@ describe('ContextMenu — portal', () => {
 
 describe('ContextMenu — misuse', () => {
   it('an item used outside <ui-context-menu> renders an error fallback', () => {
+    const __err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const host = document.createElement('ui-context-menu-item');
     document.body.appendChild(host);
     expect(host.querySelector('[role="menuitem"]')).toBeNull();
     expect(host.textContent).toContain('Error');
+    expect(String(__err.mock.calls.flat())).toContain('must be used inside <ui-context-menu>');
+    __err.mockRestore();
   });
 });
