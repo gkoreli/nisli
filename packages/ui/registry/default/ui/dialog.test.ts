@@ -76,18 +76,18 @@ describe('Dialog — closed by default', () => {
   it('renders overlay + content hidden, trigger collapsed', () => {
     const c = mountDialog();
     expect(q(c, 'dialog-trigger').getAttribute('aria-expanded')).toBe('false');
-    expect(q(c, 'dialog-overlay').hasAttribute('hidden')).toBe(true);
-    expect(q(c, 'dialog-content').hasAttribute('hidden')).toBe(true);
-    expect(q(c, 'dialog-content').getAttribute('data-state')).toBe('closed');
+    expect(q(document, 'dialog-overlay').hasAttribute('hidden')).toBe(true);
+    expect(q(document, 'dialog-content').hasAttribute('hidden')).toBe(true);
+    expect(q(document, 'dialog-content').getAttribute('data-state')).toBe('closed');
   });
 });
 
 describe('Dialog — structure and ARIA', () => {
   it('wires role/aria-modal and labelledby/describedby to title/description ids', () => {
     const c = mountDialog({ defaultOpen: true });
-    const content = q(c, 'dialog-content');
-    const title = q(c, 'dialog-title');
-    const desc = q(c, 'dialog-description');
+    const content = q(document, 'dialog-content');
+    const title = q(document, 'dialog-title');
+    const desc = q(document, 'dialog-description');
 
     expect(content.getAttribute('role')).toBe('dialog');
     expect(content.getAttribute('aria-modal')).toBe('true');
@@ -97,14 +97,14 @@ describe('Dialog — structure and ARIA', () => {
     expect(content.getAttribute('aria-describedby')).toBe(desc.id);
     expect(q(c, 'dialog-trigger').getAttribute('aria-controls')).toBe(content.id);
     // exactly one of each slot — no ghosts (ADR 0023)
-    expect(all(c, 'dialog-content')).toHaveLength(1);
-    expect(all(c, 'dialog-overlay')).toHaveLength(1);
-    expect(all(c, 'dialog-title')).toHaveLength(1);
+    expect(all(document, 'dialog-content')).toHaveLength(1);
+    expect(all(document, 'dialog-overlay')).toHaveLength(1);
+    expect(all(document, 'dialog-title')).toHaveLength(1);
   });
 
   it('renders the close button with a namespaced X icon by default', () => {
     const c = mountDialog({ defaultOpen: true });
-    const close = q(c, 'dialog-close');
+    const close = q(document, 'dialog-close');
     expect(close).not.toBeNull();
     expect(close.getAttribute('aria-label')).toBe('Close');
     const svg = close.querySelector('svg')!;
@@ -113,7 +113,7 @@ describe('Dialog — structure and ARIA', () => {
 
   it('omits the close button when showCloseButton is false', () => {
     const c = mountDialog({ defaultOpen: true, showCloseButton: false });
-    expect(all(c, 'dialog-close')).toHaveLength(0);
+    expect(all(document, 'dialog-close')).toHaveLength(0);
   });
 });
 
@@ -123,9 +123,9 @@ describe('Dialog — open via trigger', () => {
     await openViaTrigger(c);
 
     expect(q(c, 'dialog-trigger').getAttribute('aria-expanded')).toBe('true');
-    expect(q(c, 'dialog-content').hasAttribute('hidden')).toBe(false);
-    expect(q(c, 'dialog-overlay').hasAttribute('hidden')).toBe(false);
-    expect(q(c, 'dialog-content').getAttribute('data-state')).toBe('open');
+    expect(q(document, 'dialog-content').hasAttribute('hidden')).toBe(false);
+    expect(q(document, 'dialog-overlay').hasAttribute('hidden')).toBe(false);
+    expect(q(document, 'dialog-content').getAttribute('data-state')).toBe('open');
   });
 
   it('dispatches ui-open-change with the new open state', async () => {
@@ -146,32 +146,32 @@ describe('Dialog — dismissal', () => {
       new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
     );
     flush2();
-    expect(q(c, 'dialog-content').hasAttribute('hidden')).toBe(true);
+    expect(q(document, 'dialog-content').hasAttribute('hidden')).toBe(true);
   });
 
   it('closes on outside pointerdown (on the overlay)', () => {
     const c = mountDialog({ defaultOpen: true });
-    q(c, 'dialog-overlay').dispatchEvent(
+    q(document, 'dialog-overlay').dispatchEvent(
       new Event('pointerdown', { bubbles: true, cancelable: true }),
     );
     flush2();
-    expect(q(c, 'dialog-content').hasAttribute('hidden')).toBe(true);
+    expect(q(document, 'dialog-content').hasAttribute('hidden')).toBe(true);
   });
 
   it('stays open on pointerdown inside the content', () => {
     const c = mountDialog({ defaultOpen: true });
-    q(c, 'dialog-content').dispatchEvent(
+    q(document, 'dialog-content').dispatchEvent(
       new Event('pointerdown', { bubbles: true, cancelable: true }),
     );
     flush2();
-    expect(q(c, 'dialog-content').hasAttribute('hidden')).toBe(false);
+    expect(q(document, 'dialog-content').hasAttribute('hidden')).toBe(false);
   });
 
   it('closes when the close button is clicked', () => {
     const c = mountDialog({ defaultOpen: true });
-    q(c, 'dialog-close').click();
+    q(document, 'dialog-close').click();
     flush2();
-    expect(q(c, 'dialog-content').hasAttribute('hidden')).toBe(true);
+    expect(q(document, 'dialog-content').hasAttribute('hidden')).toBe(true);
   });
 
   it('a standalone ui-dialog-close (e.g. in the footer) closes the dialog', () => {
@@ -188,11 +188,11 @@ describe('Dialog — dismissal', () => {
         })}`,
       })}`,
     );
-    const footerClose = c.querySelector<HTMLButtonElement>('[data-slot="dialog-close"]')!;
+    const footerClose = document.querySelector<HTMLButtonElement>('[data-slot="dialog-close"]')!;
     expect(footerClose.textContent).toBe('Cancel');
     footerClose.click();
     flush2();
-    expect(q(c, 'dialog-content').hasAttribute('hidden')).toBe(true);
+    expect(q(document, 'dialog-content').hasAttribute('hidden')).toBe(true);
   });
 });
 
@@ -203,7 +203,7 @@ describe('Dialog — focus management', () => {
     triggerBtn.focus();
 
     await openViaTrigger(c);
-    const content = q(c, 'dialog-content');
+    const content = q(document, 'dialog-content');
     expect(content.contains(document.activeElement)).toBe(true);
 
     // Close via Escape and the trigger regains focus.
@@ -220,12 +220,71 @@ describe('Dialog — controlled open', () => {
   it('reflects an externally controlled open signal', () => {
     const open = signal<boolean | undefined>(false);
     const c = mountDialog({ open });
-    expect(q(c, 'dialog-content').hasAttribute('hidden')).toBe(true);
+    expect(q(document, 'dialog-content').hasAttribute('hidden')).toBe(true);
 
     open.value = true;
     flush2();
-    expect(q(c, 'dialog-content').hasAttribute('hidden')).toBe(false);
-    expect(q(c, 'dialog-content').getAttribute('data-state')).toBe('open');
+    expect(q(document, 'dialog-content').hasAttribute('hidden')).toBe(false);
+    expect(q(document, 'dialog-content').getAttribute('data-state')).toBe('open');
+  });
+});
+
+describe('Dialog — portal', () => {
+  it('moves the overlay + content wrapper to <body> by default', () => {
+    const c = mountDialog({ defaultOpen: true });
+    const wrapper = document.querySelector<HTMLElement>('[data-slot="dialog-portal"]')!;
+    expect(wrapper.parentElement).toBe(document.body); // escaped the container
+    expect(c.contains(q(document, 'dialog-content'))).toBe(false);
+    // The trigger is NOT portaled — it stays in place.
+    expect(c.contains(q(c, 'dialog-trigger'))).toBe(true);
+  });
+
+  it('portal={false} keeps the overlay + content inline', () => {
+    const c = mount(
+      html`${Dialog({
+        defaultOpen: true,
+        children: html`${DialogTrigger({ children: 'Open' })}
+        ${DialogContent({ portal: false, children: DialogTitle({ children: 'T' }) })}`,
+      })}`,
+    );
+    flush2();
+    const wrapper = document.querySelector<HTMLElement>('[data-slot="dialog-portal"]')!;
+    expect(wrapper.parentElement).not.toBe(document.body);
+    expect(c.contains(q(document, 'dialog-content'))).toBe(true);
+  });
+
+  it('honours the portal="false" attribute in plain-HTML usage', async () => {
+    document.body.innerHTML =
+      '<ui-dialog default-open>' +
+      '<ui-dialog-content portal="false">' +
+      '<ui-dialog-title>T</ui-dialog-title>' +
+      '</ui-dialog-content>' +
+      '</ui-dialog>';
+    await Promise.resolve();
+    await Promise.resolve();
+    const dialogHost = document.querySelector('ui-dialog')!;
+    expect(dialogHost.contains(q(document, 'dialog-content'))).toBe(true); // inline
+  });
+
+  it('Escape + outside-pointer dismissal still work from the portaled content', () => {
+    mountDialog({ defaultOpen: true });
+    expect(q(document, 'dialog-content').hasAttribute('hidden')).toBe(false);
+    q(document, 'dialog-overlay').dispatchEvent(
+      new Event('pointerdown', { bubbles: true, cancelable: true }),
+    );
+    flush2();
+    expect(q(document, 'dialog-content').hasAttribute('hidden')).toBe(true);
+  });
+
+  it('removes the portaled subtree when the dialog is disconnected (no leak)', async () => {
+    const c = mountDialog({ defaultOpen: true });
+    expect(document.querySelector('[data-slot="dialog-portal"]')).not.toBeNull();
+
+    c.querySelector('ui-dialog')!.remove();
+    // ADR 0023 defers teardown one microtask; portal's onCleanup then runs.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.querySelector('[data-slot="dialog-portal"]')).toBeNull();
   });
 });
 
@@ -253,13 +312,13 @@ describe('Dialog — plain custom element usage', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    const dialog = document.querySelector('ui-dialog')!;
-    expect(all(dialog, 'dialog-content')).toHaveLength(1);
-    expect(all(dialog, 'dialog-title')).toHaveLength(1);
-    const content = q(dialog, 'dialog-content');
+    expect(document.querySelector('ui-dialog')).not.toBeNull();
+    expect(all(document, 'dialog-content')).toHaveLength(1);
+    expect(all(document, 'dialog-title')).toHaveLength(1);
+    const content = q(document, 'dialog-content');
     expect(content.getAttribute('role')).toBe('dialog');
     expect(content.hasAttribute('hidden')).toBe(false); // default-open
-    expect(q(dialog, 'dialog-title').textContent).toBe('Title');
-    expect(content.getAttribute('aria-labelledby')).toBe(q(dialog, 'dialog-title').id);
+    expect(q(document, 'dialog-title').textContent).toBe('Title');
+    expect(content.getAttribute('aria-labelledby')).toBe(q(document, 'dialog-title').id);
   });
 });

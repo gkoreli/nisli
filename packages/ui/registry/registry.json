@@ -264,7 +264,8 @@
       "registryDependencies": [
         "utils",
         "dismissable-layer",
-        "focus"
+        "focus",
+        "portal"
       ]
     },
     {
