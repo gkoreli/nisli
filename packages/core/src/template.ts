@@ -89,6 +89,7 @@ interface EventBinding {
   eventName: string;
   handler: EventListener;
   modifiers: string[];
+  dispose?: () => void;
 }
 
 interface InnerHtmlBinding {
@@ -243,8 +244,10 @@ function processAttributes(
         const index = Number(markerMatch[1]);
         const handler = values[index];
         if (typeof handler === 'function') {
+          // Cleanup is registered on the EventBinding (removes the installed
+          // safeHandler); a manual removeEventListener here would target the
+          // original handler and no-op. See bindEvent (UI-33-R).
           bindEvent(el, eventName, handler as EventListener, modifiers, bindings);
-          disposers.push(() => el.removeEventListener(eventName, handler as EventListener));
         }
       }
       attrsToRemove.push(name);
@@ -804,12 +807,18 @@ function bindEvent(
 
   el.addEventListener(eventName, safeHandler);
 
+  // Register cleanup of the ACTUALLY-INSTALLED handler (safeHandler), not the
+  // caller's original — their identities differ, so a removeEventListener with
+  // the original is a silent no-op (the UI-33-R leak). Both `html` dispose and
+  // `el()` dispose iterate bindings and call `dispose`, so this is the single
+  // correct cleanup path for event listeners.
   bindings.push({
     type: 'event',
     element: el,
     eventName,
     handler: safeHandler,
     modifiers,
+    dispose: () => el.removeEventListener(eventName, safeHandler),
   });
 }
 
@@ -1047,9 +1056,10 @@ export function el(
           continue;
         }
         if (key === 'on') {
+          // bindEvent registers correct disposal on the EventBinding (removes
+          // the installed safeHandler); no manual removeEventListener (UI-33-R).
           for (const [event, handler] of Object.entries(val as Record<string, EventListener>)) {
             bindEvent(element, event, handler, [], bindings);
-            disposers.push(() => element.removeEventListener(event, handler));
           }
           continue;
         }

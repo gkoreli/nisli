@@ -114,8 +114,43 @@ describe('el() — dynamic tag names', () => {
     expect(node.getAttribute('class')).toBe('a'); // effect stopped
   });
 
+  it('dispose() actually removes event listeners (UI-33-R: installed safeHandler, not the original)', () => {
+    // rev's repro: on:{click} → dispose() → a later click must NOT fire the
+    // handler. bindEvent installs a wrapped safeHandler; disposal must remove
+    // THAT, not the caller's original handler (identities differ → no-op).
+    const onClick = vi.fn();
+    const r = ref<HTMLButtonElement>();
+    const tr = el('button', { ref: r, on: { click: onClick } });
+    mount(tr);
+    const node = r.current!;
+
+    node.click();
+    expect(onClick).toHaveBeenCalledTimes(1); // live before dispose
+
+    tr.dispose();
+    node.click(); // node is detached, but the listener must be gone
+    expect(onClick).toHaveBeenCalledTimes(1); // no post-dispose call
+  });
+
   it('the www AutoPreview case collapses to el(primaryTag(name))', () => {
     const host = mount(el('ui-button'));
     expect(host.firstElementChild!.tagName.toLowerCase()).toBe('ui-button');
+  });
+
+  it('html`` shares the fixed event-disposal path (@event listener removed on dispose)', () => {
+    // The same bindEvent EventBinding.dispose that fixes el() also fixes the
+    // latent html leak: an @event listener must be gone after dispose().
+    const onClick = vi.fn();
+    const tr = html`<button @click=${onClick}>x</button>`;
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    tr.mount(host);
+    const btn = host.querySelector('button')!;
+
+    btn.click();
+    expect(onClick).toHaveBeenCalledTimes(1);
+    tr.dispose();
+    btn.click();
+    expect(onClick).toHaveBeenCalledTimes(1); // removed via the shared EventBinding.dispose
   });
 });
