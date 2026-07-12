@@ -9,23 +9,28 @@
  *
  * @vitest-environment happy-dom
  */
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { html, inject, resetInjector, tick } from '@nisli/core';
 import { Router, type RouteMatch } from '@nisli/router';
 import { nisliRoutes } from '@nisli/router/vite';
 import { buildStaticSite, type StaticRouterMatch } from '@nisli/ssg';
 import { AppRouter } from './app-router.js';
+import { createTempCleanup } from './temp-cleanup.js';
 
-const tempRoots: string[] = [];
+const cleanup = createTempCleanup();
 
+// Per-test DOM/injector reset (the browser leg mounts an outlet + connects the
+// Router service). Temp-dir cleanup is afterAll — the build is now hoisted, and
+// runs through the injectable cleanup helper (attempt-every-root, primary
+// precedence, first-cleanup-failure surfacing).
 afterEach(() => {
   document.body.replaceChildren();
   resetInjector();
-  for (const root of tempRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
+afterAll(() => cleanup.finalize());
 
 type Summary = { name: string | null; params: Record<string, string>; notFound: boolean };
 
@@ -45,13 +50,17 @@ const CASES = [
   { url: '/definitely-not-a-page', emitted: '/404.html', name: null, params: {}, notFound: true },
 ] as const;
 
-describe('www route contract', () => {
-  it('matches every representative URL equivalently in browser, Vite, and the static build', async () => {
-    // SSG leg: a real static build. Capture each emitted page's match by path —
-    // exercising entries() expansion (/ui/:name, /docs/:topic) + the 404.
-    const outDir = mkdtempSync(join(tmpdir(), 'nisli-www-equivalence-'));
-    tempRoots.push(outDir);
-    const ssgByPath = new Map<string, StaticRouterMatch>();
+// SSG leg built ONCE in beforeAll: a real static build enumerating entries()
+// expansion (/ui/:name, /docs/:topic) + the 404. ~2s locally / >5s on a slow CI
+// runner, so building inside the test tripped vitest's 5s DEFAULT per-test
+// timeout (run 29206586898). Hoisted with a sized hook timeout; the temp dir is
+// tracked before the build and, on a build failure, the primary error is
+// captured + rethrown so afterAll's cleanup preserves it (no leak).
+let ssgByPath: Map<string, StaticRouterMatch>;
+beforeAll(async () => {
+  const outDir = cleanup.track(mkdtempSync(join(tmpdir(), 'nisli-www-equivalence-')));
+  try {
+    ssgByPath = new Map<string, StaticRouterMatch>();
     await buildStaticSite({
       outDir,
       router: AppRouter,
@@ -60,7 +69,14 @@ describe('www route contract', () => {
         return page.content;
       },
     });
+  } catch (error) {
+    cleanup.capturePrimary(error);
+    throw error;
+  }
+}, 60_000);
 
+describe('www route contract', () => {
+  it('matches every representative URL equivalently in browser, Vite, and the static build', async () => {
     // Browser leg: mount the outlet so the Router service connects the definition.
     const host = document.createElement('div');
     document.body.appendChild(host);
