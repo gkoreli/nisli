@@ -77,17 +77,17 @@ describe('Sheet — closed by default', () => {
   it('renders overlay + content hidden, trigger collapsed', () => {
     const c = mountSheet();
     expect(q(c, 'sheet-trigger').getAttribute('aria-expanded')).toBe('false');
-    expect(q(c, 'sheet-overlay').hasAttribute('hidden')).toBe(true);
-    expect(q(c, 'sheet-content').hasAttribute('hidden')).toBe(true);
+    expect(q(document, 'sheet-overlay').hasAttribute('hidden')).toBe(true);
+    expect(q(document, 'sheet-content').hasAttribute('hidden')).toBe(true);
   });
 
   it('wires content ARIA to the title/description ids', () => {
     const c = mountSheet({ defaultOpen: true });
-    const content = q(c, 'sheet-content');
+    const content = q(document, 'sheet-content');
     expect(content.getAttribute('role')).toBe('dialog');
     expect(content.getAttribute('aria-modal')).toBe('true');
-    expect(content.getAttribute('aria-labelledby')).toBe(q(c, 'sheet-title').id);
-    expect(content.getAttribute('aria-describedby')).toBe(q(c, 'sheet-description').id);
+    expect(content.getAttribute('aria-labelledby')).toBe(q(document, 'sheet-title').id);
+    expect(content.getAttribute('aria-describedby')).toBe(q(document, 'sheet-description').id);
   });
 });
 
@@ -97,31 +97,31 @@ describe('Sheet — open/close', () => {
     await openViaTrigger(c);
 
     expect(q(c, 'sheet-trigger').getAttribute('aria-expanded')).toBe('true');
-    expect(q(c, 'sheet-content').hasAttribute('hidden')).toBe(false);
-    expect(q(c, 'sheet-content').getAttribute('data-state')).toBe('open');
+    expect(q(document, 'sheet-content').hasAttribute('hidden')).toBe(false);
+    expect(q(document, 'sheet-content').getAttribute('data-state')).toBe('open');
   });
 
   it('closes via the built-in close button', () => {
     const c = mountSheet({ defaultOpen: true });
-    expect(q(c, 'sheet-content').hasAttribute('hidden')).toBe(false);
+    expect(q(document, 'sheet-content').hasAttribute('hidden')).toBe(false);
 
-    q(c, 'sheet-content')
+    q(document, 'sheet-content')
       .querySelector<HTMLButtonElement>('[data-slot="sheet-close"][aria-label="Close"]')!
       .click();
     flush2();
 
-    expect(q(c, 'sheet-content').hasAttribute('hidden')).toBe(true);
+    expect(q(document, 'sheet-content').hasAttribute('hidden')).toBe(true);
   });
 
   it('closes via a composed SheetClose button', () => {
     const c = mountSheet({ defaultOpen: true });
     // The footer "Cancel" close (not the top-right one).
-    const cancel = [...c.querySelectorAll<HTMLButtonElement>('[data-slot="sheet-close"]')].find(
+    const cancel = [...document.querySelectorAll<HTMLButtonElement>('[data-slot="sheet-close"]')].find(
       (b) => b.textContent === 'Cancel',
     )!;
     cancel.click();
     flush2();
-    expect(q(c, 'sheet-content').hasAttribute('hidden')).toBe(true);
+    expect(q(document, 'sheet-content').hasAttribute('hidden')).toBe(true);
   });
 
   it('follows a controlled open signal and emits ui-open-change', () => {
@@ -134,10 +134,10 @@ describe('Sheet — open/close', () => {
 
     open.value = true;
     flush2();
-    expect(q(c, 'sheet-content').hasAttribute('hidden')).toBe(false);
+    expect(q(document, 'sheet-content').hasAttribute('hidden')).toBe(false);
 
     // A user close dispatches the change event with open:false.
-    q(c, 'sheet-content')
+    q(document, 'sheet-content')
       .querySelector<HTMLButtonElement>('[aria-label="Close"]')!
       .click();
     flush2();
@@ -148,9 +148,9 @@ describe('Sheet — open/close', () => {
 describe('Sheet — side variants', () => {
   it('defaults to the right side', () => {
     const c = mountSheet({ defaultOpen: true });
-    expect(q(c, 'sheet-content').className).toContain('inset-y-0');
-    expect(q(c, 'sheet-content').className).toContain('right-0');
-    expect(q(c, 'sheet-content').className).toContain('border-l');
+    expect(q(document, 'sheet-content').className).toContain('inset-y-0');
+    expect(q(document, 'sheet-content').className).toContain('right-0');
+    expect(q(document, 'sheet-content').className).toContain('border-l');
   });
 
   it('applies the left/top/bottom side classes', () => {
@@ -161,9 +161,53 @@ describe('Sheet — side variants', () => {
     ] as const) {
       document.body.innerHTML = '';
       const c = mountSheet({ defaultOpen: true, side });
-      const cls = q(c, 'sheet-content').className;
+      const cls = q(document, 'sheet-content').className;
       for (const t of tokens) expect(cls).toContain(t);
     }
+  });
+});
+
+describe('Sheet — portal', () => {
+  it('moves the overlay + content wrapper to <body> by default', () => {
+    const c = mountSheet({ defaultOpen: true });
+    const wrapper = document.querySelector<HTMLElement>('[data-slot="sheet-portal"]')!;
+    expect(wrapper.parentElement).toBe(document.body);
+    expect(c.contains(q(document, 'sheet-content'))).toBe(false);
+    expect(c.contains(q(c, 'sheet-trigger'))).toBe(true); // trigger stays put
+  });
+
+  it('portal={false} keeps the overlay + content inline', () => {
+    const c = mount(
+      html`${Sheet({
+        defaultOpen: true,
+        children: html`${SheetTrigger({ children: 'Open' })}
+        ${SheetContent({ portal: false, children: SheetTitle({ children: 'T' }) })}`,
+      })}`,
+    );
+    flush2();
+    expect(document.querySelector<HTMLElement>('[data-slot="sheet-portal"]')!.parentElement).not.toBe(
+      document.body,
+    );
+    expect(c.contains(q(document, 'sheet-content'))).toBe(true);
+  });
+
+  it('Escape + outside-pointer dismissal still work from the portaled content', () => {
+    mountSheet({ defaultOpen: true });
+    expect(q(document, 'sheet-content').hasAttribute('hidden')).toBe(false);
+    q(document, 'sheet-overlay').dispatchEvent(
+      new Event('pointerdown', { bubbles: true, cancelable: true }),
+    );
+    flush2();
+    expect(q(document, 'sheet-content').hasAttribute('hidden')).toBe(true);
+  });
+
+  it('removes the portaled subtree when the sheet is disconnected (no leak)', async () => {
+    const c = mountSheet({ defaultOpen: true });
+    expect(document.querySelector('[data-slot="sheet-portal"]')).not.toBeNull();
+    c.querySelector('ui-sheet')!.remove();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.querySelector('[data-slot="sheet-portal"]')).toBeNull();
   });
 });
 
