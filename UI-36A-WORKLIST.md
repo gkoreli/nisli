@@ -2,7 +2,7 @@
 
 Method (per ADR 0022 visual-parity amendment 2026-07-11, v1 criterion 2): every wave-A component carries TWO verdicts —
 1. **Class-diff verdict** — char-level diff of every `cv`/`cva` base + variant string, `data-slot`/`data-state`/`data-variant`, element structure, and provenance header vs the canonical checkout at `shadcn-ref/apps/v4/registry/new-york-v4/ui`. Divergences logged here — real drift fixed, intentional platform divergences annotated and kept. (Automated audit, done.)
-2. **Side-by-side ☐** — manual eyeball pass: the www gallery preview (`nisli.dev/ui/<name>`) next to ui.shadcn.com's default-style demo, covering what class diffs cannot (stacking, focus rings, animation feel). (Manual pass; requires the www gallery preview live — scheduled once available.)
+2. **Side-by-side** — manual eyeball pass (done 2026-07-12): the live www gallery preview (`nisli.dev/ui/<name>`, headless-chromium screenshots incl. overlay open-states) vs ui.shadcn.com's default-style demo, covering what class diffs cannot (stacking, focus rings, spacing). Legend: **☑** verified-match · **⏸** deferred (live renders pre-fix copies — the batch-1 resync `67c44ab` is unlanded, so input-otp/command/calendar/carousel/checkbox show stale artifacts) · **N/A** nisli-custom, no ui.shadcn.com counterpart · **⚠** flagged (see notes).
 
 Never ported from memory (NORTH-STAR tenet 3).
 
@@ -10,41 +10,41 @@ Never ported from memory (NORTH-STAR tenet 3).
 
 | # | Component | Class-diff verdict | Side-by-side | Action |
 |---|-----------|--------------------|:---:|--------|
-| 1 | accordion | MATCH | ☐ | — |
-| 2 | alert | MATCH | ☐ | — |
-| 3 | alert-dialog | MATCH | ☐ | — |
-| 4 | aspect-ratio | MATCH | ☐ | — |
-| 5 | attachment | MATCH | ☐ | — |
-| 6 | avatar | SCOPE → PORT (batch 2) | ☐ | #A AvatarBadge/AvatarGroup/AvatarGroupCount — arch ruling: PORT as own batch-2 item |
-| 7 | badge | MATCH | ☐ | — |
-| 8 | breadcrumb | MATCH | ☐ | — |
-| 9 | bubble | MATCH | ☐ | — |
-| 10 | button | MATCH | ☐ | — |
-| 11 | button-group | INTENTIONAL | ☐ | #E extra data-slot, kept |
-| 12 | calendar | MATCH (class) | ☐ | ✅ tsc fix folded (unused `buttonVariants`) |
-| 13 | card | MATCH | ☐ | — |
-| 14 | carousel | MATCH (class) | ☐ | ✅ tsc fix folded (unused `uid`) |
-| 15 | checkbox | MATCH (class) | ☐ | ✅ lightningcss hygiene fix folded (url() quotes → %27) |
-| 16 | collapsible | MATCH | ☐ | — |
-| 17 | combobox | INTENTIONAL | ☐ | documented architectural deviation (Popover+Command) |
-| 18 | command | DRIFT-FIXED | ☐ | ✅ #2 h-12 · ✅ #C sr-only title/desc · #F UI-43 gap (record-only) |
-| 19 | context-menu | MATCH | ☐ | — |
-| 20 | dialog | MATCH | ☐ | #D showCloseButton feature gap, deferred |
-| 21 | direction | MATCH | ☐ | — |
-| 22 | drawer | MATCH | ☐ | — |
-| 23 | dropdown-menu | MATCH | ☐ | — |
-| 24 | empty | MATCH | ☐ | — |
-| 25 | form-field | SCOPE → DEFER | ☐ | #B responsive/horizontal need unported FieldGroup/FieldContent — arch ruling: DEFER (NORTH-STAR note added) |
-| 26 | hover-card | MATCH | ☐ | — |
-| 27 | input | MATCH | ☐ | — |
-| 28 | input-group | INTENTIONAL | ☐ | #E extra data-slot, kept |
-| 29 | input-otp | DRIFT-FIXED | ☐ | ✅ #1 3 tokens + aria-invalid forwarding contract (rev-gated) · ✅ tsc fix (`ReadonlySignal`) |
-| 30 | item | MATCH | ☐ | — |
-| 31 | kbd | MATCH | ☐ | — |
-| 32 | label | MATCH | ☐ | — |
+| 1 | accordion | MATCH | ☑ | — |
+| 2 | alert | MATCH | ☑ | — |
+| 3 | alert-dialog | MATCH | ☑ | open-state verified (centered modal, Cancel/Continue) |
+| 4 | aspect-ratio | MATCH | ☑ | 16/9 box |
+| 5 | attachment | MATCH | N/A | nisli-custom — no ui.shadcn.com demo |
+| 6 | avatar | SCOPE → PORT (batch 2) | ☑ | fallback renders; #A AvatarBadge/AvatarGroup/AvatarGroupCount PORT as batch-2 (eng1) |
+| 7 | badge | MATCH | ☑ | default/secondary/outline/destructive pills |
+| 8 | breadcrumb | MATCH | ☑ | — |
+| 9 | bubble | MATCH | N/A | nisli-custom — no ui.shadcn.com demo |
+| 10 | button | MATCH | ☑ | all 6 variants |
+| 11 | button-group | INTENTIONAL | ☑ | attached Cut/Copy/Paste; #E extra data-slot, kept |
+| 12 | calendar | MATCH (class) | ⏸ | live pre-fix (batch-1 resync unlanded); ✅ tsc fix folded (unused `buttonVariants`) |
+| 13 | card | MATCH | ☑ | — |
+| 14 | carousel | MATCH (class) | ⏸ | live pre-fix; ✅ tsc fix folded (unused `uid`) |
+| 15 | checkbox | MATCH (class) | ⏸ | live pre-fix; ✅ lightningcss hygiene fix folded (url() quotes → %27) |
+| 16 | collapsible | MATCH | ☑ | — |
+| 17 | combobox | INTENTIONAL | ☑ | open-state verified (search + list); documented deviation (Popover+Command) |
+| 18 | command | DRIFT-FIXED | ⏸ | live pre-fix; ✅ #2 h-12 · ✅ #C sr-only title/desc · #F UI-43 gap (record-only) |
+| 19 | context-menu | MATCH | ☑ | open-state verified (Actions/Back/Reload/Delete at pointer) |
+| 20 | dialog | MATCH | ☑ | open-state verified (Edit profile modal); #D showCloseButton feature gap, deferred |
+| 21 | direction | MATCH | N/A | provider — no visual / no ui.shadcn.com demo |
+| 22 | drawer | MATCH | ☑ | open-state verified (bottom Move-goal + drag handle) |
+| 23 | dropdown-menu | MATCH | ☑ | open-state verified (checkbox item, shortcut, submenu, destructive) |
+| 24 | empty | MATCH | ⚠ | live preview renders blank — likely a www preview-example gap (class parity holds); flagged to eng3 |
+| 25 | form-field | SCOPE → DEFER | ☑ | invalid-state verified (red border/label/error); #B responsive/horizontal DEFER (NORTH-STAR note) |
+| 26 | hover-card | MATCH | ☑ | open-state verified (floating framework card) |
+| 27 | input | MATCH | ☑ | labeled email input |
+| 28 | input-group | INTENTIONAL | ⚠ | live preview renders near-empty — likely a www preview-example gap (class parity holds); flagged to eng3. #E extra data-slot, kept |
+| 29 | input-otp | DRIFT-FIXED | ⏸ | live pre-fix; ✅ #1 3 tokens + aria-invalid forwarding · ✅ tsc fix (`ReadonlySignal`) |
+| 30 | item | MATCH | ☑ | media + title + action |
+| 31 | kbd | MATCH | ☑ | ⌘K keys |
+| 32 | label | MATCH | ☑ | — |
 
 **Class-diff tally (non-overlapping, sums to 32):** 25 MATCH · 2 DRIFT-FIXED (command, input-otp) · 3 INTENTIONAL (button-group, input-group, combobox) · 2 SCOPE (avatar→port batch-2, form-field→defer).
-**Manual side-by-side:** 0/32 (pending www gallery preview — not final UI-36A closure until done).
+**Manual side-by-side (2026-07-12):** 22 ☑ verified-match · 5 ⏸ deferred (calendar/carousel/checkbox/command/input-otp — live renders pre-fix copies until the WWW-12 series' resync `67c44ab` deploys) · 3 N/A (attachment/bubble/direction — nisli-custom) · 2 ⚠ flagged (empty/input-group — live preview renders sparse; class parity holds, so likely a www preview-example gap, not a component defect — flagged to eng3). All overlay open-states (dialog/alert-dialog/dropdown-menu/context-menu/hover-card/drawer/combobox) captured + verified. Re-run the 5 deferred + sidebar after the WWW-12 series deploys.
 
 ---
 
