@@ -25,27 +25,18 @@
  */
 
 import {
+  children,
   component,
   createContext,
   computed,
   html,
-  onMount,
-  ref,
   signal,
   useHostEvent,
   when,
   type ReadonlySignal,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  captureChildren,
-  cn,
-  cv,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, cv, transparentHost } from '../lib/utils.js';
 import { useIsMobile } from '../lib/use-mobile.js';
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state';
@@ -82,11 +73,10 @@ export const SidebarProvider = component<SidebarProviderProps>(
   'ui-sidebar-provider',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const internal = signal<boolean>(
-      props.defaultOpen.value ?? (host.hasAttribute('default-open') ? host.getAttribute('default-open') !== 'false' : true),
-    );
+    // default-open is a DEFAULT-TRUE boolean seed; `open` is a factory-only
+    // controlled override (no attribute source → undeclared, undefined-when-unset).
+    const internal = signal<boolean>(Boolean(props.defaultOpen.value));
     const open = computed<boolean>(() => props.open.value ?? internal.value);
     const openMobile = signal<boolean>(false);
     const { isMobile } = useIsMobile();
@@ -134,23 +124,17 @@ export const SidebarProvider = component<SidebarProviderProps>(
       });
     }
 
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
-      cn('group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar', className.value),
+      cn('group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar', props.className.value),
     );
 
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<div
-      ref="${root}"
       data-slot="sidebar-wrapper"
       style="${`--sidebar-width:${SIDEBAR_WIDTH};--sidebar-width-icon:${SIDEBAR_WIDTH_ICON}`}"
       class="${classes}"
-    >${props.children}</div>`;
+    >${children()}</div>`;
   },
+  { attrs: { defaultOpen: { type: 'boolean', default: true }, className: 'string' } },
 );
 
 // ── ui-sidebar (desktop frame) ───────────────────────────────────────
@@ -191,27 +175,16 @@ const containerClasses = (side: SidebarSide, variant: SidebarVariant): string =>
 export const Sidebar = component<SidebarProps>('ui-sidebar', (props, host) => {
   const state = SidebarContext.inject();
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const side = (attr(props.side, host, 'side').value as SidebarSide) ?? 'left';
-  const variant = (attr(props.variant, host, 'variant').value as SidebarVariant) ?? 'sidebar';
-  const collapsible =
-    (attr(props.collapsible, host, 'collapsible').value as SidebarCollapsible) ?? 'offcanvas';
-
-  const className = attr(props.className, host, 'class-name');
-  const root = ref<HTMLDivElement>();
-  const inner = ref<HTMLDivElement>();
-
-  onMount(() => {
-    const target = inner.current ?? root.current;
-    if (target) projectChildren(host, target, projected);
-  });
+  const side = (props.side.value as SidebarSide) ?? 'left';
+  const variant = (props.variant.value as SidebarVariant) ?? 'sidebar';
+  const collapsible = (props.collapsible.value as SidebarCollapsible) ?? 'offcanvas';
 
   if (collapsible === 'none') {
     const classes = computed(() =>
-      cn('flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground', className.value),
+      cn('flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground', props.className.value),
     );
-    return html`<div ref="${root}" data-slot="sidebar" class="${classes}">${props.children}</div>`;
+    return html`<div data-slot="sidebar" class="${classes}">${children()}</div>`;
   }
 
   const dataState = computed(() => state.state.value);
@@ -226,16 +199,15 @@ export const Sidebar = component<SidebarProps>('ui-sidebar', (props, host) => {
     data-slot="sidebar"
   >
     <div data-slot="sidebar-gap" class="${gapClasses(variant)}"></div>
-    <div data-slot="sidebar-container" class="${cn(containerClasses(side, variant), className.value)}">
+    <div data-slot="sidebar-container" class="${cn(containerClasses(side, variant), props.className.value)}">
       <div
-        ref="${inner}"
         data-sidebar="sidebar"
         data-slot="sidebar-inner"
         class="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm"
-      >${props.children}</div>
+      >${children()}</div>
     </div>
   </div>`;
-});
+}, { attrs: { side: 'string', variant: 'string', collapsible: 'string', className: 'string' } });
 
 // ── ui-sidebar-trigger / -rail ───────────────────────────────────────
 
@@ -251,28 +223,22 @@ export const SidebarTrigger = component<SidebarTriggerProps>(
   (props, host) => {
     const state = SidebarContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
       cn(
         "inline-flex size-7 shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
-        className.value,
+        props.className.value,
       ),
     );
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<button
-      ref="${root}"
       type="button"
       data-sidebar="trigger"
       data-slot="sidebar-trigger"
       aria-label="Toggle Sidebar"
       class="${classes}"
       @click=${() => state.toggleSidebar()}
-    >${panelLeftIcon}<span class="sr-only">Toggle Sidebar</span>${props.children}</button>`;
+    >${panelLeftIcon}<span class="sr-only">Toggle Sidebar</span>${children()}</button>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export type SidebarRailProps = {
@@ -282,7 +248,6 @@ export type SidebarRailProps = {
 export const SidebarRail = component<SidebarRailProps>('ui-sidebar-rail', (props, host) => {
   const state = SidebarContext.inject();
   transparentHost(host);
-  const className = attr(props.className, host, 'class-name');
   const classes = computed(() =>
     cn(
       'absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border sm:flex',
@@ -291,7 +256,7 @@ export const SidebarRail = component<SidebarRailProps>('ui-sidebar-rail', (props
       'group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full hover:group-data-[collapsible=offcanvas]:bg-sidebar',
       '[[data-side=left][data-collapsible=offcanvas]_&]:-right-2',
       '[[data-side=right][data-collapsible=offcanvas]_&]:-left-2',
-      className.value,
+      props.className.value,
     ),
   );
   return html`<button
@@ -304,7 +269,7 @@ export const SidebarRail = component<SidebarRailProps>('ui-sidebar-rail', (props
     class="${classes}"
     @click=${() => state.toggleSidebar()}
   ></button>`;
-});
+}, { attrs: { className: 'string' } });
 
 // ── ui-sidebar-inset / -input / -header / -footer / -separator / -content
 
@@ -322,17 +287,11 @@ function sidebarSection(
 ) {
   return component<SidebarSectionProps>(tag, (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(base, className.value));
-    const root = ref<HTMLElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
+    const classes = computed(() => cn(base, props.className.value));
     return element === 'main'
-      ? html`<main ref="${root}" data-slot="${slot}" data-sidebar="${sidebarAttr}" class="${classes}">${props.children}</main>`
-      : html`<div ref="${root}" data-slot="${slot}" data-sidebar="${sidebarAttr}" class="${classes}">${props.children}</div>`;
-  });
+      ? html`<main data-slot="${slot}" data-sidebar="${sidebarAttr}" class="${classes}">${children()}</main>`
+      : html`<div data-slot="${slot}" data-sidebar="${sidebarAttr}" class="${classes}">${children()}</div>`;
+  }, { attrs: { className: 'string' } });
 }
 
 export const SidebarInset = sidebarSection(
@@ -372,23 +331,20 @@ export type SidebarInputProps = {
 
 export const SidebarInput = component<SidebarInputProps>('ui-sidebar-input', (props, host) => {
   transparentHost(host);
-  const type = attr(props.type, host, 'type');
-  const placeholder = attr(props.placeholder, host, 'placeholder');
-  const className = attr(props.className, host, 'class-name');
   const classes = computed(() =>
     cn(
       'flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-none transition-colors placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
-      className.value,
+      props.className.value,
     ),
   );
   return html`<input
     data-slot="sidebar-input"
     data-sidebar="input"
-    type="${computed(() => type.value ?? 'text')}"
-    placeholder="${placeholder}"
+    type="${computed(() => props.type.value ?? 'text')}"
+    placeholder="${props.placeholder}"
     class="${classes}"
   />`;
-});
+}, { attrs: { type: 'string', placeholder: 'string', className: 'string' } });
 
 export type SidebarSeparatorProps = { className?: string };
 
@@ -396,10 +352,9 @@ export const SidebarSeparator = component<SidebarSeparatorProps>(
   'ui-sidebar-separator',
   (props, host) => {
     transparentHost(host);
-    const className = attr(props.className, host, 'class-name');
     // Base separator classes + the sidebar override (upstream wraps <Separator>).
     const classes = computed(() =>
-      cn('shrink-0 bg-border h-px w-full', 'mx-2 w-auto bg-sidebar-border', className.value),
+      cn('shrink-0 bg-border h-px w-full', 'mx-2 w-auto bg-sidebar-border', props.className.value),
     );
     return html`<div
       role="none"
@@ -409,6 +364,7 @@ export const SidebarSeparator = component<SidebarSeparatorProps>(
       class="${classes}"
     ></div>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── Group family: ui-sidebar-group / -group-label / -group-action / -group-content
@@ -424,43 +380,33 @@ export const SidebarGroupLabel = component<SidebarSectionProps>(
   'ui-sidebar-group-label',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
       cn(
         'flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 ring-sidebar-ring outline-hidden transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0',
         'group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0',
-        className.value,
+        props.className.value,
       ),
     );
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<div ref="${root}" data-slot="sidebar-group-label" data-sidebar="group-label" class="${classes}">${props.children}</div>`;
+    return html`<div data-slot="sidebar-group-label" data-sidebar="group-label" class="${classes}">${children()}</div>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export const SidebarGroupAction = component<SidebarSectionProps>(
   'ui-sidebar-group-action',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
       cn(
         'absolute top-3.5 right-3 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground ring-sidebar-ring outline-hidden transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0',
         'after:absolute after:-inset-2 md:after:hidden',
         'group-data-[collapsible=icon]:hidden',
-        className.value,
+        props.className.value,
       ),
     );
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<button ref="${root}" type="button" data-slot="sidebar-group-action" data-sidebar="group-action" class="${classes}">${props.children}</button>`;
+    return html`<button type="button" data-slot="sidebar-group-action" data-sidebar="group-action" class="${classes}">${children()}</button>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export const SidebarGroupContent = sidebarSection(
@@ -474,29 +420,18 @@ export const SidebarGroupContent = sidebarSection(
 
 export const SidebarMenu = component<SidebarSectionProps>('ui-sidebar-menu', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const className = attr(props.className, host, 'class-name');
-  const classes = computed(() => cn('flex w-full min-w-0 flex-col gap-1', className.value));
-  const root = ref<HTMLUListElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-  return html`<ul ref="${root}" data-slot="sidebar-menu" data-sidebar="menu" class="${classes}">${props.children}</ul>`;
-});
+  const classes = computed(() => cn('flex w-full min-w-0 flex-col gap-1', props.className.value));
+  return html`<ul data-slot="sidebar-menu" data-sidebar="menu" class="${classes}">${children()}</ul>`;
+}, { attrs: { className: 'string' } });
 
 export const SidebarMenuItem = component<SidebarSectionProps>(
   'ui-sidebar-menu-item',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn('group/menu-item relative', className.value));
-    const root = ref<HTMLLIElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<li ref="${root}" data-slot="sidebar-menu-item" data-sidebar="menu-item" class="${classes}">${props.children}</li>`;
+    const classes = computed(() => cn('group/menu-item relative', props.className.value));
+    return html`<li data-slot="sidebar-menu-item" data-sidebar="menu-item" class="${classes}">${children()}</li>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-sidebar-menu-button ───────────────────────────────────────────
@@ -535,34 +470,26 @@ export const SidebarMenuButton = component<SidebarMenuButtonProps>(
   'ui-sidebar-menu-button',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const isActive = boolAttr(props.isActive, host, 'is-active');
-    const variant = attr(props.variant, host, 'variant');
-    const size = attr(props.size, host, 'size');
-    const className = attr(props.className, host, 'class-name');
+    const isActive = computed<boolean>(() => props.isActive.value as boolean);
     const classes = computed(() =>
       cn(
         sidebarMenuButtonVariants({
-          variant: variant.value ?? 'default',
-          size: size.value ?? 'default',
+          variant: props.variant.value ?? 'default',
+          size: props.size.value ?? 'default',
         }),
-        className.value,
+        props.className.value,
       ),
     );
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<button
-      ref="${root}"
       type="button"
       data-slot="sidebar-menu-button"
       data-sidebar="menu-button"
-      data-size="${computed(() => size.value ?? 'default')}"
+      data-size="${computed(() => props.size.value ?? 'default')}"
       data-active="${computed(() => (isActive.value ? 'true' : 'false'))}"
       class="${classes}"
-    >${props.children}</button>`;
+    >${children()}</button>`;
   },
+  { attrs: { isActive: 'boolean', variant: 'string', size: 'string', className: 'string' } },
 );
 
 // ── ui-sidebar-menu-action / -menu-badge / -menu-skeleton ────────────
@@ -577,9 +504,7 @@ export const SidebarMenuAction = component<SidebarMenuActionProps>(
   'ui-sidebar-menu-action',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const showOnHover = boolAttr(props.showOnHover, host, 'show-on-hover');
-    const className = attr(props.className, host, 'class-name');
+    const showOnHover = computed<boolean>(() => props.showOnHover.value as boolean);
     const classes = computed(() =>
       cn(
         'absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground ring-sidebar-ring outline-hidden transition-transform peer-hover/menu-button:text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0',
@@ -590,23 +515,18 @@ export const SidebarMenuAction = component<SidebarMenuActionProps>(
         'group-data-[collapsible=icon]:hidden',
         showOnHover.value &&
           'group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground data-[state=open]:opacity-100 md:opacity-0',
-        className.value,
+        props.className.value,
       ),
     );
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<button ref="${root}" type="button" data-slot="sidebar-menu-action" data-sidebar="menu-action" class="${classes}">${props.children}</button>`;
+    return html`<button type="button" data-slot="sidebar-menu-action" data-sidebar="menu-action" class="${classes}">${children()}</button>`;
   },
+  { attrs: { showOnHover: 'boolean', className: 'string' } },
 );
 
 export const SidebarMenuBadge = component<SidebarSectionProps>(
   'ui-sidebar-menu-badge',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
       cn(
         'pointer-events-none absolute right-1 flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-xs font-medium text-sidebar-foreground tabular-nums select-none',
@@ -615,15 +535,12 @@ export const SidebarMenuBadge = component<SidebarSectionProps>(
         'peer-data-[size=default]/menu-button:top-1.5',
         'peer-data-[size=lg]/menu-button:top-2.5',
         'group-data-[collapsible=icon]:hidden',
-        className.value,
+        props.className.value,
       ),
     );
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<div ref="${root}" data-slot="sidebar-menu-badge" data-sidebar="menu-badge" class="${classes}">${props.children}</div>`;
+    return html`<div data-slot="sidebar-menu-badge" data-sidebar="menu-badge" class="${classes}">${children()}</div>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export type SidebarMenuSkeletonProps = {
@@ -638,11 +555,9 @@ export const SidebarMenuSkeleton = component<SidebarMenuSkeletonProps>(
   'ui-sidebar-menu-skeleton',
   (props, host) => {
     transparentHost(host);
-    const showIcon = boolAttr(props.showIcon, host, 'show-icon');
-    const width = attr(props.width, host, 'width');
-    const className = attr(props.className, host, 'class-name');
+    const showIcon = computed<boolean>(() => props.showIcon.value as boolean);
     const classes = computed(() =>
-      cn('flex h-8 items-center gap-2 rounded-md px-2', className.value),
+      cn('flex h-8 items-center gap-2 rounded-md px-2', props.className.value),
     );
     return html`<div data-slot="sidebar-menu-skeleton" data-sidebar="menu-skeleton" class="${classes}">${when(
       showIcon,
@@ -651,9 +566,10 @@ export const SidebarMenuSkeleton = component<SidebarMenuSkeletonProps>(
     )}<div
         class="animate-pulse rounded-md bg-accent h-4 max-w-(--skeleton-width) flex-1"
         data-sidebar="menu-skeleton-text"
-        style="${computed(() => `--skeleton-width:${width.value ?? '70%'}`)}"
+        style="${computed(() => `--skeleton-width:${props.width.value ?? '70%'}`)}"
       ></div></div>`;
   },
+  { attrs: { showIcon: 'boolean', width: 'string', className: 'string' } },
 );
 
 // ── ui-sidebar-menu-sub / -menu-sub-item / -menu-sub-button ──────────
@@ -662,36 +578,26 @@ export const SidebarMenuSub = component<SidebarSectionProps>(
   'ui-sidebar-menu-sub',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
       cn(
         'mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border px-2.5 py-0.5',
         'group-data-[collapsible=icon]:hidden',
-        className.value,
+        props.className.value,
       ),
     );
-    const root = ref<HTMLUListElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<ul ref="${root}" data-slot="sidebar-menu-sub" data-sidebar="menu-sub" class="${classes}">${props.children}</ul>`;
+    return html`<ul data-slot="sidebar-menu-sub" data-sidebar="menu-sub" class="${classes}">${children()}</ul>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export const SidebarMenuSubItem = component<SidebarSectionProps>(
   'ui-sidebar-menu-sub-item',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn('group/menu-sub-item relative', className.value));
-    const root = ref<HTMLLIElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-    return html`<li ref="${root}" data-slot="sidebar-menu-sub-item" data-sidebar="menu-sub-item" class="${classes}">${props.children}</li>`;
+    const classes = computed(() => cn('group/menu-sub-item relative', props.className.value));
+    return html`<li data-slot="sidebar-menu-sub-item" data-sidebar="menu-sub-item" class="${classes}">${children()}</li>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 export type SidebarMenuSubButtonProps = {
@@ -706,33 +612,25 @@ export const SidebarMenuSubButton = component<SidebarMenuSubButtonProps>(
   'ui-sidebar-menu-sub-button',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
-    const size = attr(props.size, host, 'size');
-    const isActive = boolAttr(props.isActive, host, 'is-active');
-    const href = attr(props.href, host, 'href');
-    const className = attr(props.className, host, 'class-name');
+    const isActive = computed<boolean>(() => props.isActive.value as boolean);
     const classes = computed(() =>
       cn(
         'flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground',
         'data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground',
-        (size.value ?? 'md') === 'sm' && 'text-xs',
-        (size.value ?? 'md') === 'md' && 'text-sm',
+        (props.size.value ?? 'md') === 'sm' && 'text-xs',
+        (props.size.value ?? 'md') === 'md' && 'text-sm',
         'group-data-[collapsible=icon]:hidden',
-        className.value,
+        props.className.value,
       ),
     );
-    const root = ref<HTMLAnchorElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
     return html`<a
-      ref="${root}"
       data-slot="sidebar-menu-sub-button"
       data-sidebar="menu-sub-button"
-      data-size="${computed(() => size.value ?? 'md')}"
+      data-size="${computed(() => props.size.value ?? 'md')}"
       data-active="${computed(() => (isActive.value ? 'true' : 'false'))}"
-      href="${href}"
+      href="${props.href}"
       class="${classes}"
-    >${props.children}</a>`;
+    >${children()}</a>`;
   },
+  { attrs: { size: 'string', isActive: 'boolean', href: 'string', className: 'string' } },
 );
