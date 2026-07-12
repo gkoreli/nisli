@@ -3,7 +3,7 @@
  *
  * @vitest-environment happy-dom
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { flush, flushEffects, html, type TemplateResult } from '@nisli/core';
 import {
   SidebarProvider,
@@ -205,6 +205,101 @@ describe('Sidebar — menu + group parts', () => {
     const c = mount(html`${SidebarProvider({ children: Sidebar({ children: SidebarSeparator({}) }) })}`);
     flush2();
     expect(q(c, 'sidebar-separator').getAttribute('data-sidebar')).toBe('separator');
+  });
+});
+
+// ── Mobile off-canvas Sheet (Option B: reactive isMobile swap) ───────
+// Upstream re-renders the mobile Sheet vs the desktop frame on isMobile; Nisli
+// swaps the tree via when() with a single captured children() slot. matchMedia
+// drives useIsMobile, so we mock it to select the branch.
+
+describe('Sidebar — mobile off-canvas Sheet', () => {
+  const realMatchMedia = window.matchMedia;
+
+  function installMatchMedia(initial: boolean): { set(v: boolean): void } {
+    const listeners = new Set<() => void>();
+    let matches = initial;
+    const mql = {
+      get matches() {
+        return matches;
+      },
+      media: '(max-width: 767px)',
+      onchange: null,
+      addEventListener: (_: string, cb: () => void) => listeners.add(cb),
+      removeEventListener: (_: string, cb: () => void) => listeners.delete(cb),
+      addListener: (cb: () => void) => listeners.add(cb),
+      removeListener: (cb: () => void) => listeners.delete(cb),
+      dispatchEvent: () => true,
+    };
+    (window as unknown as { matchMedia: (q: string) => unknown }).matchMedia = () => mql;
+    return {
+      set(v: boolean) {
+        matches = v;
+        listeners.forEach((cb) => cb());
+      },
+    };
+  }
+
+  afterEach(() => {
+    (window as unknown as { matchMedia: typeof realMatchMedia }).matchMedia = realMatchMedia;
+  });
+
+  it('renders the off-canvas Sheet (not the desktop frame) when isMobile', () => {
+    installMatchMedia(true);
+    const c = mountSidebar();
+    flushEffects();
+    flush2();
+    // Desktop fixed frame is absent; the mobile Sheet host is present.
+    expect(c.querySelector('[data-slot="sidebar-inner"]')).toBeNull();
+    expect(c.querySelector('ui-sheet')).not.toBeNull();
+    // The mobile panel (portaled to body) carries data-mobile + the width var.
+    const panel = document.querySelector<HTMLElement>('[data-mobile="true"]');
+    expect(panel).not.toBeNull();
+    const content = document.querySelector<HTMLElement>('[data-slot="sheet-content"]')!;
+    expect(content.getAttribute('style')).toContain('--sidebar-width:18rem');
+  });
+
+  it('projects the SAME children into whichever branch — surviving a breakpoint flip', () => {
+    const mm = installMatchMedia(false);
+    const c = mountSidebar();
+    flushEffects();
+    flush2();
+    // Desktop: children live in the fixed frame's inner.
+    expect(q(c, 'sidebar-inner').querySelector('[data-slot="sidebar-header"]')).not.toBeNull();
+    expect(document.querySelector('[data-mobile="true"]')).toBeNull();
+
+    // Flip to mobile: the single children slot re-mounts into the Sheet panel.
+    mm.set(true);
+    flushEffects();
+    flush2();
+    expect(c.querySelector('[data-slot="sidebar-inner"]')).toBeNull();
+    const panel = document.querySelector<HTMLElement>('[data-mobile="true"]')!;
+    expect(panel.querySelector('[data-slot="sidebar-header"]')).not.toBeNull();
+    expect(panel.querySelector('[data-slot="sidebar-menu-button"]')?.textContent).toContain('Home');
+  });
+
+  it('trigger opens the drawer; Escape dismissal syncs back through openMobile', () => {
+    installMatchMedia(true);
+    const c = mountSidebar();
+    flushEffects();
+    flush2();
+    const content = document.querySelector<HTMLElement>('[data-slot="sheet-content"]')!;
+    // Closed initially (openMobile=false).
+    expect(content.hasAttribute('hidden')).toBe(true);
+
+    // The trigger toggles openMobile on mobile → the sheet opens.
+    q(c, 'sidebar-trigger').click();
+    flushEffects();
+    flush2();
+    expect(content.getAttribute('data-state')).toBe('open');
+    expect(content.hasAttribute('hidden')).toBe(false);
+
+    // Escape on the sheet content dismisses; the bubbling ui-open-change syncs
+    // openMobile back to false so the frame closes.
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    flushEffects();
+    flush2();
+    expect(content.hasAttribute('hidden')).toBe(true);
   });
 });
 

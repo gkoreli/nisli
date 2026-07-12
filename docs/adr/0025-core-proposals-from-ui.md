@@ -69,6 +69,16 @@ suites green unchanged), `core/projection.test.ts` (8 cases), and SSG
 regressions (factory children + light-DOM projection settling under `tick()`)
 in `ssg/build.test.ts`.
 
+GAP-NOTE (2026-07-12, WWW-12 sidebar dogfood): the single-slot v1 shows its
+edge when one `children()` slot is placed into one of two branches swapped by a
+signal — `registry sidebar`'s mobile `Sheet` vs desktop frame, selected on
+`isMobile` via `when()` (the upstream-faithful Option B: only one tree in the
+DOM at a time). A breakpoint flip re-mounts the projected subtree, so any
+transient DOM state inside it (scroll position, focus, uncommitted input) is
+lost across the threshold. Accepted for v1 (resize-across-768px is rare and the
+nav content is stateless/derived); it is a concrete motivation for
+named/multiple slots — hold for the second consumer per the item-1 ruling.
+
 ### 2. Subtree-scoped context / DI — FIXED (2026-07-11)
 
 Parent↔child state uses a hand-rolled convention: parent sets

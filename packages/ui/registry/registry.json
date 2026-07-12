@@ -686,7 +686,8 @@
       ],
       "registryDependencies": [
         "utils",
-        "use-mobile"
+        "use-mobile",
+        "sheet"
       ]
     },
     {
