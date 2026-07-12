@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { html, type TemplateResult } from '@nisli/core';
+import { flushEffects, html, type TemplateResult } from '@nisli/core';
 import {
   Command,
   CommandDialog,
@@ -83,6 +83,36 @@ describe('Command palette', () => {
     expect(
       (c.querySelector('[data-slot="command-empty"]') as HTMLElement).hasAttribute('hidden'),
     ).toBe(true);
+  });
+
+  it('wires stable item ids through input/list aria-activedescendant', async () => {
+    const c = mountPalette();
+    await settle();
+    const field = input(c);
+    const list = c.querySelector<HTMLElement>('[data-slot="command-list"]')!;
+    const selected = c.querySelector<HTMLElement>('[data-selected="true"]')!;
+    expect(selected.id).toMatch(/^ui-command-\d+-item-\d+$/);
+    expect(field.getAttribute('aria-controls')).toBe(list.id);
+    expect(field.getAttribute('aria-autocomplete')).toBe('list');
+    expect(field.getAttribute('aria-activedescendant')).toBe(selected.id);
+    expect(list.getAttribute('aria-activedescendant')).toBe(selected.id);
+
+    key(c, 'ArrowDown');
+    flushEffects();
+    const next = c.querySelector<HTMLElement>('[data-selected="true"]')!;
+    expect(next.id).not.toBe(selected.id);
+    expect(field.getAttribute('aria-activedescendant')).toBe(next.id);
+    expect(list.getAttribute('aria-activedescendant')).toBe(next.id);
+  });
+
+  it('clears aria-activedescendant when filtering leaves no active option', async () => {
+    const c = mountPalette();
+    await settle();
+    type(c, 'no-such-command');
+    flushEffects();
+    expect(input(c).hasAttribute('aria-activedescendant')).toBe(false);
+    expect(c.querySelector('[data-slot="command-list"]')!.hasAttribute('aria-activedescendant'))
+      .toBe(false);
   });
 
   it('filters by value, text, and keywords; hides empty groups', async () => {

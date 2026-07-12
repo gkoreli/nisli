@@ -177,6 +177,25 @@ describe('Combobox — portal regressions (UI-40)', () => {
     expect(document.getElementById(popup.id)).toBe(popup);
   });
 
+  it('keeps command aria-activedescendant valid inside the portaled popup', async () => {
+    const c = mountCombobox();
+    await Promise.resolve();
+    await Promise.resolve();
+    const field = q(document, '[data-slot="command-input"]');
+    const activeId = field.getAttribute('aria-activedescendant');
+    expect(activeId).toBeTruthy();
+    const active = document.getElementById(activeId!);
+    expect(active?.getAttribute('data-slot')).toBe('command-item');
+    expect(c.contains(active)).toBe(false);
+
+    field.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    flush2();
+    const nextId = field.getAttribute('aria-activedescendant');
+    expect(nextId).toBeTruthy();
+    expect(nextId).not.toBe(activeId);
+    expect(document.getElementById(nextId!)).not.toBeNull();
+  });
+
   it('treats pointerdown inside portaled content as inside, then selects normally', () => {
     const c = mountCombobox({ multiple: true });
     const onChange = vi.fn();

@@ -7,7 +7,9 @@
  * is an original zero-dependency implementation following cmdk's
  * conventions: type-to-filter, group auto-hiding, empty state, arrow-key
  * highlight + Enter to select. v1 filter is case-insensitive substring over
- * `value`/text/`keywords` (no fuzzy scoring — documented deviation).
+ * `value`/text/`keywords` (no fuzzy scoring — documented deviation). Matching
+ * cmdk, items receive stable IDs and input/list reference the highlighted
+ * option through `aria-activedescendant`.
  *
  * Elements also carry cmdk's marker attributes (`cmdk-item`, `cmdk-group`,
  * `cmdk-group-heading`, `cmdk-input-wrapper`) so upstream selector-based
@@ -45,6 +47,8 @@ import {
 
 interface CommandState {
   query: Signal<string>;
+  activeItemId: Signal<string | undefined>;
+  listId: string;
   /** Re-apply filtering/highlight to the current DOM. */
   refresh(): void;
   move(delta: number | 'start' | 'end'): void;
@@ -58,6 +62,8 @@ const CommandContext = createContext<CommandState>('Command', { providerTag: 'ui
 const itemText = (el: HTMLElement): string =>
   `${el.getAttribute('data-value') ?? ''} ${el.textContent ?? ''} ${el.getAttribute('data-keywords') ?? ''}`.toLowerCase();
 
+let commandUid = 0;
+
 // ── ui-command (root: owns filter + highlight) ──────────────────────
 
 export type CommandProps = {
@@ -69,6 +75,10 @@ export const Command = component<CommandProps>('ui-command', (props, host) => {
   transparentHost(host);
 
   const query = signal('');
+  const activeItemId = signal<string | undefined>(undefined);
+  const baseId = `ui-command-${++commandUid}`;
+  const listId = `${baseId}-list`;
+  let itemUid = 0;
   let highlighted: HTMLElement | null = null;
 
   const allItems = (): HTMLElement[] =>
@@ -79,8 +89,11 @@ export const Command = component<CommandProps>('ui-command', (props, host) => {
   const applyHighlight = (el: HTMLElement | null): void => {
     highlighted = el;
     for (const item of allItems()) {
+      if (!item.id) item.id = `${baseId}-item-${++itemUid}`;
       item.setAttribute('data-selected', item === el ? 'true' : 'false');
+      item.setAttribute('aria-selected', item === el ? 'true' : 'false');
     }
+    activeItemId.value = el?.id || undefined;
     el?.scrollIntoView?.({ block: 'nearest' });
   };
 
@@ -109,6 +122,8 @@ export const Command = component<CommandProps>('ui-command', (props, host) => {
 
   const state: CommandState = {
     query,
+    activeItemId,
+    listId,
     refresh,
     move(delta) {
       const vis = visibleItems();
@@ -188,6 +203,9 @@ export const CommandInput = component<CommandInputProps>('ui-command-input', (pr
       type="text"
       role="combobox"
       aria-expanded="true"
+      aria-autocomplete="list"
+      aria-controls="${state.listId}"
+      aria-activedescendant="${state.activeItemId}"
       autocomplete="off"
       spellcheck="false"
       placeholder="${computed(() => props.placeholder.value ?? 'Search for a command to run...')}"
@@ -218,11 +236,25 @@ function commandSection(
   }, { attrs: { className: 'string' } });
 }
 
-export const CommandList = commandSection(
+export const CommandList = component<{ className?: string; children?: string | TemplateResult }>(
   'ui-command-list',
-  'command-list',
-  'max-h-[300px] scroll-py-1 overflow-x-hidden overflow-y-auto',
-  { role: 'listbox' },
+  (props, host) => {
+    const state = CommandContext.inject();
+    transparentHost(host);
+    const classes = computed(() => cn(
+      'max-h-[300px] scroll-py-1 overflow-x-hidden overflow-y-auto',
+      props.className.value,
+    ));
+    return html`<div
+      id="${state.listId}"
+      data-slot="command-list"
+      role="listbox"
+      tabindex="-1"
+      aria-activedescendant="${state.activeItemId}"
+      class="${classes}"
+    >${children()}</div>`;
+  },
+  { attrs: { className: 'string' } },
 );
 
 export const CommandEmpty = commandSection(

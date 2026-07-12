@@ -372,12 +372,13 @@ diffed every candidate against upstream `new-york-v4`:
   optional Viewport under the root (the viewport's absolute wrapper is not a
   portal). Our documented no-viewport variant remains inline too.
 
-Accessibility follow-up: **UI-43** — `command` currently highlights with
-`data-selected` but gives items no stable IDs and does not wire the input's
-`aria-activedescendant` to the active option (upstream cmdk does). This is
-pre-existing drift, not caused by portaling; UI-40 verifies that combobox's
-existing trigger `aria-controls` still resolves across the body move. UI-43
-must add the shared Command wiring for both standalone command and combobox.
+Accessibility follow-up: **UI-43 — FIXED (2026-07-12)**. Upstream cmdk 1.1.1
+gives every option a stable ID, tracks the selected item ID, and exposes it
+through `aria-activedescendant` on both Input and List (Input also controls the
+stable List ID). The zero-dependency `command` now mirrors that contract while
+keeping its documented substring filter. Standalone tests cover initial,
+keyboard, and empty-filter transitions; combobox proves the references still
+resolve when its Command subtree is portaled outside the combobox host.
 
 Known limit: in `@nisli/ssg` static render the
 portaled subtree escapes the captured snapshot (client-only, matching
