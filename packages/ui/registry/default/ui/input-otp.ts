@@ -28,6 +28,7 @@
  */
 
 import {
+  children,
   component,
   createContext,
   computed,
@@ -40,13 +41,7 @@ import {
   type ReadonlySignal,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  cn,
-  forwardedAttr,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 // ── Shared state (published on the <ui-input-otp> host) ──────────────
 
@@ -82,25 +77,32 @@ export type InputOTPProps = {
 export const InputOTP = component<InputOTPProps>('ui-input-otp', (props, host) => {
   transparentHost(host);
 
-  const maxLength = props.maxLength.value ?? (Number(host.getAttribute('max-length')) || 6);
-  const patternSrc = props.pattern.value ?? host.getAttribute('pattern') ?? undefined;
-  const regex = patternSrc ? new RegExp(patternSrc) : null;
-  const inputMode = attr(props.inputMode, host, 'input-mode');
-  const value = attr(props.value, host, 'value');
-  const defaultValue = attr(props.defaultValue, host, 'default-value');
-  const id = forwardedAttr(props.id, host, 'id');
-  const name = forwardedAttr(props.name, host, 'name');
-  const disabled = boolAttr(props.disabled, host, 'disabled');
-  const className = attr(props.className, host, 'class-name');
-  const containerClassName = attr(props.containerClassName, host, 'container-class-name');
+  // maxLength ('number', default 6) and pattern ('string') are declared in the
+  // `attrs` option below and read reactively, so a live max-length/pattern
+  // change flows through (slot count + the inner input's maxlength).
+  const maxLength = computed(() => props.maxLength.value ?? 6);
+  const regex = computed(() => {
+    const p = props.pattern.value;
+    return p ? new RegExp(p) : null;
+  });
+  // Remaining attribute fallbacks declared in the `attrs` option below.
+  const inputMode = props.inputMode;
+  const value = props.value;
+  const defaultValue = props.defaultValue;
+  const id = props.id;
+  const name = props.name;
+  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const className = props.className;
+  const containerClassName = props.containerClassName;
 
   const current = signal<string>('');
   const caret = signal<number>(0);
   const focused = signal<boolean>(false);
 
   const sanitize = (raw: string): string => {
-    let out = regex ? Array.from(raw).filter((c) => regex.test(c)).join('') : raw;
-    if (out.length > maxLength) out = out.slice(0, maxLength);
+    const re = regex.value;
+    let out = re ? Array.from(raw).filter((c) => re.test(c)).join('') : raw;
+    if (out.length > maxLength.value) out = out.slice(0, maxLength.value);
     return out;
   };
 
@@ -111,11 +113,11 @@ export const InputOTP = component<InputOTPProps>('ui-input-otp', (props, host) =
   };
 
   const state: InputOTPState = {
-    maxLength,
+    get maxLength() { return maxLength.value; },
     charAt: (i) => current.value[i] ?? '',
     isActive: (i) => {
       if (!focused.value) return false;
-      const active = Math.min(caret.value, maxLength - 1);
+      const active = Math.min(caret.value, maxLength.value - 1);
       return i === active;
     },
     hasFakeCaret: (i) => state.isActive(i) && current.value[i] == null,
@@ -140,7 +142,7 @@ export const InputOTP = component<InputOTPProps>('ui-input-otp', (props, host) =
     current.value = clean;
     syncCaret();
     emit('ui-value-change');
-    if (clean.length === maxLength) emit('ui-complete');
+    if (clean.length === maxLength.value) emit('ui-complete');
   };
 
   // Controlled value updates → the property (leaves the reset target alone).
@@ -183,11 +185,11 @@ export const InputOTP = component<InputOTPProps>('ui-input-otp', (props, host) =
       ref="${root}"
       data-slot="input-otp-input"
       type="text"
-      inputmode="${computed(() => inputMode.value ?? (regex ? 'numeric' : 'text'))}"
+      inputmode="${computed(() => inputMode.value ?? (regex.value ? 'numeric' : 'text'))}"
       autocomplete="one-time-code"
       autocorrect="off"
       spellcheck="false"
-      maxlength="${String(maxLength)}"
+      maxlength="${computed(() => String(maxLength.value))}"
       aria-label="One-time password"
       id="${id}"
       name="${name}"
@@ -204,8 +206,21 @@ export const InputOTP = component<InputOTPProps>('ui-input-otp', (props, host) =
       @click=${syncCaret}
       @keyup=${syncCaret}
     />
-    ${props.children}
+    ${children()}
   </div>`;
+}, {
+  attrs: {
+    maxLength: { type: 'number', default: 6 },
+    pattern: 'string',
+    inputMode: 'string',
+    value: 'string',
+    defaultValue: 'string',
+    className: 'string',
+    containerClassName: 'string',
+    id: 'forward',
+    name: 'forward',
+    disabled: 'boolean',
+  },
 });
 
 // ── ui-input-otp-group ───────────────────────────────────────────────
@@ -219,10 +234,11 @@ export const InputOTPGroup = component<InputOTPGroupProps>(
   'ui-input-otp-group',
   (props, host) => {
     transparentHost(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn('flex items-center', className.value));
-    return html`<div data-slot="input-otp-group" class="${classes}">${props.children}</div>`;
+    return html`<div data-slot="input-otp-group" class="${classes}">${children()}</div>`;
   },
+  { attrs: { className: 'string' } },
 );
 
 // ── ui-input-otp-slot ────────────────────────────────────────────────
@@ -240,15 +256,12 @@ export const InputOTPSlot = component<InputOTPSlotProps>('ui-input-otp-slot', (p
   const state = InputOTPContext.inject();
   transparentHost(host);
 
-  const indexAttr = host.getAttribute('index');
-  const index = computed<number>(
-    () => props.index.value ?? (indexAttr != null ? Number(indexAttr) : 0),
-  );
+  const index = computed<number>(() => props.index.value ?? 0);
   const char = computed(() => state.charAt(index.value));
   const active = computed(() => state.isActive(index.value));
   const fakeCaret = computed(() => state.hasFakeCaret(index.value));
 
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn(inputOTPSlotClasses, className.value));
 
   return html`<div
@@ -261,7 +274,7 @@ export const InputOTPSlot = component<InputOTPSlotProps>('ui-input-otp-slot', (p
       <div class="h-4 w-px animate-caret-blink bg-foreground duration-1000"></div>
     </div>`,
   )}</div>`;
-});
+}, { attrs: { index: { type: 'number', default: 0 }, className: 'string' } });
 
 // ── ui-input-otp-separator ───────────────────────────────────────────
 
@@ -273,7 +286,7 @@ export const InputOTPSeparator = component<InputOTPSeparatorProps>(
   'ui-input-otp-separator',
   (props, host) => {
     transparentHost(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() => cn(className.value));
     return html`<div data-slot="input-otp-separator" role="separator" class="${classes}"><svg
         class="size-4"
@@ -287,4 +300,5 @@ export const InputOTPSeparator = component<InputOTPSeparatorProps>(
         aria-hidden="true"
       ><path d="M5 12h14"></path></svg></div>`;
   },
+  { attrs: { className: 'string' } },
 );

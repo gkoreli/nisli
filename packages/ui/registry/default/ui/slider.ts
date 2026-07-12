@@ -30,13 +30,7 @@ import {
   ref,
   signal,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  cn,
-  forwardedAttr,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 export const sliderClasses =
   'w-full cursor-pointer appearance-none bg-transparent select-none disabled:pointer-events-none disabled:opacity-50 ' +
@@ -67,26 +61,21 @@ export type SliderProps = {
 export const Slider = component<SliderProps>('ui-slider', (props, host) => {
   transparentHost(host);
 
-  const numAttr = (name: string, fallback: number): number => {
-    const raw = host.getAttribute(name);
-    return raw == null ? fallback : Number(raw);
-  };
-  const min = props.min.value ?? numAttr('min', 0);
-  const max = props.max.value ?? numAttr('max', 100);
-  const step = props.step.value ?? numAttr('step', 1);
-
-  const valueFallback = host.hasAttribute('value')
-    ? Number(host.getAttribute('value'))
-    : undefined;
-  const value = computed(() => props.value.value ?? valueFallback);
-  const defaultFallback = host.hasAttribute('default-value')
-    ? Number(host.getAttribute('default-value'))
-    : undefined;
-  const defaultValue = computed(() => props.defaultValue.value ?? defaultFallback);
-  const id = forwardedAttr(props.id, host, 'id');
-  const name = forwardedAttr(props.name, host, 'name');
-  const disabled = boolAttr(props.disabled, host, 'disabled');
-  const className = attr(props.className, host, 'class-name');
+  // ADR 0025 item 3 (+ v1.1 'number' kind): attribute fallbacks declared via the
+  // `attrs` option below and delivered as plain, LIVE prop signals — no userland
+  // attr()/boolAttr()/forwardedAttr() at setup. min/max/step use the 'number'
+  // kind; the `?? fallback` also covers a non-numeric attribute (→ undefined).
+  // value/default-value are optional numbers (undefined when unset). 'forward'
+  // relocates id/name off the transparent host onto the inner control.
+  const min = props.min.value ?? 0;
+  const max = props.max.value ?? 100;
+  const step = props.step.value ?? 1;
+  const value = props.value;
+  const defaultValue = props.defaultValue;
+  const id = props.id;
+  const name = props.name;
+  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const className = props.className;
 
   const classes = computed(() => cn(sliderClasses, className.value));
 
@@ -138,4 +127,19 @@ export const Slider = component<SliderProps>('ui-slider', (props, host) => {
     disabled="${disabled}"
     @input=${syncFill}
   />`;
+}, {
+  // ADR 0025 item 3 (+ v1.1 'number' kind). Kebab-case attr names
+  // (className → class-name, defaultValue → default-value). 'forward' relocates
+  // id/name off the transparent host onto the inner control.
+  attrs: {
+    value: 'number',
+    defaultValue: 'number',
+    min: 'number',
+    max: 'number',
+    step: 'number',
+    className: 'string',
+    id: 'forward',
+    name: 'forward',
+    disabled: 'boolean',
+  },
 });

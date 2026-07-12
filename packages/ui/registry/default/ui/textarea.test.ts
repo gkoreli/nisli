@@ -160,3 +160,16 @@ describe('Textarea native form participation', () => {
     expect(ta.value).toBe('draft');
   });
 });
+
+// ── Live rows attribute (UI-30 batch-1, rev delta) ──────────────────
+describe('Textarea — live rows attribute', () => {
+  it('rows is live: setAttribute after mount updates the inner textarea', () => {
+    document.body.innerHTML = '<ui-textarea rows="4"></ui-textarea>';
+    flushEffects();
+    const ta = getTextarea();
+    expect(ta.getAttribute('rows')).toBe('4');
+    (document.body.querySelector('ui-textarea') as HTMLElement).setAttribute('rows', '8');
+    flushEffects();
+    expect(ta.getAttribute('rows')).toBe('8');
+  });
+});

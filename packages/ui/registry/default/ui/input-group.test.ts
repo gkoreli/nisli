@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { html, type TemplateResult } from '@nisli/core';
+import { html, flushEffects, type TemplateResult } from '@nisli/core';
 import {
   InputGroup,
   InputGroupAddon,
@@ -133,5 +133,18 @@ describe('InputGroup as plain custom elements', () => {
     expect((bySlot('input-group-control', host) as HTMLTextAreaElement).value).toBe(
       'Initial message',
     );
+  });
+});
+
+// ── Live rows attribute (UI-30 batch-1, rev delta) ──────────────────
+describe('InputGroupTextarea — live rows attribute', () => {
+  it('rows is live: setAttribute after mount updates the inner textarea', () => {
+    document.body.innerHTML = '<ui-input-group-textarea rows="4"></ui-input-group-textarea>';
+    flushEffects();
+    const ta = document.body.querySelector('[data-slot="input-group-control"]') as HTMLTextAreaElement;
+    expect(ta.getAttribute('rows')).toBe('4');
+    (document.body.querySelector('ui-input-group-textarea') as HTMLElement).setAttribute('rows', '8');
+    flushEffects();
+    expect(ta.getAttribute('rows')).toBe('8');
   });
 });

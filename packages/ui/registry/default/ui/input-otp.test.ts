@@ -171,3 +171,52 @@ describe('InputOTP — misuse', () => {
     spy.mockRestore();
   });
 });
+
+// ── Live attribute residuals (UI-30 batch-1, rev delta) ─────────────
+// These attributes were one-time host.getAttribute() reads pre-migration; now
+// declared in attrs{}, so a post-mount setAttribute must flow through.
+
+describe('InputOTP — live attribute residuals', () => {
+  it("max-length is live: setAttribute after mount updates the inner input (rev repro)", () => {
+    document.body.innerHTML = '<ui-input-otp max-length="4"></ui-input-otp>';
+    flushEffects();
+    const el = input(document.body);
+    expect(el.getAttribute('maxlength')).toBe('4');
+    (document.body.querySelector('ui-input-otp') as HTMLElement).setAttribute('max-length', '2');
+    flushEffects();
+    expect(el.getAttribute('maxlength')).toBe('2');
+  });
+
+  it('pattern is live: setAttribute after mount changes character filtering', () => {
+    document.body.innerHTML = '<ui-input-otp max-length="6"></ui-input-otp>';
+    flushEffects();
+    const el = input(document.body);
+    // No pattern → letters pass through.
+    el.value = 'a1';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    flushEffects();
+    flushEffects();
+    expect(el.value).toBe('a1');
+    // A digits-only pattern applied live → the next input filters letters out.
+    (document.body.querySelector('ui-input-otp') as HTMLElement).setAttribute('pattern', '[0-9]');
+    flushEffects();
+    el.value = 'b2c3';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    flushEffects();
+    flushEffects();
+    expect(el.value).toBe('23');
+  });
+
+  it('slot index is live: setAttribute updates which char the slot renders', () => {
+    const c = mount(
+      html`${InputOTP({ maxLength: 6, value: 'ABCDEF', children: InputOTPGroup({ children: InputOTPSlot({}) }) })}`,
+    );
+    flushEffects();
+    flushEffects();
+    const slot = c.querySelector('[data-slot="input-otp-slot"]') as HTMLElement;
+    expect(slot.textContent).toContain('A'); // default index 0
+    (c.querySelector('ui-input-otp-slot') as HTMLElement).setAttribute('index', '2');
+    flushEffects();
+    expect(slot.textContent).toContain('C'); // index 2
+  });
+});

@@ -25,11 +25,8 @@ import {
   ref,
 } from '@nisli/core';
 import {
-  attr,
-  boolAttr,
   captureChildren,
   cn,
-  forwardedAttr,
   transparentHost,
 } from '../lib/utils.js';
 
@@ -54,21 +51,27 @@ export type TextareaProps = {
 export const Textarea = component<TextareaProps>('ui-textarea', (props, host) => {
   transparentHost(host);
   // A textarea's child text is its value; capture pre-existing content.
+  // NOTE: captureChildren here CONSUMES child text as the initial value (native
+  // <textarea> semantics) — it does NOT project children into a slot, so this
+  // is deliberately kept rather than migrated to children() (ADR 0025 item 1).
   const captured = captureChildren(host);
   const capturedText = captured.map((n) => n.textContent ?? '').join('');
 
-  const placeholder = attr(props.placeholder, host, 'placeholder');
-  const autocomplete = attr(props.autocomplete, host, 'autocomplete');
-  const value = attr(props.value, host, 'value');
-  const id = forwardedAttr(props.id, host, 'id');
-  const name = forwardedAttr(props.name, host, 'name');
-  const disabled = boolAttr(props.disabled, host, 'disabled');
-  const required = boolAttr(props.required, host, 'required');
-  const readOnly = boolAttr(props.readOnly, host, 'readonly');
-  const className = attr(props.className, host, 'class-name');
+  // ADR 0025 item 3: attribute fallbacks are declared via the `attrs` option
+  // below and delivered as plain, LIVE prop signals — no userland
+  // attr()/boolAttr()/forwardedAttr() at setup. Declared-default booleans are
+  // runtime-guaranteed non-undefined; the `as boolean` is the typing stopgap.
+  const placeholder = props.placeholder;
+  const autocomplete = props.autocomplete;
+  const value = props.value;
+  const id = props.id;
+  const name = props.name;
+  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const required = computed<boolean>(() => props.required.value as boolean);
+  const readOnly = computed<boolean>(() => props.readOnly.value as boolean);
+  const className = props.className;
 
-  const rowsAttr = host.getAttribute('rows') ?? undefined;
-  const rows = computed(() => props.rows.value ?? rowsAttr);
+  const rows = props.rows; // 'number' attr (declared below) — live
 
   const classes = computed(() => cn(textareaClasses, className.value));
 
@@ -121,4 +124,20 @@ export const Textarea = component<TextareaProps>('ui-textarea', (props, host) =>
     required="${required}"
     readonly="${readOnly}"
   ></textarea>`;
+}, {
+  // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names
+  // (className → class-name). 'forward' relocates id/name off the transparent
+  // host onto the inner control (native form participation).
+  attrs: {
+    placeholder: 'string',
+    autocomplete: 'string',
+    value: 'string',
+    className: 'string',
+    id: 'forward',
+    name: 'forward',
+    disabled: 'boolean',
+    required: 'boolean',
+    readOnly: { type: 'boolean', attr: 'readonly' },
+    rows: 'number',
+  },
 });
