@@ -9,10 +9,15 @@
  * and moves focus into the panel + restores it on close (focus lib).
  *
  * Elements: ui-popover / -trigger / -anchor / -content / -header / -title /
- * -description. Content renders inline with position:fixed (no portal in v1;
- * same transformed-ancestor caveat as ui-dialog) and carries data-side/
- * data-align for the slide animations. The panel is role="dialog"; focus
- * moves into it on open and restores on close, but is NOT trapped
+ * -description. Content carries data-side/data-align for the slide animations
+ * and, by default, is moved to `document.body` on mount via the `portal` lib
+ * item so its `position: fixed` escapes transformed ancestors (pass
+ * `portal={false}` / `portal="false"` to render inline). Positioning
+ * (floating), dismissal (dismissable-layer on document), and the focus trap
+ * all operate by reference, so they survive the move. SSG note: the portaled
+ * content escapes the static snapshot (client-only, matching upstream); use
+ * `portal={false}` if needed. The panel is role="dialog"; focus moves into it
+ * on open and restores on close, but is NOT trapped
  * (`focusTrap(..., { trapped: false })`) — Radix's non-modal Popover default,
  * so Tab can leave the panel.
  *
@@ -45,6 +50,7 @@ import {
 import { positionFloating, type Align, type Side } from '../lib/floating.js';
 import { dismissableLayer } from '../lib/dismissable-layer.js';
 import { focusTrap } from '../lib/focus.js';
+import { portal } from '../lib/portal.js';
 
 // ── Shared state (published on the <ui-popover> host) ────────────────
 
@@ -205,6 +211,11 @@ export type PopoverContentProps = {
   /** Gap in px between anchor and content. Default 4 (upstream). */
   sideOffset?: number;
   alignOffset?: number;
+  /**
+   * Move the content to `document.body` so `position: fixed` escapes
+   * transformed ancestors. Defaults to true; pass false to render inline.
+   */
+  portal?: boolean;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -229,6 +240,13 @@ export const PopoverContent = component<PopoverContentProps>(
 
     const content = ref<HTMLElement>();
     const anchorEl = () => state.anchor.current ?? state.trigger.current;
+
+    // Portal the content to <body> (default on) so its fixed positioning
+    // escapes transformed ancestors. Floating, dismissable-layer (document),
+    // focus trap, and projection all operate on `content` by reference.
+    const portalEnabled =
+      props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
+    portal(content, { enabled: portalEnabled });
 
     const layer = dismissableLayer(content, {
       onDismiss: () => state.setOpen(false),

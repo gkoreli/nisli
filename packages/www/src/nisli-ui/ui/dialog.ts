@@ -21,11 +21,18 @@
  *     </ui-dialog-content>
  *   </ui-dialog>
  *
- * NO PORTAL in v1: the overlay + content render inline with `position: fixed`
- * and `z-50`. Known limitation — a transformed/filtered ancestor becomes the
- * containing block for `position: fixed`, so the overlay would be clipped to
- * that ancestor rather than the viewport. Keep dialogs out of transformed
- * subtrees, or wait for the portal-lite lib item.
+ * PORTAL (default on): the overlay + content wrapper is moved to
+ * `document.body` on mount via the `portal` lib item, so `position: fixed`
+ * always resolves against the viewport — a transformed/filtered ancestor no
+ * longer becomes its containing block and can't clip the overlay. Pass
+ * `portal={false}` (or the `portal="false"` attribute) to render inline, e.g.
+ * to keep the content in static output. The dismissal listeners live on
+ * `document` and the focus trap works by element reference, so both keep
+ * working after the move. Note: in `@nisli/ssg` static rendering the portaled
+ * subtree escapes the component's captured HTML (it moves to the render
+ * sandbox body) — closed-by-default dialogs are client-only anyway, matching
+ * upstream's client-portal behavior; use `portal={false}` if you need it in
+ * the static snapshot.
  *
  * Open/close changes dispatch a bubbling `ui-open-change` CustomEvent
  * (`detail: { open }`) from the `<ui-dialog>` host.
@@ -53,6 +60,7 @@ import {
 } from '../lib/utils.js';
 import { dismissableLayer } from '../lib/dismissable-layer.js';
 import { focusTrap } from '../lib/focus.js';
+import { portal } from '../lib/portal.js';
 
 // ── Shared state (published on the <ui-dialog> host) ─────────────────
 
@@ -204,6 +212,11 @@ const closeClasses =
 export type DialogContentProps = {
   /** Render the top-right close button. Defaults to true. */
   showCloseButton?: boolean;
+  /**
+   * Move the overlay + content to `document.body` so `position: fixed` escapes
+   * transformed ancestors. Defaults to true; pass false to render inline.
+   */
+  portal?: boolean;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -223,8 +236,18 @@ export const DialogContent = component<DialogContentProps>(
     const className = attr(props.className, host, 'class-name');
     const classes = computed(() => cn(contentClasses, className.value));
 
+    const portalRef = ref<HTMLDivElement>();
     const overlayRef = ref<HTMLDivElement>();
     const contentRef = ref<HTMLElement>();
+
+    // Portal the overlay + content wrapper to <body> (default on) so fixed
+    // positioning escapes any transformed ancestor. Static setup-time decision:
+    // the factory prop wins, else the `portal` attribute (absent → on;
+    // "false" → off). The dismissable-layer (document listeners) and focus trap
+    // (operates by ref) keep working after the move — verified in tests.
+    const portalEnabled =
+      props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
+    portal(portalRef, { enabled: portalEnabled });
 
     // Escape / outside-pointer dismissal and modal focus trap, active only
     // while open. Both take the inner content root, never the host.
@@ -268,7 +291,7 @@ export const DialogContent = component<DialogContentProps>(
         aria-hidden="true"
       ><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg><span class="sr-only">Close</span></button>`;
 
-    return html`<div data-slot="dialog-portal" style="display:contents">
+    return html`<div ref="${portalRef}" data-slot="dialog-portal" style="display:contents">
       <div
         ref="${overlayRef}"
         data-slot="dialog-overlay"

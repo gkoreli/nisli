@@ -10,9 +10,13 @@
  * -media / -title / -description / -action / -cancel. Like ui-dialog but with
  * role="alertdialog" and no outside-pointer dismissal — only the Cancel/Action
  * buttons or Escape close it (Radix AlertDialog semantics). There is no
- * top-right close button. Content renders inline (position:fixed, z-50; no
- * portal in v1 — same transformed-ancestor caveat as ui-dialog) and traps +
- * restores focus via the focus lib.
+ * top-right close button. By default the overlay + content wrapper is moved to
+ * `document.body` on mount via the `portal` lib item so `position: fixed`
+ * escapes transformed ancestors (pass `portal={false}` / `portal="false"` to
+ * render inline). Escape dismissal (document listener) and the focus trap (by
+ * ref) survive the move. SSG note: the portaled subtree escapes the static
+ * snapshot (client-only, matching upstream); use `portal={false}` if needed.
+ * Focus is trapped + restored via the focus lib.
  *
  * Open state is signal-driven (controlled `open` prop; default-open / attr
  * fallback) and dispatches a bubbling `ui-open-change` CustomEvent. Action and
@@ -43,6 +47,7 @@ import {
 } from '../lib/utils.js';
 import { dismissableLayer } from '../lib/dismissable-layer.js';
 import { focusTrap } from '../lib/focus.js';
+import { portal } from '../lib/portal.js';
 import { buttonVariants, type ButtonSize, type ButtonVariant } from './button.js';
 
 // ── Shared state (published on the <ui-alert-dialog> host) ───────────
@@ -161,6 +166,11 @@ const contentClasses =
 
 export type AlertDialogContentProps = {
   size?: 'default' | 'sm';
+  /**
+   * Move the overlay + content to `document.body` so `position: fixed` escapes
+   * transformed ancestors. Defaults to true; pass false to render inline.
+   */
+  portal?: boolean;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -181,8 +191,16 @@ export const AlertDialogContent = component<AlertDialogContentProps>(
     const className = attr(props.className, host, 'class-name');
     const classes = computed(() => cn(contentClasses, className.value));
 
+    const portalRef = ref<HTMLDivElement>();
     const overlayRef = ref<HTMLDivElement>();
     const contentRef = ref<HTMLElement>();
+
+    // Portal the overlay + content wrapper to <body> (default on) so fixed
+    // positioning escapes transformed ancestors. Escape dismissal (document
+    // listener) and the focus trap (by ref) keep working after the move.
+    const portalEnabled =
+      props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
+    portal(portalRef, { enabled: portalEnabled });
 
     // Escape closes (Radix default); outside-pointer never dismisses an alert
     // dialog — it demands an explicit choice.
@@ -208,7 +226,7 @@ export const AlertDialogContent = component<AlertDialogContentProps>(
       if (contentRef.current) projectChildren(host, contentRef.current, projected);
     });
 
-    return html`<div data-slot="alert-dialog-portal" style="display:contents">
+    return html`<div ref="${portalRef}" data-slot="alert-dialog-portal" style="display:contents">
       <div
         ref="${overlayRef}"
         data-slot="alert-dialog-overlay"

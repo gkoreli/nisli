@@ -21,10 +21,14 @@
  * </ui-sheet>
  * ```
  *
- * NO PORTAL in v1 (same as dialog): the overlay + content render inline with
- * `position: fixed` and `z-50`. A transformed/filtered ancestor becomes the
- * containing block for `position: fixed`, so keep sheets out of transformed
- * subtrees until the portal-lite lib item lands.
+ * PORTAL (default on, same as dialog): the overlay + content wrapper moves to
+ * `document.body` on mount via the `portal` lib item, so `position: fixed`
+ * resolves against the viewport and a transformed/filtered ancestor can't
+ * become its containing block. Pass `portal={false}` (or `portal="false"`) to
+ * render inline. Dismissal listens on `document` and the focus trap works by
+ * reference, so both survive the move. Note: in `@nisli/ssg` static rendering
+ * the portaled subtree escapes the captured HTML (client-only, matching
+ * upstream); use `portal={false}` if you need it in static output.
  *
  * Open/close changes dispatch a bubbling `ui-open-change` CustomEvent
  * (`detail: { open }`) from the `<ui-sheet>` host.
@@ -53,6 +57,7 @@ import {
 } from '../lib/utils.js';
 import { dismissableLayer } from '../lib/dismissable-layer.js';
 import { focusTrap } from '../lib/focus.js';
+import { portal } from '../lib/portal.js';
 
 // ── Shared state (published on the <ui-sheet> host) ──────────────────
 
@@ -211,6 +216,11 @@ export type SheetSide = 'top' | 'right' | 'bottom' | 'left';
 export type SheetContentProps = {
   side?: SheetSide;
   showCloseButton?: boolean;
+  /**
+   * Move the overlay + content to `document.body` so `position: fixed` escapes
+   * transformed ancestors. Defaults to true; pass false to render inline.
+   */
+  portal?: boolean;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -231,8 +241,16 @@ export const SheetContent = component<SheetContentProps>('ui-sheet-content', (pr
     cn(sheetContentVariants({ side: side.value ?? 'right' }), className.value),
   );
 
+  const portalRef = ref<HTMLDivElement>();
   const overlayRef = ref<HTMLDivElement>();
   const contentRef = ref<HTMLElement>();
+
+  // Portal the overlay + content wrapper to <body> (default on) so fixed
+  // positioning escapes transformed ancestors. Dismissal (document listeners)
+  // and the focus trap (by ref) keep working after the move.
+  const portalEnabled =
+    props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
+  portal(portalRef, { enabled: portalEnabled });
 
   const layer = dismissableLayer(contentRef, {
     onDismiss: () => state.setOpen(false),
@@ -273,7 +291,7 @@ export const SheetContent = component<SheetContentProps>('ui-sheet-content', (pr
       aria-hidden="true"
     ><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg><span class="sr-only">Close</span></button>`;
 
-  return html`<div data-slot="sheet-portal" style="display:contents">
+  return html`<div ref="${portalRef}" data-slot="sheet-portal" style="display:contents">
     <div
       ref="${overlayRef}"
       data-slot="sheet-overlay"

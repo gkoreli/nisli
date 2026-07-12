@@ -15,12 +15,16 @@
  * Shows on hover/focus after a delay and hides on leave/blur/pointerdown/Escape.
  * A module-level manager provides Radix TooltipProvider semantics: only one
  * tooltip is open at a time, and once one has shown, others open instantly for
- * a short skip-delay window. Content is positioned inline with position:fixed
- * (no portal in v1) and carries data-side/data-align for the slide animations.
+ * a short skip-delay window. Content carries data-side/data-align for the
+ * slide animations and, by default, is moved to `document.body` on mount via
+ * the `portal` lib item so its `position: fixed` escapes transformed ancestors
+ * (pass `portal={false}` / `portal="false"` to render inline). Positioning
+ * (floating), Escape-to-close, and the provider manager all operate by
+ * reference, so they survive the move.
  *
  * v1 limits: no arrow (the floating lib has no arrow positioning — upstream's
- * TooltipArrow is omitted); no portal (same transformed-ancestor caveat as
- * ui-dialog).
+ * TooltipArrow is omitted). SSG note: the portaled content escapes the static
+ * snapshot (client-only, matching upstream); use `portal={false}` if needed.
  *
  * This file was copied into your project by `nisli-ui` — you own it.
  */
@@ -46,6 +50,7 @@ import {
   transparentHost,
 } from '../lib/utils.js';
 import { positionFloating, type Side } from '../lib/floating.js';
+import { portal } from '../lib/portal.js';
 
 // ── Module-level open/delay manager (TooltipProvider semantics) ──────
 
@@ -223,6 +228,11 @@ export type TooltipContentProps = {
   side?: Side;
   /** Gap in px between trigger and content. Default 0 (upstream). */
   sideOffset?: number;
+  /**
+   * Move the content to `document.body` so `position: fixed` escapes
+   * transformed ancestors. Defaults to true; pass false to render inline.
+   */
+  portal?: boolean;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -243,6 +253,14 @@ export const TooltipContent = component<TooltipContentProps>(
     const contentId = `${state.baseId}-content`;
 
     const content = ref<HTMLDivElement>();
+
+    // Portal the content to <body> (default on) so its fixed positioning
+    // escapes transformed ancestors. Floating positioning, Escape handling,
+    // and projection all operate on `content` by reference — move-safe.
+    const portalEnabled =
+      props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
+    portal(content, { enabled: portalEnabled });
+
     let disposePosition: (() => void) | null = null;
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') state.requestClose();

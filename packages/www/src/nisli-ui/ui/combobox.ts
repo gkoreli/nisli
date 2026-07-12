@@ -218,6 +218,10 @@ export const Combobox = component<ComboboxProps>('ui-combobox', (props, host) =>
     ${PopoverContent({
       className: 'w-[var(--cb-anchor-width)] p-0',
       align: 'start',
+      // Keep the popup inline: combobox manages its command-items by querying
+      // its own host subtree (and width-matches the trigger), so it opts out of
+      // the popover's default body-portal to preserve that self-contained model.
+      portal: false,
       children: Command({
         children: html`${CommandInput({ placeholder: searchPlaceholder.value ?? 'Search…' })}
         ${CommandList({

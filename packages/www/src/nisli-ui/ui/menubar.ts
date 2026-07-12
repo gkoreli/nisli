@@ -16,8 +16,15 @@
  * focus to its trigger. Submenus (ui-menubar-sub) nest with the same
  * hover/keyboard model as dropdown-menu.
  *
- * v1 limits (documented): no portal (position:fixed, same transformed-ancestor
- * caveat as ui-dialog); focus is contained (Tab wraps) rather than closing.
+ * By default the content and sub-content are moved to `document.body` on mount
+ * via the `portal` lib item, so their `position: fixed` escapes transformed
+ * ancestors (pass `portal={false}` / `portal="false"` per surface to render
+ * inline). Floating placement, dismissal, roving focus, and typeahead all
+ * operate by reference, so they survive the move. SSG note: portaled content
+ * escapes the static snapshot (client-only, matching upstream); use
+ * `portal={false}` if needed.
+ *
+ * v1 limits (documented): focus is contained (Tab wraps) rather than closing.
  *
  * This file was copied into your project by `nisli-ui` — you own it.
  */
@@ -45,6 +52,7 @@ import {
   transparentHost,
 } from '../lib/utils.js';
 import { positionFloating, type Align, type Side } from '../lib/floating.js';
+import { portal } from '../lib/portal.js';
 import { dismissableLayer } from '../lib/dismissable-layer.js';
 import { focusTrap } from '../lib/focus.js';
 import { rovingFocus } from '../lib/roving-focus.js';
@@ -87,6 +95,9 @@ export interface MenubarMenuState {
   baseId: string;
   menuId: string;
   trigger: Ref<HTMLElement>;
+  /** The <ui-menubar-menu> host — stays in the bar, so dispatching ui-select
+   * here still bubbles to <ui-menubar> once the content is portaled away. */
+  rootHost: HTMLElement;
 }
 type MenubarMenuHost = HTMLElement & { __uiMenubarMenu?: MenubarMenuState };
 
@@ -181,6 +192,7 @@ export const MenubarMenu = component<MenubarMenuProps>('ui-menubar-menu', (props
     baseId: menuId,
     menuId,
     trigger: ref<HTMLElement>(),
+    rootHost: host,
   };
   (host as MenubarMenuHost).__uiMenubarMenu = state;
 
@@ -418,6 +430,11 @@ export type MenubarContentProps = {
   align?: Align;
   alignOffset?: number;
   sideOffset?: number;
+  /**
+   * Move the content to `document.body` so `position: fixed` escapes
+   * transformed ancestors. Defaults to true; pass false to render inline.
+   */
+  portal?: boolean;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -440,6 +457,11 @@ export const MenubarContent = component<MenubarContentProps>(
     const contentId = `${menu.baseId}-content`;
 
     const content = ref<HTMLElement>();
+    // Portal the menu surface to <body> (default on) so its fixed positioning
+    // escapes transformed ancestors; the wired behavior operates by reference.
+    const portalEnabled =
+      props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
+    portal(content, { enabled: portalEnabled });
     const closeAndFocusTrigger = (): void => {
       menu.setOpen(false);
       menu.trigger.current?.focus();
@@ -484,13 +506,12 @@ export const MenubarContent = component<MenubarContentProps>(
 
 // ── Item selection helper ────────────────────────────────────────────
 
-function emitSelect(host: HTMLElement, el: HTMLElement, value: string | undefined): void {
+function emitSelect(menu: MenubarMenuState, value: string | undefined): void {
   const event = new CustomEvent('ui-select', { detail: { value }, bubbles: true, cancelable: true });
-  el.dispatchEvent(event);
-  if (!event.defaultPrevented) {
-    const menu = (host.closest('ui-menubar-menu') as MenubarMenuHost | null)?.__uiMenubarMenu;
-    menu?.setOpen(false);
-  }
+  // Dispatch on the menu host (still in the bar), not the item: once the
+  // content is portaled to <body> the item no longer bubbles through it.
+  menu.rootHost.dispatchEvent(event);
+  if (!event.defaultPrevented) menu.setOpen(false);
 }
 
 // ── ui-menubar-item ──────────────────────────────────────────────────
@@ -508,7 +529,7 @@ export type MenubarItemProps = {
 };
 
 export const MenubarItem = component<MenubarItemProps>('ui-menubar-item', (props, host) => {
-  useMenu(host, 'ui-menubar-item');
+  const menu = useMenu(host, 'ui-menubar-item');
   transparentHost(host);
   const projected = captureChildren(host);
 
@@ -527,7 +548,7 @@ export const MenubarItem = component<MenubarItemProps>('ui-menubar-item', (props
 
   const onClick = (): void => {
     if (disabled.value || !root.current) return;
-    emitSelect(host, root.current, value.value);
+    emitSelect(menu, value.value);
   };
 
   return html`<div
@@ -561,7 +582,7 @@ export type MenubarCheckboxItemProps = {
 export const MenubarCheckboxItem = component<MenubarCheckboxItemProps>(
   'ui-menubar-checkbox-item',
   (props, host) => {
-    useMenu(host, 'ui-menubar-checkbox-item');
+    const menu = useMenu(host, 'ui-menubar-checkbox-item');
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -583,7 +604,7 @@ export const MenubarCheckboxItem = component<MenubarCheckboxItemProps>(
     const onClick = (): void => {
       if (disabled.value || !item.current) return;
       internal.value = !checked.value;
-      emitSelect(host, item.current, value.value);
+      emitSelect(menu, value.value);
     };
 
     return html`<div
@@ -649,7 +670,7 @@ export type MenubarRadioItemProps = {
 export const MenubarRadioItem = component<MenubarRadioItemProps>(
   'ui-menubar-radio-item',
   (props, host) => {
-    useMenu(host, 'ui-menubar-radio-item');
+    const menu = useMenu(host, 'ui-menubar-radio-item');
     const group = (host.closest('ui-menubar-radio-group') as RadioGroupHost | null)
       ?.__uiMenubarRadioGroup;
     transparentHost(host);
@@ -671,7 +692,7 @@ export const MenubarRadioItem = component<MenubarRadioItemProps>(
     const onClick = (): void => {
       if (disabled.value || !item.current) return;
       group?.setValue(value.value ?? '');
-      emitSelect(host, item.current, value.value);
+      emitSelect(menu, value.value);
     };
 
     return html`<div
@@ -928,6 +949,11 @@ const subContentClasses =
 
 export type MenubarSubContentProps = {
   sideOffset?: number;
+  /**
+   * Move the sub-content to `document.body` so `position: fixed` escapes
+   * transformed ancestors. Defaults to true; pass false to render inline.
+   */
+  portal?: boolean;
   className?: string;
   children?: string | TemplateResult;
 };
@@ -945,6 +971,9 @@ export const MenubarSubContent = component<MenubarSubContentProps>(
     const contentId = `${sub.baseId}-content`;
 
     const content = ref<HTMLElement>();
+    const portalEnabled =
+      props.portal.value ?? (host.getAttribute('portal') === 'false' ? false : true);
+    portal(content, { enabled: portalEnabled });
     const closeAndFocusTrigger = (): void => {
       sub.setOpen(false);
       sub.trigger.current?.focus();
