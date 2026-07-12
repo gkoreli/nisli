@@ -197,6 +197,28 @@ describe('DropdownMenu — checkbox + radio items', () => {
     expect(box.getAttribute('aria-checked')).toBe('true');
   });
 
+  it('controlled checkbox: a pinned `checked` signal is parent-authoritative — a click cannot dislodge it', async () => {
+    const checked = signal<boolean | undefined>(true);
+    const c = mountMenu(
+      html`${DropdownMenuCheckboxItem({ checked, value: 'wrap', children: 'Word wrap' })}`,
+    );
+    await openMenu(c);
+    const box = q(document, 'dropdown-menu-checkbox-item');
+    // The pinned signal drives aria-checked (controlled).
+    expect(box.getAttribute('aria-checked')).toBe('true');
+
+    // A click toggles the internal signal, but the pin discriminator keeps the
+    // rendered state parent-authoritative — the click cannot flip it.
+    box.click();
+    flush2();
+    expect(box.getAttribute('aria-checked')).toBe('true');
+
+    // Only the parent updating the signal changes it.
+    checked.value = false;
+    flush2();
+    expect(box.getAttribute('aria-checked')).toBe('false');
+  });
+
   it('radio items reflect the group value', async () => {
     const value = signal<string | undefined>('a');
     const c = mountMenu(
@@ -297,6 +319,90 @@ describe('DropdownMenu — portal', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(document.querySelector('[data-slot="dropdown-menu-content"]')).toBeNull();
+  });
+});
+
+describe('DropdownMenu — open is attribute-as-truth (UI-30)', () => {
+  it('a post-mount setAttribute("open") toggles the menu, and setOpen reflects back', async () => {
+    const c = mountMenu();
+    const host = c.querySelector('ui-dropdown-menu')!;
+    expect(isOpen(c)).toBe(false);
+    expect(host.hasAttribute('open')).toBe(false);
+
+    // External attribute write opens it (native dialog[open] semantics).
+    host.setAttribute('open', '');
+    flush2();
+    expect(isOpen(c)).toBe(true);
+
+    // Removing the attribute closes it.
+    host.removeAttribute('open');
+    flush2();
+    expect(isOpen(c)).toBe(false);
+
+    // And the resolved state reflects BACK to the attribute (trigger open).
+    await openMenu(c);
+    expect(host.hasAttribute('open')).toBe(true);
+  });
+
+  it('mounts open from literal `open` markup, then a real select closes it', async () => {
+    // The `open` attribute is present at PARSE, so the SEED-AT-CONNECT path (not
+    // attributeChangedCallback) must render the content OPEN at connect.
+    document.body.innerHTML =
+      '<ui-dropdown-menu open>' +
+      '<ui-dropdown-menu-trigger>Open</ui-dropdown-menu-trigger>' +
+      '<ui-dropdown-menu-content portal="false">' +
+      '<ui-dropdown-menu-item value="edit">Edit</ui-dropdown-menu-item>' +
+      '</ui-dropdown-menu-content>' +
+      '</ui-dropdown-menu>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const host = document.querySelector('ui-dropdown-menu')!;
+    const content = q(document, 'dropdown-menu-content');
+    expect(content.hasAttribute('hidden')).toBe(false); // open at connect
+    expect(host.hasAttribute('open')).toBe(true);
+
+    // Close via the COMPONENT path (activating an item selects + closes).
+    q(document, 'dropdown-menu-item').click();
+    flush2();
+    expect(content.hasAttribute('hidden')).toBe(true);
+    expect(host.hasAttribute('open')).toBe(false); // uncontrolled → attr cleared
+  });
+
+  it('controlled (factory open signal): setOpen is guarded, the parent stays in control', () => {
+    const open = signal<boolean | undefined>(true);
+    const c = mount(
+      html`${DropdownMenu({
+        open,
+        children: html`${DropdownMenuTrigger({ children: 'Open' })}
+        ${DropdownMenuContent({
+          portal: false,
+          children: DropdownMenuItem({ value: 'edit', children: 'Edit' }),
+        })}`,
+      })}`,
+    );
+    const host = c.querySelector('ui-dropdown-menu') as HTMLElement;
+    const onChange = vi.fn();
+    host.addEventListener('ui-open-change', onChange as EventListener);
+    flush2();
+    // The reflect effect mirrors the pinned signal onto the attribute.
+    expect(host.hasAttribute('open')).toBe(true);
+    expect(q(document, 'dropdown-menu-content').hasAttribute('hidden')).toBe(false);
+
+    // A real select calls state.setOpen(false). Because `open` is a pinned factory
+    // prop (controlled), the guard skips the attribute write — the parent stays in
+    // control (attr NOT cleared, content still open) and only the event fires.
+    q(document, 'dropdown-menu-item').click();
+    flush2();
+    expect(host.hasAttribute('open')).toBe(true); // guard held
+    expect(q(document, 'dropdown-menu-content').hasAttribute('hidden')).toBe(false);
+    expect((onChange.mock.calls.at(-1)![0] as CustomEvent).detail).toEqual({ open: false });
+
+    // The parent responds by updating the signal → reflect effect closes it.
+    open.value = false;
+    flush2();
+    expect(host.hasAttribute('open')).toBe(false);
+    expect(q(document, 'dropdown-menu-content').hasAttribute('hidden')).toBe(true);
   });
 });
 
