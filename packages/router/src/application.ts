@@ -54,15 +54,20 @@ export function defineRouter<const Input extends Record<string, unknown>>(
   const notFound = configuredNotFound?.kind === 'not-found' ? configuredNotFound : undefined;
   const definition: RouterApplicationDefinition = Object.freeze({ routes, notFound, base });
   const match = createMatcher(definition);
-  const factory = component(`nisli-router-${++routerId}`, (_props, host) => {
-    const router = inject(Router);
-    const rendered = signal<TemplateResult | null>(null);
-    host.setAttribute('role', 'main');
-    host.setAttribute('tabindex', '-1');
-    host.style.display = 'contents';
-    const disconnect = router.connect(definition, host, rendered);
-    getCurrentComponent().addDisposer(disconnect);
-    return html`${rendered}`;
+  const tagName = `nisli-router-${++routerId}`;
+  let outletFactory: ComponentFactory<Record<string, never>> | undefined;
+  const factory = ((props, hostAttrs) => {
+    outletFactory ??= component(tagName, (_props, host) => {
+      const router = inject(Router);
+      const rendered = signal<TemplateResult | null>(null);
+      host.setAttribute('role', 'main');
+      host.setAttribute('tabindex', '-1');
+      host.style.display = 'contents';
+      const disconnect = router.connect(definition, host, rendered);
+      getCurrentComponent().addDisposer(disconnect);
+      return html`${rendered}`;
+    });
+    return outletFactory(props, hostAttrs);
   }) as ApplicationRouter<R>;
   Object.defineProperties(factory, {
     routes: { value: routes, enumerable: true },

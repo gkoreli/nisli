@@ -21,6 +21,16 @@ describe('Router browser service and outlet', () => {
     document.body.replaceChildren();
   });
 
+  it('registers the outlet once, lazily on first factory invocation', () => {
+    const define = vi.spyOn(customElements, 'define');
+    const AppRouter = defineRouter({ home: route('/', { render: () => html`` }) });
+    expect(define).not.toHaveBeenCalled();
+    AppRouter({});
+    expect(define).toHaveBeenCalledOnce();
+    AppRouter({});
+    expect(define).toHaveBeenCalledOnce();
+  });
+
   it('implicitly connects, renders direct loads, and applies metadata', async () => {
     const AppRouter = defineRouter({
       home: route('/', { render: () => html`<p>home</p>`, metadata: { title: 'Home', meta: { description: 'start' } } }),
