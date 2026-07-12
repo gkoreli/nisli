@@ -221,8 +221,10 @@ session scratchpad `recheck/`).
   post-hydration — toast passed 67/67 while dead, a guard class-miss now named).
 
 **Equation after recheck round 1:**
-17 ☑ (13 + sheet + table + resizable + tooltip; scroll-area counts at 13's
-side with its scrollbar sub-term moved out)
+17 ☑ (the original 13 + four completed flips: sheet, table, resizable,
+tooltip — scroll-area is NOT among them: only its separator/border sub-check
+verified; the surface itself stays open on the scrollbar sub-check and is
+counted once, below, among the re-scoped two)
 + 1 popover → UI-56 landed, recheck vs the WWW-14 generation
 + 2 re-scoped (toast icons, scroll-area scrollbar) → WWW-14 generation
 + 6 curation → WWW-14 generation
