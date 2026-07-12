@@ -374,7 +374,8 @@
         "utils",
         "button",
         "dismissable-layer",
-        "focus"
+        "focus",
+        "portal"
       ]
     },
     {

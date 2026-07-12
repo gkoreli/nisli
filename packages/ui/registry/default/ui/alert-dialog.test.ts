@@ -60,7 +60,11 @@ function mountAlertDialog(
 
 const q = (root: ParentNode, slot: string) =>
   root.querySelector<HTMLElement>(`[data-slot="${slot}"]`)!;
-const isOpen = (root: ParentNode) => !q(root, 'alert-dialog-content').hasAttribute('hidden');
+const contentFor = (root: ParentNode): HTMLElement =>
+  document.getElementById(q(root, 'alert-dialog-trigger').getAttribute('aria-controls')!)!;
+const within = (root: ParentNode, slot: string): HTMLElement =>
+  contentFor(root).querySelector<HTMLElement>(`[data-slot="${slot}"]`)!;
+const isOpen = (root: ParentNode) => !contentFor(root).hasAttribute('hidden');
 function flush2(): void {
   flushEffects();
   flushEffects();
@@ -69,29 +73,29 @@ function flush2(): void {
 describe('AlertDialog — structure and ARIA', () => {
   it('is a role=alertdialog with title/description wiring, closed by default', () => {
     const c = mountAlertDialog();
-    const content = q(c, 'alert-dialog-content');
+    const content = contentFor(c);
     expect(content.getAttribute('role')).toBe('alertdialog');
     expect(content.getAttribute('aria-modal')).toBe('true');
     expect(content.getAttribute('data-size')).toBe('default');
     expect(content.hasAttribute('hidden')).toBe(true);
     expect(q(c, 'alert-dialog-trigger').getAttribute('aria-haspopup')).toBe('dialog');
 
-    const title = q(c, 'alert-dialog-title');
-    const desc = q(c, 'alert-dialog-description');
+    const title = within(c, 'alert-dialog-title');
+    const desc = within(c, 'alert-dialog-description');
     expect(content.getAttribute('aria-labelledby')).toBe(title.id);
     expect(content.getAttribute('aria-describedby')).toBe(desc.id);
   });
 
   it('has no close button and styles action/cancel like buttons', () => {
     const c = mountAlertDialog({ defaultOpen: true });
-    expect(c.querySelector('[data-slot="alert-dialog-close"]')).toBeNull();
-    expect(q(c, 'alert-dialog-action').className).toContain('bg-primary'); // default variant
-    expect(q(c, 'alert-dialog-cancel').className).toContain('border'); // outline variant
+    expect(contentFor(c).querySelector('[data-slot="alert-dialog-close"]')).toBeNull();
+    expect(within(c, 'alert-dialog-action').className).toContain('bg-primary'); // default variant
+    expect(within(c, 'alert-dialog-cancel').className).toContain('border'); // outline variant
   });
 
   it('reflects the sm size', () => {
     const c = mountAlertDialog({ defaultOpen: true, size: 'sm' });
-    expect(q(c, 'alert-dialog-content').getAttribute('data-size')).toBe('sm');
+    expect(contentFor(c).getAttribute('data-size')).toBe('sm');
   });
 });
 
@@ -105,12 +109,12 @@ describe('AlertDialog — open/close', () => {
 
   it('closes on Cancel and on Action', () => {
     const c1 = mountAlertDialog({ defaultOpen: true });
-    q(c1, 'alert-dialog-cancel').click();
+    within(c1, 'alert-dialog-cancel').click();
     flush2();
     expect(isOpen(c1)).toBe(false);
 
     const c2 = mountAlertDialog({ defaultOpen: true });
-    q(c2, 'alert-dialog-action').click();
+    within(c2, 'alert-dialog-action').click();
     flush2();
     expect(isOpen(c2)).toBe(false);
   });
@@ -152,9 +156,9 @@ describe('AlertDialog — focus management', () => {
     trigger.click();
     flush2();
     await Promise.resolve();
-    expect(q(c, 'alert-dialog-content').contains(document.activeElement)).toBe(true);
+    expect(contentFor(c).contains(document.activeElement)).toBe(true);
 
-    q(c, 'alert-dialog-cancel').click();
+    within(c, 'alert-dialog-cancel').click();
     flush2();
     await Promise.resolve();
     expect(document.activeElement).toBe(trigger);
@@ -169,6 +173,50 @@ describe('AlertDialog — controlled', () => {
     open.value = true;
     flush2();
     expect(isOpen(c)).toBe(true);
+  });
+});
+
+describe('AlertDialog — portal', () => {
+  it('moves the overlay + content wrapper to <body> by default', () => {
+    const c = mountAlertDialog({ defaultOpen: true });
+    const wrapper = document.querySelector<HTMLElement>('[data-slot="alert-dialog-portal"]')!;
+    expect(wrapper.parentElement).toBe(document.body);
+    expect(c.contains(contentFor(c))).toBe(false);
+    expect(c.contains(q(c, 'alert-dialog-trigger'))).toBe(true);
+  });
+
+  it('portal={false} keeps the overlay + content inline', () => {
+    const c = mount(
+      html`${AlertDialog({
+        defaultOpen: true,
+        children: html`${AlertDialogTrigger({ children: 'Delete' })}
+        ${AlertDialogContent({ portal: false, children: AlertDialogTitle({ children: 'T' }) })}`,
+      })}`,
+    );
+    flush2();
+    expect(
+      document.querySelector<HTMLElement>('[data-slot="alert-dialog-portal"]')!.parentElement,
+    ).not.toBe(document.body);
+    expect(c.contains(contentFor(c))).toBe(true);
+  });
+
+  it('Escape dismissal still works from the portaled content', () => {
+    const c = mountAlertDialog({ defaultOpen: true });
+    expect(isOpen(c)).toBe(true);
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+    );
+    flush2();
+    expect(isOpen(c)).toBe(false);
+  });
+
+  it('removes the portaled subtree when the dialog is disconnected (no leak)', async () => {
+    const c = mountAlertDialog({ defaultOpen: true });
+    expect(document.querySelector('[data-slot="alert-dialog-portal"]')).not.toBeNull();
+    c.querySelector('ui-alert-dialog')!.remove();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.querySelector('[data-slot="alert-dialog-portal"]')).toBeNull();
   });
 });
 
@@ -193,11 +241,11 @@ describe('AlertDialog — plain custom element usage', () => {
     await Promise.resolve();
     await Promise.resolve();
     const root = document.querySelector('ui-alert-dialog')!;
-    expect(root.querySelectorAll('[data-slot="alert-dialog-content"]')).toHaveLength(1);
-    expect(root.querySelectorAll('[data-slot="alert-dialog-title"]')).toHaveLength(1);
-    const content = q(root, 'alert-dialog-content');
+    expect(document.querySelectorAll('[data-slot="alert-dialog-content"]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-slot="alert-dialog-title"]')).toHaveLength(1);
+    const content = q(document, 'alert-dialog-content');
     expect(content.getAttribute('role')).toBe('alertdialog');
     expect(content.hasAttribute('hidden')).toBe(false); // default-open
-    expect(q(root, 'alert-dialog-title').textContent).toBe('Sure?');
+    expect(q(document, 'alert-dialog-title').textContent).toBe('Sure?');
   });
 });
