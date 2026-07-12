@@ -41,22 +41,32 @@ export function SidebarNav({ model }: SidebarNavProps): TemplateResult {
     className: 'top-(--header-height)! h-[calc(100svh-var(--header-height))]!',
     children: SidebarContent({
       className: 'px-2 py-4',
-      children: html`${model.groups.map((group) =>
-        SidebarGroup({
-          children: html`${SidebarGroupLabel({ children: group.title })}
-          ${SidebarMenu({
-            children: html`${group.items.map((item) =>
-              SidebarMenuItem({
-                children: SidebarMenuButton({
-                  href: item.href,
-                  isActive: item.active,
-                  children: item.label,
+      // The registry Sidebar frame is div-based, so the docs sidebar needs its
+      // own labeled navigation landmark (SiteShell's top nav is aria-label
+      // "Main"; this is the primary docs nav). A plain <nav> re-establishing the
+      // column flow (flex/gap mirrors SidebarContent) keeps the landmark
+      // layout-safe without display:contents a11y-tree risk.
+      children: html`<nav
+        aria-label="Documentation"
+        class="flex w-full min-w-0 flex-col gap-2"
+      >
+        ${model.groups.map((group) =>
+          SidebarGroup({
+            children: html`${SidebarGroupLabel({ children: group.title })}
+            ${SidebarMenu({
+              children: html`${group.items.map((item) =>
+                SidebarMenuItem({
+                  children: SidebarMenuButton({
+                    href: item.href,
+                    isActive: item.active,
+                    children: item.label,
+                  }),
                 }),
-              }),
-            )}`,
-          })}`,
-        }),
-      )}`,
+              )}`,
+            })}`,
+          }),
+        )}
+      </nav>`,
     }),
   });
 }

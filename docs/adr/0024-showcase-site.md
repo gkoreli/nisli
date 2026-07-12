@@ -173,6 +173,19 @@ It supersedes the static-only WWW-6 frame check as the end-to-end regression
 (the WWW-6 happy-dom guard stays as the fast static gate). `playwright` is a
 www devDependency; CI runs the sweep against the built `dist/` after `build`.
 
+**Guard note — paints-content vs. human judgment (WWW-12):** the guard's
+"upgraded + a painted descendant" check is deliberately permissive: it passes
+any preview that renders a laid-out box. Two genuinely-sparse components
+(`empty`, `input-group`) passed it while reading near-blank to a human, so
+they were curated. A cheaper automated tightening (minimum rendered
+text/element count) was considered and rejected — it would false-fail
+legitimately-minimal components (`spinner`, `separator`, `skeleton`,
+`progress`, `aspect-ratio`), which paint little by design. Distinguishing
+"sparse but correct" from "sparse and empty" is a judgment call the guard
+cannot make cheaply, so the **human manual-pass is the designed second net**;
+the real fix is a curated example per component (the `examples.ts` batch), not
+a stricter threshold.
+
 ### UI-47 — combobox context error (closed, no code change)
 
 `combobox` intermittently logs `Component <ui-combobox-item> setup error:

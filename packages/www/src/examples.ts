@@ -143,6 +143,8 @@ import {
 } from './nisli-ui/ui/navigation-menu.js';
 import { ScrollArea } from './nisli-ui/ui/scroll-area.js';
 import { Toaster } from './nisli-ui/ui/toast.js';
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent, EmptyMedia } from './nisli-ui/ui/empty.js';
+import { InputGroup, InputGroupAddon, InputGroupInput } from './nisli-ui/ui/input-group.js';
 
 export const examples: Record<string, () => TemplateResult> = {
   button: () =>
@@ -581,6 +583,31 @@ export const examples: Record<string, () => TemplateResult> = {
       ${Button({ variant: 'outline', children: 'Show toast' })}
       ${Toaster({})}
       <p class="text-xs text-muted-foreground">Toasts render into the ui-toaster region.</p>
+    </div>`,
+  // Manual-pass gaps (WWW-12): both passed the sweep's paints-content check but
+  // read near-blank to a human — curate real content.
+  empty: () =>
+    html`<div class="w-full max-w-sm">
+      ${Empty({
+        className: 'rounded-lg border border-dashed',
+        children: html`${EmptyHeader({
+          children: html`${EmptyMedia({ variant: 'icon', children: '🗂️' })}
+          ${EmptyTitle({ children: 'No projects yet' })}
+          ${EmptyDescription({ children: 'Create your first project to get started.' })}`,
+        })}
+        ${EmptyContent({ children: Button({ size: 'sm', children: 'New project' }) })}`,
+      })}
+    </div>`,
+  'input-group': () =>
+    html`<div class="grid w-full max-w-sm gap-3">
+      ${InputGroup({
+        children: html`${InputGroupAddon({ children: '🔍' })}
+        ${InputGroupInput({ placeholder: 'Search components…' })}`,
+      })}
+      ${InputGroup({
+        children: html`${InputGroupInput({ placeholder: 'you' })}
+        ${InputGroupAddon({ align: 'inline-end', children: '@nisli.dev' })}`,
+      })}
     </div>`,
 };
 

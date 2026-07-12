@@ -6,12 +6,19 @@
  * the same registry + docs sources the pages render from. Replaces the old
  * hand-rolled src/routes.ts table + per-environment matching.
  *
+ * Chrome (WWW-12): every route renders inside `SiteShell` (top bar + main +
+ * footer); the docs-shaped routes (/ui, /ui/<name>, /docs, /docs/<slug>) render
+ * their content inside `DocsLayout` (registry-dogfooded sidebar + content),
+ * while home and /themes render inside SiteShell alone. Navigation is derived
+ * from one source (layout/nav-model.ts) — no page-local chrome.
+ *
  * Renders use lazy dynamic import (ADR 0026 §8) so importing this module — e.g.
  * into vite.config.ts for nisliRoutes — does NOT eagerly evaluate the page and
  * @nisli/ui component modules (which call component()/HTMLElement at load and
  * would crash in a non-DOM Node context). Only the matcher + DOM-free route
  * data (registry, docs metadata) load eagerly.
  */
+import { html, type TemplateResult } from '@nisli/core';
 import { defineRouter, route, notFound } from '@nisli/router';
 import { docPages, docPath } from './pages/docs.js';
 import { components, primitives, getItem, itemPath } from './registry.js';
@@ -29,6 +36,24 @@ function itemMetadata(name: string) {
   };
 }
 
+/** SiteShell + DocsLayout, lazily (both pull in DOM-touching component modules). */
+async function chrome() {
+  const { SiteShell } = await import('./layout/site-shell.js');
+  const { DocsLayout } = await import('./layout/docs-layout.js');
+  return { SiteShell, DocsLayout };
+}
+
+/**
+ * Docs prose reads better capped at a ~70ch measure. DocsLayout's content
+ * region stays fluid (per arch: /ui wants full width), so the reading-column
+ * constraint lives here, at the article the docs body renders into — the
+ * successor to the old page-local docsLayout's `article max-w-2xl`. /ui pages
+ * pass their content unwrapped and keep the full width.
+ */
+function docArticle(content: TemplateResult): TemplateResult {
+  return html`<article class="mx-auto w-full max-w-3xl">${content}</article>`;
+}
+
 export const AppRouter = defineRouter({
   home: route('/', {
     metadata: {
@@ -39,9 +64,9 @@ export const AppRouter = defineRouter({
       },
     },
     render: async () => {
-      const { layout } = await import('./layout.js');
+      const { SiteShell } = await chrome();
       const { homePage } = await import('./pages/home.js');
-      return layout(homePage(), { current: '/' });
+      return SiteShell(homePage(), { current: '/' });
     },
   }),
 
@@ -54,9 +79,9 @@ export const AppRouter = defineRouter({
       },
     },
     render: async () => {
-      const { layout } = await import('./layout.js');
+      const { SiteShell, DocsLayout } = await chrome();
       const { uiIndexPage } = await import('./pages/ui-index.js');
-      return layout(uiIndexPage(), { current: '/ui' });
+      return SiteShell(DocsLayout(uiIndexPage(), { current: '/ui' }), { current: '/ui' });
     },
   }),
 
@@ -64,12 +89,15 @@ export const AppRouter = defineRouter({
     entries: () => allItems.map((item) => ({ name: item.name })),
     metadata: ({ params }) => itemMetadata(params.name),
     render: async ({ params }) => {
-      const { layout } = await import('./layout.js');
-      const { notFoundPage } = await import('./pages/not-found.js');
+      const { SiteShell, DocsLayout } = await chrome();
       const item = getItem(params.name);
-      if (!item) return layout(notFoundPage(), {});
+      if (!item) {
+        const { notFoundPage } = await import('./pages/not-found.js');
+        return SiteShell(notFoundPage(), {});
+      }
       const { uiComponentPage } = await import('./pages/ui-component.js');
-      return layout(uiComponentPage(item), { current: itemPath(item.name) });
+      const current = itemPath(item.name);
+      return SiteShell(DocsLayout(uiComponentPage(item), { current }), { current });
     },
   }),
 
@@ -82,9 +110,9 @@ export const AppRouter = defineRouter({
       },
     },
     render: async () => {
-      const { layout } = await import('./layout.js');
+      const { SiteShell } = await chrome();
       const { themesPage } = await import('./pages/themes.js');
-      return layout(themesPage(), { current: '/themes' });
+      return SiteShell(themesPage(), { current: '/themes' });
     },
   }),
 
@@ -94,9 +122,8 @@ export const AppRouter = defineRouter({
       meta: { description: introDoc.description },
     },
     render: async () => {
-      const { layout } = await import('./layout.js');
-      const { docsLayout } = await import('./pages/docs.js');
-      return layout(docsLayout(introDoc), { current: '/docs' });
+      const { SiteShell, DocsLayout } = await chrome();
+      return SiteShell(DocsLayout(docArticle(introDoc.render()), { current: '/docs' }), { current: '/docs' });
     },
   }),
 
@@ -110,21 +137,23 @@ export const AppRouter = defineRouter({
       };
     },
     render: async ({ params }) => {
-      const { layout } = await import('./layout.js');
-      const { notFoundPage } = await import('./pages/not-found.js');
+      const { SiteShell, DocsLayout } = await chrome();
       const page = topicDocs.find((p) => p.slug === params.topic);
-      if (!page) return layout(notFoundPage(), {});
-      const { docsLayout } = await import('./pages/docs.js');
-      return layout(docsLayout(page), { current: docPath(page.slug) });
+      if (!page) {
+        const { notFoundPage } = await import('./pages/not-found.js');
+        return SiteShell(notFoundPage(), {});
+      }
+      const current = docPath(page.slug);
+      return SiteShell(DocsLayout(docArticle(page.render()), { current }), { current });
     },
   }),
 
   notFound: notFound({
     metadata: { title: 'Not found — nisli', meta: { description: 'Page not found.' } },
     render: async () => {
-      const { layout } = await import('./layout.js');
+      const { SiteShell } = await chrome();
       const { notFoundPage } = await import('./pages/not-found.js');
-      return layout(notFoundPage(), {});
+      return SiteShell(notFoundPage(), {});
     },
   }),
 });

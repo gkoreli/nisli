@@ -250,34 +250,6 @@ export function docPath(slug: string): string {
   return slug ? `/docs/${slug}` : '/docs';
 }
 
-// ── Layout ──────────────────────────────────────────────────────────────────
-export function docsLayout(page: DocPage): TemplateResult {
-  const current = docPath(page.slug);
-  return html`<div class="mx-auto flex max-w-6xl gap-10 px-6 py-10">
-    <aside class="hidden w-56 shrink-0 lg:block">
-      <nav class="sticky top-20 space-y-6 text-sm">
-        ${DOC_SECTIONS.map(
-          (section) => html`<div>
-            <div class="font-medium">${section.title}</div>
-            <ul class="mt-2 space-y-1 border-l">
-              ${section.pages.map((p) => {
-                const path = docPath(p.slug);
-                const active = path === current;
-                return html`<li>
-                  <a
-                    href="${path}"
-                    class="-ml-px block border-l py-1 pl-4 ${active
-                      ? 'border-foreground font-medium text-foreground'
-                      : 'border-transparent text-muted-foreground hover:border-foreground/40 hover:text-foreground'}"
-                    >${p.title}</a
-                  >
-                </li>`;
-              })}
-            </ul>
-          </div>`,
-        )}
-      </nav>
-    </aside>
-    <article class="min-w-0 max-w-2xl flex-1">${page.render()}</article>
-  </div>`;
-}
+// The docs sidebar + content frame is now the shared layout/DocsLayout (WWW-12),
+// fed by layout/nav-model.ts (derived from DOC_SECTIONS below). The old
+// page-local docsLayout() was deleted with the app-router rewire.

@@ -63,6 +63,19 @@ describe('WWW-12 DocsLayout', () => {
     // Mobile drawer toggle is present.
     expect(c.querySelector('[data-slot="sidebar-trigger"]')).not.toBeNull();
   });
+
+  it('exposes the docs sidebar as a labeled navigation landmark', () => {
+    // The registry Sidebar frame is div-based, so the primary docs nav needs its
+    // own labeled <nav> landmark (distinct from SiteShell's aria-label="Main"),
+    // and it must actually wrap the grouped nav links.
+    const c = render(DocsLayout(html`<p>Body</p>`, { current: '/docs' }));
+    const nav = c.querySelector('nav[aria-label="Documentation"]');
+    expect(nav, 'docs sidebar must be a labeled nav landmark').not.toBeNull();
+    expect(
+      nav!.querySelector('[data-slot="sidebar-menu-button"]'),
+      'the landmark must contain the grouped nav links',
+    ).not.toBeNull();
+  });
 });
 
 describe('WWW-12 SiteShell', () => {
