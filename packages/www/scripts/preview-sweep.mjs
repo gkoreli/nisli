@@ -126,17 +126,34 @@ for (const name of names) {
     if (HYDRATE.has(name)) {
       open = 'FAIL';
       phase = 'open';
-      const sel = '[role="menu"],[role="dialog"],[role="tooltip"],[role="listbox"],[data-state="open"],[data-slot*="content"]';
+      // Count OPEN OVERLAY CONTENT only — an element whose data-slot ends in
+      // "-content" (never a "-trigger", so a trigger's state change can't count)
+      // AND whose data-state is "open" (the content's own open assertion, set by
+      // every overlay family — dialog/sheet/drawer/popover/menu/tooltip/hover-
+      // card content; layout slots like sidebar-content have no data-state=open,
+      // so they're excluded for free) AND that actually RENDERS a painted box.
+      // The painted-box requirement rejects a mounted-but-"open"-yet-hidden
+      // content (rev's present-but-hidden false open) while tolerating the
+      // display:contents content HOSTS (e.g. sheet) whose child panel paints.
+      const openOverlayCount = () =>
+        page.evaluate(() =>
+          [...document.querySelectorAll('[data-slot$="-content"][data-state="open"]')].filter((el) =>
+            [el, ...el.querySelectorAll('*')].some((n) => {
+              const r = n.getBoundingClientRect();
+              return r.width > 1 && r.height > 1 && getComputedStyle(n).visibility !== 'hidden';
+            }),
+          ).length,
+        );
       try {
         const trigger = frame.locator('button, [data-slot*="trigger"], [aria-haspopup]').first();
-        const before = await page.evaluate((s) => document.querySelectorAll(s).length, sel);
+        const before = await openOverlayCount();
         // interaction model differs per family: context-menu opens on right-click,
         // tooltip/hover-card on hover (with open-delay), the rest on click.
         if (name === 'context-menu') await trigger.click({ button: 'right', timeout: 3000 });
         else if (name === 'tooltip' || name === 'hover-card') { await trigger.hover({ timeout: 3000 }); await page.waitForTimeout(900); }
         else await trigger.click({ timeout: 3000 });
         await page.waitForTimeout(500);
-        const after = await page.evaluate((s) => document.querySelectorAll(s).length, sel);
+        const after = await openOverlayCount();
         open = after > before ? 'OK' : `FAIL(${before}->${after})`;
       } catch (e) { open = `ERR ${String(e.message).slice(0, 36)}`; }
       // req 2: the success marker must be set — a silent chunk failure leaves it off
