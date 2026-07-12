@@ -6,6 +6,22 @@
  */
 import { html, type TemplateResult } from '@nisli/core';
 import { CodeBlock, Command } from '../components/code-block.js';
+// Code samples are real, compiler-checked .ts modules (src/snippets/*), rendered
+// via Vite's ?raw so the shown source is exactly what typechecks (WWW-8).
+import counterSrc from '../snippets/quick-start-counter.ts?raw';
+import signalsSignalSrc from '../snippets/signals-signal.ts?raw';
+import signalsComputedSrc from '../snippets/signals-computed.ts?raw';
+import signalsEffectSrc from '../snippets/signals-effect.ts?raw';
+import templatesBindingsSrc from '../snippets/templates-bindings.ts?raw';
+import templatesEachSrc from '../snippets/templates-each.ts?raw';
+import templatesWhenSrc from '../snippets/templates-when.ts?raw';
+import componentsGreetingSrc from '../snippets/components-greeting.ts?raw';
+import componentsLifecycleSrc from '../snippets/components-lifecycle.ts?raw';
+import diInjectSrc from '../snippets/di-inject.ts?raw';
+import diProvideSrc from '../snippets/di-provide.ts?raw';
+import diTokenSrc from '../snippets/di-token.ts?raw';
+import querySrc from '../snippets/query.ts?raw';
+import ssgSrc from '../snippets/ssg.ts?raw';
 
 export interface DocPage {
   /** Route is `/docs` for '' , else `/docs/<slug>`. */
@@ -78,20 +94,7 @@ const quickStartPage: DocPage = {
     ${Lead('Three imports — a signal, a component, and an html template — build a working reactive counter. No build step required.')}
     ${H2('Define a component')}
     ${P(html`${code('component()')} registers a real custom element. Inside the setup function, ${code('signal()')} creates reactive state; the ${code('html``')} template wires it to the DOM.`)}
-    ${CodeBlock(
-      `import { signal, component, html } from '@nisli/core';
-
-component('x-counter', () => {
-  const count = signal(0);
-
-  return html\`
-    <button @click=\${() => count.value++}>
-      Count: \${count}
-    </button>
-  \`;
-});`,
-      { file: 'counter.ts' },
-    )}
+    ${CodeBlock(counterSrc.trimEnd(), { file: 'counter.ts' })}
     ${H2('Use it')}
     ${P(html`Importing the module registers the ${code('<x-counter>')} element. Drop the tag in your HTML — it upgrades automatically. No hydration step, no root render call.`)}
     ${CodeBlock(
@@ -115,31 +118,13 @@ const signalsPage: DocPage = {
     ${Lead('Signals are nisli’s reactive primitive. A signal holds a value; anything that reads it re-runs when it changes — and nothing else does.')}
     ${H2('signal')}
     ${P(html`Create state with ${code('signal(initial)')}. Read and write through ${code('.value')}.`)}
-    ${CodeBlock(
-      `import { signal } from '@nisli/core';
-
-const count = signal(0);
-count.value;        // 0
-count.value = 5;    // notifies readers`,
-    )}
+    ${CodeBlock(signalsSignalSrc.trimEnd())}
     ${H2('computed')}
     ${P(html`${code('computed()')} derives a read-only signal. It is lazy and cached — it recomputes only when a dependency changes.`)}
-    ${CodeBlock(
-      `import { signal, computed } from '@nisli/core';
-
-const count = signal(2);
-const doubled = computed(() => count.value * 2);
-doubled.value;      // 4`,
-    )}
+    ${CodeBlock(signalsComputedSrc.trimEnd())}
     ${H2('effect')}
     ${P(html`${code('effect()')} runs a side effect and re-runs when any signal it read changes. Dependencies are tracked automatically — no dependency arrays.`)}
-    ${CodeBlock(
-      `import { signal, effect } from '@nisli/core';
-
-const count = signal(0);
-effect(() => console.log('count is', count.value));
-// logs "count is 0" now, and again on every change`,
-    )}
+    ${CodeBlock(signalsEffectSrc.trimEnd())}
     ${P(html`Inside ${code('html``')} templates you read signals implicitly — ${code('${count}')}, no ${code('.value')} needed. The template subscribes and updates exactly the binding that changed.`)}
   </div>`,
 };
@@ -153,29 +138,13 @@ const templatesPage: DocPage = {
     ${Lead('Templates are tagged-template literals — the html`` tag. No JSX, no compiler; they are just JavaScript.')}
     ${H2('Bindings')}
     ${P(html`Interpolate signals and values directly. Text bindings are escaped by default. Bind attributes with ${code('name="${value}"')} and events with ${code('@event=${handler}')}.`)}
-    ${CodeBlock(
-      `html\`
-  <button
-    class="btn \${variant}"
-    disabled=\${isBusy}
-    @click=\${onClick}
-  >\${label}</button>
-\``,
-    )}
+    ${CodeBlock(templatesBindingsSrc.trimEnd(), { file: 'save-button.ts' })}
     ${H2('Lists')}
-    ${P(html`${code('each()')} renders a keyed list that reconciles efficiently as the source changes.`)}
-    ${CodeBlock(
-      `import { html, each } from '@nisli/core';
-
-html\`<ul>\${each(items, (item) => html\`<li>\${item.name}</li>\`)}</ul>\``,
-    )}
+    ${P(html`${code('each()')} renders a keyed list that reconciles efficiently. It takes the items signal, a key function, and a template that receives each item as a signal. Inside that template, wrap each field read in a ${code('computed()')} — ${code('${computed(() => item.value.name)}')} — so a change to one item updates only that leaf binding. Reading ${code('item.value.name')} bare would subscribe the list's reconciler to the per-item signal, re-reconciling the whole list on every item change.`)}
+    ${CodeBlock(templatesEachSrc.trimEnd())}
     ${H2('Conditionals')}
-    ${P(html`${code('when()')} renders one branch or another based on a condition.`)}
-    ${CodeBlock(
-      `import { html, when } from '@nisli/core';
-
-html\`\${when(isOpen, () => html\`<panel-body></panel-body>\`, () => html\`\`)}\``,
-    )}
+    ${P(html`${code('when()')} renders a template while a condition is truthy (pass a signal to stay reactive).`)}
+    ${CodeBlock(templatesWhenSrc.trimEnd())}
     ${P(html`Compose other components by calling their factory inside a template — ${code('${Button({ children: \'Save\' })}')}. Custom elements are always used via their factory, never as raw tags.`)}
   </div>`,
 };
@@ -189,31 +158,12 @@ const componentsPage: DocPage = {
     ${Lead('component() defines a real custom element and returns a typed factory for composition.')}
     ${H2('Props are signals')}
     ${P(html`Declare props as a TypeScript interface. Inside setup, every prop is a ${code('Signal')} — read ${code('.value')} or use it in a template. The setup function must be synchronous.`)}
-    ${CodeBlock(
-      `import { component, computed, html } from '@nisli/core';
-
-interface GreetingProps { name: string }
-
-const Greeting = component<GreetingProps>('x-greeting', (props) => {
-  const upper = computed(() => props.name.value.toUpperCase());
-  return html\`<p>Hello, \${upper}</p>\`;
-});`,
-    )}
+    ${CodeBlock(componentsGreetingSrc.trimEnd())}
     ${H2('Factory composition')}
     ${P(html`Calling ${code('Greeting({ name: \'nisli\' })')} returns a template you compose into other components. Pass a plain value for static props, or a signal to stay reactive.`)}
     ${H2('Lifecycle')}
     ${P(html`${code('onMount()')} runs after the element connects; ${code('onCleanup()')} runs on teardown. Effects created in setup are disposed automatically.`)}
-    ${CodeBlock(
-      `import { component, onMount, onCleanup, html } from '@nisli/core';
-
-component('x-clock', () => {
-  onMount(() => {
-    const id = setInterval(tick, 1000);
-    onCleanup(() => clearInterval(id));
-  });
-  return html\`<time></time>\`;
-});`,
-    )}
+    ${CodeBlock(componentsLifecycleSrc.trimEnd())}
   </div>`,
 };
 
@@ -245,30 +195,13 @@ const diPage: DocPage = {
     ${Lead('nisli has built-in DI. Inject a service anywhere in the tree without prop-drilling or module-level globals — and the class itself is the token.')}
     ${H2('inject')}
     ${P(html`${code('inject(Service)')} returns a singleton, auto-created on first use. No registration, no provider boilerplate — the class is the token.`)}
-    ${CodeBlock(
-      `import { component, inject, html } from '@nisli/core';
-
-class Clock {
-  now() { return new Date().toLocaleTimeString(); }
-}
-
-component('x-now', () => {
-  const clock = inject(Clock);          // singleton, auto-created
-  return html\`<time>\${clock.now()}</time>\`;
-});`,
-    )}
+    ${CodeBlock(diInjectSrc.trimEnd())}
     ${H2('provide')}
     ${P(html`Override what a token resolves to — a mock in tests, or a configured instance. Call ${code('provide()')} before the consumer injects.`)}
-    ${CodeBlock(`import { provide } from '@nisli/core';
-
-provide(Clock, () => ({ now: () => '12:00:00' })); // e.g. in a test`)}
+    ${CodeBlock(diProvideSrc.trimEnd())}
     ${H2('Tokens for non-class values')}
     ${P(html`For values that aren’t classes (config objects, primitives), create a typed token with ${code('createToken()')}.`)}
-    ${CodeBlock(`import { createToken, inject, provide } from '@nisli/core';
-
-const ApiUrl = createToken<string>('ApiUrl');
-provide(ApiUrl, () => 'https://api.nisli.dev');
-const url = inject(ApiUrl);`)}
+    ${CodeBlock(diTokenSrc.trimEnd())}
   </div>`,
 };
 
@@ -281,24 +214,7 @@ const queryPage: DocPage = {
     ${Lead('query() absorbs the loading / error / cache / refetch boilerplate of fetching data, and hands you signals wired straight into the reactivity graph.')}
     ${H2('query')}
     ${P(html`Pass a cache-key function and a fetcher. You get back ${code('data')}, ${code('loading')}, and ${code('error')} signals plus a ${code('refetch()')} method. The key is tracked — when it changes, the query refetches. Select the view with a ${code('computed()')} (the sanctioned multi-branch pattern) so each branch stays reactive.`)}
-    ${CodeBlock(
-      `import { component, query, computed, html } from '@nisli/core';
-
-component('user-card', (props) => {
-  const user = query(
-    () => ['user', props.id.value],          // cache key (tracked)
-    () => fetch(\`/api/users/\${props.id.value}\`).then((r) => r.json()),
-  );
-
-  const view = computed(() => {
-    if (user.loading.value) return html\`<p>Loading…</p>\`;
-    if (user.error.value) return html\`<p>Error: \${user.error.value.message}</p>\`;
-    return html\`<p>\${user.data.value?.name}</p>\`;
-  });
-
-  return html\`\${view}\`;
-});`,
-    )}
+    ${CodeBlock(querySrc.trimEnd())}
     ${H2('Refetch & caching')}
     ${P(html`Call ${code('user.refetch()')} to reload. ${code('staleTime')} (ms) marks cached data fresh for that window — while it is fresh, the automatic query (on mount or when the key changes) serves the cache and skips fetching. An explicit ${code('refetch()')} bypasses ${code('staleTime')} — it is never a no-op inside the fresh window — though if the same query is already in flight it joins that request rather than firing a second. Only once ${code('staleTime')} expires does the automatic path fetch again. Use ${code('QueryClient')} to prefetch.`)}
   </div>`,
@@ -313,16 +229,7 @@ const ssgPage: DocPage = {
     ${Lead('@nisli/ssg renders nisli components to static HTML at build time. No client runtime is required for the initial paint — custom elements upgrade if and when you ship the scripts.')}
     ${H2('buildStaticSite')}
     ${P(html`Give it an output directory and a list of routes; each route’s ${code('render')} returns a nisli template, which is rendered to HTML and written to disk.`)}
-    ${CodeBlock(
-      `import { buildStaticSite } from '@nisli/ssg';
-import { homePage } from './pages/home.js';
-
-await buildStaticSite({
-  outDir: 'dist',
-  routes: [{ path: '/', render: () => homePage() }],
-});`,
-      { file: 'build.ts' },
-    )}
+    ${CodeBlock(ssgSrc.trimEnd(), { file: 'build.ts' })}
     ${P(html`This very website is built this way — nisli pages, composed from ${code('@nisli/ui')}, rendered by ${code('@nisli/ssg')} to a static bundle and deployed to Cloudflare. It is the framework’s own dogfood.`)}
   </div>`,
 };
