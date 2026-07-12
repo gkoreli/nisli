@@ -32,7 +32,14 @@ import {
   type TemplateResult,
 } from '@nisli/core';
 import { cn, transparentHost } from '../lib/utils.js';
-import { Dialog, DialogContent, type DialogProps } from './dialog.js';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  type DialogProps,
+} from './dialog.js';
 
 // ── Shared state ─────────────────────────────────────────────────────
 
@@ -316,23 +323,42 @@ export const CommandShortcut = commandSection(
 // ── CommandDialog — plain composition, no new element ───────────────
 
 export type CommandDialogProps = DialogProps & {
+  /** Accessible dialog title (sr-only; labels the palette). Upstream default. */
+  title?: string;
+  /** Accessible dialog description (sr-only). Upstream default. */
+  description?: string;
   commandClassName?: string;
 };
 
 /** Dialog + Command composed, with upstream's palette styling. */
 export function CommandDialog(props: CommandDialogProps): TemplateResult {
-  const { children, commandClassName, ...dialogProps } = props;
+  const {
+    children,
+    title = 'Command Palette',
+    description = 'Search for a command to run...',
+    commandClassName,
+    ...dialogProps
+  } = props;
   return Dialog({
     ...dialogProps,
-    children: DialogContent({
+    // Accessible-by-construction: upstream renders a sr-only title/description so
+    // the palette dialog has an accessible name. DialogContent's
+    // aria-labelledby/-describedby reference the ids DialogTitle/DialogDescription
+    // self-assign from DialogContext, so placement as a sibling here wires up.
+    children: html`${DialogHeader({
+      className: 'sr-only',
+      children: html`${DialogTitle({ children: title })}${DialogDescription({
+        children: description,
+      })}`,
+    })}${DialogContent({
       className: 'overflow-hidden p-0',
       children: Command({
         className: cn(
-          '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]]:px-2 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5',
+          '**:data-[slot=command-input-wrapper]:h-12 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]]:px-2 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5',
           commandClassName,
         ),
         children,
       }),
-    }),
+    })}`,
   });
 }

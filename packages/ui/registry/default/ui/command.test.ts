@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { html, type TemplateResult } from '@nisli/core';
 import {
   Command,
+  CommandDialog,
   CommandInput,
   CommandList,
   CommandEmpty,
@@ -158,6 +159,48 @@ describe('Command palette', () => {
     expect(c.querySelector('[cmdk-group]')).not.toBeNull();
     expect(c.querySelector('[cmdk-group-heading]')?.textContent).toBe('Suggestions');
     expect(c.querySelector('[cmdk-input]')).not.toBeNull();
+  });
+});
+
+describe('CommandDialog — accessible-by-construction', () => {
+  it('renders a sr-only title + description that label/describe the dialog', async () => {
+    mount(
+      html`${CommandDialog({
+        open: true,
+        children: CommandInput({ placeholder: 'Type a command…' }),
+      })}`,
+    );
+    await settle();
+
+    const title = document.querySelector('[data-slot="dialog-title"]') as HTMLElement;
+    const desc = document.querySelector('[data-slot="dialog-description"]') as HTMLElement;
+    expect(title?.textContent).toBe('Command Palette'); // upstream default
+    expect(desc?.textContent).toBe('Search for a command to run...'); // upstream default
+
+    // Header wrapper is visually hidden but present for screen readers.
+    const header = document.querySelector('[data-slot="dialog-header"]') as HTMLElement;
+    expect(header.className).toContain('sr-only');
+
+    // The dialog content is labelled/described by the sr-only ids.
+    const content = document.querySelector('[data-slot="dialog-content"]') as HTMLElement;
+    expect(content.getAttribute('aria-labelledby')).toBe(title.id);
+    expect(content.getAttribute('aria-describedby')).toBe(desc.id);
+  });
+
+  it('accepts custom title/description', async () => {
+    mount(
+      html`${CommandDialog({
+        open: true,
+        title: 'Search',
+        description: 'Find anything',
+        children: CommandInput({ placeholder: 'x' }),
+      })}`,
+    );
+    await settle();
+    expect(document.querySelector('[data-slot="dialog-title"]')?.textContent).toBe('Search');
+    expect(document.querySelector('[data-slot="dialog-description"]')?.textContent).toBe(
+      'Find anything',
+    );
   });
 });
 

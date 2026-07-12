@@ -162,6 +162,51 @@ describe('InputOTP — native form participation', () => {
   });
 });
 
+// ── Slot aria-invalid forwarding (UI-36A: active+invalid visual parity) ──
+// Upstream spreads {...props}, landing aria-invalid on the slot div that owns
+// the aria-invalid: / data-[active=true]:aria-invalid:* hooks. Our transparent
+// host can't do that implicitly, so ui-input-otp-slot forwards it onto the
+// inner element. Without a reachable path those parity tokens are dead CSS.
+
+describe('InputOTPSlot — aria-invalid forwarding', () => {
+  const oneSlot = (props: Record<string, unknown> = {}): HTMLElement =>
+    mount(
+      html`${InputOTP({
+        maxLength: 6,
+        value: 'ABCDEF',
+        children: InputOTPGroup({ children: InputOTPSlot({ index: 0, ...props }) }),
+      })}`,
+    );
+
+  it('forwards the ariaInvalid factory prop onto the inner slot div', () => {
+    const c = oneSlot({ ariaInvalid: true });
+    flushEffects();
+    const slot = c.querySelector('[data-slot="input-otp-slot"]') as HTMLElement;
+    expect(slot.getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('aria-invalid is live: host setAttribute after mount updates the inner slot div', () => {
+    const c = oneSlot();
+    flushEffects();
+    const slot = c.querySelector('[data-slot="input-otp-slot"]') as HTMLElement;
+    const host = c.querySelector('ui-input-otp-slot') as HTMLElement;
+    // Unset → attribute absent (so `aria-invalid:` selectors stay dormant).
+    expect(slot.getAttribute('aria-invalid')).toBeNull();
+
+    host.setAttribute('aria-invalid', 'true');
+    flushEffects();
+    // Now data-active + aria-invalid can co-occur on one element, so the
+    // data-[active=true]:aria-invalid:* hooks are actually reachable.
+    expect(slot.getAttribute('aria-invalid')).toBe('true');
+    expect(slot.getAttribute('data-active')).not.toBeNull();
+
+    // ARIA tri-state: "false" means not-invalid → attribute cleared.
+    host.setAttribute('aria-invalid', 'false');
+    flushEffects();
+    expect(slot.getAttribute('aria-invalid')).toBeNull();
+  });
+});
+
 describe('InputOTP — misuse', () => {
   it('renders the setup error boundary for a slot outside a root', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});

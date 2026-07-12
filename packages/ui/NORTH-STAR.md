@@ -104,6 +104,10 @@ spinner, button-group, input-group, direction).
   is a potential post-v1 initiative (original, dataviz-first), not a port.
 
 **Later / explicitly deferred**
+- `form-field` — upstream `field.tsx`'s `responsive` orientation and the
+  `horizontal` checkbox/radio trailing token depend on the unported
+  `FieldGroup`/`FieldContent` family (`@container/field-group`). Deferred until
+  that family is ported (UI-36A audit, arch ruling — deferred-equals-forgotten).
 - Charts (original, dataviz-first — post-v1); named/multiple projection slots;
   SVG/namespaced tags in `el()`. *(Formerly deferred, since shipped: portal →
   `lib/portal.ts` + all 8 overlay families; live attribute observation →
