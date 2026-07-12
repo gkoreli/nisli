@@ -2,7 +2,7 @@
 
 Method (per ADR 0022 visual-parity amendment 2026-07-11, v1 criterion 2): every wave-A component carries TWO verdicts —
 1. **Class-diff verdict** — char-level diff of every `cv`/`cva` base + variant string, `data-slot`/`data-state`/`data-variant`, element structure, and provenance header vs the canonical checkout at `shadcn-ref/apps/v4/registry/new-york-v4/ui`. Divergences logged here — real drift fixed, intentional platform divergences annotated and kept. (Automated audit, done.)
-2. **Side-by-side** — manual eyeball pass (done 2026-07-12): the live www gallery preview (`nisli.dev/ui/<name>`, headless-chromium screenshots incl. overlay open-states) vs ui.shadcn.com's default-style demo, covering what class diffs cannot (stacking, focus rings, spacing). Legend: **☑** verified-match · **⏸** deferred (live renders pre-fix copies — the batch-1 resync `67c44ab` is unlanded, so input-otp/command/calendar/carousel/checkbox show stale artifacts) · **N/A** nisli-custom, no ui.shadcn.com counterpart · **⚠** flagged (see notes).
+2. **Side-by-side** — manual eyeball pass (done 2026-07-12): the live www gallery preview (`nisli.dev/ui/<name>`, headless-chromium screenshots incl. overlay open-states) vs ui.shadcn.com's default-style demo, covering what class diffs cannot (stacking, focus rings, spacing). Legend: **☑** verified-match · **N/A** nisli-custom, no ui.shadcn.com counterpart · **⚠** flagged (see notes). (⏸ = formerly deferred while live rendered pre-fix copies; all re-run + resolved post-deploy against 39a8d36.)
 
 Never ported from memory (NORTH-STAR tenet 3).
 
@@ -15,36 +15,37 @@ Never ported from memory (NORTH-STAR tenet 3).
 | 3 | alert-dialog | MATCH | ☑ | open-state verified (centered modal, Cancel/Continue) |
 | 4 | aspect-ratio | MATCH | ☑ | 16/9 box |
 | 5 | attachment | MATCH | N/A | nisli-custom — no ui.shadcn.com demo |
-| 6 | avatar | PORTED (batch 2) ✅ | ☑ | fallback renders; #A AvatarBadge/AvatarGroup/AvatarGroupCount ported (eng1) — Badge/Count verbatim, AvatarGroup ring+overlap TRANSLATED for the transparent host (see cross-cutting rule) |
+| 6 | avatar | PORTED (batch 2) ✅ | ☑ baseline | BASELINE only (Avatar/Image/Fallback, my earlier live capture). The NEWLY-ported Badge/AvatarGroup/AvatarGroupCount surface (ring+overlap TRANSLATED for the transparent host, cross-cutting rule) needs compiled-CSS + browser side-by-side — PENDING (batch-2, eng1/rev); excluded from the verified-new-surface claim |
 | 7 | badge | MATCH | ☑ | default/secondary/outline/destructive pills |
 | 8 | breadcrumb | MATCH | ☑ | — |
 | 9 | bubble | MATCH | N/A | nisli-custom — no ui.shadcn.com demo |
 | 10 | button | MATCH | ☑ | all 6 variants |
 | 11 | button-group | INTENTIONAL | ☑ | attached Cut/Copy/Paste; #E extra data-slot, kept |
-| 12 | calendar | MATCH (class) | ⏸ | live pre-fix (batch-1 resync unlanded); ✅ tsc fix folded (unused `buttonVariants`) |
+| 12 | calendar | MATCH (class) | ☑ | fresh-live (39a8d36): June-2024 range 9–15, today ring, nav — matches shadcn; ✅ tsc fix folded |
 | 13 | card | MATCH | ☑ | — |
-| 14 | carousel | MATCH (class) | ⏸ | live pre-fix; ✅ tsc fix folded (unused `uid`) |
-| 15 | checkbox | MATCH (class) | ⏸ | live pre-fix; ✅ lightningcss hygiene fix folded (url() quotes → %27) |
+| 14 | carousel | MATCH (class) | ☑ | fresh-live: slide + prev(disabled)/next arrows — matches shadcn; ✅ tsc fix folded |
+| 15 | checkbox | MATCH (class) | ☑ | fresh-live + UI-53 contact-sheet: checked checkmark RENDERS (confirms the url() %27 fix); black vs shadcn.com blue = neutral theme token, not drift (class parity holds) |
 | 16 | collapsible | MATCH | ☑ | — |
 | 17 | combobox | INTENTIONAL | ☑ | open-state verified (search + list); documented deviation (Popover+Command) |
-| 18 | command | DRIFT-FIXED | ⏸ | live pre-fix; ✅ #2 h-12 · ✅ #C sr-only title/desc · #F UI-43 gap (record-only) |
+| 18 | command | DRIFT-FIXED | ☑ | fresh-live: palette (search + Suggestions group, highlighted item) — matches shadcn; ✅ #2 h-12 · ✅ #C sr-only · #F UI-43 (record-only) |
 | 19 | context-menu | MATCH | ☑ | open-state verified (Actions/Back/Reload/Delete at pointer) |
 | 20 | dialog | MATCH | ☑ | open-state verified (Edit profile modal); #D showCloseButton feature gap, deferred |
 | 21 | direction | MATCH | N/A | provider — no visual / no ui.shadcn.com demo |
 | 22 | drawer | MATCH | ☑ | open-state verified (bottom Move-goal + drag handle) |
 | 23 | dropdown-menu | MATCH | ☑ | open-state verified (checkbox item, shortcut, submenu, destructive) |
-| 24 | empty | MATCH | ⚠ | live preview renders blank — likely a www preview-example gap (class parity holds); flagged to eng3 |
+| 24 | empty | MATCH | ⚠ OPEN | live preview rendered blank; class parity holds (likely a www preview-example gap). eng3 curated in `examples.ts` — recapture after that deploys to close |
 | 25 | form-field | SCOPE → DEFER | ☑ | invalid-state verified (red border/label/error); #B responsive/horizontal DEFER (NORTH-STAR note) |
 | 26 | hover-card | MATCH | ☑ | open-state verified (floating framework card) |
 | 27 | input | MATCH | ☑ | labeled email input |
-| 28 | input-group | INTENTIONAL | ⚠ | live preview renders near-empty — likely a www preview-example gap (class parity holds); flagged to eng3. #E extra data-slot, kept |
-| 29 | input-otp | DRIFT-FIXED | ⏸ | live pre-fix; ✅ #1 3 tokens + aria-invalid forwarding · ✅ tsc fix (`ReadonlySignal`) |
+| 28 | input-group | INTENTIONAL | ⚠ OPEN | live preview rendered near-empty; class parity holds. eng3 curated in `examples.ts` — recapture after deploy to close. #E extra data-slot, kept |
+| 29 | input-otp | DRIFT-FIXED | ☑ | fresh-live: 6 slots + minus separator — matches shadcn (aria-invalid fix is state-specific, not shown at rest); ✅ #1 tokens+forwarding · ✅ tsc fix |
 | 30 | item | MATCH | ☑ | media + title + action |
 | 31 | kbd | MATCH | ☑ | ⌘K keys |
 | 32 | label | MATCH | ☑ | — |
 
 **Class-diff tally (non-overlapping, sums to 32):** 25 MATCH · 2 DRIFT-FIXED (command, input-otp) · 3 INTENTIONAL (button-group, input-group, combobox) · 1 PORTED (avatar, batch-2 ✅) · 1 SCOPE (form-field→defer).
-**Manual side-by-side (2026-07-12):** 22 ☑ verified-match · 5 ⏸ deferred (calendar/carousel/checkbox/command/input-otp — live renders pre-fix copies until the WWW-12 series' resync `67c44ab` deploys) · 3 N/A (attachment/bubble/direction — nisli-custom) · 2 ⚠ flagged (empty/input-group — live preview renders sparse; class parity holds, so likely a www preview-example gap, not a component defect — flagged to eng3). All overlay open-states (dialog/alert-dialog/dropdown-menu/context-menu/hover-card/drawer/combobox) captured + verified. Re-run the 5 deferred + sidebar after the WWW-12 series deploys.
+**Manual side-by-side — WAVE-A 27-ROW RE-RUN COMPLETE (2026-07-12, vs fresh live 39a8d36); overall UI-36A manual criterion still OPEN.** Row accounting: 27 ☑ · 3 N/A (attachment/bubble/direction — nisli-custom, no ui.shadcn.com demo) · 2 ⚠ (empty/input-group — OPEN) = 32. The 5 previously-deferred (calendar/carousel/checkbox/command/input-otp) were re-run + verified on current-gen live copies — checkbox's rendered checkmark confirms the `url()` %27 fix; corroborated by cdx1's UI-53 contact sheets. All overlay open-states captured. **OPEN for criterion closure (not covered by the 27):** (a) avatar batch-2 Badge/AvatarGroup/AvatarGroupCount NEW-surface visual — compiled CSS + browser side-by-side (the avatar ☑ is BASELINE-only); (b) empty + input-group recapture after eng3's landed curation; (c) mobile sidebar/DocsLayout drawer → WWW-13.
+**WWW-12 layout — live verification (2026-07-12):** desktop DocsLayout VERIFIED on fresh live — SidebarNav offset correctly below the top bar (the `--header-height` offset works), derived grouped nav (docs sections + Components/Primitives) with active highlight, prose capped at `max-w-3xl` (article-level), /ui gallery full-width. **BLOCKER → WWW-13 (eng3):** the mobile sidebar DRAWER does NOT open on `/docs` — the page ships no hydration script, so the `SidebarTrigger` click yields no sheet-content/mobile-panel. The ADR 0024 amendment requires the drawer's portaled Sheet in the hydrate set for DocsLayout pages; that wiring is missing (www hydration lane). Mobile sidebar/DocsLayout stays UNVERIFIED (checkbox held) until WWW-13 lands + redeploys; desktop is verified.
 
 ---
 
@@ -131,6 +132,6 @@ A layout-transparent host (`transparentHost` → `display:contents`) generates *
 
 ## Batch plan
 - **Batch 1** (green, awaiting rev re-review): parity #1 #2 + #C a11y (arch ruling) + folded tsc-strict (calendar/carousel/input-otp) + www hygiene (checkbox). input-otp forwarding is rev-gated.
-- **Manual side-by-side pass**: 0/32 — needs www gallery preview live (coordinate with eng3); flip ☐→☑ per component as verified. Required for final UI-36A closure.
+- **Manual side-by-side pass**: wave-A 27-row RE-RUN complete vs fresh live (39a8d36); overall UI-36A manual criterion still OPEN. Accounting 27 ☑ + 3 N/A + 2 ⚠ = 32. OPEN for closure: avatar batch-2 NEW-surface visual (avatar ☑ is baseline-only); empty + input-group recapture after eng3 curation; mobile drawer WWW-13.
 - **Batch 2** (✅ done, awaiting rev): #A avatar sub-component port — Badge/Count verbatim, AvatarGroup ring+overlap translated for the transparent host (cross-cutting box-model rule), +6 tests incl. the DOM-structure applicability regression.
 - **Deferred / other-ticket**: #B form-field (NORTH-STAR note), #D dialog showCloseButton, #F command UI-43 (arch queue).
