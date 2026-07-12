@@ -1,4 +1,11 @@
 @import "tailwindcss";
+/* Animation utilities (animate-in/out, fade/zoom/slide) the copied components
+   use for enter/exit — required in the CSS order tailwindcss → tw-animate-css →
+   theme.css (UI-49; the registry theme.css stays token-only, and `nisli-ui
+   init` tells every consumer to place this import here). Without it the
+   `data-[state=closed]:animate-out` classes resolve to animation-name:none and
+   floating layers pop in/out with no transition. */
+@import "tw-animate-css";
 
 /* Class-based dark mode: `dark:` utilities key off the `.dark` class the theme
    toggle flips (theme.css already overrides the token variables on `.dark`). */
