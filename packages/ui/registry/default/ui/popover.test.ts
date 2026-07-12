@@ -83,6 +83,38 @@ describe('Popover — structure and ARIA', () => {
 });
 
 describe('Popover — toggle', () => {
+  it.each([
+    ['start', '400px'],
+    ['center', '306px'],
+    ['end', '212px'],
+  ] as const)('settles %s alignment from the first visible frame without an external event', async (align, left) => {
+    let frame: FrameRequestCallback | undefined;
+    const request = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frame = callback;
+      return 1;
+    });
+    try {
+      const c = mount(html`${Popover({
+        children: html`${PopoverTrigger({ children: 'Open' })}${PopoverContent({ align, children: 'Body' })}`,
+      })}`);
+      const trigger = q(c, 'popover-trigger');
+      const content = q(document, 'popover-content');
+      trigger.getBoundingClientRect = () =>
+        ({ x: 400, y: 300, width: 100, height: 40, top: 300, left: 400, right: 500, bottom: 340 }) as DOMRect;
+      content.getBoundingClientRect = () =>
+        ({ x: 0, y: 0, width: 288, height: 78, top: 0, left: 0, right: 288, bottom: 78 }) as DOMRect;
+
+      trigger.click();
+      flush2();
+      await Promise.resolve();
+      expect(content.style.left).toBe('');
+      frame!(performance.now());
+      expect(content.style.left).toBe(left);
+    } finally {
+      request.mockRestore();
+    }
+  });
+
   it('opens and closes on trigger click', () => {
     const c = mountPopover();
     const trigger = q(c, 'popover-trigger');
@@ -103,6 +135,50 @@ describe('Popover — toggle', () => {
     q(c, 'popover-trigger').click();
     flush2();
     expect((onChange.mock.calls[0]![0] as CustomEvent).detail).toEqual({ open: true });
+  });
+
+  it('defers first geometry until visible layout and cancels stale close work', async () => {
+    const frames: FrameRequestCallback[] = [];
+    const request = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const cancel = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+    try {
+      const c = mountPopover();
+      const trigger = q(c, 'popover-trigger');
+      const content = q(document, 'popover-content');
+      trigger.getBoundingClientRect = () =>
+        ({ x: 400, y: 300, width: 100, height: 40, top: 300, left: 400, right: 500, bottom: 340 }) as DOMRect;
+      content.getBoundingClientRect = () =>
+        ({ x: 0, y: 0, width: 288, height: 78, top: 0, left: 0, right: 288, bottom: 78 }) as DOMRect;
+
+      trigger.click();
+      flush2();
+      await Promise.resolve();
+      expect(content.style.left).toBe('');
+      expect(frames).toHaveLength(1);
+
+      // Closing before the frame must cancel it and make its stale callback inert.
+      trigger.click();
+      flush2();
+      expect(cancel).toHaveBeenCalledWith(1);
+      frames.shift()!(performance.now());
+      expect(content.style.left).toBe('');
+
+      // Reopen gets a fresh visible-layout frame and positions without an
+      // incidental scroll/resize event.
+      trigger.click();
+      flush2();
+      await Promise.resolve();
+      expect(frames).toHaveLength(1);
+      frames.shift()!(performance.now());
+      expect(content.style.left).toBe('306px');
+      expect(content.style.top).toBe('344px');
+    } finally {
+      request.mockRestore();
+      cancel.mockRestore();
+    }
   });
 });
 

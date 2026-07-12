@@ -690,6 +690,34 @@ the host, while the visible inner panel has no inline display override and
 retains its fixed/flex box classes. Factory-authored panel CSS variables and
 ordinary inline styles still reach the inner panel.
 
+### 17. Floating open-layout alignment — RESOLVED (UI-56, 2026-07-12)
+
+The production Popover preview appeared slightly right-shifted beneath its
+trigger. Real Chromium geometry isolated two related registry lifecycle
+errors, not preview-frame CSS or incorrect center arithmetic. Popover started
+`positionFloating()` in a microtask before the reactive `hidden` binding had
+converged, so the first floating rect was zero-width and center alignment put
+the panel's left edge at the trigger center (a 144px error for the 288px panel).
+If a scroll update happened during the `zoom-in-95` enter animation,
+`getBoundingClientRect()` reported a 273.6px transformed width and left a
+6–7px settled offset—the human-visible symptom.
+
+**Resolution**: Popover schedules its first measurement on the next animation
+frame, after visible layout exists, and cancels stale scheduled work on close,
+disconnect, or reopen. The shared floating helper aligns with
+`offsetWidth`/`offsetHeight` (falling back to the client rect), so transforms
+never change the layout box used by placement or arrow math. Side, align,
+collision, portal, dismissal, and public API contracts are unchanged.
+
+**Browser proof**: the production `packages/www` build was served locally and
+driven in installed headless Chromium at 1280px, 768px, and 375px for
+start/center/end, with animations enabled and disabled, plus a fixed-position
+trigger isolated from the preview frame. The initial zero-size error reproduced
+at every width and in isolation; a forced scroll remeasurement converged to
+within 0.008px of center. The transformed intermediate reproduced the 6–7px
+settled shift. Forced geometry tests require deferred visible-frame measurement,
+untransformed layout-size centering, stable updates, and stale-frame teardown.
+
 ## Process
 
 New friction found while building ui/www lands here first (PR review may

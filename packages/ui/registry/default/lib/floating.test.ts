@@ -162,6 +162,24 @@ describe('positionFloating()', () => {
     dispose();
   });
 
+  it('centers from the untransformed layout box during enter animation', () => {
+    const anchorEl = document.createElement('button');
+    const floatEl = document.createElement('div');
+    document.body.append(anchorEl, floatEl);
+    mockRect(anchorEl, { x: 400, y: 300, width: 100, height: 40 });
+    // The 288px layout box is visibly scaled to 95% while entering.
+    mockRect(floatEl, { x: 0, y: 0, width: 273.6, height: 74.1 });
+    Object.defineProperties(floatEl, {
+      offsetWidth: { configurable: true, value: 288 },
+      offsetHeight: { configurable: true, value: 78 },
+    });
+
+    const dispose = positionFloating(anchorEl, floatEl, { side: 'bottom', align: 'center' });
+    expect(floatEl.style.left).toBe('306px');
+    expect(floatEl.style.top).toBe('340px');
+    dispose();
+  });
+
   it.each([
     ['popover-content', '--radix-popover-content-transform-origin'],
     ['hover-card-content', '--radix-hover-card-content-transform-origin'],

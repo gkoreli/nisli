@@ -258,8 +258,11 @@ export const PopoverContent = component<PopoverContentProps, typeof popoverConte
     // on close, but Tab can leave the panel.
     const trap = focusTrap(content, { returnFocus: state.trigger, trapped: false });
 
+    let positionFrame: number | null = null;
     let disposePosition: (() => void) | null = null;
     const stopPositioning = (): void => {
+      if (positionFrame !== null) cancelAnimationFrame(positionFrame);
+      positionFrame = null;
       disposePosition?.();
       disposePosition = null;
     };
@@ -269,17 +272,23 @@ export const PopoverContent = component<PopoverContentProps, typeof popoverConte
         layer.activate();
         queueMicrotask(() => {
           if (!state.open.value) return;
-          const anchor = anchorEl();
-          if (anchor && content.current) {
-            stopPositioning();
+          trap.activate();
+          // The hidden binding converges after this effect. Measuring in this
+          // microtask observes a zero-size panel, so wait for visible layout.
+          // positionFloating reads the untransformed layout size once here.
+          positionFrame = requestAnimationFrame(() => {
+            positionFrame = null;
+            if (!state.open.value) return;
+            const anchor = anchorEl();
+            if (!anchor || !content.current) return;
+            disposePosition?.();
             disposePosition = positionFloating(anchor, content.current, {
               side: side.value,
               align: align.value,
               sideOffset: sideOffset.value,
               alignOffset: alignOffset.value,
             });
-          }
-          trap.activate();
+          });
         });
       } else {
         trap.deactivate();
