@@ -715,6 +715,17 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "bubble",
+      "type": "ui",
+      "description": "A chat bubble (the coloured message body) with variants and alignment. Port of shadcn/ui bubble.",
+      "files": [
+        "ui/bubble.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }
