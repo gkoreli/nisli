@@ -692,6 +692,18 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "calendar",
+      "type": "ui",
+      "description": "A date-picker calendar grid with single/range selection and keyboard nav. Original behavior; visuals from shadcn/ui calendar.",
+      "files": [
+        "ui/calendar.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "button"
+      ]
     }
   ]
 }

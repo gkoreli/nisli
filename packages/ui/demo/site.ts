@@ -180,6 +180,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from './src/nisli-ui/ui/avatar.js';
 import { Progress } from './src/nisli-ui/ui/progress.js';
 import { Slider } from './src/nisli-ui/ui/slider.js';
+import { Calendar } from './src/nisli-ui/ui/calendar.js';
 import {
   InputOTP,
   InputOTPGroup,
@@ -877,6 +878,8 @@ export function renderKitchenSink(): TemplateResult {
     ${section('Progress', Progress({ value: 60, className: 'max-w-sm' }))}
 
     ${section('Slider', Slider({ defaultValue: 40, className: 'max-w-sm' }))}
+
+    ${section('Calendar', Calendar({ className: 'rounded-md border' }))}
 
     ${section(
       'Input OTP',
