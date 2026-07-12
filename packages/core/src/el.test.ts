@@ -153,4 +153,36 @@ describe('el() — dynamic tag names', () => {
     btn.click();
     expect(onClick).toHaveBeenCalledTimes(1); // removed via the shared EventBinding.dispose
   });
+
+  it('@event.once fires EXACTLY once and disposes cleanly after firing (UI-33-R2)', () => {
+    // once must self-remove the INSTALLED handler (safeHandler), not an inner
+    // wrapper. Two dispatches → one call; a later dispose must not double-fire
+    // or error (the fired-once listener is already gone).
+    const onClick = vi.fn();
+    const tr = html`<button @click.once=${onClick}>x</button>`;
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    tr.mount(host);
+    const btn = host.querySelector('button')!;
+
+    btn.click();
+    btn.click();
+    expect(onClick).toHaveBeenCalledTimes(1); // fired once, self-removed
+    expect(() => tr.dispose()).not.toThrow(); // dispose after once-fire is safe
+    btn.click();
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('@event.once that never fired is still removed on dispose (UI-33-R2)', () => {
+    const onClick = vi.fn();
+    const tr = html`<button @click.once=${onClick}>x</button>`;
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    tr.mount(host);
+    const btn = host.querySelector('button')!;
+
+    tr.dispose();
+    btn.click();
+    expect(onClick).not.toHaveBeenCalled(); // removed via the shared EventBinding.dispose
+  });
 });

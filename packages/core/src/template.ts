@@ -753,28 +753,37 @@ function bindEvent(
   modifiers: string[],
   bindings: Binding[],
 ): void {
-  let wrappedHandler: EventListener = handler;
+  // One canonical INSTALLED identity that every removal path references — the
+  // EventBinding `dispose` below AND the `once` self-removal. Forward-declared
+  // so the modifier wrappers close over it before it is assigned; it is only
+  // ever *called* after addEventListener, so the reference always resolves.
+  // This identity-mismatch class bit el() dispose, html dispose, and once — a
+  // single installed handler that all removals target closes it (UI-33-R2).
+  let safeHandler!: EventListener;
 
-  // Apply modifiers
+  // Compose the modifier chain (inner); safeHandler wraps it in try/catch below.
+  let composed: EventListener = handler;
+
   if (modifiers.includes('stop')) {
-    const original = wrappedHandler;
-    wrappedHandler = (e: Event) => {
+    const inner = composed;
+    composed = (e: Event) => {
       e.stopPropagation();
-      original(e);
+      inner(e);
     };
   }
   if (modifiers.includes('prevent')) {
-    const original = wrappedHandler;
-    wrappedHandler = (e: Event) => {
+    const inner = composed;
+    composed = (e: Event) => {
       e.preventDefault();
-      original(e);
+      inner(e);
     };
   }
   if (modifiers.includes('once')) {
-    const original = wrappedHandler;
-    wrappedHandler = (e: Event) => {
-      el.removeEventListener(eventName, wrappedHandler);
-      original(e);
+    const inner = composed;
+    composed = (e: Event) => {
+      // Remove the ACTUALLY-INSTALLED listener, not this intermediate wrapper.
+      el.removeEventListener(eventName, safeHandler);
+      inner(e);
     };
   }
 
@@ -787,19 +796,19 @@ function bindEvent(
         space: ' ',
         tab: 'Tab',
       };
-      const original = wrappedHandler;
-      wrappedHandler = (e: Event) => {
+      const inner = composed;
+      composed = (e: Event) => {
         if ((e as KeyboardEvent).key === keyMap[mod]) {
-          original(e);
+          inner(e);
         }
       };
     }
   }
 
-  // Wrap in try/catch for error containment
-  const safeHandler: EventListener = (e: Event) => {
+  // Wrap in try/catch for error containment — THIS is the installed handler.
+  safeHandler = (e: Event) => {
     try {
-      wrappedHandler(e);
+      composed(e);
     } catch (err) {
       console.error(`Event handler error for '${eventName}':`, err);
     }
