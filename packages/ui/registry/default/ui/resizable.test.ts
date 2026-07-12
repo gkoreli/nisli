@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { flushEffects, html, type TemplateResult } from '@nisli/core';
+import { flush, flushEffects, html, type TemplateResult } from '@nisli/core';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -53,8 +53,7 @@ const panels = (root: ParentNode): [HTMLElement, HTMLElement, ...HTMLElement[]] 
   ];
 const handle = (root: ParentNode) => q(root, 'resizable-handle');
 function flush2(): void {
-  flushEffects();
-  flushEffects();
+  flush();
 }
 const grow = (el: HTMLElement) => Math.round(parseFloat(el.style.flexGrow || '0'));
 

@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { flushEffects, html, type TemplateResult } from '@nisli/core';
+import { flush, flushEffects, html, type TemplateResult } from '@nisli/core';
 import {
   Menubar,
   MenubarMenu,
@@ -60,8 +60,7 @@ const contents = (_c: ParentNode) =>
   Array.from(document.querySelectorAll<HTMLElement>('[data-slot="menubar-content"]'));
 const openContents = (c: ParentNode) => contents(c).filter((el) => !el.hasAttribute('hidden'));
 function flush2(): void {
-  flushEffects();
-  flushEffects();
+  flush();
 }
 async function settle(): Promise<void> {
   flush2();

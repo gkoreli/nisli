@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { signal, flushEffects, html, type TemplateResult } from '@nisli/core';
+import { signal, flush, flushEffects, html, type TemplateResult } from '@nisli/core';
 import {
   Sheet,
   SheetTrigger,
@@ -64,8 +64,7 @@ const q = (root: ParentNode, slot: string) =>
   root.querySelector<HTMLElement>(`[data-slot="${slot}"]`)!;
 
 function flush2(): void {
-  flushEffects();
-  flushEffects();
+  flush();
 }
 async function openViaTrigger(root: ParentNode): Promise<void> {
   q(root, 'sheet-trigger').click();

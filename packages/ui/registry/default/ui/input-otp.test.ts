@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { flushEffects, html, signal, type TemplateResult } from '@nisli/core';
+import { flush, flushEffects, html, signal, type TemplateResult } from '@nisli/core';
 import {
   InputOTP,
   InputOTPGroup,

@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { flushEffects, html, type TemplateResult } from '@nisli/core';
+import { flush, flushEffects, html, type TemplateResult } from '@nisli/core';
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -59,8 +59,7 @@ const isOpen = (root: ParentNode) => !contentFor(root).hasAttribute('hidden');
 const items = (root: ParentNode) =>
   Array.from(contentFor(root).querySelectorAll<HTMLElement>('[role^="menuitem"]'));
 function flush2(): void {
-  flushEffects();
-  flushEffects();
+  flush();
 }
 async function rightClick(c: HTMLElement, x = 120, y = 80): Promise<void> {
   q(c, 'context-menu-trigger').dispatchEvent(

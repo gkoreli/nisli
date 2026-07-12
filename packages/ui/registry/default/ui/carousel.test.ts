@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { flushEffects, html, type TemplateResult } from '@nisli/core';
+import { flush, flushEffects, html, type TemplateResult } from '@nisli/core';
 import {
   Carousel,
   CarouselContent,
@@ -50,8 +50,7 @@ const q = (root: ParentNode, slot: string) =>
 const prev = (c: ParentNode) => q(c, 'carousel-previous') as HTMLButtonElement;
 const next = (c: ParentNode) => q(c, 'carousel-next') as HTMLButtonElement;
 function flush2(): void {
-  flushEffects();
-  flushEffects();
+  flush();
 }
 
 describe('Carousel — structure and ARIA', () => {

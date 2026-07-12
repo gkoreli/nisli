@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { signal, flushEffects, html, type TemplateResult } from '@nisli/core';
+import { signal, flush, flushEffects, html, type TemplateResult } from '@nisli/core';
 import {
   Dialog,
   DialogTrigger,
@@ -63,8 +63,7 @@ const all = (root: ParentNode, slot: string) =>
   root.querySelectorAll(`[data-slot="${slot}"]`);
 
 function flush2(): void {
-  flushEffects();
-  flushEffects();
+  flush();
 }
 async function openViaTrigger(root: ParentNode): Promise<void> {
   q(root, 'dialog-trigger').click();

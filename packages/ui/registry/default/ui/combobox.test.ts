@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { flushEffects, html, type TemplateResult } from '@nisli/core';
+import { flush, flushEffects, html, type TemplateResult } from '@nisli/core';
 import { Combobox, ComboboxItem } from './combobox.js';
 
 beforeEach(async () => {
@@ -45,8 +45,7 @@ const items = (r: ParentNode): [HTMLElement, HTMLElement, HTMLElement, ...HTMLEl
     ...HTMLElement[],
   ];
 function flush2(): void {
-  flushEffects();
-  flushEffects();
+  flush();
 }
 function open(r: ParentNode): void {
   trigger(r).click();

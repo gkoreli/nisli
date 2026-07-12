@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { component, flushEffects, html, ref, signal, type TemplateResult } from '@nisli/core';
+import { component, flush, flushEffects, html, ref, signal, type TemplateResult } from '@nisli/core';
 import { portal } from './portal.js';
 
 beforeEach(() => {
@@ -20,8 +20,7 @@ function mount(template: TemplateResult): HTMLElement {
   return container;
 }
 function flush2(): void {
-  flushEffects();
-  flushEffects();
+  flush();
 }
 
 // A component whose inner box is portaled to document.body, with a reactive

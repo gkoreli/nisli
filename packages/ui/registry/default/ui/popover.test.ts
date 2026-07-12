@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { signal, flushEffects, html, type TemplateResult } from '@nisli/core';
+import { signal, flush, flushEffects, html, type TemplateResult } from '@nisli/core';
 import {
   Popover,
   PopoverTrigger,
@@ -53,8 +53,7 @@ const q = (root: ParentNode, slot: string) =>
   root.querySelector<HTMLElement>(`[data-slot="${slot}"]`)!;
 const isOpen = (_root: ParentNode) => !q(document, 'popover-content').hasAttribute('hidden');
 function flush2(): void {
-  flushEffects();
-  flushEffects();
+  flush();
 }
 function pointerDown(el: Element): void {
   el.dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true }));

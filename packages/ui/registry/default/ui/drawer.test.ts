@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { signal, flushEffects, html, type TemplateResult } from '@nisli/core';
+import { signal, flush, flushEffects, html, type TemplateResult } from '@nisli/core';
 import {
   Drawer,
   DrawerTrigger,
@@ -60,8 +60,7 @@ const q = (root: ParentNode, slot: string) =>
   root.querySelector<HTMLElement>(`[data-slot="${slot}"]`)!;
 const isOpen = (root: ParentNode) => !q(root, 'drawer-content').hasAttribute('hidden');
 function flush2(): void {
-  flushEffects();
-  flushEffects();
+  flush();
 }
 function pointer(el: EventTarget, type: string, clientY: number): void {
   el.dispatchEvent(new MouseEvent(type, { clientY, clientX: 0, bubbles: true, cancelable: true }));

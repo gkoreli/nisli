@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { flushEffects, html, type TemplateResult } from '@nisli/core';
+import { flush, flushEffects, html, type TemplateResult } from '@nisli/core';
 import {
   SidebarProvider,
   Sidebar,
@@ -73,8 +73,7 @@ function mountSidebar(
 const q = (root: ParentNode, slot: string) =>
   root.querySelector<HTMLElement>(`[data-slot="${slot}"]`)!;
 function flush2(): void {
-  flushEffects();
-  flushEffects();
+  flush();
 }
 
 describe('Sidebar — provider + frame', () => {

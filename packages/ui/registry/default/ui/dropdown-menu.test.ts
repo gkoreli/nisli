@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { signal, flushEffects, html, type TemplateResult } from '@nisli/core';
+import { signal, flush, flushEffects, html, type TemplateResult } from '@nisli/core';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -52,8 +52,7 @@ const isOpen = (_root: ParentNode) => !q(document, 'dropdown-menu-content').hasA
 const items = (_root: ParentNode) =>
   Array.from(document.querySelectorAll<HTMLElement>('[role^="menuitem"]'));
 function flush2(): void {
-  flushEffects();
-  flushEffects();
+  flush();
 }
 async function openMenu(c: HTMLElement): Promise<void> {
   q(c, 'dropdown-menu-trigger').click();

@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { signal, flushEffects, html, type TemplateResult } from '@nisli/core';
+import { signal, flush, flushEffects, html, type TemplateResult } from '@nisli/core';
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -66,8 +66,7 @@ const within = (root: ParentNode, slot: string): HTMLElement =>
   contentFor(root).querySelector<HTMLElement>(`[data-slot="${slot}"]`)!;
 const isOpen = (root: ParentNode) => !contentFor(root).hasAttribute('hidden');
 function flush2(): void {
-  flushEffects();
-  flushEffects();
+  flush();
 }
 
 describe('AlertDialog — structure and ARIA', () => {

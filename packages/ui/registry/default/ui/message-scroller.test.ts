@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { flushEffects, html, type TemplateResult } from '@nisli/core';
+import { flush, flushEffects, html, type TemplateResult } from '@nisli/core';
 import {
   MessageScroller,
   MessageScrollerViewport,
@@ -26,8 +26,7 @@ function mount(template: TemplateResult): HTMLElement {
 const q = (root: ParentNode, slot: string) =>
   root.querySelector<HTMLElement>(`[data-slot="${slot}"]`)!;
 function flush2(): void {
-  flushEffects();
-  flushEffects();
+  flush();
 }
 /** Give the viewport a fake layout so the at-edge math is meaningful. */
 function fakeLayout(el: HTMLElement, scrollHeight: number, clientHeight: number): void {
