@@ -249,12 +249,14 @@
     {
       "name": "form-field",
       "type": "ui",
-      "description": "A label + control + description + error composition helper that wires ids and aria. Port of shadcn/ui field.",
+      "description": "The field family: a label + control + description + error composition helper that wires ids and aria, plus FieldGroup/FieldSet/FieldLegend/FieldContent/FieldLabel/FieldTitle/FieldSeparator for grouped and responsive layouts. Port of shadcn/ui field.",
       "files": [
         "ui/form-field.ts"
       ],
       "registryDependencies": [
-        "utils"
+        "utils",
+        "label",
+        "separator"
       ]
     },
     {
