@@ -31,6 +31,7 @@
 
 import {
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -102,18 +103,10 @@ export interface TooltipState {
   anchor: Ref<HTMLElement>;
 }
 
-type TooltipHost = HTMLElement & { __uiTooltip?: TooltipState };
+/** Subtree-scoped channel from <ui-tooltip> to its parts. */
+const TooltipContext = createContext<TooltipState>('Tooltip');
 
 let uid = 0;
-
-function useTooltipState(host: HTMLElement, tag: string): TooltipState {
-  const parent = host.closest('ui-tooltip') as TooltipHost | null;
-  const state = parent?.__uiTooltip;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-tooltip>.`);
-  }
-  return state;
-}
 
 const stateAttr = (open: boolean) => (open ? 'open' : 'closed');
 
@@ -157,7 +150,7 @@ export const Tooltip = component<TooltipProps>('ui-tooltip', (props, host) => {
     baseId: `ui-tooltip-${++uid}`,
     anchor,
   };
-  (host as TooltipHost).__uiTooltip = state;
+  TooltipContext.provide(host, state);
 
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() => cn(className.value));
@@ -188,7 +181,7 @@ export type TooltipTriggerProps = {
 export const TooltipTrigger = component<TooltipTriggerProps>(
   'ui-tooltip-trigger',
   (props, host) => {
-    const state = useTooltipState(host, 'ui-tooltip-trigger');
+    const state = TooltipContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -240,7 +233,7 @@ export type TooltipContentProps = {
 export const TooltipContent = component<TooltipContentProps>(
   'ui-tooltip-content',
   (props, host) => {
-    const state = useTooltipState(host, 'ui-tooltip-content');
+    const state = TooltipContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 

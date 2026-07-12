@@ -239,6 +239,21 @@ describe('Dialog — portal', () => {
     expect(c.contains(q(c, 'dialog-trigger'))).toBe(true);
   });
 
+  it('the portaled content stays reactive to the injected state (UI-28 capture-at-setup)', () => {
+    // The content injects the dialog state at setup (while still under the
+    // provider), THEN is portaled to <body>. A later state change must still
+    // drive it — proving the context value was captured, not re-walked.
+    const open = signal<boolean | undefined>(false);
+    const c = mountDialog({ open });
+    const content = q(document, 'dialog-content');
+    expect(c.contains(content)).toBe(false); // portaled out of the container
+    expect(content.getAttribute('data-state')).toBe('closed');
+
+    open.value = true;
+    flush2();
+    expect(content.getAttribute('data-state')).toBe('open'); // signal reached the reparented node
+  });
+
   it('portal={false} keeps the overlay + content inline', () => {
     const c = mount(
       html`${Dialog({

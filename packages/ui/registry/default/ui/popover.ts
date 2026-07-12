@@ -29,6 +29,7 @@
 
 import {
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -64,18 +65,10 @@ export interface PopoverState {
   anchor: Ref<HTMLElement>;
 }
 
-type PopoverHost = HTMLElement & { __uiPopover?: PopoverState };
+/** Subtree-scoped channel from <ui-popover> to its parts. */
+const PopoverContext = createContext<PopoverState>('Popover');
 
 let uid = 0;
-
-function usePopoverState(host: HTMLElement, tag: string): PopoverState {
-  const parent = host.closest('ui-popover') as PopoverHost | null;
-  const state = parent?.__uiPopover;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-popover>.`);
-  }
-  return state;
-}
 
 const stateAttr = (open: boolean) => (open ? 'open' : 'closed');
 
@@ -114,7 +107,7 @@ export const Popover = component<PopoverProps>('ui-popover', (props, host) => {
     trigger: ref<HTMLElement>(),
     anchor: ref<HTMLElement>(),
   };
-  (host as PopoverHost).__uiPopover = state;
+  PopoverContext.provide(host, state);
 
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() => cn(className.value));
@@ -142,7 +135,7 @@ export type PopoverTriggerProps = {
 export const PopoverTrigger = component<PopoverTriggerProps>(
   'ui-popover-trigger',
   (props, host) => {
-    const state = usePopoverState(host, 'ui-popover-trigger');
+    const state = PopoverContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -181,7 +174,7 @@ export type PopoverAnchorProps = {
 export const PopoverAnchor = component<PopoverAnchorProps>(
   'ui-popover-anchor',
   (props, host) => {
-    const state = usePopoverState(host, 'ui-popover-anchor');
+    const state = PopoverContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -223,7 +216,7 @@ export type PopoverContentProps = {
 export const PopoverContent = component<PopoverContentProps>(
   'ui-popover-content',
   (props, host) => {
-    const state = usePopoverState(host, 'ui-popover-content');
+    const state = PopoverContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 

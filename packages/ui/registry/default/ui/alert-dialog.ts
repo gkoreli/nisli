@@ -28,6 +28,7 @@
 
 import {
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -58,18 +59,10 @@ export interface AlertDialogState {
   baseId: string;
 }
 
-type AlertDialogHost = HTMLElement & { __uiAlertDialog?: AlertDialogState };
+/** Subtree-scoped channel from <ui-alert-dialog> to its parts. */
+const AlertDialogContext = createContext<AlertDialogState>('AlertDialog');
 
 let uid = 0;
-
-function useAlertDialogState(host: HTMLElement, tag: string): AlertDialogState {
-  const parent = host.closest('ui-alert-dialog') as AlertDialogHost | null;
-  const state = parent?.__uiAlertDialog;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-alert-dialog>.`);
-  }
-  return state;
-}
 
 const stateAttr = (open: boolean) => (open ? 'open' : 'closed');
 
@@ -102,7 +95,7 @@ export const AlertDialog = component<AlertDialogProps>('ui-alert-dialog', (props
   };
 
   const state: AlertDialogState = { open, setOpen, baseId: `ui-alert-dialog-${++uid}` };
-  (host as AlertDialogHost).__uiAlertDialog = state;
+  AlertDialogContext.provide(host, state);
 
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() => cn(className.value));
@@ -130,7 +123,7 @@ export type AlertDialogTriggerProps = {
 export const AlertDialogTrigger = component<AlertDialogTriggerProps>(
   'ui-alert-dialog-trigger',
   (props, host) => {
-    const state = useAlertDialogState(host, 'ui-alert-dialog-trigger');
+    const state = AlertDialogContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -178,7 +171,7 @@ export type AlertDialogContentProps = {
 export const AlertDialogContent = component<AlertDialogContentProps>(
   'ui-alert-dialog-content',
   (props, host) => {
-    const state = useAlertDialogState(host, 'ui-alert-dialog-content');
+    const state = AlertDialogContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -301,7 +294,7 @@ export type AlertDialogTitleProps = {
 export const AlertDialogTitle = component<AlertDialogTitleProps>(
   'ui-alert-dialog-title',
   (props, host) => {
-    const state = useAlertDialogState(host, 'ui-alert-dialog-title');
+    const state = AlertDialogContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
     const className = attr(props.className, host, 'class-name');
@@ -332,7 +325,7 @@ export type AlertDialogDescriptionProps = {
 export const AlertDialogDescription = component<AlertDialogDescriptionProps>(
   'ui-alert-dialog-description',
   (props, host) => {
-    const state = useAlertDialogState(host, 'ui-alert-dialog-description');
+    const state = AlertDialogContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
     const className = attr(props.className, host, 'class-name');
@@ -363,7 +356,7 @@ export type AlertDialogActionProps = {
 export const AlertDialogAction = component<AlertDialogActionProps>(
   'ui-alert-dialog-action',
   (props, host) => {
-    const state = useAlertDialogState(host, 'ui-alert-dialog-action');
+    const state = AlertDialogContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -403,7 +396,7 @@ export type AlertDialogCancelProps = {
 export const AlertDialogCancel = component<AlertDialogCancelProps>(
   'ui-alert-dialog-cancel',
   (props, host) => {
-    const state = useAlertDialogState(host, 'ui-alert-dialog-cancel');
+    const state = AlertDialogContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 

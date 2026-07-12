@@ -3,9 +3,10 @@
  *
  * Ported from new-york-v4/ui/sheet.tsx (shadcn/ui, MIT — https://github.com/shadcn-ui/ui),
  * which wraps the Radix Dialog behavior (MIT). A Sheet is a Dialog that slides
- * in from a screen edge; this mirrors our `dialog.ts` machinery (shared
- * `__uiSheet` state, the dismissable-layer + focus lib items, inline fixed
- * overlay) and adds the `side` (top/right/bottom/left) panel variants.
+ * in from a screen edge; this mirrors our `dialog.ts` machinery (shared state
+ * via a subtree-scoped `SheetContext`, the dismissable-layer + focus lib items,
+ * a portaled fixed overlay) and adds the `side` (top/right/bottom/left) panel
+ * variants.
  *
  * ```
  * <ui-sheet>
@@ -38,6 +39,7 @@
 
 import {
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -67,18 +69,10 @@ export interface SheetState {
   baseId: string;
 }
 
-type SheetHost = HTMLElement & { __uiSheet?: SheetState };
+/** Subtree-scoped channel from <ui-sheet> to its parts. */
+const SheetContext = createContext<SheetState>('Sheet');
 
 let uid = 0;
-
-function useSheetState(host: HTMLElement, tag: string): SheetState {
-  const parent = host.closest('ui-sheet') as SheetHost | null;
-  const state = parent?.__uiSheet;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-sheet>.`);
-  }
-  return state;
-}
 
 // ── ui-sheet (root, owns state) ──────────────────────────────────────
 
@@ -109,7 +103,7 @@ export const Sheet = component<SheetProps>('ui-sheet', (props, host) => {
   };
 
   const state: SheetState = { open, setOpen, baseId: `ui-sheet-${++uid}` };
-  (host as SheetHost).__uiSheet = state;
+  SheetContext.provide(host, state);
 
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() => cn(className.value));
@@ -130,7 +124,7 @@ export type SheetTriggerProps = {
 };
 
 export const SheetTrigger = component<SheetTriggerProps>('ui-sheet-trigger', (props, host) => {
-  const state = useSheetState(host, 'ui-sheet-trigger');
+  const state = SheetContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
 
@@ -163,7 +157,7 @@ export type SheetCloseProps = {
 };
 
 export const SheetClose = component<SheetCloseProps>('ui-sheet-close', (props, host) => {
-  const state = useSheetState(host, 'ui-sheet-close');
+  const state = SheetContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
 
@@ -226,7 +220,7 @@ export type SheetContentProps = {
 };
 
 export const SheetContent = component<SheetContentProps>('ui-sheet-content', (props, host) => {
-  const state = useSheetState(host, 'ui-sheet-content');
+  const state = SheetContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
 
@@ -356,7 +350,7 @@ export type SheetTitleProps = {
 };
 
 export const SheetTitle = component<SheetTitleProps>('ui-sheet-title', (props, host) => {
-  const state = useSheetState(host, 'ui-sheet-title');
+  const state = SheetContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
   const className = attr(props.className, host, 'class-name');
@@ -381,7 +375,7 @@ export type SheetDescriptionProps = {
 export const SheetDescription = component<SheetDescriptionProps>(
   'ui-sheet-description',
   (props, host) => {
-    const state = useSheetState(host, 'ui-sheet-description');
+    const state = SheetContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
     const className = attr(props.className, host, 'class-name');

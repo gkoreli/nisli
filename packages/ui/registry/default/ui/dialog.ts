@@ -42,6 +42,7 @@
 
 import {
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -70,18 +71,10 @@ export interface DialogState {
   baseId: string;
 }
 
-type DialogHost = HTMLElement & { __uiDialog?: DialogState };
+/** Subtree-scoped channel from <ui-dialog> to its parts. */
+const DialogContext = createContext<DialogState>('Dialog');
 
 let uid = 0;
-
-function useDialogState(host: HTMLElement, tag: string): DialogState {
-  const parent = host.closest('ui-dialog') as DialogHost | null;
-  const state = parent?.__uiDialog;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-dialog>.`);
-  }
-  return state;
-}
 
 // ── ui-dialog (root, owns state) ─────────────────────────────────────
 
@@ -114,7 +107,7 @@ export const Dialog = component<DialogProps>('ui-dialog', (props, host) => {
   };
 
   const state: DialogState = { open, setOpen, baseId: `ui-dialog-${++uid}` };
-  (host as DialogHost).__uiDialog = state;
+  DialogContext.provide(host, state);
 
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() => cn(className.value));
@@ -138,7 +131,7 @@ export type DialogTriggerProps = {
 export const DialogTrigger = component<DialogTriggerProps>(
   'ui-dialog-trigger',
   (props, host) => {
-    const state = useDialogState(host, 'ui-dialog-trigger');
+    const state = DialogContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -177,7 +170,7 @@ export type DialogCloseProps = {
  * mirrors upstream's exported `DialogClose`.
  */
 export const DialogClose = component<DialogCloseProps>('ui-dialog-close', (props, host) => {
-  const state = useDialogState(host, 'ui-dialog-close');
+  const state = DialogContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
 
@@ -224,7 +217,7 @@ export type DialogContentProps = {
 export const DialogContent = component<DialogContentProps>(
   'ui-dialog-content',
   (props, host) => {
-    const state = useDialogState(host, 'ui-dialog-content');
+    const state = DialogContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -357,7 +350,7 @@ export type DialogTitleProps = {
 };
 
 export const DialogTitle = component<DialogTitleProps>('ui-dialog-title', (props, host) => {
-  const state = useDialogState(host, 'ui-dialog-title');
+  const state = DialogContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
   const className = attr(props.className, host, 'class-name');
@@ -382,7 +375,7 @@ export type DialogDescriptionProps = {
 export const DialogDescription = component<DialogDescriptionProps>(
   'ui-dialog-description',
   (props, host) => {
-    const state = useDialogState(host, 'ui-dialog-description');
+    const state = DialogContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
     const className = attr(props.className, host, 'class-name');
