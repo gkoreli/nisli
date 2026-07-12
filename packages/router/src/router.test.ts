@@ -87,6 +87,22 @@ describe('Router browser service and outlet', () => {
     expect(anchor.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }))).toBe(false);
     await settle();
     expect(location.pathname).toBe('/next');
+    const selfTarget = document.createElement('a');
+    selfTarget.href = '/';
+    selfTarget.target = '_self';
+    document.body.appendChild(selfTarget);
+    expect(selfTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }))).toBe(false);
+    await settle();
+    expect(location.pathname).toBe('/');
+    const blankTarget = document.createElement('a');
+    blankTarget.href = '/next';
+    blankTarget.target = '_blank';
+    document.body.appendChild(blankTarget);
+    // Cancel happy-dom's native page load after Router has declined the click.
+    document.addEventListener('click', (event) => event.preventDefault(), { once: true });
+    expect(blankTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }))).toBe(false);
+    await settle();
+    expect(location.pathname).toBe('/');
     const external = document.createElement('a');
     external.href = 'https://example.com/';
     document.body.appendChild(external);

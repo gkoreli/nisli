@@ -14,7 +14,7 @@ export interface RouterApplicationDefinition extends MatcherDefinition {
 }
 
 interface Connection {
-  definition: RouterApplicationDefinition;
+  match: ReturnType<typeof createMatcher>;
   outlet: HTMLElement;
   rendered: Signal<TemplateResult | null>;
   generation: number;
@@ -45,7 +45,7 @@ export class Router {
     window.addEventListener('popstate', onPopState);
     document.addEventListener('click', onClick);
     const connection: Connection = {
-      definition,
+      match: createMatcher(definition),
       outlet,
       rendered,
       generation: 0,
@@ -82,7 +82,7 @@ export class Router {
   private async transition(url: URL, kind: 'initial' | 'push' | 'replace' | 'pop', scroll?: NavigateOptions['scroll']): Promise<void> {
     const connection = this.connection;
     if (!connection) throw new Error('Router cannot navigate before an AppRouter outlet is connected');
-    const match = createMatcher(connection.definition)(url);
+    const match = connection.match(url);
     this.urlState.value = url;
     this.currentState.value = match;
     this.errorState.value = null;
@@ -147,7 +147,7 @@ export class Router {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const target = event.target instanceof Element ? event.target.closest('a[href]') : null;
     if (!(target instanceof HTMLAnchorElement)) return;
-    if (target.target || target.hasAttribute('download') || target.hasAttribute('data-router-ignore')) return;
+    if ((target.target && target.target !== '_self') || target.hasAttribute('download') || target.hasAttribute('data-router-ignore')) return;
     const url = new URL(target.href, this.urlState.value);
     if (url.origin !== this.urlState.value.origin) return;
     if (url.pathname === this.urlState.value.pathname && url.search === this.urlState.value.search && url.hash) return;

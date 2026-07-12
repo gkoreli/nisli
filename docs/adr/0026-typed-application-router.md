@@ -658,3 +658,21 @@ component module into self-accepting updates and retains the edited render
 body, while the independent route middleware continues to match and serve the
 same dynamic direct URL. `nisliRoutes()` still owns no transform or hot-update
 hook; component replacement remains exclusively a core HMR responsibility.
+
+### Runtime and proof hardening (RTR-5)
+
+- The browser `Router` compiles its matcher once when the application
+  definition connects and reuses it for every transition. Navigation no longer
+  recompiles and revalidates the static route catalog.
+- The package test command runs `vitest run --typecheck`, so
+  `readme.test-d.ts` and `types.test-d.ts` are executed as typecheck suites in
+  the normal CI path rather than merely existing as unchecked proof files.
+- `target="_self"` is treated like an absent target and remains eligible for
+  client-side interception; only non-self browsing-context targets opt out.
+  This matches the explicit checks in
+  [React Router](https://github.com/remix-run/react-router/blob/ac5d9d5ac3ba0c38ee14e1c75ba79621b3b0ba07/packages/react-router/lib/dom/dom.ts#L34-L42),
+  [SvelteKit](https://github.com/sveltejs/kit/blob/5c38e515db7fbb92e5ae01db84b4f0040a02f187/packages/kit/src/runtime/client/client.js#L2714-L2722),
+  and [Next.js](https://github.com/vercel/next.js/blob/1bd2fd585aac793ca2589e6f18f17a412fd11005/packages/next/src/client/app-dir/link.tsx#L240-L250).
+  Treating explicit `_self` as a reload opt-out would be surprising because it
+  names the same browsing context as the default. `data-router-ignore` remains
+  the intentional full-page-navigation escape hatch.

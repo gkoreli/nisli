@@ -36,7 +36,7 @@
   "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "test": "vitest run",
+    "test": "vitest run --typecheck",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   }
