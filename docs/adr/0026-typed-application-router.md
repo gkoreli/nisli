@@ -617,25 +617,23 @@ metadata and written as clean-URL `index.html` files. That family would exercise
 typed parameters and `entries()` honestly rather than adding a router around a
 fixed page.
 
-Three prerequisites make migration now premature:
+Two prerequisites make migration now premature:
 
 1. The blog depends on `@nisli/core@^0.47.4`, while `@nisli/router@0.1.0`
    requires core `>=0.51.0`. A route experiment would therefore also be a
    multi-version framework migration, obscuring whether failures came from the
    router or the core upgrade.
-2. `@nisli/router` is not yet available from npm (RTR-1). The blog is a separate
-   repository and has no workspace link to this monorepo, so adopting it now
-   would require an unpublished tarball/path dependency rather than proving the
-   consumer installation path.
-3. The blog has a specialized static pipeline, not Vite or `@nisli/ssg`: it
+2. The blog has a specialized static pipeline, not Vite or `@nisli/ssg`: it
    discovers Markdown/TypeScript posts, renders page shells, generates OG
    images, Markdown mirrors, RSS, sitemap, LLM artifacts, and serves clean URLs
    through BrowserSync middleware. It has no client router or router references.
    Migrating only URL strings would create a second route catalog without
    replacing the current output authority.
 
-Re-evaluate after router publication and a separately verified blog core
-upgrade. At that point, migrate the post/prompt family only if its
+The pending npm publication recorded in RTR-1 is not an adoption blocker and
+does not gate this evaluation; a local package/tarball can be used when the
+blog experiment is otherwise ready. Re-evaluate after a separately verified
+blog core upgrade. At that point, migrate the post/prompt family only if its
 `route()` definitions and `entries()` become the canonical source for both
 HTML output paths and href construction, while the existing content/SEO/feed
 pipeline remains the renderer. Do not introduce a browser outlet merely to
@@ -676,3 +674,25 @@ hook; component replacement remains exclusively a core HMR responsibility.
   Treating explicit `_self` as a reload opt-out would be surprising because it
   names the same browsing context as the default. `data-router-ignore` remains
   the intentional full-page-navigation escape hatch.
+
+### Validation status and canonical application path (RTR-6)
+
+`defineRouter()` application configuration is the canonical path for a routed
+Nisli application. Browser outlets, `nisliRoutes()`, and router-aware
+`buildStaticSite({ router })` all consume that one definition. The SSG package's
+plain static-path-list mode remains a useful lower-level primitive for sites
+that have not adopted the router; it is not a parallel routing contract and no
+second application route catalog should grow on top of it.
+
+Audit status for the original validation plan as of 2026-07-12:
+
+| Step | Status | Evidence / remaining gap |
+| --- | --- | --- |
+| 1. Path compiler, matcher, codecs, and `href()` | **Validated** | Router matcher/query runtime suites cover static, parameter, catch-all, base, normalization, encoding, specificity, ambiguity, codec, and href behavior. |
+| 2. Type failures for path/query construction | **Validated** | `types.test-d.ts` and the README proof run under `vitest --typecheck` in the normal package test command (RTR-5). |
+| 3. Browser history, popstate, and click service | **Validated** | Happy DOM tests exercise push, replace, popstate rendering, eligible anchor interception, `_self`, non-self/external exceptions, and not-found navigation. |
+| 4. Transparent outlet, async guard, and cleanup | **Validated** | Browser tests cover lazy single registration, implicit connection, rendering/metadata, stale async discard, and rejection of a second root; component disconnect owns listener disposal through the returned connection disposer. |
+| 5. Migrate `packages/www` | **Validated** | The real `AppRouter` owns `/`, `/ui`, `/ui/:name`, `/themes`, `/docs`, `/docs/:topic`, and not-found; Vite and SSG both consume it, including dynamic `entries()` and emitted `404.html`. |
+| 6. Browser/Vite/SSG equivalence | **Validated** | Router/SSG and `www` equivalence suites compare route identity, params, query, base paths, dynamic entries, and not-found results against actual static builds. |
+| 7. End-to-end navigation behaviors | **Partial** | Direct loads, native click exceptions, query parsing, client 404s, Vite refresh fallback, static output, stale renders, and scripted HMR composition are covered. Real browser back/forward scroll restoration and rendered-page scroll/focus/hash effects are specified and unit-inspected but do not yet have browser-level automation; retain this as the explicit remaining validation gap. |
+| 8. Blog route-family evaluation | **Evaluated — not yet** | RTR-2 records the post/prompt candidate and prerequisites; no migration until the blog core upgrade and canonical integration with its specialized static pipeline can be evaluated independently. npm publication is explicitly not a gate. |
