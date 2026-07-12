@@ -8,3 +8,14 @@ declare module '*?raw' {
   const content: string;
   export default content;
 }
+
+/**
+ * Minimal type for Vite's import.meta.glob (lazy form) — used by the WWW-10
+ * hydration runtime. We declare just this rather than pulling all of
+ * `vite/client`, which would redeclare `*?raw` above and clash.
+ */
+interface ImportMeta {
+  glob<Module = Record<string, unknown>>(
+    pattern: string,
+  ): Record<string, () => Promise<Module>>;
+}

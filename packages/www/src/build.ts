@@ -15,6 +15,13 @@ import { fileURLToPath } from 'node:url';
 import { buildStaticSite } from '@nisli/ssg';
 import { shell, type ShellMeta } from './shell.js';
 import { AppRouter } from './app-router.js';
+import { hydrateSet } from './hydrate-set.js';
+
+/** A /ui/<name> page hydrates when its component has an interactive example. */
+function hydratesPath(path: string): boolean {
+  const name = /^\/ui\/(.+)$/.exec(path)?.[1];
+  return name !== undefined && hydrateSet.has(name);
+}
 
 const siteDir = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -46,7 +53,7 @@ export async function buildSite(outDir: string = join(siteDir, 'dist')): Promise
   for (const page of result.pages) {
     const meta = metaByPath.get(page.path) ?? { title: 'nisli', description: '' };
     const fragment = readFileSync(page.filePath, 'utf8');
-    writeFileSync(page.filePath, shell(fragment, meta));
+    writeFileSync(page.filePath, shell(fragment, meta, { hydrate: hydratesPath(page.path) }));
     built.push({ path: page.path, filePath: page.filePath });
   }
   return built;

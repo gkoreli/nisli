@@ -137,4 +137,18 @@ describe('nisli website', () => {
     expect(page).toContain('--primary'); // token names shown
     expect(page).toContain('bg-chart-1'); // chart palette
   });
+
+  // WWW-10: the hydration runtime is injected only on /ui pages whose component
+  // has an interactive example — nowhere else (strict progressive enhancement).
+  it('injects the hydration runtime only on hydrating /ui pages', async () => {
+    const built = await buildSite();
+    const read = (path: string) => readFileSync(built.find((p) => p.path === path)!.filePath, 'utf8');
+    const SCRIPT = '/ui-preview/hydrate.js';
+
+    expect(read('/ui/dropdown-menu')).toContain(SCRIPT); // has a hydrate example
+    expect(read('/ui/tooltip')).toContain(SCRIPT);
+    expect(read('/ui/button')).not.toContain(SCRIPT); // static curated example
+    expect(read('/')).not.toContain(SCRIPT); // no preview frames
+    expect(read('/docs')).not.toContain(SCRIPT);
+  });
 });

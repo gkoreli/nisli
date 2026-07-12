@@ -50,7 +50,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from './nisli-ui/ui/breadcrumb.js';
-import { Tooltip, TooltipTrigger, TooltipContent } from './nisli-ui/ui/tooltip.js';
 import {
   Pagination,
   PaginationContent,
@@ -70,19 +69,6 @@ import {
   DialogDescription,
 } from './nisli-ui/ui/dialog.js';
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuItem,
-  DropdownMenuShortcut,
-  DropdownMenuCheckboxItem,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
-} from './nisli-ui/ui/dropdown-menu.js';
-import {
   Command,
   CommandInput,
   CommandList,
@@ -90,6 +76,9 @@ import {
   CommandGroup,
   CommandItem,
 } from './nisli-ui/ui/command.js';
+// Floating-overlay examples: per-file so the WWW-10 client runtime code-splits them.
+import dropdownMenuExample from './hydrate-examples/dropdown-menu.js';
+import tooltipExample from './hydrate-examples/tooltip.js';
 import {
   SidebarProvider,
   Sidebar,
@@ -258,14 +247,10 @@ export const examples: Record<string, () => TemplateResult> = {
         ${BreadcrumbItem({ children: BreadcrumbPage({ children: 'Breadcrumb' }) })}`,
       }),
     })}`,
-  tooltip: () =>
-    html`${Tooltip({
-      children: html`${TooltipTrigger({
-        className: buttonVariants({ variant: 'outline' }),
-        children: 'Hover me',
-      })}
-      ${TooltipContent({ children: 'Rendered statically; opens on hover.' })}`,
-    })}`,
+  // Floating overlays live in src/hydrate-examples/ (per-file, so the client
+  // hydration runtime code-splits one chunk each). Same example, closed in SSG
+  // + alive when hydrated (WWW-10).
+  tooltip: tooltipExample,
   pagination: () =>
     html`${Pagination({
       children: PaginationContent({
@@ -296,41 +281,7 @@ export const examples: Record<string, () => TemplateResult> = {
         })}`,
       })}`,
     })}`,
-  // Floating overlay: its open content uses inline fixed positioning that only
-  // the client can anchor, and its items require the menu context (they error
-  // standalone) — so the SSG-safe preview is the trigger. The full menu (label,
-  // shortcut, checkbox items, submenu, destructive item) is composed here and
-  // shown live once the client runtime lands.
-  'dropdown-menu': () =>
-    html`${DropdownMenu({
-      children: html`${DropdownMenuTrigger({
-        className: buttonVariants({ variant: 'outline' }),
-        children: 'Open menu',
-      })}
-      ${DropdownMenuContent({
-        className: 'w-56',
-        children: html`${DropdownMenuLabel({ children: 'My Account' })}
-        ${DropdownMenuSeparator({})}
-        ${DropdownMenuItem({
-          value: 'profile',
-          children: html`Profile ${DropdownMenuShortcut({ children: '⇧⌘P' })}`,
-        })}
-        ${DropdownMenuItem({ value: 'settings', children: 'Settings' })}
-        ${DropdownMenuSeparator({})}
-        ${DropdownMenuCheckboxItem({ checked: true, children: 'Status Bar' })}
-        ${DropdownMenuCheckboxItem({ children: 'Activity Bar' })}
-        ${DropdownMenuSeparator({})}
-        ${DropdownMenuSub({
-          children: html`${DropdownMenuSubTrigger({ children: 'Invite users' })}
-          ${DropdownMenuSubContent({
-            children: html`${DropdownMenuItem({ value: 'email', children: 'Email' })}
-            ${DropdownMenuItem({ value: 'message', children: 'Message' })}`,
-          })}`,
-        })}
-        ${DropdownMenuSeparator({})}
-        ${DropdownMenuItem({ value: 'logout', variant: 'destructive', children: 'Log out' })}`,
-      })}`,
-    })}`,
+  'dropdown-menu': dropdownMenuExample,
   command: () =>
     html`<div class="w-full max-w-sm">
       ${Command({

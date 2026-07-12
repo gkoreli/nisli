@@ -22,9 +22,17 @@ function escapeAttr(value: string): string {
     .replace(/>/g, '&gt;');
 }
 
-export function shell(bodyFragment: string, meta: ShellMeta): string {
+export interface ShellOptions {
+  /** Inject the WWW-10 preview hydration runtime (only /ui pages that hydrate). */
+  hydrate?: boolean;
+}
+
+export function shell(bodyFragment: string, meta: ShellMeta, options: ShellOptions = {}): string {
   const title = escapeAttr(meta.title);
   const description = escapeAttr(meta.description);
+  const hydrateScript = options.hydrate
+    ? '\n<script type="module" src="/ui-preview/hydrate.js"></script>'
+    : '';
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -51,7 +59,7 @@ document.querySelectorAll('[data-copy]').forEach((btn)=>{
     }catch(e){}
   });
 });
-</script>
+</script>${hydrateScript}
 </body>
 </html>
 `;
