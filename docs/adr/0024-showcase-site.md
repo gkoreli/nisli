@@ -155,7 +155,7 @@ build + live) root-caused **four** distinct classes, not one:
 
 ### Decision — the permanent post-hydration guard
 
-`scripts/preview-sweep.mjs` (`pnpm --filter @nisli/www sweep`) is the guard.
+`scripts/preview-sweep.mjs` (`pnpm --filter @nisli/www test:previews`) is the guard.
 It serves the local `dist/` (or `--base=https://nisli.dev` for live), drives
 headless chromium over every built `/ui/<name>`, and per page asserts:
 

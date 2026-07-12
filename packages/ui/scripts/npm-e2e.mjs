@@ -17,7 +17,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const version = process.env.NISLI_UI_VERSION ?? '0.2.0';
+const packageJson = JSON.parse(
+  readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+);
+const version = process.env.NISLI_UI_VERSION ?? packageJson.version;
 const known020Diagnostics = [
   "src/nisli-ui/lib/utils.ts(11,1): error TS6192: All imports in import declaration are unused.",
   "src/nisli-ui/ui/calendar.ts(79,1): error TS6133: 'buttonVariants' is declared but its value is never read.",
@@ -46,8 +49,41 @@ const check = (label, condition) => {
   console.log(`✓ ${label}`);
 };
 
+const waitForPublishedVersion = () => {
+  const requirements = [
+    { spec: `@nisli/ui@${version}`, exact: version },
+    ...Object.entries(packageJson.peerDependencies ?? {}).map(([name, range]) => ({
+      spec: `${name}@${range}`,
+      exact: null,
+    })),
+  ];
+  const attempts = 36;
+  for (let attemptNumber = 1; attemptNumber <= attempts; attemptNumber += 1) {
+    const missing = requirements.filter(({ spec, exact }) => {
+      const result = attempt('npm', ['view', spec, 'version', '--json'], tmpdir());
+      if (!result.ok) return true;
+      try {
+        const parsed = JSON.parse(result.output);
+        const versions = Array.isArray(parsed) ? parsed : [parsed];
+        return exact ? !versions.includes(exact) : versions.length === 0;
+      } catch {
+        return true; // A transient/malformed registry response is another miss.
+      }
+    });
+    if (missing.length === 0) return;
+    if (attemptNumber === attempts) {
+      throw new Error(`${missing.map(({ spec }) => spec).join(', ')} did not become available on npm within 3 minutes`);
+    }
+    if (attemptNumber === 1) {
+      console.log(`Waiting for published requirements: ${missing.map(({ spec }) => spec).join(', ')}`);
+    }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5000);
+  }
+};
+
 try {
   console.log(`Testing @nisli/ui@${version} from npm in ${scratch}`);
+  waitForPublishedVersion();
   run('npm', ['create', 'vite@latest', 'app', '--', '--template', 'vanilla-ts'], scratch);
   run('npm', ['install']);
   run('npm', [
@@ -103,9 +139,11 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = \`
 
   const stockBuild = attempt('npm', ['run', 'build']);
   if (!stockBuild.ok) {
+    if (version !== '0.2.0') {
+      throw new Error(`Published @nisli/ui@${version} failed the stock Vite build:\n${stockBuild.output}`);
+    }
     check('known 0.2.0 stock-tsc gap is detected precisely',
-      version === '0.2.0'
-        && stockBuild.output.includes('lib/utils.ts(11,1): error TS6192'));
+      stockBuild.output.includes('lib/utils.ts(11,1): error TS6192'));
     console.log('  GAP: 0.2.0 copied an unused @nisli/core import; fixed in registry after publish.');
     run('npx', ['--no-install', 'vite', 'build']);
   }

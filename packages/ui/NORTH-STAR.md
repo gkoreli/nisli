@@ -130,15 +130,26 @@ spinner, button-group, input-group, direction).
    2026-07-11).
 5. README documents install, theming, and attribution (shadcn/ui, Radix).
 
-**Status (audited 2026-07-11, `@nisli/ui@0.2.0` on npm):** Waves 1–4 all
-hold. (1) open — `pack-e2e.mjs` proves the tarball, not the published
-package in a real Vite + Tailwind v4 app (UI-38). (2) open — keyboard/ARIA
-tests, `data-slot`/`data-state`, and dual factory/plain-HTML use are done;
-the systematic side-by-side visual parity sweep vs `shadcn-ref` is in
-flight (UI-36A/B). (3) open — true by convention, unenforced; a
-bare-npm-import guard is in flight (UI-37). (4) done — www installs all 58
-and the WWW-6 preview guard runs in the suite; CI now also runs on push to
-main (WWW-11 verifies). (5) done.
+**Status (audited 2026-07-12, `@nisli/ui@0.3.0` on npm):** Waves 1–4 all
+hold. (1) done — the UI-48 live run installed the published `0.3.0` package
+into a clean Vite + Tailwind v4 application, exercised `list` / `init` /
+`add`, built and rendered the themed dialog, and passed the complete copied
+registry through stock strict TypeScript. The CI script now derives its
+default from `packages/ui/package.json`, so a checkpoint proves its own
+published artifact; only the explicit `0.2.0` override permits that version's
+exact four known diagnostics. (2) open — keyboard/ARIA tests,
+`data-slot`/`data-state`, dual factory/plain-HTML use, and the source-level
+wave-A/wave-B parity audits are landed; the manual side-by-side checkboxes
+remain open until the corrected www gallery is deployed (UI-36A/B). (3) done
+— registry integrity fails on any bare runtime npm dependency (UI-37), and
+the current 58-item package passes it. (4) done — www installs all 58, its
+static coverage test and Playwright browser guard both derive the complete
+preview set. CI enumerates every built page, requires preview-bearing pages to
+upgrade, visibly paint, and load their assets, and additionally requires every
+hydrate-set page to set its success marker and open its interactive example;
+primitive pages are cross-checked by their badge and skipped. The WWW-11
+landing passed all 66 built `/ui` pages (58 components plus registry
+primitives). (5) done.
 
 ## Attribution
 

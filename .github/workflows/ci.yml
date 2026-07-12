@@ -31,6 +31,12 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Install preview browser
+        run: pnpm --filter @nisli/www exec playwright install --with-deps chromium
+
+      - name: Browser-render every UI preview
+        run: pnpm --filter @nisli/www test:previews
+
       - name: UI package-shape e2e
         run: pnpm --filter @nisli/ui e2e:pack
 
