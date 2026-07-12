@@ -4,6 +4,53 @@ All notable changes to `@nisli/ui`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
+## 0.1.3 — 2026-07-11
+
+The largest release since 0.1.0: the registry reaches the complete portable
+shadcn surface, every overlay escapes clipping ancestors by default, and the
+whole library is now dogfooded by nisli.dev instead of a demo fixture.
+
+### Added
+- **calendar** — original Intl month-grid engine under exact v4 visuals:
+  single + range selection, full WAI-ARIA date-grid keyboard navigation,
+  month-clamped focus entry. Hardened across four review rounds; birthplace
+  of the resolved-composition porting doctrine (ADR 0022).
+- **Chat family** — message, bubble, attachment, and message-scroller
+  (stick-to-bottom with scroll-position awareness; parser children replace
+  default content).
+- **sidebar** — the full ~23-part composite: provider state with cookie
+  persistence and Cmd/Ctrl+B, rail + icon-collapse variants, the complete
+  menu/group family.
+- **input-otp** — one-time-code input on a single native `<input>`.
+- **combobox** — Popover + Command composition with trigger-width matching.
+- **carousel**, **resizable**, **drawer** — pointer-drag behavior ports.
+- **toggle**, **toggle-group**, **scroll-area**, **aspect-ratio**, **kbd**,
+  **spinner**, **button-group**, **input-group**, **empty**, **item**,
+  **direction**, **marker**, **hover-card**, **navigation-menu**,
+  **context-menu**, **menubar**, **pagination**, **breadcrumb**, **table**,
+  **avatar**, **progress**, **toast**, **command** *(those not already in
+  0.1.2)* — completing every portable item in the reference; `form` and
+  `chart` are deliberate non-ports (see NORTH-STAR).
+- **portal** (lib) — reparent overlays to `<body>` with preserved reactivity
+  and disposal ownership; **adopted by every overlay** (dialog, alert-dialog,
+  sheet, tooltip, popover, all menus) — the transformed-ancestor caveat is
+  gone, with a `portal="false"` opt-out.
+- **use-mobile** (lib) — viewport signal helper.
+
+### Changed
+- `@nisli/core` gains awaitable `tick()` (bounded settle contract) and
+  cascade-draining `flushEffects()`; `@nisli/ssg` snapshots after microtask
+  settling — plain-HTML-authored content is now reliable in static output.
+- `query()` — **`refetch()` now bypasses `staleTime`** (an explicit refetch
+  is a force; it still joins a same-key in-flight request).
+- Template slots now mount primitives after `undefined` starts and factory
+  results in static arrays; `component<P>` accepts interfaces; typed
+  template event handlers exported.
+
+### Removed
+- **packages/ui/demo** — superseded by nisli.dev (`packages/www`), which
+  renders a live preview of every registry item under a CI guard.
+
 ## 0.1.2 — 2026-07-11
 
 ### Added
