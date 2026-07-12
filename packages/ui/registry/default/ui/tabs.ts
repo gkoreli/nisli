@@ -36,6 +36,7 @@ import {
   signal,
   type ReadonlySignal,
   type TemplateResult,
+  type TypedEventHandler,
 } from '@nisli/core';
 import {
   attr,
@@ -199,6 +200,10 @@ export const TabsList = component<TabsListProps>('ui-tabs-list', (props, host) =
     if (root.current) projectChildren(host, root.current, projected);
   });
 
+  const onKeydown: TypedEventHandler<'keydown'> = (event) => {
+    roving.onKeydown(event);
+  };
+
   return html`<div
     ref="${root}"
     role="tablist"
@@ -207,7 +212,7 @@ export const TabsList = component<TabsListProps>('ui-tabs-list', (props, host) =
     aria-orientation="${state.orientation}"
     data-orientation="${state.orientation}"
     class="${classes}"
-    @keydown=${(e: KeyboardEvent) => roving.onKeydown(e)}
+    @keydown=${onKeydown}
   >${props.children}</div>`;
 });
 

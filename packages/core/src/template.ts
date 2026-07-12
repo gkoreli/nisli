@@ -32,6 +32,11 @@ export interface TemplateResult {
   __templateResult: true;
 }
 
+/** A DOM event handler whose event type is inferred from its native event name. */
+export type TypedEventHandler<K extends keyof HTMLElementEventMap> = (
+  event: HTMLElementEventMap[K],
+) => void;
+
 // ── Template cache ──────────────────────────────────────────────────
 
 /**

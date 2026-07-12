@@ -104,12 +104,18 @@ double-`flushEffects()` idiom for cascades).
 **Proposal**: export an awaitable `tick()`/`settled()` from core and teach
 `flushEffects()` to drain cascades, retiring the double-call idiom.
 
-### 8. Typed template events — LOW
+### 8. Typed template events — FIXED (2026-07-11)
 
 `@keydown=${(e: KeyboardEvent) => …}` needs a manual cast in every
 handler; the template engine could map event names to types.
 **Proposal**: typed event helper or template type map (compile-time only,
 no runtime change).
+
+**Resolution**: fixed by the `fix(core)` commit graduating tracker item 8.
+Core exports `TypedEventHandler<K>`, keyed by `HTMLElementEventMap`, so
+component handlers can opt into event-name inference without a runtime wrapper
+or parser changes. `ui-tabs` uses it for its keydown handler as the registry
+proof; compile-time tests cover inference and invalid event/type rejection.
 
 ### 9. `component<P>` rejects interfaces — FIXED (2026-07-11)
 

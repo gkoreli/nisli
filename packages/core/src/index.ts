@@ -66,6 +66,7 @@ export {
   when,
   each,
   type TemplateResult,
+  type TypedEventHandler,
 } from './template.js';
 
 // ── Element refs ────────────────────────────────────────────────────
