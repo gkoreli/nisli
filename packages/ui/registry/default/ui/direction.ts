@@ -12,6 +12,7 @@
 import {
   component,
   computed,
+  createContext,
   html,
   onMount,
   ref,
@@ -31,7 +32,8 @@ export interface DirectionState {
   direction: ReadonlySignal<Direction>;
 }
 
-type DirectionHost = HTMLElement & { __uiDirection?: DirectionState };
+/** Subtree-scoped channel from the direction provider to descendants. */
+const DirectionContext = createContext<DirectionState>('Direction');
 
 export type DirectionProviderProps = {
   dir?: Direction;
@@ -55,7 +57,7 @@ export const DirectionProvider = component<DirectionProviderProps>(
           : 'ltr',
     );
 
-    (host as DirectionHost).__uiDirection = { direction };
+    DirectionContext.provide(host, { direction });
 
     const root = ref<HTMLDivElement>();
     onMount(() => {
@@ -73,6 +75,5 @@ export const DirectionProvider = component<DirectionProviderProps>(
 
 /** Resolve the nearest provider, matching Radix's default `ltr` direction. */
 export function useDirection(host: HTMLElement): ReadonlySignal<Direction> {
-  const provider = host.closest('ui-direction-provider') as DirectionHost | null;
-  return provider?.__uiDirection?.direction ?? computed<Direction>(() => 'ltr');
+  return DirectionContext.inject.optional(host)?.direction ?? computed<Direction>(() => 'ltr');
 }

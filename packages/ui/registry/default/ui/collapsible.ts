@@ -23,6 +23,7 @@
 
 import {
   component,
+  createContext,
   computed,
   html,
   onMount,
@@ -49,18 +50,10 @@ export interface CollapsibleState {
   baseId: string;
 }
 
-type CollapsibleHost = HTMLElement & { __uiCollapsible?: CollapsibleState };
+/** Subtree-scoped channel from the Collapsible provider to its parts. */
+const CollapsibleContext = createContext<CollapsibleState>('Collapsible');
 
 let uid = 0;
-
-function useCollapsibleState(host: HTMLElement, tag: string): CollapsibleState {
-  const parent = host.closest('ui-collapsible') as CollapsibleHost | null;
-  const state = parent?.__uiCollapsible;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-collapsible>.`);
-  }
-  return state;
-}
 
 const stateAttr = (open: boolean) => (open ? 'open' : 'closed');
 
@@ -102,7 +95,7 @@ export const Collapsible = component<CollapsibleProps>('ui-collapsible', (props,
     disabled,
     baseId: `ui-collapsible-${++uid}`,
   };
-  (host as CollapsibleHost).__uiCollapsible = state;
+  CollapsibleContext.provide(host, state);
 
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() => cn(className.value));
@@ -131,7 +124,7 @@ export type CollapsibleTriggerProps = {
 export const CollapsibleTrigger = component<CollapsibleTriggerProps>(
   'ui-collapsible-trigger',
   (props, host) => {
-    const state = useCollapsibleState(host, 'ui-collapsible-trigger');
+    const state = CollapsibleContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -172,7 +165,7 @@ export type CollapsibleContentProps = {
 export const CollapsibleContent = component<CollapsibleContentProps>(
   'ui-collapsible-content',
   (props, host) => {
-    const state = useCollapsibleState(host, 'ui-collapsible-content');
+    const state = CollapsibleContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 

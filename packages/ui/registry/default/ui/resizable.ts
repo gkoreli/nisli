@@ -28,6 +28,7 @@
 
 import {
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -69,15 +70,8 @@ export interface ResizableGroupState {
   emitResize(): void;
 }
 
-type GroupHost = HTMLElement & { __uiResizableGroup?: ResizableGroupState };
-
-function useGroup(host: HTMLElement, tag: string): ResizableGroupState {
-  const group = (host.closest('ui-resizable-panel-group') as GroupHost | null)?.__uiResizableGroup;
-  if (!group) {
-    throw new Error(`<${tag}> must be used inside <ui-resizable-panel-group>.`);
-  }
-  return group;
-}
+/** Subtree-scoped channel from the Resizable provider to its parts. */
+const ResizableContext = createContext<ResizableGroupState>('Resizable');
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(Math.max(v, lo), hi);
 
@@ -158,7 +152,7 @@ export const ResizablePanelGroup = component<ResizablePanelGroupProps>(
         );
       },
     };
-    (host as GroupHost).__uiResizableGroup = state;
+    ResizableContext.provide(host, state);
 
     // Apply the layout as flex-grow on each panel's inner element.
     effect(() => {
@@ -204,7 +198,7 @@ const numAttr = (host: HTMLElement, name: string): number | undefined =>
   host.hasAttribute(name) ? Number(host.getAttribute(name)) : undefined;
 
 export const ResizablePanel = component<ResizablePanelProps>('ui-resizable-panel', (props, host) => {
-  const group = useGroup(host, 'ui-resizable-panel');
+  const group = ResizableContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
 
@@ -246,7 +240,7 @@ export type ResizableHandleProps = {
 export const ResizableHandle = component<ResizableHandleProps>(
   'ui-resizable-handle',
   (props, host) => {
-    const group = useGroup(host, 'ui-resizable-handle');
+    const group = ResizableContext.inject();
     transparentHost(host);
 
     const withHandle = props.withHandle.value ?? host.hasAttribute('with-handle');

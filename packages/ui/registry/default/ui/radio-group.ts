@@ -20,10 +20,10 @@
  * </ui-radio-group>
  * ```
  *
- * Parent↔child convention (matches ui-tabs): the `<ui-radio-group>` publishes
- * its state on `host.__uiRadioGroup`; items locate it with
- * `host.closest('ui-radio-group')` and throw (setup error boundary) if used
- * outside a group. Items share the group's `name` so the browser treats them
+ * Parent↔child channel (matches ui-tabs): the `<ui-radio-group>` publishes its
+ * state via a subtree-scoped context (`RadioGroupContext`); items resolve it
+ * with `RadioGroupContext.inject()`, which throws into the setup error boundary
+ * if used outside a group. Items share the group's `name` so the browser treats them
  * as one radio set. Selection changes dispatch a bubbling `ui-value-change`
  * CustomEvent (`detail: { value }`) from the group host.
  *
@@ -36,6 +36,7 @@
 
 import {
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -68,19 +69,10 @@ export interface RadioGroupState {
   disabled: ReadonlySignal<boolean>;
 }
 
-type RadioGroupHost = HTMLElement & { __uiRadioGroup?: RadioGroupState };
+/** Subtree-scoped channel from the RadioGroup provider to its parts. */
+const RadioGroupContext = createContext<RadioGroupState>('RadioGroup');
 
 let uid = 0;
-
-/** Locate the owning `<ui-radio-group>` state, or throw (setup error boundary). */
-function useRadioGroupState(host: HTMLElement, tag: string): RadioGroupState {
-  const parent = host.closest('ui-radio-group') as RadioGroupHost | null;
-  const state = parent?.__uiRadioGroup;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-radio-group>.`);
-  }
-  return state;
-}
 
 // ── ui-radio-group (root, owns state) ───────────────────────────────
 
@@ -122,7 +114,7 @@ export const RadioGroup = component<RadioGroupProps>('ui-radio-group', (props, h
   };
 
   const state: RadioGroupState = { value: current, setValue, name, disabled };
-  (host as RadioGroupHost).__uiRadioGroup = state;
+  RadioGroupContext.provide(host, state);
 
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() => cn('grid gap-3', className.value));
@@ -162,7 +154,7 @@ export type RadioGroupItemProps = {
 export const RadioGroupItem = component<RadioGroupItemProps>(
   'ui-radio-group-item',
   (props, host) => {
-    const group = useRadioGroupState(host, 'ui-radio-group-item');
+    const group = RadioGroupContext.inject();
     transparentHost(host);
 
     const valueAttr = attr(props.value, host, 'value');

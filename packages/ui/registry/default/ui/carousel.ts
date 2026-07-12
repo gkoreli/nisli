@@ -23,6 +23,7 @@
 
 import {
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -64,17 +65,10 @@ export interface CarouselState {
   endDrag(delta: number): void;
 }
 
-type CarouselHost = HTMLElement & { __uiCarousel?: CarouselState };
+/** Subtree-scoped channel from the Carousel provider to its parts. */
+const CarouselContext = createContext<CarouselState>('Carousel');
 
 let uid = 0;
-
-function useCarousel(host: HTMLElement, tag: string): CarouselState {
-  const state = (host.closest('ui-carousel') as CarouselHost | null)?.__uiCarousel;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-carousel>.`);
-  }
-  return state;
-}
 
 // ── ui-carousel (root, owns state) ───────────────────────────────────
 
@@ -156,7 +150,7 @@ export const Carousel = component<CarouselProps>('ui-carousel', (props, host) =>
       else applyTransform(); // settle back to the current slide
     },
   };
-  (host as CarouselHost).__uiCarousel = state;
+  CarouselContext.provide(host, state);
 
   // Re-settle the track whenever the selected slide or orientation changes.
   effect(() => {
@@ -203,7 +197,7 @@ export type CarouselContentProps = {
 export const CarouselContent = component<CarouselContentProps>(
   'ui-carousel-content',
   (props, host) => {
-    const state = useCarousel(host, 'ui-carousel-content');
+    const state = CarouselContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -285,7 +279,7 @@ export type CarouselItemProps = {
 };
 
 export const CarouselItem = component<CarouselItemProps>('ui-carousel-item', (props, host) => {
-  const state = useCarousel(host, 'ui-carousel-item');
+  const state = CarouselContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
 
@@ -333,7 +327,7 @@ export type CarouselNavProps = {
 export const CarouselPrevious = component<CarouselNavProps>(
   'ui-carousel-previous',
   (props, host) => {
-    const state = useCarousel(host, 'ui-carousel-previous');
+    const state = CarouselContext.inject();
     transparentHost(host);
     const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
@@ -356,7 +350,7 @@ export const CarouselPrevious = component<CarouselNavProps>(
 );
 
 export const CarouselNext = component<CarouselNavProps>('ui-carousel-next', (props, host) => {
-  const state = useCarousel(host, 'ui-carousel-next');
+  const state = CarouselContext.inject();
   transparentHost(host);
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() =>

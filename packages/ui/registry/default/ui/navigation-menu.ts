@@ -35,6 +35,7 @@
 
 import {
   component,
+  createContext,
   computed,
   html,
   onCleanup,
@@ -75,18 +76,10 @@ export interface NavigationMenuState {
   baseId: string;
 }
 
-type NavigationMenuHost = HTMLElement & { __uiNavigationMenu?: NavigationMenuState };
+/** Subtree-scoped channel from the NavigationMenu provider to its parts. */
+const NavigationMenuContext = createContext<NavigationMenuState>('NavigationMenu');
 
 let uid = 0;
-
-function useNavigationMenuState(host: HTMLElement, tag: string): NavigationMenuState {
-  const parent = host.closest('ui-navigation-menu') as NavigationMenuHost | null;
-  const state = parent?.__uiNavigationMenu;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-navigation-menu>.`);
-  }
-  return state;
-}
 
 // ── ui-navigation-menu (root, owns state) ────────────────────────────
 
@@ -133,7 +126,7 @@ export const NavigationMenu = component<NavigationMenuProps>(
       },
       baseId: `ui-navigation-menu-${++uid}`,
     };
-    (host as NavigationMenuHost).__uiNavigationMenu = state;
+    NavigationMenuContext.provide(host, state);
 
     const className = attr(props.className, host, 'class-name');
     const classes = computed(() =>
@@ -168,7 +161,7 @@ export type NavigationMenuListProps = {
 export const NavigationMenuList = component<NavigationMenuListProps>(
   'ui-navigation-menu-list',
   (props, host) => {
-    const state = useNavigationMenuState(host, 'ui-navigation-menu-list');
+    const state = NavigationMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -224,7 +217,7 @@ export type NavigationMenuItemProps = {
 export const NavigationMenuItem = component<NavigationMenuItemProps>(
   'ui-navigation-menu-item',
   (props, host) => {
-    useNavigationMenuState(host, 'ui-navigation-menu-item');
+    NavigationMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -260,7 +253,7 @@ export type NavigationMenuTriggerProps = {
 export const NavigationMenuTrigger = component<NavigationMenuTriggerProps>(
   'ui-navigation-menu-trigger',
   (props, host) => {
-    const state = useNavigationMenuState(host, 'ui-navigation-menu-trigger');
+    const state = NavigationMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -319,7 +312,7 @@ export type NavigationMenuContentProps = {
 export const NavigationMenuContent = component<NavigationMenuContentProps>(
   'ui-navigation-menu-content',
   (props, host) => {
-    const state = useNavigationMenuState(host, 'ui-navigation-menu-content');
+    const state = NavigationMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 

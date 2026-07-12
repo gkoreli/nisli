@@ -15,9 +15,10 @@
  * </ui-avatar>
  * ```
  *
- * The `<ui-avatar>` publishes its status on `host.__uiAvatar`; the image and
- * fallback locate it with `host.closest('ui-avatar')` (setup-boundary error if
- * used outside one). The image is hidden until it loads; the fallback is shown
+ * The `<ui-avatar>` publishes its status via a subtree-scoped context
+ * (`AvatarContext`); the image and fallback resolve it with
+ * `AvatarContext.inject()` (setup-boundary error if used outside one). The
+ * image is hidden until it loads; the fallback is shown
  * whenever the status is not `loaded`.
  *
  * This file was copied into your project by `nisli-ui` — you own it.
@@ -25,6 +26,7 @@
 
 import {
   component,
+  createContext,
   computed,
   html,
   onMount,
@@ -48,16 +50,8 @@ export interface AvatarState {
   setStatus(status: AvatarStatus): void;
 }
 
-type AvatarHost = HTMLElement & { __uiAvatar?: AvatarState };
-
-function useAvatarState(host: HTMLElement, tag: string): AvatarState {
-  const parent = host.closest('ui-avatar') as AvatarHost | null;
-  const state = parent?.__uiAvatar;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-avatar>.`);
-  }
-  return state;
-}
+/** Subtree-scoped channel from the Avatar provider to its parts. */
+const AvatarContext = createContext<AvatarState>('Avatar');
 
 // ── ui-avatar (root, owns loading status) ───────────────────────────
 
@@ -83,7 +77,7 @@ export const Avatar = component<AvatarProps>('ui-avatar', (props, host) => {
       status.value = s;
     },
   };
-  (host as AvatarHost).__uiAvatar = state;
+  AvatarContext.provide(host, state);
 
   const classes = computed(() =>
     cn(
@@ -114,7 +108,7 @@ export type AvatarImageProps = {
 };
 
 export const AvatarImage = component<AvatarImageProps>('ui-avatar-image', (props, host) => {
-  const state = useAvatarState(host, 'ui-avatar-image');
+  const state = AvatarContext.inject();
   transparentHost(host);
 
   const src = attr(props.src, host, 'src');
@@ -154,7 +148,7 @@ export type AvatarFallbackProps = {
 export const AvatarFallback = component<AvatarFallbackProps>(
   'ui-avatar-fallback',
   (props, host) => {
-    const state = useAvatarState(host, 'ui-avatar-fallback');
+    const state = AvatarContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 

@@ -4,8 +4,8 @@
  * Ported from new-york-v4/ui/sidebar.tsx (shadcn/ui, MIT — https://github.com/shadcn-ui/ui).
  * The class lists, data-slot / data-sidebar / data-state / data-collapsible /
  * data-variant / data-side attributes, the --sidebar-width* CSS vars, and the
- * whole part family are ported verbatim; the provider state is rebuilt on the
- * `__uiSidebar` host-state convention.
+ * whole part family are ported verbatim; the provider state is published via a
+ * subtree-scoped `SidebarContext` (createContext).
  *
  * Provider: open/collapsed state with cookie persistence, a Cmd/Ctrl+B keyboard
  * shortcut, and an `isMobile` signal (matchMedia). The desktop `Sidebar` frame
@@ -26,6 +26,7 @@
 
 import {
   component,
+  createContext,
   computed,
   html,
   onMount,
@@ -65,15 +66,8 @@ export interface SidebarState {
   toggleSidebar(): void;
 }
 
-type SidebarHost = HTMLElement & { __uiSidebar?: SidebarState };
-
-function useSidebar(host: HTMLElement, tag: string): SidebarState {
-  const state = (host.closest('ui-sidebar-provider') as SidebarHost | null)?.__uiSidebar;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-sidebar-provider>.`);
-  }
-  return state;
-}
+/** Subtree-scoped channel from the Sidebar provider to its parts. */
+const SidebarContext = createContext<SidebarState>('Sidebar');
 
 // ── ui-sidebar-provider ──────────────────────────────────────────────
 
@@ -127,7 +121,7 @@ export const SidebarProvider = component<SidebarProviderProps>(
       isMobile,
       toggleSidebar,
     };
-    (host as SidebarHost).__uiSidebar = state;
+    SidebarContext.provide(host, state);
 
     // Cmd/Ctrl+B toggles the sidebar.
     if (typeof window !== 'undefined') {
@@ -195,7 +189,7 @@ const containerClasses = (side: SidebarSide, variant: SidebarVariant): string =>
   );
 
 export const Sidebar = component<SidebarProps>('ui-sidebar', (props, host) => {
-  const state = useSidebar(host, 'ui-sidebar');
+  const state = SidebarContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
 
@@ -255,7 +249,7 @@ export type SidebarTriggerProps = {
 export const SidebarTrigger = component<SidebarTriggerProps>(
   'ui-sidebar-trigger',
   (props, host) => {
-    const state = useSidebar(host, 'ui-sidebar-trigger');
+    const state = SidebarContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
     const className = attr(props.className, host, 'class-name');
@@ -286,7 +280,7 @@ export type SidebarRailProps = {
 };
 
 export const SidebarRail = component<SidebarRailProps>('ui-sidebar-rail', (props, host) => {
-  const state = useSidebar(host, 'ui-sidebar-rail');
+  const state = SidebarContext.inject();
   transparentHost(host);
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() =>

@@ -10,7 +10,8 @@
  * dismiss axis, dismiss past a distance/velocity threshold, snap back
  * otherwise) and an overlay whose opacity tracks drag progress.
  *
- * Built on the same machinery as dialog/sheet: shared `__uiDrawer` state, the
+ * Built on the same machinery as dialog/sheet: shared state via a
+ * subtree-scoped `DrawerContext`, the
  * dismissable-layer + focus lib items, inline fixed overlay. Open/close
  * dispatches a bubbling `ui-open-change` CustomEvent from the `<ui-drawer>`
  * host.
@@ -23,6 +24,7 @@
 
 import {
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -54,18 +56,10 @@ export interface DrawerState {
   baseId: string;
 }
 
-type DrawerHost = HTMLElement & { __uiDrawer?: DrawerState };
+/** Subtree-scoped channel from the Drawer provider to its parts. */
+const DrawerContext = createContext<DrawerState>('Drawer');
 
 let uid = 0;
-
-function useDrawerState(host: HTMLElement, tag: string): DrawerState {
-  const parent = host.closest('ui-drawer') as DrawerHost | null;
-  const state = parent?.__uiDrawer;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-drawer>.`);
-  }
-  return state;
-}
 
 // ── ui-drawer (root, owns state) ─────────────────────────────────────
 
@@ -102,7 +96,7 @@ export const Drawer = component<DrawerProps>('ui-drawer', (props, host) => {
   };
 
   const state: DrawerState = { open, setOpen, direction, baseId: `ui-drawer-${++uid}` };
-  (host as DrawerHost).__uiDrawer = state;
+  DrawerContext.provide(host, state);
 
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() => cn(className.value));
@@ -123,7 +117,7 @@ export type DrawerTriggerProps = {
 };
 
 export const DrawerTrigger = component<DrawerTriggerProps>('ui-drawer-trigger', (props, host) => {
-  const state = useDrawerState(host, 'ui-drawer-trigger');
+  const state = DrawerContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
   const className = attr(props.className, host, 'class-name');
@@ -151,7 +145,7 @@ export type DrawerCloseProps = {
 };
 
 export const DrawerClose = component<DrawerCloseProps>('ui-drawer-close', (props, host) => {
-  const state = useDrawerState(host, 'ui-drawer-close');
+  const state = DrawerContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
   const className = attr(props.className, host, 'class-name');
@@ -195,7 +189,7 @@ export type DrawerContentProps = {
 };
 
 export const DrawerContent = component<DrawerContentProps>('ui-drawer-content', (props, host) => {
-  const state = useDrawerState(host, 'ui-drawer-content');
+  const state = DrawerContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
 
@@ -377,7 +371,7 @@ export type DrawerTitleProps = {
 };
 
 export const DrawerTitle = component<DrawerTitleProps>('ui-drawer-title', (props, host) => {
-  const state = useDrawerState(host, 'ui-drawer-title');
+  const state = DrawerContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
   const className = attr(props.className, host, 'class-name');
@@ -402,7 +396,7 @@ export type DrawerDescriptionProps = {
 export const DrawerDescription = component<DrawerDescriptionProps>(
   'ui-drawer-description',
   (props, host) => {
-    const state = useDrawerState(host, 'ui-drawer-description');
+    const state = DrawerContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
     const className = attr(props.className, host, 'class-name');

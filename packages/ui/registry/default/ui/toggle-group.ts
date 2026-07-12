@@ -12,15 +12,16 @@
  * buttons rather than switching to `role="radio"`/`aria-checked` — one
  * semantic for both modes.
  *
- * The `<ui-toggle-group>` publishes its state on `host.__uiToggleGroup`;
- * items locate it via `closest('ui-toggle-group')` and render the setup
- * error fallback when used standalone.
+ * The `<ui-toggle-group>` publishes its state via a subtree-scoped context
+ * (`ToggleGroupContext`); items resolve it with `ToggleGroupContext.inject()`
+ * and render the setup error fallback when used standalone.
  *
  * This file was copied into your project by `nisli-ui` — you own it.
  */
 
 import {
   component,
+  createContext,
   computed,
   html,
   onMount,
@@ -54,16 +55,8 @@ interface ToggleGroupState {
   spacing: ReadonlySignal<number>;
 }
 
-type GroupHost = HTMLElement & { __uiToggleGroup?: ToggleGroupState };
-
-function useToggleGroupState(host: HTMLElement): ToggleGroupState {
-  const parent = host.closest('ui-toggle-group') as GroupHost | null;
-  const state = parent?.__uiToggleGroup;
-  if (!state) {
-    throw new Error('<ui-toggle-group-item> must be used inside <ui-toggle-group>.');
-  }
-  return state;
-}
+/** Subtree-scoped channel from the ToggleGroup provider to its parts. */
+const ToggleGroupContext = createContext<ToggleGroupState>('ToggleGroup');
 
 // ── ui-toggle-group (root) ───────────────────────────────────────────
 
@@ -118,7 +111,7 @@ export const ToggleGroup = component<ToggleGroupProps>('ui-toggle-group', (props
   };
 
   const state: ToggleGroupState = { type, value, toggleValue, variant, size, spacing };
-  (host as GroupHost).__uiToggleGroup = state;
+  ToggleGroupContext.provide(host, state);
 
   const root = ref<HTMLDivElement>();
   const roving = rovingFocus(() =>
@@ -164,7 +157,7 @@ export type ToggleGroupItemProps = {
 export const ToggleGroupItem = component<ToggleGroupItemProps>(
   'ui-toggle-group-item',
   (props, host) => {
-    const state = useToggleGroupState(host);
+    const state = ToggleGroupContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 

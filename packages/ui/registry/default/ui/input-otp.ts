@@ -29,6 +29,7 @@
 
 import {
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -56,16 +57,8 @@ export interface InputOTPState {
   hasFakeCaret(index: number): boolean;
 }
 
-type InputOTPHost = HTMLElement & { __uiInputOTP?: InputOTPState };
-
-function useInputOTPState(host: HTMLElement, tag: string): InputOTPState {
-  const parent = host.closest('ui-input-otp') as InputOTPHost | null;
-  const state = parent?.__uiInputOTP;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-input-otp>.`);
-  }
-  return state;
-}
+/** Subtree-scoped channel from the InputOTP provider to its parts. */
+const InputOTPContext = createContext<InputOTPState>('InputOTP');
 
 // ── ui-input-otp (root: single native input + shared slot state) ─────
 
@@ -127,7 +120,7 @@ export const InputOTP = component<InputOTPProps>('ui-input-otp', (props, host) =
     },
     hasFakeCaret: (i) => state.isActive(i) && current.value[i] == null,
   };
-  (host as InputOTPHost).__uiInputOTP = state;
+  InputOTPContext.provide(host, state);
 
   const root = ref<HTMLInputElement>();
 
@@ -244,7 +237,7 @@ export type InputOTPSlotProps = {
 };
 
 export const InputOTPSlot = component<InputOTPSlotProps>('ui-input-otp-slot', (props, host) => {
-  const state = useInputOTPState(host, 'ui-input-otp-slot');
+  const state = InputOTPContext.inject();
   transparentHost(host);
 
   const indexAttr = host.getAttribute('index');

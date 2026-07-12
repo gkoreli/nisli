@@ -28,6 +28,7 @@
 
 import {
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -65,18 +66,10 @@ export interface HoverCardState {
   anchor: Ref<HTMLElement>;
 }
 
-type HoverCardHost = HTMLElement & { __uiHoverCard?: HoverCardState };
+/** Subtree-scoped channel from the HoverCard provider to its parts. */
+const HoverCardContext = createContext<HoverCardState>('HoverCard');
 
 let uid = 0;
-
-function useHoverCardState(host: HTMLElement, tag: string): HoverCardState {
-  const parent = host.closest('ui-hover-card') as HoverCardHost | null;
-  const state = parent?.__uiHoverCard;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-hover-card>.`);
-  }
-  return state;
-}
 
 const stateAttr = (open: boolean) => (open ? 'open' : 'closed');
 
@@ -140,7 +133,7 @@ export const HoverCard = component<HoverCardProps>('ui-hover-card', (props, host
     baseId: `ui-hover-card-${++uid}`,
     anchor,
   };
-  (host as HoverCardHost).__uiHoverCard = state;
+  HoverCardContext.provide(host, state);
 
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() => cn(className.value));
@@ -170,7 +163,7 @@ export type HoverCardTriggerProps = {
 export const HoverCardTrigger = component<HoverCardTriggerProps>(
   'ui-hover-card-trigger',
   (props, host) => {
-    const state = useHoverCardState(host, 'ui-hover-card-trigger');
+    const state = HoverCardContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -213,7 +206,7 @@ export type HoverCardContentProps = {
 export const HoverCardContent = component<HoverCardContentProps>(
   'ui-hover-card-content',
   (props, host) => {
-    const state = useHoverCardState(host, 'ui-hover-card-content');
+    const state = HoverCardContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 

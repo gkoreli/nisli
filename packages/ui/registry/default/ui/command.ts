@@ -21,6 +21,7 @@
 
 import {
   component,
+  createContext,
   computed,
   html,
   onMount,
@@ -50,14 +51,8 @@ interface CommandState {
   setHighlighted(el: HTMLElement): void;
 }
 
-type CommandHost = HTMLElement & { __uiCommand?: CommandState };
-
-function useCommandState(host: HTMLElement, tag: string): CommandState {
-  const parent = host.closest('ui-command') as CommandHost | null;
-  const state = parent?.__uiCommand;
-  if (!state) throw new Error(`<${tag}> must be used inside <ui-command>.`);
-  return state;
-}
+/** Subtree-scoped channel from the Command provider to its parts. */
+const CommandContext = createContext<CommandState>('Command');
 
 const itemText = (el: HTMLElement): string =>
   `${el.getAttribute('data-value') ?? ''} ${el.textContent ?? ''} ${el.getAttribute('data-keywords') ?? ''}`.toLowerCase();
@@ -132,7 +127,7 @@ export const Command = component<CommandProps>('ui-command', (props, host) => {
       applyHighlight(el);
     },
   };
-  (host as CommandHost).__uiCommand = state;
+  CommandContext.provide(host, state);
 
   const onKeydown = (e: KeyboardEvent): void => {
     switch (e.key) {
@@ -174,7 +169,7 @@ export type CommandInputProps = {
 };
 
 export const CommandInput = component<CommandInputProps>('ui-command-input', (props, host) => {
-  const state = useCommandState(host, 'ui-command-input');
+  const state = CommandContext.inject();
   transparentHost(host);
 
   const placeholder = attr(props.placeholder, host, 'placeholder');
@@ -217,7 +212,7 @@ function commandSection(
   extra?: { role?: string; hiddenByDefault?: boolean; cmdkAttr?: string },
 ) {
   return component<{ className?: string; children?: string | TemplateResult }>(tag, (props, host) => {
-    useCommandState(host, tag);
+    CommandContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
     const className = attr(props.className, host, 'class-name');
@@ -263,7 +258,7 @@ export type CommandGroupProps = {
 };
 
 export const CommandGroup = component<CommandGroupProps>('ui-command-group', (props, host) => {
-  useCommandState(host, 'ui-command-group');
+  CommandContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
   const heading = attr(props.heading, host, 'heading');
@@ -299,7 +294,7 @@ export type CommandItemProps = {
 };
 
 export const CommandItem = component<CommandItemProps>('ui-command-item', (props, host) => {
-  const state = useCommandState(host, 'ui-command-item');
+  const state = CommandContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
 

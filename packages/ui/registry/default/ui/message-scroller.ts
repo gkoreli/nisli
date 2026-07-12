@@ -23,6 +23,7 @@
 
 import {
   component,
+  createContext,
   computed,
   html,
   onCleanup,
@@ -49,16 +50,8 @@ export interface MessageScrollerState {
   setContent(el: HTMLElement): void;
 }
 
-type MessageScrollerHost = HTMLElement & { __uiMessageScroller?: MessageScrollerState };
-
-function useScroller(host: HTMLElement, tag: string): MessageScrollerState {
-  const state = (host.closest('ui-message-scroller') as MessageScrollerHost | null)
-    ?.__uiMessageScroller;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-message-scroller>.`);
-  }
-  return state;
-}
+/** Subtree-scoped channel from the MessageScroller provider to its parts. */
+const MessageScrollerContext = createContext<MessageScrollerState>('MessageScroller');
 
 // ── ui-message-scroller-provider (passthrough) ───────────────────────
 
@@ -136,7 +129,7 @@ export const MessageScroller = component<MessageScrollerSectionProps>(
         observer.observe(el, { childList: true, subtree: true, characterData: true });
       },
     };
-    (host as MessageScrollerHost).__uiMessageScroller = state;
+    MessageScrollerContext.provide(host, state);
     onCleanup(() => observer?.disconnect());
 
     const className = attr(props.className, host, 'class-name');
@@ -159,7 +152,7 @@ export const MessageScroller = component<MessageScrollerSectionProps>(
 export const MessageScrollerViewport = component<MessageScrollerSectionProps>(
   'ui-message-scroller-viewport',
   (props, host) => {
-    const state = useScroller(host, 'ui-message-scroller-viewport');
+    const state = MessageScrollerContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
     const className = attr(props.className, host, 'class-name');
@@ -190,7 +183,7 @@ export const MessageScrollerViewport = component<MessageScrollerSectionProps>(
 export const MessageScrollerContent = component<MessageScrollerSectionProps>(
   'ui-message-scroller-content',
   (props, host) => {
-    const state = useScroller(host, 'ui-message-scroller-content');
+    const state = MessageScrollerContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
     const className = attr(props.className, host, 'class-name');
@@ -273,7 +266,7 @@ function hasContent(nodes: Node[]): boolean {
 export const MessageScrollerButton = component<MessageScrollerButtonProps>(
   'ui-message-scroller-button',
   (props, host) => {
-    const state = useScroller(host, 'ui-message-scroller-button');
+    const state = MessageScrollerContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
     const projectedChildren = hasContent(projected);
