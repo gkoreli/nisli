@@ -89,6 +89,10 @@ any shadcn theme drops in.
 - [ ] progress, breadcrumb, pagination *(in flight — UI-6)*
 - [ ] slider, toast (sonner-style), sheet
 
+**Not ported (by design)**
+- `form` — upstream's form.tsx is react-hook-form context wiring with no
+  portable surface; our `form-field` provides the id/aria mechanism.
+
 **Later / explicitly deferred**
 - Portal primitive; live attribute observation (MutationObserver); calendar /
   date-picker; combobox/command; charts; a docs site built with `@nisli/ssg`
