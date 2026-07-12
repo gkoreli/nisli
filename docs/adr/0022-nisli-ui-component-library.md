@@ -169,7 +169,16 @@ layouts.
 
   Trade-off accepted: without `tailwind-merge`, conflicting consumer
   overrides (`className: 'px-8'` against a base `px-4`) rely on CSS order
-  rather than being deduplicated. That matches Nisli's zero-dependency ethos
+  rather than being deduplicated.
+  **Resolved-composition doctrine (added 2026-07-11, from the calendar
+  remediation)**: when porting an upstream element that COMPOSES another
+  component's variants (e.g. `<Button variant=ghost size=icon className=…>`),
+  do not emit the raw composition — our `cn` cannot resolve its conflicts.
+  Inline the **tailwind-merge resolution** of upstream's exact composition,
+  itemize every shadowed class in the header, and lock it with assertions
+  (retained tokens present, shadowed tokens absent). Pitfall: tailwind-merge
+  scopes conflicts to the SAME modifier chain — `has-[>svg]:px-3` survives an
+  unmodified `p-0`; verify survivals per modifier chain. That matches Nisli's zero-dependency ethos
   and keeps copied source dependency-free; the registry format still supports
   npm `dependencies` per item if a future component genuinely needs one, and
   a consumer can swap `cn`'s body for `twMerge(clsx(...))` in their own copy.
