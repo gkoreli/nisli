@@ -160,3 +160,56 @@ describe('Command palette', () => {
     expect(c.querySelector('[cmdk-input]')).not.toBeNull();
   });
 });
+
+describe('Command — plain custom element usage (declared attrs)', () => {
+  // Plain-HTML consumers author markup (the innerHTML parse path). This
+  // exercises the graduated `attrs` declarations live: value/keywords/disabled
+  // on items, heading on groups, placeholder on the input — no factory props.
+  function mountPlain(): HTMLElement {
+    document.body.innerHTML =
+      '<ui-command>' +
+      '<ui-command-input placeholder="Type a command…"></ui-command-input>' +
+      '<ui-command-list>' +
+      '<ui-command-empty>No results found.</ui-command-empty>' +
+      '<ui-command-group heading="Suggestions">' +
+      '<ui-command-item value="calendar">Calendar</ui-command-item>' +
+      '<ui-command-item value="search-emoji" keywords="smiley">Search Emoji</ui-command-item>' +
+      '</ui-command-group>' +
+      '<ui-command-group heading="Settings">' +
+      '<ui-command-item value="profile">Profile</ui-command-item>' +
+      '<ui-command-item value="billing" disabled>Billing</ui-command-item>' +
+      '</ui-command-group>' +
+      '</ui-command-list>' +
+      '</ui-command>';
+    return document.querySelector('ui-command') as HTMLElement;
+  }
+
+  it('reads value/keywords/heading/placeholder from attributes and filters', async () => {
+    const c = mountPlain();
+    await settle();
+
+    // heading + placeholder attrs render into the projected DOM.
+    expect(c.querySelector('[cmdk-group-heading]')?.textContent).toBe('Suggestions');
+    expect(input(c).getAttribute('placeholder')).toBe('Type a command…');
+
+    // value attribute drives data-value used by the filter + first highlight.
+    expect(visibleValues(c)).toEqual(['calendar', 'search-emoji', 'profile', 'billing']);
+    expect(selectedValue(c)).toBe('calendar');
+
+    type(c, 'smiley'); // keywords attribute match
+    expect(visibleValues(c)).toEqual(['search-emoji']);
+  });
+
+  it('honours the disabled attribute (skipped by arrows) and selects by value', async () => {
+    const c = mountPlain();
+    await settle();
+    const onSelect = vi.fn();
+    document.body.addEventListener('ui-select', onSelect as EventListener);
+
+    key(c, 'End'); // last enabled is profile — billing (disabled) is skipped
+    expect(selectedValue(c)).toBe('profile');
+
+    key(c, 'Enter');
+    expect((onSelect.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({ value: 'profile' });
+  });
+});

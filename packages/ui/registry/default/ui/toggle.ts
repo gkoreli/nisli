@@ -14,23 +14,14 @@
  */
 
 import {
+  children,
   component,
   computed,
+  effect,
   html,
-  onMount,
-  ref,
-  signal,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  captureChildren,
-  cn,
-  cv,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, cv, isPinned, transparentHost } from '../lib/utils.js';
 
 export const toggleVariants = cv(
   "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,box-shadow] outline-none hover:bg-muted hover:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-[state=on]:bg-accent data-[state=on]:text-accent-foreground dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -72,41 +63,54 @@ export type ToggleProps = {
 
 export const Toggle = component<ToggleProps>('ui-toggle', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const variant = attr(props.variant, host, 'variant');
-  const size = attr(props.size, host, 'size');
-  const disabled = boolAttr(props.disabled, host, 'disabled');
-  const className = attr(props.className, host, 'class-name');
+  const variant = props.variant;
+  const size = props.size;
+  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const className = props.className;
 
-  // Controlled `pressed` wins; otherwise internal state seeded from
-  // default-pressed (or a parse-time bare `pressed` attribute).
-  const internal = signal(
-    boolAttr(props.defaultPressed, host, 'default-pressed').value ||
-      host.hasAttribute('pressed'),
-  );
-  const pressed = computed(() => props.pressed.value ?? internal.value);
+  // PATTERN A (ADR 0025 item 3): the `pressed` ATTRIBUTE is the uncontrolled
+  // state (like native <dialog open>/<details open>). The attribute IS the truth.
+  const pressed = computed<boolean>(() => props.pressed.value ?? false);
 
-  const toggle = (): void => {
-    if (disabled.value) return;
-    const next = !pressed.value;
-    internal.value = next;
+  const setPressed = (next: boolean): void => {
+    if (next === pressed.value) return;
+    // Uncontrolled → the attribute IS the state, so write it. Controlled (a
+    // pinned factory `pressed` signal) → don't; the parent drives and the reflect
+    // effect re-syncs the attr. isPinned('pressed') is the discriminator (a
+    // declared 'boolean' is never undefined, so pin state is the only controlled
+    // signal).
+    if (!isPinned(host, 'pressed')) host.toggleAttribute('pressed', next);
     host.dispatchEvent(
       new CustomEvent('ui-pressed-change', { detail: { pressed: next }, bubbles: true }),
     );
+  };
+
+  // defaultPressed is INIT-SEED-ONLY: seed the pressed attribute once, but only
+  // when `pressed` is neither controlled (pinned — else the reflect effect would
+  // revert it, a pointless flicker) nor explicitly authored. host.hasAttribute('pressed')
+  // is a SANCTIONED read of a DECLARED attribute: it distinguishes 'absent' from
+  // 'present-false' so an explicit pressed="false" beats defaultPressed (stays off).
+  if (props.defaultPressed.value && !isPinned(host, 'pressed') && !host.hasAttribute('pressed')) {
+    host.toggleAttribute('pressed', true);
+  }
+
+  // Reflect the resolved state to the attribute so CONTROLLED (factory) usage
+  // also reflects (CSS [pressed] selectors + native parity); dedupe makes it cheap.
+  effect(() => {
+    host.toggleAttribute('pressed', pressed.value);
+  });
+
+  const toggle = (): void => {
+    if (disabled.value) return;
+    setPressed(!pressed.value);
   };
 
   const classes = computed(() =>
     cn(toggleVariants({ variant: variant.value, size: size.value }), className.value),
   );
 
-  const root = ref<HTMLButtonElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
   return html`<button
-    ref="${root}"
     type="button"
     data-slot="toggle"
     aria-pressed="${computed(() => (pressed.value ? 'true' : 'false'))}"
@@ -114,5 +118,15 @@ export const Toggle = component<ToggleProps>('ui-toggle', (props, host) => {
     disabled="${disabled}"
     class="${classes}"
     @click=${toggle}
-  >${props.children}</button>`;
+  >${children()}</button>`;
+}, {
+  // PATTERN A: `pressed` is the attribute-as-truth state; `defaultPressed` seeds it.
+  attrs: {
+    pressed: 'boolean',
+    defaultPressed: 'boolean',
+    variant: 'string',
+    size: 'string',
+    disabled: 'boolean',
+    className: 'string',
+  },
 });

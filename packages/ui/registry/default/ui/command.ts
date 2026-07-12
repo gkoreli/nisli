@@ -20,6 +20,7 @@
  */
 
 import {
+  children,
   component,
   createContext,
   computed,
@@ -30,14 +31,7 @@ import {
   type Signal,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 import { Dialog, DialogContent, type DialogProps } from './dialog.js';
 
 // ── Shared state ─────────────────────────────────────────────────────
@@ -66,8 +60,6 @@ export type CommandProps = {
 
 export const Command = component<CommandProps>('ui-command', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
-  const className = attr(props.className, host, 'class-name');
 
   const query = signal('');
   let highlighted: HTMLElement | null = null;
@@ -139,27 +131,24 @@ export const Command = component<CommandProps>('ui-command', (props, host) => {
     }
   };
 
-  const root = ref<HTMLDivElement>();
   onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-    // Items mount (and projection sweeps run) before this settles.
+    // Items mount (and children slots settle) before this runs.
     queueMicrotask(refresh);
   });
 
   const classes = computed(() =>
     cn(
       'flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground',
-      className.value,
+      props.className.value,
     ),
   );
 
   return html`<div
-    ref="${root}"
     data-slot="command"
     class="${classes}"
     @keydown=${onKeydown}
-  >${props.children}</div>`;
-});
+  >${children()}</div>`;
+}, { attrs: { className: 'string' } });
 
 // ── ui-command-input ─────────────────────────────────────────────────
 
@@ -172,12 +161,10 @@ export const CommandInput = component<CommandInputProps>('ui-command-input', (pr
   const state = CommandContext.inject();
   transparentHost(host);
 
-  const placeholder = attr(props.placeholder, host, 'placeholder');
-  const className = attr(props.className, host, 'class-name');
   const classes = computed(() =>
     cn(
       'flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50',
-      className.value,
+      props.className.value,
     ),
   );
 
@@ -196,12 +183,12 @@ export const CommandInput = component<CommandInputProps>('ui-command-input', (pr
       aria-expanded="true"
       autocomplete="off"
       spellcheck="false"
-      placeholder="${computed(() => placeholder.value ?? 'Search for a command to run...')}"
+      placeholder="${computed(() => props.placeholder.value ?? 'Search for a command to run...')}"
       class="${classes}"
       @input=${onInput}
     />
   </div>`;
-});
+}, { attrs: { placeholder: 'string', className: 'string' } });
 
 // ── ui-command-list / -empty / -group / -separator / -shortcut ──────
 
@@ -214,21 +201,14 @@ function commandSection(
   return component<{ className?: string; children?: string | TemplateResult }>(tag, (props, host) => {
     CommandContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
-    const className = attr(props.className, host, 'class-name');
-    const classes = computed(() => cn(base, className.value));
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
+    const classes = computed(() => cn(base, props.className.value));
     return html`<div
-      ref="${root}"
       data-slot="${slot}"
       role="${extra?.role}"
       hidden="${extra?.hiddenByDefault ?? false}"
       class="${classes}"
-    >${props.children}</div>`;
-  });
+    >${children()}</div>`;
+  }, { attrs: { className: 'string' } });
 }
 
 export const CommandList = commandSection(
@@ -260,28 +240,21 @@ export type CommandGroupProps = {
 export const CommandGroup = component<CommandGroupProps>('ui-command-group', (props, host) => {
   CommandContext.inject();
   transparentHost(host);
-  const projected = captureChildren(host);
-  const heading = attr(props.heading, host, 'heading');
-  const className = attr(props.className, host, 'class-name');
   const classes = computed(() =>
     cn(
       'overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground',
-      className.value,
+      props.className.value,
     ),
   );
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
   return html`<div data-slot="command-group" cmdk-group="" role="group" class="${classes}">
     ${computed(() =>
-      heading.value
-        ? html`<div data-slot="command-group-heading" cmdk-group-heading="">${heading.value}</div>`
+      props.heading.value
+        ? html`<div data-slot="command-group-heading" cmdk-group-heading="">${props.heading.value}</div>`
         : null,
     )}
-    <div ref="${root}" data-slot="command-group-items" role="presentation">${props.children}</div>
+    <div data-slot="command-group-items" role="presentation">${children()}</div>
   </div>`;
-});
+}, { attrs: { heading: 'string', className: 'string' } });
 
 export type CommandItemProps = {
   /** Filter/select value; falls back to the item's text. */
@@ -296,29 +269,23 @@ export type CommandItemProps = {
 export const CommandItem = component<CommandItemProps>('ui-command-item', (props, host) => {
   const state = CommandContext.inject();
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const value = attr(props.value, host, 'value');
-  const keywords = attr(props.keywords, host, 'keywords');
-  const disabled = boolAttr(props.disabled, host, 'disabled');
-  const className = attr(props.className, host, 'class-name');
+  const disabled = computed<boolean>(() => props.disabled.value as boolean);
   const classes = computed(() =>
     cn(
       "relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
-      className.value,
+      props.className.value,
     ),
   );
 
+  // Kept for reading the item's own text (select fallback) + highlight target.
   const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
 
   const select = (): void => {
     if (disabled.value) return;
     host.dispatchEvent(
       new CustomEvent('ui-select', {
-        detail: { value: value.value ?? root.current?.textContent?.trim() ?? '' },
+        detail: { value: props.value.value ?? root.current?.textContent?.trim() ?? '' },
         bubbles: true,
         cancelable: true,
       }),
@@ -330,15 +297,15 @@ export const CommandItem = component<CommandItemProps>('ui-command-item', (props
     data-slot="command-item"
     cmdk-item=""
     role="option"
-    data-value="${value}"
-    data-keywords="${keywords}"
+    data-value="${props.value}"
+    data-keywords="${props.keywords}"
     data-disabled="${computed(() => (disabled.value ? 'true' : 'false'))}"
     data-selected="false"
     class="${classes}"
     @click=${select}
     @pointerenter=${() => { if (!disabled.value && root.current) state.setHighlighted(root.current); }}
-  >${props.children}</div>`;
-});
+  >${children()}</div>`;
+}, { attrs: { value: 'string', keywords: 'string', disabled: 'boolean', className: 'string' } });
 
 export const CommandShortcut = commandSection(
   'ui-command-shortcut',

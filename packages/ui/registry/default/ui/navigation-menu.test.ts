@@ -160,6 +160,21 @@ describe('NavigationMenu — open/close', () => {
     key(t0, 'Escape');
     expect(contents(c)[0].hasAttribute('hidden')).toBe(true);
   });
+
+  // value-state regression: the root's open-submenu value drives a bubbling
+  // ui-value-change event with the correct detail on open and on close.
+  it('dispatches ui-value-change with the open item value', () => {
+    const c = mountMenu();
+    const rootEl = c.querySelector('[data-slot="navigation-menu"]')!.closest('ui-navigation-menu') ??
+      c.querySelector('ui-navigation-menu')!;
+    const seen: unknown[] = [];
+    rootEl.addEventListener('ui-value-change', (e) => seen.push((e as CustomEvent).detail.value));
+    const [t0] = triggers(c);
+    fire(t0, 'pointerenter');
+    expect(seen).toContain('products');
+    key(t0, 'Escape');
+    expect(seen[seen.length - 1]).toBe('');
+  });
 });
 
 describe('NavigationMenu — keyboard roving', () => {
@@ -191,6 +206,25 @@ describe('NavigationMenu — link + misuse', () => {
     const link = c.querySelector('[data-slot="navigation-menu-link"]') as HTMLAnchorElement;
     expect(link.getAttribute('href')).toBe('/x');
     expect(link.getAttribute('data-active')).toBe('true');
+  });
+
+  // active regression: `active` is a declared boolean attribute — its presence
+  // on the host IS the truth, so toggling it live flips data-active.
+  it('reflects the active attribute live onto data-active', () => {
+    const c = mount(
+      html`${NavigationMenuLink({ href: '/x', children: 'Item' })}`,
+    );
+    const hostEl = c.querySelector('ui-navigation-menu-link') as HTMLElement;
+    const link = c.querySelector('[data-slot="navigation-menu-link"]') as HTMLAnchorElement;
+    expect(link.hasAttribute('data-active')).toBe(false);
+    hostEl.setAttribute('active', '');
+    flushEffects();
+    flushEffects();
+    expect(link.getAttribute('data-active')).toBe('true');
+    hostEl.removeAttribute('active');
+    flushEffects();
+    flushEffects();
+    expect(link.hasAttribute('data-active')).toBe(false);
   });
 
   it('renders the setup error boundary for a trigger outside a menu', () => {

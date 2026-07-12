@@ -22,6 +22,7 @@
  */
 
 import {
+  children,
   component,
   createContext,
   computed,
@@ -34,7 +35,7 @@ import {
   type ReadonlySignal,
   type TemplateResult,
 } from '@nisli/core';
-import { attr, captureChildren, cn, projectChildren, transparentHost } from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 import { buttonVariants } from './button.js';
 
 export type CarouselOrientation = 'horizontal' | 'vertical';
@@ -80,11 +81,12 @@ export type CarouselProps = {
 
 export const Carousel = component<CarouselProps>('ui-carousel', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const orientationAttr = attr(props.orientation, host, 'orientation');
+  // ADR 0025 item 3: attribute fallbacks declared via the `attrs` option below
+  // and delivered as plain, LIVE prop signals — no userland attr(). Projection
+  // via `children()` (ADR 0025 item 1).
   const orientation = computed<CarouselOrientation>(() =>
-    orientationAttr.value === 'vertical' ? 'vertical' : 'horizontal',
+    props.orientation.value === 'vertical' ? 'vertical' : 'horizontal',
   );
 
   const index = signal(0);
@@ -169,22 +171,21 @@ export const Carousel = component<CarouselProps>('ui-carousel', (props, host) =>
     }
   };
 
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() => cn('relative', className.value));
 
-  const root = ref<HTMLDivElement>();
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
   return html`<div
-    ref="${root}"
     role="region"
     aria-roledescription="carousel"
     data-slot="carousel"
     class="${classes}"
     @keydown=${onKeyDown}
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  attrs: {
+    orientation: 'string',
+    className: 'string',
+  },
 });
 
 // ── ui-carousel-content (viewport + draggable track) ─────────────────
@@ -199,9 +200,8 @@ export const CarouselContent = component<CarouselContentProps>(
   (props, host) => {
     const state = CarouselContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const trackClasses = computed(() =>
       cn(
         'flex',
@@ -250,10 +250,7 @@ export const CarouselContent = component<CarouselContentProps>(
     };
 
     onMount(() => {
-      if (track.current) {
-        projectChildren(host, track.current, projected);
-        state.setTrack(track.current);
-      }
+      if (track.current) state.setTrack(track.current);
       if (viewport.current) state.setViewport(viewport.current);
     });
     onCleanup(() => {
@@ -267,7 +264,12 @@ export const CarouselContent = component<CarouselContentProps>(
       data-slot="carousel-content"
       class="overflow-hidden"
       @pointerdown=${onPointerDown}
-    ><div ref="${track}" class="${trackClasses}" style="will-change:transform">${props.children}</div></div>`;
+    ><div ref="${track}" class="${trackClasses}" style="will-change:transform">${children()}</div></div>`;
+  },
+  {
+    attrs: {
+      className: 'string',
+    },
   },
 );
 
@@ -281,9 +283,8 @@ export type CarouselItemProps = {
 export const CarouselItem = component<CarouselItemProps>('ui-carousel-item', (props, host) => {
   const state = CarouselContext.inject();
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() =>
     cn(
       'min-w-0 shrink-0 grow-0 basis-full',
@@ -292,21 +293,20 @@ export const CarouselItem = component<CarouselItemProps>('ui-carousel-item', (pr
     ),
   );
 
-  const root = ref<HTMLDivElement>();
   onMount(() => {
-    if (root.current) {
-      projectChildren(host, root.current, projected);
-      state.registerItem();
-    }
+    state.registerItem();
   });
 
   return html`<div
-    ref="${root}"
     role="group"
     aria-roledescription="slide"
     data-slot="carousel-item"
     class="${classes}"
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  attrs: {
+    className: 'string',
+  },
 });
 
 // ── ui-carousel-previous / -next ─────────────────────────────────────
@@ -329,7 +329,7 @@ export const CarouselPrevious = component<CarouselNavProps>(
   (props, host) => {
     const state = CarouselContext.inject();
     transparentHost(host);
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
     const classes = computed(() =>
       cn(
         buttonVariants({ variant: 'outline', size: 'icon' }),
@@ -347,12 +347,17 @@ export const CarouselPrevious = component<CarouselNavProps>(
       @click=${() => state.scrollPrev()}
     >${arrowLeftIcon}<span class="sr-only">Previous slide</span></button>`;
   },
+  {
+    attrs: {
+      className: 'string',
+    },
+  },
 );
 
 export const CarouselNext = component<CarouselNavProps>('ui-carousel-next', (props, host) => {
   const state = CarouselContext.inject();
   transparentHost(host);
-  const className = attr(props.className, host, 'class-name');
+  const className = props.className;
   const classes = computed(() =>
     cn(
       buttonVariants({ variant: 'outline', size: 'icon' }),
@@ -369,4 +374,8 @@ export const CarouselNext = component<CarouselNavProps>('ui-carousel-next', (pro
     class="${classes}"
     @click=${() => state.scrollNext()}
   >${arrowRightIcon}<span class="sr-only">Next slide</span></button>`;
+}, {
+  attrs: {
+    className: 'string',
+  },
 });

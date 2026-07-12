@@ -249,6 +249,114 @@ describe('Accordion — controlled value', () => {
   });
 });
 
+describe('Accordion — value-root regression matrix, single (UI-30 3A)', () => {
+  const triggerFor = (root: ParentNode, value: string) =>
+    root.querySelector<HTMLButtonElement>(`[data-slot="accordion-trigger"][id$="-trigger-${value}"]`)!;
+
+  it('BARE-PARSE: authored value="b" opens item b at connect; component-path click reflects the new value attr', async () => {
+    document.body.innerHTML =
+      '<ui-accordion type="single" value="b">' +
+      '<ui-accordion-item value="a"><ui-accordion-trigger>A</ui-accordion-trigger>' +
+      '<ui-accordion-content>Body A</ui-accordion-content></ui-accordion-item>' +
+      '<ui-accordion-item value="b"><ui-accordion-trigger>B</ui-accordion-trigger>' +
+      '<ui-accordion-content>Body B</ui-accordion-content></ui-accordion-item>' +
+      '</ui-accordion>';
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const acc = document.querySelector('ui-accordion')!;
+    expect(triggerFor(acc, 'b').getAttribute('aria-expanded')).toBe('true');
+    expect(triggerFor(acc, 'a').getAttribute('aria-expanded')).toBe('false');
+
+    // Change via the REAL COMPONENT PATH (click the other trigger).
+    triggerFor(acc, 'a').click();
+    flushEffects();
+    flushEffects();
+    expect(triggerFor(acc, 'a').getAttribute('aria-expanded')).toBe('true');
+    expect(triggerFor(acc, 'b').getAttribute('aria-expanded')).toBe('false');
+    expect(acc.getAttribute('value')).toBe('a'); // ROOT attr reflects the new single value
+  });
+
+  it('CONTROLLED: component-path click fires ui-value-change but the guard preserves the pinned attr; parent signal drives selection', () => {
+    const value = signal<string | string[] | undefined>('a');
+    const c = mountAccordion({ value });
+    const host = c.querySelector('ui-accordion') as HTMLElement;
+    const onChange = vi.fn();
+    host.addEventListener('ui-value-change', onChange as EventListener);
+    flushEffects();
+    expect(host.getAttribute('value')).toBe('a'); // reflect effect mirrors the pinned signal
+    const [btnA, btnB] = triggers(c);
+    expect(btnA.getAttribute('aria-expanded')).toBe('true');
+
+    click(btnB); // state.toggle('b') → setValue('b'), guarded (controlled)
+    expect((onChange.mock.calls[0]![0] as CustomEvent).detail).toEqual({ value: 'b' });
+    expect(host.getAttribute('value')).toBe('a'); // guard held
+    expect(btnA.getAttribute('aria-expanded')).toBe('true'); // selection unchanged
+
+    value.value = 'b';
+    flushEffects();
+    flushEffects();
+    expect(host.getAttribute('value')).toBe('b');
+    expect(btnB.getAttribute('aria-expanded')).toBe('true');
+    expect(btnA.getAttribute('aria-expanded')).toBe('false');
+  });
+});
+
+describe('Accordion — value-root regression matrix, multiple (UI-30 3A)', () => {
+  const triggerFor = (root: ParentNode, value: string) =>
+    root.querySelector<HTMLButtonElement>(`[data-slot="accordion-trigger"][id$="-trigger-${value}"]`)!;
+
+  it('BARE-PARSE: authored value="a,b" opens both at connect; component-path toggle-off reflects the comma-joined remainder', async () => {
+    document.body.innerHTML =
+      '<ui-accordion type="multiple" value="a,b">' +
+      '<ui-accordion-item value="a"><ui-accordion-trigger>A</ui-accordion-trigger>' +
+      '<ui-accordion-content>Body A</ui-accordion-content></ui-accordion-item>' +
+      '<ui-accordion-item value="b"><ui-accordion-trigger>B</ui-accordion-trigger>' +
+      '<ui-accordion-content>Body B</ui-accordion-content></ui-accordion-item>' +
+      '</ui-accordion>';
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const acc = document.querySelector('ui-accordion')!;
+    expect(triggerFor(acc, 'a').getAttribute('aria-expanded')).toBe('true');
+    expect(triggerFor(acc, 'b').getAttribute('aria-expanded')).toBe('true');
+
+    // Component-path toggle ONE off → the reflected attr becomes the remainder.
+    triggerFor(acc, 'a').click();
+    flushEffects();
+    flushEffects();
+    expect(triggerFor(acc, 'a').getAttribute('aria-expanded')).toBe('false');
+    expect(triggerFor(acc, 'b').getAttribute('aria-expanded')).toBe('true');
+    expect(acc.getAttribute('value')).toBe('b'); // comma-joined remainder
+  });
+
+  it('CONTROLLED: component-path click fires the array detail but the guard preserves the pinned attr; parent signal drives selection', () => {
+    const value = signal<string | string[] | undefined>(['a']);
+    const c = mountAccordion({ type: 'multiple', value });
+    const host = c.querySelector('ui-accordion') as HTMLElement;
+    const onChange = vi.fn();
+    host.addEventListener('ui-value-change', onChange as EventListener);
+    flushEffects();
+    expect(host.getAttribute('value')).toBe('a');
+    const [btnA, btnB] = triggers(c);
+    expect(btnA.getAttribute('aria-expanded')).toBe('true');
+
+    click(btnB); // toggle('b') → setValue(['a','b']), guarded
+    expect((onChange.mock.calls[0]![0] as CustomEvent).detail).toEqual({ value: ['a', 'b'] });
+    expect(host.getAttribute('value')).toBe('a'); // guard held
+    expect(btnB.getAttribute('aria-expanded')).toBe('false'); // selection unchanged
+
+    value.value = ['a', 'b'];
+    flushEffects();
+    flushEffects();
+    expect(host.getAttribute('value')).toBe('a,b'); // comma-joined via reflect effect
+    expect(btnA.getAttribute('aria-expanded')).toBe('true');
+    expect(btnB.getAttribute('aria-expanded')).toBe('true');
+  });
+});
+
 describe('Accordion — misuse', () => {
   it('a trigger used outside <ui-accordion> renders an error fallback', () => {
     const __err = vi.spyOn(console, 'error').mockImplementation(() => {});

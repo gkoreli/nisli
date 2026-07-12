@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { flushEffects, html, type TemplateResult } from '@nisli/core';
+import { signal, flushEffects, html, type TemplateResult } from '@nisli/core';
 import { ToggleGroup, ToggleGroupItem } from './toggle-group.js';
 
 beforeEach(() => {
@@ -104,6 +104,93 @@ describe('ToggleGroup rendering', () => {
     expect(document.activeElement).toBe(item(c, 1));
     group.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
     expect(document.activeElement).toBe(item(c, 2));
+  });
+
+  it('BARE-PARSE single: authored value="italic" presses at connect; component-path click reflects the new value attr', async () => {
+    document.body.innerHTML =
+      '<ui-toggle-group type="single" value="italic">' +
+      '<ui-toggle-group-item value="bold">B</ui-toggle-group-item>' +
+      '<ui-toggle-group-item value="italic">I</ui-toggle-group-item>' +
+      '<ui-toggle-group-item value="underline">U</ui-toggle-group-item>' +
+      '</ui-toggle-group>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const group = document.querySelector('ui-toggle-group')!;
+    expect(states(group)).toEqual(['off', 'on', 'off']);
+
+    item(group, 0).click(); // component-path select 'bold'
+    flushEffects();
+    flushEffects();
+    expect(states(group)).toEqual(['on', 'off', 'off']);
+    expect(group.getAttribute('value')).toBe('bold'); // ROOT attr reflects the new single value
+  });
+
+  it('CONTROLLED single: component-path click fires ui-value-change but the guard preserves the pinned attr; parent signal drives selection', () => {
+    const value = signal<string | undefined>('bold');
+    const c = mountGroup({ type: 'single', value });
+    const host = c.querySelector('ui-toggle-group')!.parentElement as HTMLElement;
+    const onChange = vi.fn();
+    host.addEventListener('ui-value-change', onChange as EventListener);
+    flushEffects();
+    const groupHost = c.querySelector('ui-toggle-group') as HTMLElement;
+    expect(groupHost.getAttribute('value')).toBe('bold'); // reflect effect mirrors the pinned signal
+    expect(states(c)).toEqual(['on', 'off', 'off']);
+
+    item(c, 1).click(); // toggleValue('italic') → setValue, guarded (controlled)
+    flushEffects();
+    expect(onChange.mock.calls[0]?.[0].detail).toEqual({ value: 'italic' });
+    expect(groupHost.getAttribute('value')).toBe('bold'); // guard held
+    expect(states(c)).toEqual(['on', 'off', 'off']); // selection unchanged
+
+    value.value = 'italic';
+    flushEffects();
+    flushEffects();
+    expect(groupHost.getAttribute('value')).toBe('italic');
+    expect(states(c)).toEqual(['off', 'on', 'off']);
+  });
+
+  it('BARE-PARSE multiple: authored value="bold,italic" presses both at connect; component-path toggle-off reflects the comma-joined remainder', async () => {
+    document.body.innerHTML =
+      '<ui-toggle-group type="multiple" value="bold,italic">' +
+      '<ui-toggle-group-item value="bold">B</ui-toggle-group-item>' +
+      '<ui-toggle-group-item value="italic">I</ui-toggle-group-item>' +
+      '<ui-toggle-group-item value="underline">U</ui-toggle-group-item>' +
+      '</ui-toggle-group>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const group = document.querySelector('ui-toggle-group')!;
+    expect(states(group)).toEqual(['on', 'on', 'off']);
+
+    item(group, 0).click(); // toggle 'bold' off
+    flushEffects();
+    flushEffects();
+    expect(states(group)).toEqual(['off', 'on', 'off']);
+    expect(group.getAttribute('value')).toBe('italic'); // comma-joined remainder
+  });
+
+  it('CONTROLLED multiple: component-path click fires the array detail but the guard preserves the pinned attr; parent signal drives selection', () => {
+    const value = signal<string[] | undefined>(['bold']);
+    const c = mountGroup({ type: 'multiple', value });
+    const groupHost = c.querySelector('ui-toggle-group') as HTMLElement;
+    const onChange = vi.fn();
+    groupHost.parentElement!.addEventListener('ui-value-change', onChange as EventListener);
+    flushEffects();
+    expect(groupHost.getAttribute('value')).toBe('bold');
+    expect(states(c)).toEqual(['on', 'off', 'off']);
+
+    item(c, 1).click(); // toggleValue('italic') → setValue(['bold','italic']), guarded
+    flushEffects();
+    expect(onChange.mock.calls[0]?.[0].detail).toEqual({ value: ['bold', 'italic'] });
+    expect(groupHost.getAttribute('value')).toBe('bold'); // guard held
+    expect(states(c)).toEqual(['on', 'off', 'off']); // selection unchanged
+
+    value.value = ['bold', 'italic'];
+    flushEffects();
+    flushEffects();
+    expect(groupHost.getAttribute('value')).toBe('bold,italic'); // comma-joined via reflect effect
+    expect(states(c)).toEqual(['on', 'on', 'off']);
   });
 
   it('errors items used outside a group (setup boundary)', () => {

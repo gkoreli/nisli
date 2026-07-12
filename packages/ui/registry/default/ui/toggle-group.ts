@@ -20,24 +20,17 @@
  */
 
 import {
+  children,
   component,
   createContext,
   computed,
+  effect,
   html,
-  onMount,
   ref,
-  signal,
   type ReadonlySignal,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  captureChildren,
-  cn,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, isPinned, transparentHost } from '../lib/utils.js';
 import { rovingFocus } from '../lib/roving-focus.js';
 import { toggleVariants, type ToggleSize, type ToggleVariant } from './toggle.js';
 
@@ -74,41 +67,82 @@ export type ToggleGroupProps = {
   children?: string | TemplateResult;
 };
 
-const toList = (v: string | string[] | undefined): string[] =>
-  v == null || v === '' ? [] : Array.isArray(v) ? v : [v];
-
 export const ToggleGroup = component<ToggleGroupProps>('ui-toggle-group', (props, host) => {
   transparentHost(host);
-  const projected = captureChildren(host);
 
-  const typeAttr = attr(props.type, host, 'type');
-  const type: ToggleGroupType = typeAttr.value === 'multiple' ? 'multiple' : 'single';
-  const variant = attr(props.variant, host, 'variant');
-  const size = attr(props.size, host, 'size');
-  const className = attr(props.className, host, 'class-name');
+  // `type` is known at setup (attribute-seeded); the value-state shape below
+  // branches on it and never changes shape after.
+  const type: ToggleGroupType = props.type.value === 'multiple' ? 'multiple' : 'single';
+  const variant = props.variant;
+  const size = props.size;
   const spacing = computed(() => props.spacing.value ?? 0);
 
-  const internal = signal<string[]>(
-    toList(props.defaultValue.value ?? host.getAttribute('default-value') ?? undefined),
-  );
-  const value = computed<string[]>(() =>
-    props.value.value != null ? toList(props.value.value) : internal.value,
-  );
+  // VALUE-STATE pattern (ADR 0025 item 3): the `value` ATTRIBUTE is the
+  // uncontrolled selection state — the attribute IS the truth. `defaultValue`
+  // seeds it once. `single` stores a plain string; `multiple` stores a
+  // comma-separated list.
+  // Encoding limit: comma-separated attribute — values containing commas are
+  // unsupported (upstream values are slugs).
+  const normalize = (v: unknown): string[] =>
+    Array.isArray(v) ? v : typeof v === 'string' && v ? v.split(',') : [];
 
-  const toggleValue = (v: string): void => {
-    const current = value.value;
-    const next =
-      type === 'single'
-        ? current.includes(v) ? [] : [v]
-        : current.includes(v) ? current.filter((x) => x !== v) : [...current, v];
-    internal.value = next;
-    host.dispatchEvent(
-      new CustomEvent('ui-value-change', {
-        detail: { value: type === 'single' ? (next[0] ?? '') : next },
-        bubbles: true,
-      }),
-    );
-  };
+  let value: ReadonlySignal<string[]>;
+  let toggleValue: (v: string) => void;
+
+  if (type === 'single') {
+    const current = computed<string>(() => (props.value.value as string | undefined) ?? '');
+    const setValue = (v: string): void => {
+      if (v === current.value) return;
+      if (!isPinned(host, 'value')) {
+        // uncontrolled: attr IS state
+        if (v) host.setAttribute('value', v);
+        else host.removeAttribute('value');
+      }
+      host.dispatchEvent(
+        new CustomEvent('ui-value-change', { detail: { value: v }, bubbles: true }),
+      );
+    };
+    // defaultValue INIT-SEED-ONLY, double-guarded. host.hasAttribute('value')
+    // is a SANCTIONED read of a DECLARED attribute (absent vs present).
+    if (props.defaultValue.value && !isPinned(host, 'value') && !host.hasAttribute('value')) {
+      host.setAttribute('value', props.defaultValue.value as string);
+    }
+    effect(() => {
+      const v = current.value;
+      if (v) host.setAttribute('value', v);
+      else host.removeAttribute('value');
+    });
+
+    value = computed<string[]>(() => (current.value ? [current.value] : []));
+    toggleValue = (v: string): void => setValue(current.value === v ? '' : v);
+  } else {
+    const current = computed<string[]>(() => normalize(props.value.value));
+    value = current;
+    const setValue = (next: string[]): void => {
+      if (next.join(',') === current.value.join(',')) return;
+      if (!isPinned(host, 'value')) {
+        if (next.length) host.setAttribute('value', next.join(','));
+        else host.removeAttribute('value');
+      }
+      host.dispatchEvent(
+        new CustomEvent('ui-value-change', { detail: { value: next }, bubbles: true }),
+      );
+    };
+    toggleValue = (v: string): void => {
+      const cur = current.value;
+      setValue(cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]);
+    };
+
+    if (props.defaultValue.value != null && !isPinned(host, 'value') && !host.hasAttribute('value')) {
+      const seed = normalize(props.defaultValue.value);
+      if (seed.length) host.setAttribute('value', seed.join(','));
+    }
+    effect(() => {
+      const v = current.value;
+      if (v.length) host.setAttribute('value', v.join(','));
+      else host.removeAttribute('value');
+    });
+  }
 
   const state: ToggleGroupState = { type, value, toggleValue, variant, size, spacing };
   ToggleGroupContext.provide(host, state);
@@ -120,10 +154,7 @@ export const ToggleGroup = component<ToggleGroupProps>('ui-toggle-group', (props
       : [],
   );
 
-  onMount(() => {
-    if (root.current) projectChildren(host, root.current, projected);
-  });
-
+  const className = props.className;
   const classes = computed(() =>
     cn(
       'group/toggle-group flex w-fit items-center gap-[--spacing(var(--gap))] rounded-md data-[spacing=default]:data-[variant=outline]:shadow-xs',
@@ -141,7 +172,17 @@ export const ToggleGroup = component<ToggleGroupProps>('ui-toggle-group', (props
     style="${computed(() => `--gap: ${spacing.value}`)}"
     class="${classes}"
     @keydown=${(e: KeyboardEvent) => roving.onKeydown(e)}
-  >${props.children}</div>`;
+  >${children()}</div>`;
+}, {
+  // VALUE-STATE: `value` is the attribute-as-truth selection; `defaultValue` seeds it.
+  attrs: {
+    type: 'string',
+    value: 'string',
+    defaultValue: 'string',
+    variant: 'string',
+    size: 'string',
+    className: 'string',
+  },
 });
 
 // ── ui-toggle-group-item ─────────────────────────────────────────────
@@ -159,13 +200,11 @@ export const ToggleGroupItem = component<ToggleGroupItemProps>(
   (props, host) => {
     const state = ToggleGroupContext.inject();
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const valueAttr = attr(props.value, host, 'value');
-    const own = computed(() => valueAttr.value ?? '');
-    const disabled = boolAttr(props.disabled, host, 'disabled');
+    const own = computed(() => props.value.value ?? '');
+    const disabled = computed<boolean>(() => props.disabled.value as boolean);
     const pressed = computed(() => own.value !== '' && state.value.value.includes(own.value));
-    const className = attr(props.className, host, 'class-name');
+    const className = props.className;
 
     const classes = computed(() =>
       cn(
@@ -176,13 +215,7 @@ export const ToggleGroupItem = component<ToggleGroupItemProps>(
       ),
     );
 
-    const root = ref<HTMLButtonElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
     return html`<button
-      ref="${root}"
       type="button"
       data-slot="toggle-group-item"
       data-variant="${computed(() => state.variant.value ?? 'default')}"
@@ -193,6 +226,7 @@ export const ToggleGroupItem = component<ToggleGroupItemProps>(
       disabled="${disabled}"
       class="${classes}"
       @click=${() => { if (!disabled.value) state.toggleValue(own.value); }}
-    >${props.children}</button>`;
+    >${children()}</button>`;
   },
+  { attrs: { value: 'string', disabled: 'boolean', className: 'string' } },
 );

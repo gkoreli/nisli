@@ -10,21 +10,15 @@
  */
 
 import {
+  children,
   component,
   computed,
   createContext,
   html,
-  onMount,
-  ref,
   type ReadonlySignal,
   type TemplateResult,
 } from '@nisli/core';
-import {
-  attr,
-  captureChildren,
-  projectChildren,
-  transparentHost,
-} from '../lib/utils.js';
+import { transparentHost } from '../lib/utils.js';
 
 export type Direction = 'ltr' | 'rtl';
 
@@ -45,10 +39,11 @@ export const DirectionProvider = component<DirectionProviderProps>(
   'ui-direction-provider',
   (props, host) => {
     transparentHost(host);
-    const projected = captureChildren(host);
 
-    const dir = attr(props.dir, host, 'dir');
-    const directionProp = attr(props.direction, host, 'direction');
+    // ADR 0025 item 3: attribute fallbacks (`dir`/`direction`) are declared via
+    // the `attrs` option below and delivered as plain, LIVE prop signals.
+    const dir = props.dir;
+    const directionProp = props.direction;
     const direction = computed<Direction>(() =>
       directionProp.value === 'rtl' || directionProp.value === 'ltr'
         ? directionProp.value
@@ -59,17 +54,20 @@ export const DirectionProvider = component<DirectionProviderProps>(
 
     DirectionContext.provide(host, { direction });
 
-    const root = ref<HTMLDivElement>();
-    onMount(() => {
-      if (root.current) projectChildren(host, root.current, projected);
-    });
-
+    // ADR 0025 item 1: children() owns projection — light-DOM children AND the
+    // factory `children` prop route through the one slot.
     return html`<div
-      ref="${root}"
       data-slot="direction-provider"
       dir="${direction}"
       style="display:contents"
-    >${props.children}</div>`;
+    >${children()}</div>`;
+  },
+  {
+    // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr names.
+    attrs: {
+      dir: 'string',
+      direction: 'string',
+    },
   },
 );
 

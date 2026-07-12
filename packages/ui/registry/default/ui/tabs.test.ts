@@ -305,6 +305,69 @@ describe('Tabs — plain custom element usage', () => {
   });
 });
 
+describe('Tabs — value-root regression matrix (UI-30 3A)', () => {
+  const byValue = (root: ParentNode, v: string) =>
+    root.querySelector<HTMLButtonElement>(`[role="tab"][data-value="${v}"]`)!;
+
+  it('BARE-PARSE: authored value="b" selects at connect; component-path click reflects the new value attr', async () => {
+    // The `value` attribute is authored at PARSE (not default-value), so the
+    // SEED-AT-CONNECT path must render tab B selected at connect.
+    document.body.innerHTML =
+      '<ui-tabs value="b">' +
+      '<ui-tabs-list>' +
+      '<ui-tabs-trigger value="a">A</ui-tabs-trigger>' +
+      '<ui-tabs-trigger value="b">B</ui-tabs-trigger>' +
+      '</ui-tabs-list>' +
+      '<ui-tabs-content value="a">Panel A</ui-tabs-content>' +
+      '<ui-tabs-content value="b">Panel B</ui-tabs-content>' +
+      '</ui-tabs>';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const tabs = document.querySelector('ui-tabs')!;
+    expect(byValue(tabs, 'b').getAttribute('aria-selected')).toBe('true');
+    expect(byValue(tabs, 'a').getAttribute('aria-selected')).toBe('false');
+
+    // Change via the REAL COMPONENT PATH (click the other trigger).
+    byValue(tabs, 'a').click();
+    flushEffects();
+    flushEffects();
+    expect(byValue(tabs, 'a').getAttribute('aria-selected')).toBe('true');
+    expect(byValue(tabs, 'b').getAttribute('aria-selected')).toBe('false');
+    // The ROOT's value attribute reflects the new selection.
+    expect(tabs.getAttribute('value')).toBe('a');
+  });
+
+  it('CONTROLLED: component-path click fires ui-value-change but the guard preserves the pinned attr; parent signal drives selection', () => {
+    const value = signal<string | undefined>('b');
+    const c = mountTabs({ value });
+    const host = c.querySelector('ui-tabs') as HTMLElement;
+    const onChange = vi.fn();
+    host.addEventListener('ui-value-change', onChange as EventListener);
+    flushEffects();
+    // The reflect effect mirrors the pinned signal onto the attribute.
+    expect(host.getAttribute('value')).toBe('b');
+    const [tabA, tabB] = tabButtons(c);
+    expect(tabB.getAttribute('aria-selected')).toBe('true');
+
+    // A click calls state.setValue('a'). Because `value` is pinned (controlled),
+    // the guard skips the attribute write — the parent stays in control.
+    tabA.click();
+    flushEffects();
+    expect((onChange.mock.calls[0]![0] as CustomEvent).detail).toEqual({ value: 'a' });
+    expect(host.getAttribute('value')).toBe('b'); // guard held: attr NOT clobbered
+    expect(tabB.getAttribute('aria-selected')).toBe('true'); // selection unchanged
+
+    // The parent responds by updating the signal → reflect effect + selection.
+    value.value = 'a';
+    flushEffects();
+    flushEffects();
+    expect(host.getAttribute('value')).toBe('a');
+    expect(tabA.getAttribute('aria-selected')).toBe('true');
+    expect(tabB.getAttribute('aria-selected')).toBe('false');
+  });
+});
+
 describe('Tabs — misuse', () => {
   it('a trigger used outside <ui-tabs> renders an error fallback', () => {
     const __err = vi.spyOn(console, 'error').mockImplementation(() => {});

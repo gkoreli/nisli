@@ -218,6 +218,21 @@ default). The controlled discriminator is core's `_isPinned(key)` (a declared
 surfaced to the registry as `isPinned(host, key)` in `lib/utils.ts`. Nested/
 submenu open states are NOT attribute-backed — only the single root `open`.
 
+**Batch-3B gap log** (candidates, not yet fixed — flag if a second consumer or an
+impossible case appears): (a) `children()` + `onMount` ordering — `children()`
+consumes the light-DOM capture at call time and registers its own late-parser
+sweep as an `onMount`, so a component whose own `onMount` observes projected DOM
+must call `children()` first (hoist `const slot = children()`); resolved as a
+documentation rule (`comp-children-before-onmount` in the framework skill), not an
+API change — upgrades to a design item only if hoisting becomes impossible
+(ordering cycle). Found by `form-field`. (b) dual-mode value roots (accordion/
+toggle-group/combobox) type their factory `value`/`defaultValue` as
+`string | string[]` while the declared attr is `'string'`, forcing a per-branch
+cast — a candidate for the `ReactiveProps` declared-type enhancement (already
+future work). (c) `'number'` attrs consumed at mount-time registration aren't live
+for free — `resizable` had to store the prop signals in the group + reflow via an
+effect; a "reactive registration" helper could remove that boilerplate.
+
 ### 4. Reactive-slot primitive transition gap — FIXED (2026-07-11)
 
 `template.ts`: a slot whose signal is initially `null`/`undefined` becomes

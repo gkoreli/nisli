@@ -4,7 +4,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { flush, flushEffects, html, type TemplateResult } from '@nisli/core';
+import { signal, flush, flushEffects, html, type TemplateResult } from '@nisli/core';
 import { Combobox, ComboboxItem } from './combobox.js';
 
 beforeEach(async () => {
@@ -151,6 +151,116 @@ describe('Combobox — filtering', () => {
     const visible = items(c).filter((el) => !el.hasAttribute('hidden'));
     expect(visible).toHaveLength(1);
     expect(visible[0]!.getAttribute('data-value')).toBe('svelte');
+  });
+});
+
+describe('Combobox — value-root regression matrix, single (UI-30 3A)', () => {
+  const byValue = (root: ParentNode, v: string) =>
+    root.querySelector<HTMLElement>(`[data-slot="command-item"][data-value="${v}"]`)!;
+
+  it('BARE-PARSE: authored value="svelte" selects at connect; component-path click reflects the new value attr', async () => {
+    document.body.innerHTML =
+      '<ui-combobox value="svelte">' +
+      '<ui-combobox-item value="next">Next.js</ui-combobox-item>' +
+      '<ui-combobox-item value="svelte">SvelteKit</ui-combobox-item>' +
+      '<ui-combobox-item value="astro">Astro</ui-combobox-item>' +
+      '</ui-combobox>';
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const host = document.querySelector('ui-combobox')!;
+    expect(byValue(host, 'svelte').getAttribute('aria-selected')).toBe('true');
+    expect(byValue(host, 'astro').getAttribute('aria-selected')).toBe('false');
+
+    // Change via the REAL COMPONENT PATH (open + click a different option).
+    trigger(host).click();
+    flush2();
+    byValue(host, 'astro').click();
+    flush2();
+    expect(byValue(host, 'astro').getAttribute('aria-selected')).toBe('true');
+    expect(byValue(host, 'svelte').getAttribute('aria-selected')).toBe('false');
+    expect(host.getAttribute('value')).toBe('astro'); // ROOT attr reflects the new single value
+  });
+
+  it('CONTROLLED: component-path click fires ui-value-change but the guard preserves the pinned attr; parent signal drives selection', () => {
+    const value = signal<string | undefined>('svelte');
+    const c = mountCombobox({ value });
+    const host = c.querySelector('ui-combobox') as HTMLElement;
+    const onChange = vi.fn();
+    host.addEventListener('ui-value-change', (e) => onChange((e as CustomEvent).detail));
+    flush2();
+    expect(host.getAttribute('value')).toBe('svelte'); // reflect effect mirrors the pinned signal
+    expect(byValue(host, 'svelte').getAttribute('aria-selected')).toBe('true');
+
+    open(c);
+    byValue(host, 'astro').click(); // select('astro') → setValue guarded (controlled)
+    flush2();
+    expect(onChange).toHaveBeenCalledWith({ value: 'astro' });
+    expect(host.getAttribute('value')).toBe('svelte'); // guard held
+    expect(byValue(host, 'svelte').getAttribute('aria-selected')).toBe('true'); // unchanged
+
+    value.value = 'astro';
+    flush2();
+    expect(host.getAttribute('value')).toBe('astro');
+    expect(byValue(host, 'astro').getAttribute('aria-selected')).toBe('true');
+    expect(byValue(host, 'svelte').getAttribute('aria-selected')).toBe('false');
+  });
+});
+
+describe('Combobox — value-root regression matrix, multiple (UI-30 3A + finding 4 comma-authoring)', () => {
+  const byValue = (root: ParentNode, v: string) =>
+    root.querySelector<HTMLElement>(`[data-slot="command-item"][data-value="${v}"]`)!;
+
+  it('BARE-PARSE: literal `<ui-combobox multiple value="next,svelte">` selects both at connect; component-path toggle-off reflects the comma-joined remainder', async () => {
+    document.body.innerHTML =
+      '<ui-combobox multiple value="next,svelte">' +
+      '<ui-combobox-item value="next">Next.js</ui-combobox-item>' +
+      '<ui-combobox-item value="svelte">SvelteKit</ui-combobox-item>' +
+      '<ui-combobox-item value="astro">Astro</ui-combobox-item>' +
+      '</ui-combobox>';
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const host = document.querySelector('ui-combobox')!;
+    // Comma-authored `value="next,svelte"` selects BOTH at parse.
+    expect(byValue(host, 'next').getAttribute('aria-selected')).toBe('true');
+    expect(byValue(host, 'svelte').getAttribute('aria-selected')).toBe('true');
+    expect(byValue(host, 'astro').getAttribute('aria-selected')).toBe('false');
+
+    // Component-path toggle ONE off → the reflected host attr is the remainder.
+    trigger(host).click();
+    flush2();
+    byValue(host, 'next').click();
+    flush2();
+    expect(byValue(host, 'next').getAttribute('aria-selected')).toBe('false');
+    expect(byValue(host, 'svelte').getAttribute('aria-selected')).toBe('true');
+    expect(host.getAttribute('value')).toBe('svelte'); // comma-joined remainder
+  });
+
+  it('CONTROLLED: component-path click fires the array detail but the guard preserves the pinned attr; parent signal drives selection', () => {
+    const value = signal<string[] | undefined>(['next']);
+    const c = mountCombobox({ multiple: true, value });
+    const host = c.querySelector('ui-combobox') as HTMLElement;
+    const onChange = vi.fn();
+    host.addEventListener('ui-value-change', (e) => onChange((e as CustomEvent).detail));
+    flush2();
+    expect(host.getAttribute('value')).toBe('next');
+    expect(byValue(host, 'next').getAttribute('aria-selected')).toBe('true');
+
+    open(c);
+    byValue(host, 'svelte').click(); // select('svelte') → setValue(['next','svelte']), guarded
+    flush2();
+    expect(onChange).toHaveBeenCalledWith({ value: ['next', 'svelte'] });
+    expect(host.getAttribute('value')).toBe('next'); // guard held
+    expect(byValue(host, 'svelte').getAttribute('aria-selected')).toBe('false'); // unchanged
+
+    value.value = ['next', 'svelte'];
+    flush2();
+    expect(host.getAttribute('value')).toBe('next,svelte'); // comma-joined via reflect effect
+    expect(byValue(host, 'next').getAttribute('aria-selected')).toBe('true');
+    expect(byValue(host, 'svelte').getAttribute('aria-selected')).toBe('true');
   });
 });
 

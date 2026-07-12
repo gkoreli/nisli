@@ -186,3 +186,91 @@ describe('Resizable — with-handle grip + misuse', () => {
     __err.mockRestore();
   });
 });
+
+// Post ADR 0025 items 1 + 3 (+ the v1.1 'number' kind), the panel/handle parts
+// declare their attribute fallbacks via component()'s `attrs` option and
+// register with the group as LIVE prop SIGNALS. On a plain-HTML host (nothing
+// pinned by a factory), setAttribute() AFTER mount writes the prop signal, so
+// default-size reflows the layout, min-size re-clamps + updates the handle's
+// aria bounds, and with-handle toggles the grip. Under the old parse-time-only
+// numAttr()/hasAttribute() reads these assertions would all fail.
+
+describe('Resizable — live attribute reactivity', () => {
+  /** Mount a plain-HTML group (A | handle | B) and return the container. */
+  function mountPlain(a = '', b = '', handle = ''): ParentNode {
+    document.body.innerHTML =
+      '<ui-resizable-panel-group>' +
+      `<ui-resizable-panel ${a}>A</ui-resizable-panel>` +
+      `<ui-resizable-handle ${handle}></ui-resizable-handle>` +
+      `<ui-resizable-panel ${b}>B</ui-resizable-panel>` +
+      '</ui-resizable-panel-group>';
+    flush2();
+    flush2();
+    return document.body;
+  }
+
+  it('default-size attribute flows through the number declaration to the layout', () => {
+    const c = mountPlain('default-size="30" min-size="10"', 'default-size="70" min-size="10"');
+    const [a, b] = panels(c);
+    expect(grow(a)).toBe(30);
+    expect(grow(b)).toBe(70);
+  });
+
+  it('setAttribute(default-size) after mount reflows the panels (live number)', () => {
+    const c = mountPlain('default-size="50"', 'default-size="50"');
+    let [a, b] = panels(c);
+    expect(grow(a)).toBe(50);
+    expect(grow(b)).toBe(50);
+
+    const hosts = Array.from(c.querySelectorAll<HTMLElement>('ui-resizable-panel'));
+    hosts[0]!.setAttribute('default-size', '30');
+    hosts[1]!.setAttribute('default-size', '70');
+    flush2();
+    flush2();
+    [a, b] = panels(c);
+    expect(grow(a)).toBe(30);
+    expect(grow(b)).toBe(70);
+  });
+
+  it('setAttribute(min-size) after mount re-clamps and updates the handle aria bounds', () => {
+    const c = mountPlain('default-size="50" min-size="20"', 'default-size="50" min-size="20"');
+    const h = handle(c);
+    expect(h.getAttribute('aria-valuemax')).toBe('80'); // 100 - bMin(20)
+
+    // Raise panel B's min-size live → aria max tightens and the drag clamps.
+    Array.from(c.querySelectorAll<HTMLElement>('ui-resizable-panel'))[1]!
+      .setAttribute('min-size', '40');
+    flush2();
+    flush2();
+    expect(h.getAttribute('aria-valuemax')).toBe('60'); // 100 - bMin(40)
+
+    // A big keyboard step is now clamped so B never drops below 40 (A ≤ 60).
+    h.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true }));
+    flush2();
+    expect(grow(panels(c)[0])).toBe(60);
+  });
+
+  it('a garbage default-size attribute falls to the even-split default (number semantics)', () => {
+    const c = mountPlain('default-size="oops"', 'default-size="70"');
+    const [a, b] = panels(c);
+    // "oops" → NaN → undefined (no declared default) → even-split of the 30 left.
+    expect(grow(a)).toBe(30);
+    expect(grow(b)).toBe(70);
+  });
+
+  it('setAttribute(with-handle) after mount toggles the grip (live boolean)', () => {
+    const c = mountPlain();
+    const h = document.body.querySelector('ui-resizable-handle') as HTMLElement;
+    expect(handle(c).querySelector('svg')).toBeNull();
+
+    h.setAttribute('with-handle', ''); // bare → true
+    flush2();
+    flush2();
+    expect(handle(c).querySelector('svg')).not.toBeNull();
+
+    h.setAttribute('with-handle', 'false'); // our boolean semantics → false
+    flush2();
+    flush2();
+    expect(handle(c).querySelector('svg')).toBeNull();
+  });
+});
