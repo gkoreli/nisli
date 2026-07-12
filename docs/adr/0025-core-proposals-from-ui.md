@@ -233,6 +233,55 @@ future work). (c) `'number'` attrs consumed at mount-time registration aren't li
 for free — `resizable` had to store the prop signals in the group + reflow via an
 effect; a "reactive registration" helper could remove that boilerplate.
 
+**Design sketch — candidate (b): declared-type-aware `ReactiveProps`** (post-
+checkpoint; NOT implemented — motivation corpus = the full UI-30 migration). Today
+`ReactiveProps<P>` maps every key to `Signal<P[K] | undefined>` regardless of its
+`attrs` declaration, so a declared `'boolean'` (runtime-guaranteed non-`undefined`
+via default-resolution) still types as `boolean | undefined` and every migrated
+boolean root carries an `as boolean` (switch, dialog `open`, toggle `pressed`, …) or
+a `?? false`. The declaration already KNOWS the reconciled runtime type; threading
+`opts.attrs` into the `component<P>` signature would narrow `props.K.value` per kind:
+`'boolean'`/`{type:'boolean'}` → `Signal<boolean>`; `'number'` with `default` →
+`Signal<number>`, without → `Signal<number | undefined>`; `'string'` →
+`Signal<string | undefined>` (unchanged); `'forward'`/undeclared → as today. This
+retires the `as boolean` stopgap across every migrated boolean in one change — the
+single highest-frequency cast in the registry — and is a pure type-level enhancement
+(no runtime cost, no behavior change). **The dual-mode value roots are NOT fully
+solved by this** and must be called out as a distinct, harder case: accordion/toggle-
+group/combobox type their factory `value`/`defaultValue` as `string | string[]` while
+the attribute only ever carries a `string`, so even a declaration-narrowed prop type
+is `string | string[] | undefined`, and the single-branch `as string` asserts "in
+single mode the factory won't hand me an array" — a SEMANTIC narrowing no
+representational type can derive. Honest options, in order of preference: (1) keep the
+cast — rev accepted it as the sole residual and it is load-bearing on exactly three
+components; (2) a `value: 'string' | 'string[]'`-style declaration kind where core
+owns the comma normalize/join so the registry never sees the union (removes the cast
+but bakes multi-value encoding into core — only worth it at a fourth consumer);
+(3) split single vs multiple into distinct prop types behind a mode generic (most type-
+honest, most churn). RECOMMENDATION: ship (b)-narrowing for the boolean/number
+majority; leave the dual-mode cast as the documented residual until a fourth dual-mode
+root appears, then reconsider option (2).
+
+**Design sketch — candidate (c): reactive registration helper** (post-checkpoint; NOT
+implemented — motivation corpus = `resizable`, currently the SOLE consumer). Pattern: a
+child registers a prop-derived value with a context-provided parent collection at mount,
+and the registration must stay reactive so a live attr/prop write re-drives the parent's
+layout. `resizable` does this by hand — the group stores the panels' prop *signals*
+(not their snapshot values) and reflows through a reactive `effect`; the boilerplate is
+the per-child `effect(() => parent.set(id, sizeSignal.value))` + `onCleanup(() =>
+parent.delete(id))` plus the parent choosing to hold signals. A `reactiveRegistry<T>()`
+helper returning `{ register(host, () => T): void; entries: Computed<T[]> }` would run
+the effect+cleanup internally and expose `entries` as a reactive computed the parent
+reads for reflow, so a child writes `registry.register(host, () => size.value)` and the
+parent writes `effect(() => reflow(registry.entries.value))` — the "register a signal-
+thunk, not a value" rule enforced by the type instead of by convention. Because
+`resizable` is the only consumer today, per the standing second-consumer discipline this
+stays a DOCUMENTED PATTERN (the framework skill should gain a `comp-register-signal-not-
+value` rule so the next consumer copies it correctly) and graduates to the
+`reactiveRegistry` primitive when a second registration-reactive component lands (a
+column-sizing grid or a menu typeahead registry are the likely triggers). RECOMMENDATION:
+do NOT build the helper pre-checkpoint; document the pattern + the signal-thunk rule now.
+
 ### 4. Reactive-slot primitive transition gap — FIXED (2026-07-11)
 
 `template.ts`: a slot whose signal is initially `null`/`undefined` becomes
