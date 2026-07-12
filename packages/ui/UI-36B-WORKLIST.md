@@ -282,3 +282,45 @@ counted once, below, among the re-scoped two)
 + 6 curation → WWW-14 generation
 = 26. Every remaining wave-B term closes against exactly ONE event: the
 WWW-14 deploy. (Wave A: closed at 75d77da, avatar residual also on WWW-14.)
+
+## Recheck round 2 — vs live (WWW-14 generation, Version eec3b3e8) (arch, 2026-07-12)
+
+- **popover ☑** — UI-56 verified live: panel centered under trigger to
+  0.008px (centerX 767.992 vs 767.984), body-portaled, unclipped. Preview
+  cosmetic note: panel overhangs the preview frame's bottom border ~20px
+  (frame sizing, not component drift).
+- **navigation-menu ☑ (curation term)** — dropdown opens on hover
+  (data-state=open, 338×204) with three designed link entries.
+- **marker ☑ (curation term)** — designed checklist demo (leading icons
+  inline with labels), reads as intended.
+- **scroll-area ☑ (scrollbar sub-check, platform note)** — the injected CSS
+  resolves post-hydration (`scrollbar-width: thin`,
+  `scrollbar-color: var(--border) transparent` computed on the viewport);
+  no at-rest thumb in headless macOS = overlay-scrollbar platform behavior,
+  not a defect. Surface closed.
+- **toast — STAYS OPEN, defect named → UI-62:** typed toasts fire with
+  correct `size-4` icons (UI-50 works), but the icon renders on its own
+  line ABOVE the title (toast `li` is flex-col; icon is a direct sibling) —
+  the icon+title row wrapper is missing. The UI-50-era layout flag is now a
+  confirmed live defect. (Demo also lacks a default-type button; the
+  default-no-icon contract is test-covered only.)
+- **toggle / message-scroller — on the WWW-15 wave:** both inert/static on
+  live (toggle's `ui-toggle` never registered; scroller not pinned to
+  bottom) — the exact class the derived-hydration flip eliminates.
+- **sidebar — DISPOSITION RULED: iframe preview.** The hydrated demo
+  fixed-positions to the VIEWPORT (x0 y0 256×900), painting over the site's
+  own docs nav, while the preview box shows only "Main content"; wrapper
+  duplicated (double-render class — dies with the derivation refactor). A
+  full-viewport app-shell component cannot render honestly in a bounded
+  box; upstream previews sidebar via iframe (`/view/sidebar-07`, recorded
+  in UI-53's manifest). Routed to the wave.
+- **message — curation term stays open:** designed demo with real nits —
+  align-end avatar detaches to bottom-right (possibly UI-60's
+  projected-slot class, noted to eng2), full-width code block splits a
+  sentence with an orphaned period, name/timestamp lack a gap.
+
+**Equation after round 2:** 21 ☑ (17 + popover + nav-menu + marker +
+scroll-area) + 5 open: toast (UI-62 row fix), toggle + message-scroller +
+sidebar-iframe (all on the WWW-15 wave deploy), message (curation polish)
+= 26. Every open term rides the wave or its named ticket; only performed
+rechecks flip.
