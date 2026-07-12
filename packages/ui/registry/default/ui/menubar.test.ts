@@ -12,6 +12,11 @@ import {
   MenubarContent,
   MenubarItem,
   MenubarSeparator,
+  MenubarRadioGroup,
+  MenubarRadioItem,
+  MenubarSub,
+  MenubarSubTrigger,
+  MenubarSubContent,
 } from './menubar.js';
 
 beforeEach(async () => {
@@ -190,6 +195,71 @@ describe('Menubar — portal', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(document.querySelector('[data-slot="menubar-content"]')).toBeNull();
+  });
+});
+
+describe('Menubar — multi-context resolution (UI-28 acceptance)', () => {
+  // One menu exercising all FOUR nested contexts at once: bar (Menubar) →
+  // menu (MenubarMenu) → { radio-group (MenubarRadioGroup), sub (MenubarSub) }.
+  // Each resolves independently by symbol identity.
+  function mountRich(): HTMLElement {
+    return mount(
+      html`${Menubar({
+        children: MenubarMenu({
+          children: html`${MenubarTrigger({ children: 'View' })}
+          ${MenubarContent({
+            children: html`${MenubarRadioGroup({
+              defaultValue: 'a',
+              children: html`${MenubarRadioItem({ value: 'a', children: 'A' })}
+              ${MenubarRadioItem({ value: 'b', children: 'B' })}`,
+            })}
+            ${MenubarSub({
+              children: html`${MenubarSubTrigger({ children: 'More' })}
+              ${MenubarSubContent({ children: MenubarItem({ value: 'x', children: 'Sub X' }) })}`,
+            })}`,
+          })}`,
+        }),
+      })}`,
+    );
+  }
+
+  it('bar→menu opens; the radio-group scope resolves independently of the menu', async () => {
+    const c = mountRich();
+    triggers(c)[0].click(); // bar resolves the menu, menu opens
+    await settle();
+    expect(openContents(c)).toHaveLength(1);
+
+    // Radio items resolve THEIR group context (not the menu/bar): a is checked.
+    const radios = () => Array.from(document.querySelectorAll('[role="menuitemradio"]'));
+    expect(radios().map((r) => r.getAttribute('aria-checked'))).toEqual(['true', 'false']);
+    (radios()[1] as HTMLElement).click(); // select B — group scope only
+    flush2();
+    expect(radios().map((r) => r.getAttribute('aria-checked'))).toEqual(['false', 'true']);
+  });
+
+  it('the submenu scope resolves distinctly from its enclosing menu', async () => {
+    const c = mountRich();
+    triggers(c)[0].click();
+    await settle();
+    const subTrigger = document.querySelector<HTMLElement>('[data-slot="menubar-sub-trigger"]')!;
+    subTrigger.click();
+    await settle();
+    const subContent = document.querySelector<HTMLElement>('[data-slot="menubar-sub-content"]')!;
+    expect(subContent.hasAttribute('hidden')).toBe(false); // sub context drives it
+    // The sub item is scoped to the sub-content, not the parent menu.
+    expect(subContent.querySelector('[role="menuitem"]')!.textContent).toBe('Sub X');
+  });
+
+  it('ui-select from a nested item reaches <ui-menubar> (bar dispatch via captured menu host)', async () => {
+    const c = mountRich();
+    const onSelect = vi.fn();
+    c.querySelector('ui-menubar')!.addEventListener('ui-select', onSelect as EventListener);
+    triggers(c)[0].click();
+    await settle();
+    // Radio item lives in the portaled content; ui-select still reaches the bar.
+    (document.querySelectorAll('[role="menuitemradio"]')[0] as HTMLElement).click();
+    flush2();
+    expect(onSelect).toHaveBeenCalled();
   });
 });
 

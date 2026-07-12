@@ -31,6 +31,7 @@
 
 import {
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -77,18 +78,10 @@ export interface DropdownMenuState {
   focusIntent: 'first' | 'last';
 }
 
-type DropdownMenuHost = HTMLElement & { __uiDropdownMenu?: DropdownMenuState };
+/** Menu state — trigger/content/items/sub resolve it. */
+const DropdownMenuContext = createContext<DropdownMenuState>('DropdownMenu');
 
 let uid = 0;
-
-function useMenuState(host: HTMLElement, tag: string): DropdownMenuState {
-  const parent = host.closest('ui-dropdown-menu') as DropdownMenuHost | null;
-  const state = parent?.__uiDropdownMenu;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-dropdown-menu>.`);
-  }
-  return state;
-}
 
 const stateAttr = (open: boolean) => (open ? 'open' : 'closed');
 
@@ -133,7 +126,7 @@ export const DropdownMenu = component<DropdownMenuProps>(
       rootHost: host,
       focusIntent: 'first',
     };
-    (host as DropdownMenuHost).__uiDropdownMenu = state;
+    DropdownMenuContext.provide(host, state);
 
     const className = attr(props.className, host, 'class-name');
     const classes = computed(() => cn(className.value));
@@ -162,7 +155,7 @@ export type DropdownMenuTriggerProps = {
 export const DropdownMenuTrigger = component<DropdownMenuTriggerProps>(
   'ui-dropdown-menu-trigger',
   (props, host) => {
-    const state = useMenuState(host, 'ui-dropdown-menu-trigger');
+    const state = DropdownMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -368,7 +361,7 @@ function wireMenuSurface(cfg: MenuSurfaceConfig): {
 export const DropdownMenuContent = component<DropdownMenuContentProps>(
   'ui-dropdown-menu-content',
   (props, host) => {
-    const state = useMenuState(host, 'ui-dropdown-menu-content');
+    const state = DropdownMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -456,7 +449,7 @@ export type DropdownMenuItemProps = {
 export const DropdownMenuItem = component<DropdownMenuItemProps>(
   'ui-dropdown-menu-item',
   (props, host) => {
-    const state = useMenuState(host, 'ui-dropdown-menu-item');
+    const state = DropdownMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -511,7 +504,7 @@ export type DropdownMenuCheckboxItemProps = {
 export const DropdownMenuCheckboxItem = component<DropdownMenuCheckboxItemProps>(
   'ui-dropdown-menu-checkbox-item',
   (props, host) => {
-    const state = useMenuState(host, 'ui-dropdown-menu-checkbox-item');
+    const state = DropdownMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -556,7 +549,8 @@ export interface DropdownMenuRadioGroupState {
   value: ReadonlySignal<string>;
   setValue(value: string): void;
 }
-type RadioGroupHost = HTMLElement & { __uiDropdownMenuRadioGroup?: DropdownMenuRadioGroupState };
+/** Radio-group value scope — its radio items resolve it. */
+const DropdownMenuRadioGroupContext = createContext<DropdownMenuRadioGroupState>('DropdownMenuRadioGroup');
 
 export type DropdownMenuRadioGroupProps = {
   value?: string;
@@ -576,7 +570,7 @@ export const DropdownMenuRadioGroup = component<DropdownMenuRadioGroupProps>(
     const setValue = (v: string): void => {
       internal.value = v;
     };
-    (host as RadioGroupHost).__uiDropdownMenuRadioGroup = { value, setValue };
+    DropdownMenuRadioGroupContext.provide(host, { value, setValue });
 
     const className = attr(props.className, host, 'class-name');
     const classes = computed(() => cn(className.value));
@@ -602,9 +596,8 @@ export type DropdownMenuRadioItemProps = {
 export const DropdownMenuRadioItem = component<DropdownMenuRadioItemProps>(
   'ui-dropdown-menu-radio-item',
   (props, host) => {
-    const state = useMenuState(host, 'ui-dropdown-menu-radio-item');
-    const group = (host.closest('ui-dropdown-menu-radio-group') as RadioGroupHost | null)
-      ?.__uiDropdownMenuRadioGroup;
+    const state = DropdownMenuContext.inject();
+    const group = DropdownMenuRadioGroupContext.inject.optional();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -742,21 +735,16 @@ export interface DropdownMenuSubState {
   hoverClose(): void;
   hoverCancel(): void;
 }
-type SubHost = HTMLElement & { __uiDropdownMenuSub?: DropdownMenuSubState };
-
-function useSubState(host: HTMLElement, tag: string): DropdownMenuSubState {
-  const sub = (host.closest('ui-dropdown-menu-sub') as SubHost | null)?.__uiDropdownMenuSub;
-  if (!sub) throw new Error(`<${tag}> must be used inside <ui-dropdown-menu-sub>.`);
-  return sub;
-}
+/** Submenu state — sub-trigger/sub-content resolve it. */
+const DropdownMenuSubContext = createContext<DropdownMenuSubState>('DropdownMenuSub');
 
 /** Nearest ancestor scope open signal (enclosing submenu, else the root menu). */
 function resolveParentOpen(host: HTMLElement): ReadonlySignal<boolean> {
   let el: HTMLElement | null = host.parentElement;
   while (el) {
-    const sub = (el as SubHost).__uiDropdownMenuSub;
+    const sub = DropdownMenuSubContext.peek(el);
     if (sub) return sub.open;
-    const root = (el as DropdownMenuHost).__uiDropdownMenu;
+    const root = DropdownMenuContext.peek(el);
     if (root) return root.open;
     el = el.parentElement;
   }
@@ -773,7 +761,7 @@ export type DropdownMenuSubProps = {
 export const DropdownMenuSub = component<DropdownMenuSubProps>(
   'ui-dropdown-menu-sub',
   (props, host) => {
-    useMenuState(host, 'ui-dropdown-menu-sub');
+    DropdownMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -812,7 +800,7 @@ export const DropdownMenuSub = component<DropdownMenuSubProps>(
       },
       hoverCancel: clearTimers,
     };
-    (host as SubHost).__uiDropdownMenuSub = state;
+    DropdownMenuSubContext.provide(host, state);
     onCleanup(clearTimers);
 
     const className = attr(props.className, host, 'class-name');
@@ -839,7 +827,7 @@ export type DropdownMenuSubTriggerProps = {
 export const DropdownMenuSubTrigger = component<DropdownMenuSubTriggerProps>(
   'ui-dropdown-menu-sub-trigger',
   (props, host) => {
-    const sub = useSubState(host, 'ui-dropdown-menu-sub-trigger');
+    const sub = DropdownMenuSubContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -910,7 +898,7 @@ export type DropdownMenuSubContentProps = {
 export const DropdownMenuSubContent = component<DropdownMenuSubContentProps>(
   'ui-dropdown-menu-sub-content',
   (props, host) => {
-    const sub = useSubState(host, 'ui-dropdown-menu-sub-content');
+    const sub = DropdownMenuSubContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 

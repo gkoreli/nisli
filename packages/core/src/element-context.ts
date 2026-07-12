@@ -62,6 +62,14 @@ export interface Context<T> {
   provide(host: HTMLElement, value: T): void;
   /** Resolve this context from a descendant (see {@link Inject}). */
   readonly inject: Inject<T>;
+  /**
+   * Read the value provided on THIS host only — no ancestor walk. `undefined`
+   * if `host` is not a provider of this context. The low-level primitive for
+   * bespoke walks (e.g. "nearest provider of context A OR context B", which
+   * `inject` can't express in one pass); prefer `inject`/`inject.optional`
+   * for ordinary descendant resolution.
+   */
+  peek(host: HTMLElement): T | undefined;
 }
 
 // ── Public API ──────────────────────────────────────────────────────
@@ -81,6 +89,9 @@ export function createContext<T>(name: string): Context<T> {
   const provide = (host: HTMLElement, value: T): void => {
     store(host)[KEY] = value;
   };
+
+  const peek = (host: HTMLElement): T | undefined =>
+    KEY in host ? (store(host)[KEY] as T) : undefined;
 
   // Walk up the element tree (inclusive of `start`) to the nearest provider.
   // `parentElement` transparently crosses `display: contents` hosts.
@@ -123,5 +134,5 @@ export function createContext<T>(name: string): Context<T> {
     return find(startHost(host, 'inject.optional()')!);
   };
 
-  return { name, provide, inject };
+  return { name, provide, inject, peek };
 }

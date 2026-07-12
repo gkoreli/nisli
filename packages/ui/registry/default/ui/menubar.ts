@@ -31,6 +31,7 @@
 
 import {
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -79,13 +80,8 @@ export interface MenubarState {
   /** Make `el` the single tab stop among the bar's triggers. */
   focusTrigger(el: HTMLElement): void;
 }
-type MenubarHost = HTMLElement & { __uiMenubar?: MenubarState };
-
-function useMenubar(host: HTMLElement, tag: string): MenubarState {
-  const bar = (host.closest('ui-menubar') as MenubarHost | null)?.__uiMenubar;
-  if (!bar) throw new Error(`<${tag}> must be used inside <ui-menubar>.`);
-  return bar;
-}
+/** Bar state — the top level, above per-menu state. */
+const MenubarContext = createContext<MenubarState>('Menubar');
 
 // ── Menu scope state (published on each <ui-menubar-menu> host) ───────
 
@@ -99,13 +95,8 @@ export interface MenubarMenuState {
    * here still bubbles to <ui-menubar> once the content is portaled away. */
   rootHost: HTMLElement;
 }
-type MenubarMenuHost = HTMLElement & { __uiMenubarMenu?: MenubarMenuState };
-
-function useMenu(host: HTMLElement, tag: string): MenubarMenuState {
-  const menu = (host.closest('ui-menubar-menu') as MenubarMenuHost | null)?.__uiMenubarMenu;
-  if (!menu) throw new Error(`<${tag}> must be used inside <ui-menubar-menu>.`);
-  return menu;
-}
+/** Per-menu state — trigger/content/items/sub of one menu resolve it. */
+const MenubarMenuContext = createContext<MenubarMenuState>('MenubarMenu');
 
 let uid = 0;
 
@@ -147,7 +138,7 @@ export const Menubar = component<MenubarProps>('ui-menubar', (props, host) => {
     },
     focusTrigger,
   };
-  (host as MenubarHost).__uiMenubar = state;
+  MenubarContext.provide(host, state);
 
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() =>
@@ -175,7 +166,7 @@ export type MenubarMenuProps = {
 };
 
 export const MenubarMenu = component<MenubarMenuProps>('ui-menubar-menu', (props, host) => {
-  const barState = useMenubar(host, 'ui-menubar-menu');
+  const barState = MenubarContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
 
@@ -194,7 +185,7 @@ export const MenubarMenu = component<MenubarMenuProps>('ui-menubar-menu', (props
     trigger: ref<HTMLElement>(),
     rootHost: host,
   };
-  (host as MenubarMenuHost).__uiMenubarMenu = state;
+  MenubarMenuContext.provide(host, state);
 
   const className = attr(props.className, host, 'class-name');
   const classes = computed(() => cn(className.value));
@@ -219,8 +210,8 @@ export type MenubarTriggerProps = {
 export const MenubarTrigger = component<MenubarTriggerProps>(
   'ui-menubar-trigger',
   (props, host) => {
-    const bar = useMenubar(host, 'ui-menubar-trigger');
-    const menu = useMenu(host, 'ui-menubar-trigger');
+    const bar = MenubarContext.inject();
+    const menu = MenubarMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -442,8 +433,8 @@ export type MenubarContentProps = {
 export const MenubarContent = component<MenubarContentProps>(
   'ui-menubar-content',
   (props, host) => {
-    const bar = useMenubar(host, 'ui-menubar-content');
-    const menu = useMenu(host, 'ui-menubar-content');
+    const bar = MenubarContext.inject();
+    const menu = MenubarMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -529,7 +520,7 @@ export type MenubarItemProps = {
 };
 
 export const MenubarItem = component<MenubarItemProps>('ui-menubar-item', (props, host) => {
-  const menu = useMenu(host, 'ui-menubar-item');
+  const menu = MenubarMenuContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
 
@@ -582,7 +573,7 @@ export type MenubarCheckboxItemProps = {
 export const MenubarCheckboxItem = component<MenubarCheckboxItemProps>(
   'ui-menubar-checkbox-item',
   (props, host) => {
-    const menu = useMenu(host, 'ui-menubar-checkbox-item');
+    const menu = MenubarMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -625,7 +616,8 @@ export interface MenubarRadioGroupState {
   value: ReadonlySignal<string>;
   setValue(value: string): void;
 }
-type RadioGroupHost = HTMLElement & { __uiMenubarRadioGroup?: MenubarRadioGroupState };
+/** Radio-group value scope — its radio items resolve it. */
+const MenubarRadioGroupContext = createContext<MenubarRadioGroupState>('MenubarRadioGroup');
 
 export type MenubarRadioGroupProps = {
   value?: string;
@@ -642,12 +634,12 @@ export const MenubarRadioGroup = component<MenubarRadioGroupProps>(
 
     const internal = signal<string>(props.defaultValue.value ?? host.getAttribute('default-value') ?? '');
     const value = computed<string>(() => props.value.value ?? internal.value);
-    (host as RadioGroupHost).__uiMenubarRadioGroup = {
+    MenubarRadioGroupContext.provide(host, {
       value,
       setValue: (v) => {
         internal.value = v;
       },
-    };
+    });
 
     const className = attr(props.className, host, 'class-name');
     const classes = computed(() => cn(className.value));
@@ -670,9 +662,8 @@ export type MenubarRadioItemProps = {
 export const MenubarRadioItem = component<MenubarRadioItemProps>(
   'ui-menubar-radio-item',
   (props, host) => {
-    const menu = useMenu(host, 'ui-menubar-radio-item');
-    const group = (host.closest('ui-menubar-radio-group') as RadioGroupHost | null)
-      ?.__uiMenubarRadioGroup;
+    const menu = MenubarMenuContext.inject();
+    const group = MenubarRadioGroupContext.inject.optional();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -800,21 +791,16 @@ export interface MenubarSubState {
   hoverClose(): void;
   hoverCancel(): void;
 }
-type SubHost = HTMLElement & { __uiMenubarSub?: MenubarSubState };
-
-function useSubState(host: HTMLElement, tag: string): MenubarSubState {
-  const sub = (host.closest('ui-menubar-sub') as SubHost | null)?.__uiMenubarSub;
-  if (!sub) throw new Error(`<${tag}> must be used inside <ui-menubar-sub>.`);
-  return sub;
-}
+/** Submenu state — sub-trigger/sub-content resolve it. */
+const MenubarSubContext = createContext<MenubarSubState>('MenubarSub');
 
 /** Nearest ancestor scope open signal (enclosing submenu, else the menu). */
 function resolveParentOpen(host: HTMLElement): ReadonlySignal<boolean> {
   let el: HTMLElement | null = host.parentElement;
   while (el) {
-    const sub = (el as SubHost).__uiMenubarSub;
+    const sub = MenubarSubContext.peek(el);
     if (sub) return sub.open;
-    const menu = (el as MenubarMenuHost).__uiMenubarMenu;
+    const menu = MenubarMenuContext.peek(el);
     if (menu) return menu.open;
     el = el.parentElement;
   }
@@ -829,7 +815,7 @@ export type MenubarSubProps = {
 };
 
 export const MenubarSub = component<MenubarSubProps>('ui-menubar-sub', (props, host) => {
-  useMenu(host, 'ui-menubar-sub');
+  MenubarMenuContext.inject();
   transparentHost(host);
   const projected = captureChildren(host);
 
@@ -864,7 +850,7 @@ export const MenubarSub = component<MenubarSubProps>('ui-menubar-sub', (props, h
     },
     hoverCancel: clearTimers,
   };
-  (host as SubHost).__uiMenubarSub = state;
+  MenubarSubContext.provide(host, state);
   onCleanup(clearTimers);
 
   const className = attr(props.className, host, 'class-name');
@@ -890,7 +876,7 @@ export type MenubarSubTriggerProps = {
 export const MenubarSubTrigger = component<MenubarSubTriggerProps>(
   'ui-menubar-sub-trigger',
   (props, host) => {
-    const sub = useSubState(host, 'ui-menubar-sub-trigger');
+    const sub = MenubarSubContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -961,7 +947,7 @@ export type MenubarSubContentProps = {
 export const MenubarSubContent = component<MenubarSubContentProps>(
   'ui-menubar-sub-content',
   (props, host) => {
-    const sub = useSubState(host, 'ui-menubar-sub-content');
+    const sub = MenubarSubContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 

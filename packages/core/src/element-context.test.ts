@@ -93,6 +93,48 @@ describe('createContext — resolution', () => {
   });
 });
 
+describe('createContext — peek (this-host-only, no walk)', () => {
+  it('reads the value on the exact host, and does NOT walk to ancestors', () => {
+    const provider = document.createElement('div');
+    const child = document.createElement('span');
+    provider.appendChild(child);
+    document.body.appendChild(provider);
+
+    const value: Counter = { count: signal(1) };
+    CounterContext.provide(provider, value);
+
+    expect(CounterContext.peek(provider)).toBe(value); // this host: yes
+    expect(CounterContext.peek(child)).toBeUndefined(); // child is not a provider — no walk
+  });
+
+  it('supports a bespoke nearest-of-A-or-B walk (the menu resolveParentOpen pattern)', () => {
+    const A = createContext<{ tag: string }>('A');
+    const B = createContext<{ tag: string }>('B');
+    const outer = document.createElement('div'); // provides A
+    const mid = document.createElement('div'); // provides B (nearer to leaf)
+    const leaf = document.createElement('span');
+    mid.appendChild(leaf);
+    outer.appendChild(mid);
+    document.body.appendChild(outer);
+    A.provide(outer, { tag: 'A' });
+    B.provide(mid, { tag: 'B' });
+
+    // Nearest provider of A-or-B from leaf, walking up, checking both per level.
+    const nearest = (start: HTMLElement): string | undefined => {
+      let el: HTMLElement | null = start.parentElement;
+      while (el) {
+        const a = A.peek(el);
+        if (a) return a.tag;
+        const b = B.peek(el);
+        if (b) return b.tag;
+        el = el.parentElement;
+      }
+      return undefined;
+    };
+    expect(nearest(leaf)).toBe('B'); // mid (B) is nearer than outer (A)
+  });
+});
+
 describe('createContext — absence', () => {
   it('inject() throws a named error when no provider exists', () => {
     const orphan = document.createElement('ui-orphan');

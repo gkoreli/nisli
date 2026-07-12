@@ -174,13 +174,10 @@ describe('DropdownMenu submenu — dismissal', () => {
     await microtask();
     expect(subOpen(c)).toBe(true);
 
-    c.querySelector('ui-dropdown-menu')!.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
-    );
-    // Root's own layer isn't top while sub is open; close the root directly.
-    (c.querySelector('ui-dropdown-menu') as HTMLElement & {
-      __uiDropdownMenu?: { setOpen(o: boolean): void };
-    }).__uiDropdownMenu!.setOpen(false);
+    // Close the ROOT directly via its trigger (a toggle) — NOT a layer dismiss,
+    // so it collapses the whole menu regardless of the LIFO stack. The submenu
+    // open state is derived from the parent, so it collapses too.
+    q(c, 'dropdown-menu-trigger').click();
     flush2();
     expect(rootOpen(c)).toBe(false);
     expect(subOpen(c)).toBe(false); // derived from parent open

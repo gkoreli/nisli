@@ -35,6 +35,7 @@
 
 import {
   component,
+  createContext,
   computed,
   effect,
   html,
@@ -83,18 +84,10 @@ export interface ContextMenuState {
   y: number;
 }
 
-type ContextMenuHost = HTMLElement & { __uiContextMenu?: ContextMenuState };
+/** Menu state — trigger/content/items/sub resolve it. */
+const ContextMenuContext = createContext<ContextMenuState>('ContextMenu');
 
 let uid = 0;
-
-function useMenuState(host: HTMLElement, tag: string): ContextMenuState {
-  const parent = host.closest('ui-context-menu') as ContextMenuHost | null;
-  const state = parent?.__uiContextMenu;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-context-menu>.`);
-  }
-  return state;
-}
 
 const stateAttr = (open: boolean) => (open ? 'open' : 'closed');
 
@@ -147,7 +140,7 @@ export const ContextMenu = component<ContextMenuProps>(
       x: 0,
       y: 0,
     };
-    (host as ContextMenuHost).__uiContextMenu = state;
+    ContextMenuContext.provide(host, state);
 
     const className = attr(props.className, host, 'class-name');
     const classes = computed(() => cn(className.value));
@@ -176,7 +169,7 @@ export type ContextMenuTriggerProps = {
 export const ContextMenuTrigger = component<ContextMenuTriggerProps>(
   'ui-context-menu-trigger',
   (props, host) => {
-    const state = useMenuState(host, 'ui-context-menu-trigger');
+    const state = ContextMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -366,7 +359,7 @@ function wireMenuSurface(cfg: MenuSurfaceConfig): {
 export const ContextMenuContent = component<ContextMenuContentProps>(
   'ui-context-menu-content',
   (props, host) => {
-    const state = useMenuState(host, 'ui-context-menu-content');
+    const state = ContextMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -466,7 +459,7 @@ export type ContextMenuItemProps = {
 export const ContextMenuItem = component<ContextMenuItemProps>(
   'ui-context-menu-item',
   (props, host) => {
-    const state = useMenuState(host, 'ui-context-menu-item');
+    const state = ContextMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -521,7 +514,7 @@ export type ContextMenuCheckboxItemProps = {
 export const ContextMenuCheckboxItem = component<ContextMenuCheckboxItemProps>(
   'ui-context-menu-checkbox-item',
   (props, host) => {
-    const state = useMenuState(host, 'ui-context-menu-checkbox-item');
+    const state = ContextMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -566,7 +559,8 @@ export interface ContextMenuRadioGroupState {
   value: ReadonlySignal<string>;
   setValue(value: string): void;
 }
-type RadioGroupHost = HTMLElement & { __uiContextMenuRadioGroup?: ContextMenuRadioGroupState };
+/** Radio-group value scope — its radio items resolve it. */
+const ContextMenuRadioGroupContext = createContext<ContextMenuRadioGroupState>('ContextMenuRadioGroup');
 
 export type ContextMenuRadioGroupProps = {
   value?: string;
@@ -586,7 +580,7 @@ export const ContextMenuRadioGroup = component<ContextMenuRadioGroupProps>(
     const setValue = (v: string): void => {
       internal.value = v;
     };
-    (host as RadioGroupHost).__uiContextMenuRadioGroup = { value, setValue };
+    ContextMenuRadioGroupContext.provide(host, { value, setValue });
 
     const className = attr(props.className, host, 'class-name');
     const classes = computed(() => cn(className.value));
@@ -612,9 +606,8 @@ export type ContextMenuRadioItemProps = {
 export const ContextMenuRadioItem = component<ContextMenuRadioItemProps>(
   'ui-context-menu-radio-item',
   (props, host) => {
-    const state = useMenuState(host, 'ui-context-menu-radio-item');
-    const group = (host.closest('ui-context-menu-radio-group') as RadioGroupHost | null)
-      ?.__uiContextMenuRadioGroup;
+    const state = ContextMenuContext.inject();
+    const group = ContextMenuRadioGroupContext.inject.optional();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -752,21 +745,16 @@ export interface ContextMenuSubState {
   hoverClose(): void;
   hoverCancel(): void;
 }
-type SubHost = HTMLElement & { __uiContextMenuSub?: ContextMenuSubState };
-
-function useSubState(host: HTMLElement, tag: string): ContextMenuSubState {
-  const sub = (host.closest('ui-context-menu-sub') as SubHost | null)?.__uiContextMenuSub;
-  if (!sub) throw new Error(`<${tag}> must be used inside <ui-context-menu-sub>.`);
-  return sub;
-}
+/** Submenu state — sub-trigger/sub-content resolve it. */
+const ContextMenuSubContext = createContext<ContextMenuSubState>('ContextMenuSub');
 
 /** Nearest ancestor scope open signal (enclosing submenu, else the root menu). */
 function resolveParentOpen(host: HTMLElement): ReadonlySignal<boolean> {
   let el: HTMLElement | null = host.parentElement;
   while (el) {
-    const sub = (el as SubHost).__uiContextMenuSub;
+    const sub = ContextMenuSubContext.peek(el);
     if (sub) return sub.open;
-    const root = (el as ContextMenuHost).__uiContextMenu;
+    const root = ContextMenuContext.peek(el);
     if (root) return root.open;
     el = el.parentElement;
   }
@@ -783,7 +771,7 @@ export type ContextMenuSubProps = {
 export const ContextMenuSub = component<ContextMenuSubProps>(
   'ui-context-menu-sub',
   (props, host) => {
-    useMenuState(host, 'ui-context-menu-sub');
+    ContextMenuContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -822,7 +810,7 @@ export const ContextMenuSub = component<ContextMenuSubProps>(
       },
       hoverCancel: clearTimers,
     };
-    (host as SubHost).__uiContextMenuSub = state;
+    ContextMenuSubContext.provide(host, state);
     onCleanup(clearTimers);
 
     const className = attr(props.className, host, 'class-name');
@@ -849,7 +837,7 @@ export type ContextMenuSubTriggerProps = {
 export const ContextMenuSubTrigger = component<ContextMenuSubTriggerProps>(
   'ui-context-menu-sub-trigger',
   (props, host) => {
-    const sub = useSubState(host, 'ui-context-menu-sub-trigger');
+    const sub = ContextMenuSubContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
@@ -920,7 +908,7 @@ export type ContextMenuSubContentProps = {
 export const ContextMenuSubContent = component<ContextMenuSubContentProps>(
   'ui-context-menu-sub-content',
   (props, host) => {
-    const sub = useSubState(host, 'ui-context-menu-sub-content');
+    const sub = ContextMenuSubContext.inject();
     transparentHost(host);
     const projected = captureChildren(host);
 
