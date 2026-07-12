@@ -31,6 +31,9 @@ jobs:
           - name: '@nisli/ui'
             dir: packages/ui
             tag-prefix: ui
+          - name: '@nisli/router'
+            dir: packages/router
+            tag-prefix: router
     steps:
       - uses: actions/checkout@v4
         with:
