@@ -72,7 +72,7 @@ export interface DialogState {
 }
 
 /** Subtree-scoped channel from <ui-dialog> to its parts. */
-const DialogContext = createContext<DialogState>('Dialog');
+const DialogContext = createContext<DialogState>('Dialog', { providerTag: 'ui-dialog' });
 
 let uid = 0;
 

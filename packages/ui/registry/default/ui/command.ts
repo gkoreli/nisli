@@ -52,7 +52,7 @@ interface CommandState {
 }
 
 /** Subtree-scoped channel from the Command provider to its parts. */
-const CommandContext = createContext<CommandState>('Command');
+const CommandContext = createContext<CommandState>('Command', { providerTag: 'ui-command' });
 
 const itemText = (el: HTMLElement): string =>
   `${el.getAttribute('data-value') ?? ''} ${el.textContent ?? ''} ${el.getAttribute('data-keywords') ?? ''}`.toLowerCase();

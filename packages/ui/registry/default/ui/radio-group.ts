@@ -70,7 +70,7 @@ export interface RadioGroupState {
 }
 
 /** Subtree-scoped channel from the RadioGroup provider to its parts. */
-const RadioGroupContext = createContext<RadioGroupState>('RadioGroup');
+const RadioGroupContext = createContext<RadioGroupState>('RadioGroup', { providerTag: 'ui-radio-group' });
 
 let uid = 0;
 

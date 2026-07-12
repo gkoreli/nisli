@@ -77,8 +77,19 @@ export interface Context<T> {
 /**
  * Create a subtree-scoped context. `name` is used only in diagnostics; the
  * context's identity (a private symbol) is what keys storage and lookup.
+ *
+ * Pass `{ providerTag }` to name the provider element so a missing-provider
+ * `inject()` produces an ACTIONABLE, element-language error —
+ * `<injecting-tag> must be used inside <provider-tag>.` — instead of naming the
+ * private context object. Set it whenever consumers are DOM elements (the whole
+ * registry): it's the difference between a message a plain-HTML user can act on
+ * and one they can't.
  */
-export function createContext<T>(name: string): Context<T> {
+export function createContext<T>(
+  name: string,
+  options: { providerTag?: string } = {},
+): Context<T> {
+  const { providerTag } = options;
   // Private per-context storage key. Not derived from `name`, so same-named
   // contexts stay distinct, and it never appears in userland.
   const KEY = Symbol(`nisli.context:${name}`);
@@ -120,9 +131,14 @@ export function createContext<T>(name: string): Context<T> {
     const start = startHost(host, 'inject()')!;
     const found = find(start);
     if (found === undefined) {
+      const injectingTag = start.tagName.toLowerCase();
+      // With a declared provider tag, speak element-language the consumer can
+      // act on; otherwise fall back to the generic (provider named by API).
       throw new Error(
-        `Context "${name}" not found: <${start.tagName.toLowerCase()}> must be rendered ` +
-          `inside a provider that calls ${name}Context.provide(host, …).`,
+        providerTag
+          ? `Context "${name}": <${injectingTag}> must be used inside <${providerTag}>.`
+          : `Context "${name}" not found: <${injectingTag}> must be rendered ` +
+              `inside a provider that calls ${name}Context.provide(host, …).`,
       );
     }
     return found;

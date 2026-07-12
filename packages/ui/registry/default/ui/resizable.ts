@@ -71,7 +71,7 @@ export interface ResizableGroupState {
 }
 
 /** Subtree-scoped channel from the Resizable provider to its parts. */
-const ResizableContext = createContext<ResizableGroupState>('Resizable');
+const ResizableContext = createContext<ResizableGroupState>('Resizable', { providerTag: 'ui-resizable-panel-group' });
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(Math.max(v, lo), hi);
 

@@ -70,7 +70,7 @@ export interface SheetState {
 }
 
 /** Subtree-scoped channel from <ui-sheet> to its parts. */
-const SheetContext = createContext<SheetState>('Sheet');
+const SheetContext = createContext<SheetState>('Sheet', { providerTag: 'ui-sheet' });
 
 let uid = 0;
 

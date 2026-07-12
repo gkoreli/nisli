@@ -104,7 +104,7 @@ export interface TooltipState {
 }
 
 /** Subtree-scoped channel from <ui-tooltip> to its parts. */
-const TooltipContext = createContext<TooltipState>('Tooltip');
+const TooltipContext = createContext<TooltipState>('Tooltip', { providerTag: 'ui-tooltip' });
 
 let uid = 0;
 

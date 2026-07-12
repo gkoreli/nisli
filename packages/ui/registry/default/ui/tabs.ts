@@ -66,7 +66,7 @@ export interface TabsState {
 }
 
 /** Subtree-scoped channel from <ui-tabs> to its list/trigger/content parts. */
-const TabsContext = createContext<TabsState>('Tabs');
+const TabsContext = createContext<TabsState>('Tabs', { providerTag: 'ui-tabs' });
 
 let uid = 0;
 

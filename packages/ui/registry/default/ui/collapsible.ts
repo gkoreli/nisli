@@ -51,7 +51,7 @@ export interface CollapsibleState {
 }
 
 /** Subtree-scoped channel from the Collapsible provider to its parts. */
-const CollapsibleContext = createContext<CollapsibleState>('Collapsible');
+const CollapsibleContext = createContext<CollapsibleState>('Collapsible', { providerTag: 'ui-collapsible' });
 
 let uid = 0;
 

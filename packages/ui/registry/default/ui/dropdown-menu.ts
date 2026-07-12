@@ -79,7 +79,7 @@ export interface DropdownMenuState {
 }
 
 /** Menu state — trigger/content/items/sub resolve it. */
-const DropdownMenuContext = createContext<DropdownMenuState>('DropdownMenu');
+const DropdownMenuContext = createContext<DropdownMenuState>('DropdownMenu', { providerTag: 'ui-dropdown-menu' });
 
 let uid = 0;
 
@@ -550,7 +550,7 @@ export interface DropdownMenuRadioGroupState {
   setValue(value: string): void;
 }
 /** Radio-group value scope — its radio items resolve it. */
-const DropdownMenuRadioGroupContext = createContext<DropdownMenuRadioGroupState>('DropdownMenuRadioGroup');
+const DropdownMenuRadioGroupContext = createContext<DropdownMenuRadioGroupState>('DropdownMenuRadioGroup', { providerTag: 'ui-dropdown-menu-radio-group' });
 
 export type DropdownMenuRadioGroupProps = {
   value?: string;
@@ -736,7 +736,7 @@ export interface DropdownMenuSubState {
   hoverCancel(): void;
 }
 /** Submenu state — sub-trigger/sub-content resolve it. */
-const DropdownMenuSubContext = createContext<DropdownMenuSubState>('DropdownMenuSub');
+const DropdownMenuSubContext = createContext<DropdownMenuSubState>('DropdownMenuSub', { providerTag: 'ui-dropdown-menu-sub' });
 
 /** Nearest ancestor scope open signal (enclosing submenu, else the root menu). */
 function resolveParentOpen(host: HTMLElement): ReadonlySignal<boolean> {

@@ -66,7 +66,7 @@ export interface PopoverState {
 }
 
 /** Subtree-scoped channel from <ui-popover> to its parts. */
-const PopoverContext = createContext<PopoverState>('Popover');
+const PopoverContext = createContext<PopoverState>('Popover', { providerTag: 'ui-popover' });
 
 let uid = 0;
 

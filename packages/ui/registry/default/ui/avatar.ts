@@ -51,7 +51,7 @@ export interface AvatarState {
 }
 
 /** Subtree-scoped channel from the Avatar provider to its parts. */
-const AvatarContext = createContext<AvatarState>('Avatar');
+const AvatarContext = createContext<AvatarState>('Avatar', { providerTag: 'ui-avatar' });
 
 // ── ui-avatar (root, owns loading status) ───────────────────────────
 

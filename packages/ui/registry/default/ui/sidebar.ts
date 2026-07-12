@@ -67,7 +67,7 @@ export interface SidebarState {
 }
 
 /** Subtree-scoped channel from the Sidebar provider to its parts. */
-const SidebarContext = createContext<SidebarState>('Sidebar');
+const SidebarContext = createContext<SidebarState>('Sidebar', { providerTag: 'ui-sidebar-provider' });
 
 // ── ui-sidebar-provider ──────────────────────────────────────────────
 

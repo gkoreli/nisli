@@ -57,7 +57,7 @@ export interface DrawerState {
 }
 
 /** Subtree-scoped channel from the Drawer provider to its parts. */
-const DrawerContext = createContext<DrawerState>('Drawer');
+const DrawerContext = createContext<DrawerState>('Drawer', { providerTag: 'ui-drawer' });
 
 let uid = 0;
 

@@ -33,7 +33,7 @@ export interface DirectionState {
 }
 
 /** Subtree-scoped channel from the direction provider to descendants. */
-const DirectionContext = createContext<DirectionState>('Direction');
+const DirectionContext = createContext<DirectionState>('Direction', { providerTag: 'ui-direction-provider' });
 
 export type DirectionProviderProps = {
   dir?: Direction;

@@ -63,9 +63,9 @@ export interface AccordionState {
 }
 
 /** Root accordion state (open-set, type) shared with items/triggers/content. */
-const AccordionContext = createContext<AccordionState>('Accordion');
+const AccordionContext = createContext<AccordionState>('Accordion', { providerTag: 'ui-accordion' });
 /** Per-item value, published by each <ui-accordion-item> for its trigger/content. */
-const AccordionItemContext = createContext<{ value: string }>('AccordionItem');
+const AccordionItemContext = createContext<{ value: string }>('AccordionItem', { providerTag: 'ui-accordion-item' });
 
 let uid = 0;
 

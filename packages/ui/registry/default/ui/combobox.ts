@@ -65,7 +65,7 @@ export interface ComboboxState {
 }
 
 /** Subtree-scoped channel from <ui-combobox> to its parts. */
-const ComboboxContext = createContext<ComboboxState>('Combobox');
+const ComboboxContext = createContext<ComboboxState>('Combobox', { providerTag: 'ui-combobox' });
 
 let uid = 0;
 

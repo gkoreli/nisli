@@ -67,7 +67,7 @@ export interface HoverCardState {
 }
 
 /** Subtree-scoped channel from the HoverCard provider to its parts. */
-const HoverCardContext = createContext<HoverCardState>('HoverCard');
+const HoverCardContext = createContext<HoverCardState>('HoverCard', { providerTag: 'ui-hover-card' });
 
 let uid = 0;
 

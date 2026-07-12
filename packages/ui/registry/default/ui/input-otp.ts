@@ -58,7 +58,7 @@ export interface InputOTPState {
 }
 
 /** Subtree-scoped channel from the InputOTP provider to its parts. */
-const InputOTPContext = createContext<InputOTPState>('InputOTP');
+const InputOTPContext = createContext<InputOTPState>('InputOTP', { providerTag: 'ui-input-otp' });
 
 // ── ui-input-otp (root: single native input + shared slot state) ─────
 

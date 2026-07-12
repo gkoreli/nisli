@@ -148,6 +148,22 @@ describe('createContext — absence', () => {
     expect(CounterContext.inject.optional(orphan)).toBeUndefined();
   });
 
+  it('providerTag makes the not-found error actionable element-language', () => {
+    const Ctx = createContext<Counter>('Widget', { providerTag: 'ui-widget' });
+    const orphan = document.createElement('ui-widget-item');
+    document.body.appendChild(orphan);
+    // The actionable sentence names the injecting tag AND the provider tag.
+    expect(() => Ctx.inject(orphan)).toThrow(
+      '<ui-widget-item> must be used inside <ui-widget>.',
+    );
+  });
+
+  it('without providerTag, the default (API-named) message stands', () => {
+    const orphan = document.createElement('ui-thing');
+    document.body.appendChild(orphan);
+    expect(() => CounterContext.inject(orphan)).toThrow(/provide\(host/);
+  });
+
   it('zero cost for non-users: providing adds exactly one key, non-users get none', () => {
     const provider = document.createElement('div');
     const nonUser = document.createElement('div');

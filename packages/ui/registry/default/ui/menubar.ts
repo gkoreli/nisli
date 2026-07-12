@@ -81,7 +81,7 @@ export interface MenubarState {
   focusTrigger(el: HTMLElement): void;
 }
 /** Bar state — the top level, above per-menu state. */
-const MenubarContext = createContext<MenubarState>('Menubar');
+const MenubarContext = createContext<MenubarState>('Menubar', { providerTag: 'ui-menubar' });
 
 // ── Menu scope state (published on each <ui-menubar-menu> host) ───────
 
@@ -96,7 +96,7 @@ export interface MenubarMenuState {
   rootHost: HTMLElement;
 }
 /** Per-menu state — trigger/content/items/sub of one menu resolve it. */
-const MenubarMenuContext = createContext<MenubarMenuState>('MenubarMenu');
+const MenubarMenuContext = createContext<MenubarMenuState>('MenubarMenu', { providerTag: 'ui-menubar-menu' });
 
 let uid = 0;
 
@@ -617,7 +617,7 @@ export interface MenubarRadioGroupState {
   setValue(value: string): void;
 }
 /** Radio-group value scope — its radio items resolve it. */
-const MenubarRadioGroupContext = createContext<MenubarRadioGroupState>('MenubarRadioGroup');
+const MenubarRadioGroupContext = createContext<MenubarRadioGroupState>('MenubarRadioGroup', { providerTag: 'ui-menubar-radio-group' });
 
 export type MenubarRadioGroupProps = {
   value?: string;
@@ -792,7 +792,7 @@ export interface MenubarSubState {
   hoverCancel(): void;
 }
 /** Submenu state — sub-trigger/sub-content resolve it. */
-const MenubarSubContext = createContext<MenubarSubState>('MenubarSub');
+const MenubarSubContext = createContext<MenubarSubState>('MenubarSub', { providerTag: 'ui-menubar-sub' });
 
 /** Nearest ancestor scope open signal (enclosing submenu, else the menu). */
 function resolveParentOpen(host: HTMLElement): ReadonlySignal<boolean> {

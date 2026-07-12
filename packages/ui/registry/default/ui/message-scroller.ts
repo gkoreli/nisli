@@ -52,7 +52,7 @@ export interface MessageScrollerState {
 }
 
 /** Subtree-scoped channel from the MessageScroller provider to its parts. */
-const MessageScrollerContext = createContext<MessageScrollerState>('MessageScroller');
+const MessageScrollerContext = createContext<MessageScrollerState>('MessageScroller', { providerTag: 'ui-message-scroller' });
 
 // ── ui-message-scroller-provider (passthrough) ───────────────────────
 

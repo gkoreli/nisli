@@ -66,7 +66,7 @@ export interface CarouselState {
 }
 
 /** Subtree-scoped channel from the Carousel provider to its parts. */
-const CarouselContext = createContext<CarouselState>('Carousel');
+const CarouselContext = createContext<CarouselState>('Carousel', { providerTag: 'ui-carousel' });
 
 let uid = 0;
 

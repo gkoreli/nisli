@@ -56,7 +56,7 @@ interface ToggleGroupState {
 }
 
 /** Subtree-scoped channel from the ToggleGroup provider to its parts. */
-const ToggleGroupContext = createContext<ToggleGroupState>('ToggleGroup');
+const ToggleGroupContext = createContext<ToggleGroupState>('ToggleGroup', { providerTag: 'ui-toggle-group' });
 
 // ── ui-toggle-group (root) ───────────────────────────────────────────
 

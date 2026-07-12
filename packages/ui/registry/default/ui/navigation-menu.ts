@@ -77,7 +77,7 @@ export interface NavigationMenuState {
 }
 
 /** Subtree-scoped channel from the NavigationMenu provider to its parts. */
-const NavigationMenuContext = createContext<NavigationMenuState>('NavigationMenu');
+const NavigationMenuContext = createContext<NavigationMenuState>('NavigationMenu', { providerTag: 'ui-navigation-menu' });
 
 let uid = 0;
 

@@ -60,7 +60,7 @@ export interface AlertDialogState {
 }
 
 /** Subtree-scoped channel from <ui-alert-dialog> to its parts. */
-const AlertDialogContext = createContext<AlertDialogState>('AlertDialog');
+const AlertDialogContext = createContext<AlertDialogState>('AlertDialog', { providerTag: 'ui-alert-dialog' });
 
 let uid = 0;
 
