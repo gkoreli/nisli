@@ -726,6 +726,17 @@
       "registryDependencies": [
         "utils"
       ]
+    },
+    {
+      "name": "attachment",
+      "type": "ui",
+      "description": "A file/attachment chip with upload-state, size, and orientation variants. Port of shadcn/ui attachment.",
+      "files": [
+        "ui/attachment.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }
