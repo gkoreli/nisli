@@ -11,11 +11,69 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import ts from 'typescript';
 import { loadRegistry, registryDir, resolveItems } from './registry.js';
+
+function importSpecifiers(file: string, source: string): string[] {
+  if (file.endsWith('.css')) {
+    const withoutComments = source.replace(/\/\*[\s\S]*?\*\//g, '');
+    return [
+      ...withoutComments.matchAll(
+        /^\s*@import\s+(?:url\(\s*(?:"([^"]+)"|'([^']+)'|([^'"\s)]+))\s*\)|"([^"]+)"|'([^']+)')/gm,
+      ),
+    ]
+      .map((match) => match.slice(1).find((specifier) => specifier !== undefined))
+      .filter((specifier): specifier is string => specifier !== undefined);
+  }
+
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const specifiers: string[] = [];
+
+  function visit(node: ts.Node): void {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier)
+    ) {
+      specifiers.push(node.moduleSpecifier.text);
+    } else if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments[0] &&
+      ts.isStringLiteralLike(node.arguments[0])
+    ) {
+      specifiers.push(node.arguments[0].text);
+    } else if (
+      ts.isImportTypeNode(node) &&
+      ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteralLike(node.argument.literal)
+    ) {
+      specifiers.push(node.argument.literal.text);
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return specifiers;
+}
 
 describe('registry integrity', () => {
   const registry = loadRegistry();
   const sourceRoot = join(registryDir(), registry.style);
+
+  it('copied files have no runtime npm dependencies', () => {
+    const files = new Set(registry.items.flatMap((item) => item.files));
+
+    for (const file of files) {
+      const source = readFileSync(join(sourceRoot, file), 'utf8');
+      for (const specifier of importSpecifiers(file, source)) {
+        expect(
+          specifier.startsWith('.') || specifier === '@nisli/core',
+          `${file} imports disallowed runtime dependency "${specifier}"; copied registry files may only import relative files or @nisli/core`,
+        ).toBe(true);
+      }
+    }
+  });
 
   it.each(registry.items.map((item) => [item.name] as const))(
     '%s: transitive closure covers all relative imports',
@@ -49,4 +107,24 @@ describe('registry integrity', () => {
       }
     },
   );
+});
+
+describe('importSpecifiers', () => {
+  it('finds quoted, quoted url(), and unquoted url() CSS imports', () => {
+    expect(
+      importSpecifiers(
+        'styles/example.css',
+        '@import "quoted";\n@import url(  "quoted-url"  );\n@import url( unquoted-url );',
+      ),
+    ).toEqual(['quoted', 'quoted-url', 'unquoted-url']);
+  });
+
+  it('ignores CSS imports inside comments', () => {
+    expect(
+      importSpecifiers(
+        'styles/example.css',
+        '/* @import "inline-comment";\n@import url(block-comment); */',
+      ),
+    ).toEqual([]);
+  });
 });
