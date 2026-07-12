@@ -61,3 +61,54 @@ vitest runner, Tailwind CLI, wrangler static assets) carries over unchanged.
   don't auto-update either).
 - First non-published workspace package; root `pnpm build/test/typecheck`
   now include it.
+
+## Amendment 2026-07-12 — reusable layout system (WWW-12, Goga's design direction)
+
+Goga's ask, verbatim intent: a "reusable sidebar and proper web layout for
+the www package, proper modular architecture and reusable pages/components"
+— the docs-site pattern of code.claude.com/docs and ui.shadcn.com/docs:
+persistent top bar, grouped left sidebar navigation, content column with
+breadcrumb + title, optional "on this page" rail, sidebar collapsing to a
+drawer on mobile. Production-grade, no bandaids; at 0.n we replace fully and
+delete the old page-local layout in the same series.
+
+**Decision — a composable layout layer in `src/layout/`, one source of truth
+for navigation:**
+
+- **Pieces** (each a reusable nisli component, composed — never page-local
+  markup): `SiteShell` (top bar: brand, top-level nav, theme toggle — every
+  page renders inside it, home included), `DocsLayout` (the three-region
+  docs frame: sidebar / content / optional TOC rail), `SidebarNav` (grouped,
+  scrollable nav; current item highlighted via `aria-current` + data-state),
+  `ContentShell` (breadcrumb + title + prose container), `PageToc` (right
+  rail, optional per page).
+- **Dogfood the registry `sidebar` family** for `SidebarNav` and the mobile
+  drawer (it already carries provider/group/menu structure, `use-mobile` +
+  sheet behavior). This is the point of the site: **if the registry sidebar
+  cannot serve a real docs site, that is a registry component gap — fixed in
+  `packages/ui` FIRST**, captured in ADR 0022/0025, then consumed here. No
+  www-local fork of sidebar behavior.
+- **Nav data is derived, never hand-maintained** (ADR 0026 spirit): the
+  sidebar groups (Getting Started / Components / Primitives) are computed
+  from the same sources the router derives its routes from —
+  `src/registry.ts` (registry JSON → Components + Primitives groups) and the
+  docs source catalog. Adding a registry item or docs page yields its nav
+  entry with zero nav edits; a nav entry with no route (or route with no nav
+  coverage decision) is a test failure.
+- **Coverage**: `/ui` index, every `/ui/<name>`, and every `/docs/*` page
+  render through `DocsLayout`; home renders through `SiteShell` alone. The
+  old per-page layout markup is deleted in the same landing series (no
+  legacy path).
+- **Accessibility floor**: skip-to-content link, `nav`/`main`/`aside`
+  landmarks, full keyboard operability (sidebar is a tabbable tree; mobile
+  drawer inherits the sheet's focus trap + Escape), `aria-current="page"` on
+  the active item.
+- **Hydration interplay** (WWW-10/WS1): the layout is static-first — sidebar
+  links are real anchors and work with zero JS; only the mobile drawer
+  toggle and theme toggle need the hydration runtime, which the WS1 guard
+  already verifies per page. The drawer's portaled sheet is subject to the
+  ADR 0025 item-6 SSG limit and therefore must be in the hydrate set.
+- **Staffing**: eng3 leads implementation and route/nav-data wiring (after
+  the WS1 fix set lands); eng2 joins for the layout components and owns any
+  registry `sidebar` gaps the dogfooding surfaces. rev gates; deploy to
+  nisli.dev on pass so Goga sees it.
