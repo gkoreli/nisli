@@ -588,3 +588,22 @@ Before acceptance:
 7. Verify direct loads, native anchor fallback, back/forward, query updates,
    404s, refreshes, and HMR.
 8. Evaluate migrating one blog route family after `www` proves the API.
+
+## Implementation Audit Amendments (2026-07-11)
+
+### Publication status (RTR-1)
+
+`@nisli/router@0.1.0` is implemented but not published. The checkpoint push
+`d70eaee` triggered `auto-tag.yml` run `29182902272`; its router matrix job used
+the correct identity (`@nisli/router`), directory (`packages/router`), and tag
+prefix (`router`). The publishability check, install, full build, full test,
+npm upgrade, tag creation, and GitHub release creation all passed. Only
+`npm publish` failed, after packaging, and npm still returns `E404` for
+`@nisli/router@0.1.0`.
+
+The repository-side workflow is therefore correct. The remaining blocker is
+the npm Trusted Publisher identity/configuration for the router package, which
+is administered outside this repository. The failed `router-v0.1.0` release
+and tag have been removed, so the same version can be retried after that
+configuration is corrected. Until npm confirms the version, documentation
+must not claim that `@nisli/router` is installable from the registry.
