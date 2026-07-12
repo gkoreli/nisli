@@ -47,7 +47,7 @@ export interface NisliRoutesOptions {
  * composes independently with `@nisli/core/vite-hmr`.
  */
 export function nisliRoutes(
-  router: ApplicationRouter<Readonly<Record<string, RouteDefinition>>>,
+  router: ApplicationRouter<Readonly<Record<string, RouteDefinition<any, any>>>>,
   options: NisliRoutesOptions = {},
 ): NisliRoutesPlugin {
   const index = options.index ?? 'index.html';

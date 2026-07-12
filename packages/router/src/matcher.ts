@@ -12,7 +12,7 @@ export interface RouteMatch<Params extends Record<string, string> = Record<strin
 }
 
 export interface MatcherDefinition {
-  readonly routes: Readonly<Record<string, RouteDefinition>>;
+  readonly routes: Readonly<Record<string, RouteDefinition<any, any>>>;
   readonly notFound?: NotFoundDefinition;
   readonly base?: string;
 }

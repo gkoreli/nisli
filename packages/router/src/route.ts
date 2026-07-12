@@ -44,6 +44,8 @@ type HasKeys<T> = keyof T extends never ? false : true;
 type HrefArgs<Path extends string, Q extends QuerySchema> =
   (HasKeys<PathParams<Path>> extends true ? { params: PathParams<Path> } : { params?: never }) &
   (HasKeys<QueryValues<Q>> extends true ? { query: QueryValues<Q> } : { query?: never });
+type NeedsHrefOptions<Path extends string, Q extends QuerySchema> =
+  HasKeys<PathParams<Path>> extends true ? true : HasKeys<QueryValues<Q>>;
 
 export interface RouteDefinition<Path extends string = string, Q extends QuerySchema = QuerySchema> {
   readonly kind: 'route';
@@ -52,7 +54,9 @@ export interface RouteDefinition<Path extends string = string, Q extends QuerySc
   readonly render: RouteRenderer<Path, Q>;
   readonly entries?: RouteOptions<Path, Q>['entries'];
   readonly metadata?: RouteOptions<Path, Q>['metadata'];
-  href(...args: HasKeys<HrefArgs<Path, Q>> extends true ? [options: HrefArgs<Path, Q>] : [options?: HrefArgs<Path, Q>]): string;
+  href(...args: NeedsHrefOptions<Path, Q> extends true
+    ? [options: HrefArgs<Path, Q>]
+    : [options?: HrefArgs<Path, Q>]): string;
 }
 
 function replacePathParams(path: string, params: Record<string, string>): string {

@@ -9,7 +9,7 @@ export interface NavigateOptions {
 }
 
 export interface RouterApplicationDefinition extends MatcherDefinition {
-  readonly routes: Readonly<Record<string, RouteDefinition>>;
+  readonly routes: Readonly<Record<string, RouteDefinition<any, any>>>;
   readonly notFound?: NotFoundDefinition;
 }
 
