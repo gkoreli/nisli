@@ -64,6 +64,7 @@ export {
   type SetupFunction,
   type ComponentFactory,
   type ComponentOptions,
+  type AttrDecl,
   type PropInput,
   type HostAttrs,
 } from './component.js';

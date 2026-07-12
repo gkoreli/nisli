@@ -36,13 +36,7 @@ import {
   ref,
   signal,
 } from '@nisli/core';
-import {
-  attr,
-  boolAttr,
-  cn,
-  forwardedAttr,
-  transparentHost,
-} from '../lib/utils.js';
+import { cn, transparentHost } from '../lib/utils.js';
 
 export const switchWrapperClasses = 'relative inline-flex shrink-0';
 
@@ -80,15 +74,21 @@ export type SwitchProps = {
 export const Switch = component<SwitchProps>('ui-switch', (props, host) => {
   transparentHost(host);
 
-  const value = attr(props.value, host, 'value');
-  const id = forwardedAttr(props.id, host, 'id');
-  const name = forwardedAttr(props.name, host, 'name');
-  const checked = boolAttr(props.checked, host, 'checked');
-  const disabled = boolAttr(props.disabled, host, 'disabled');
-  const required = boolAttr(props.required, host, 'required');
-  const className = attr(props.className, host, 'class-name');
-  const sizeAttr = attr(props.size, host, 'size');
-  const size = computed<SwitchSize>(() => (sizeAttr.value === 'sm' ? 'sm' : 'default'));
+  // ADR 0025 item 3: attribute fallbacks are declared via the
+  // `attrs` option below and delivered as plain, LIVE prop signals — no
+  // userland attr()/boolAttr()/forwardedAttr() at setup. `setAttribute` after
+  // mount now flows through (see the live-update tests). Declared-default
+  // booleans are runtime-guaranteed non-undefined by the declaration, so there
+  // is NO defensive `?? false`; the `as boolean` reflects that guarantee until
+  // ReactiveProps carries the declared type (future work, per arch).
+  const value = props.value;
+  const id = props.id;
+  const name = props.name;
+  const checked = computed<boolean>(() => props.checked.value as boolean);
+  const disabled = computed<boolean>(() => props.disabled.value as boolean);
+  const required = computed<boolean>(() => props.required.value as boolean);
+  const className = props.className;
+  const size = computed<SwitchSize>(() => (props.size.value === 'sm' ? 'sm' : 'default'));
 
   // className merges into the track (the input), where size overrides belong.
   const controlClasses = computed(() =>
@@ -145,4 +145,18 @@ export const Switch = component<SwitchProps>('ui-switch', (props, host) => {
     />
     <span data-slot="switch-thumb" class="${thumbClasses}"></span>
   </span>`;
+}, {
+  // ADR 0025 item 3: opt-in attribute reactivity. Kebab-case attr
+  // names (className → class-name). 'forward' relocates id/name off the
+  // transparent host onto the inner control (native form participation).
+  attrs: {
+    value: 'string',
+    size: 'string',
+    className: 'string',
+    id: 'forward',
+    name: 'forward',
+    checked: 'boolean',
+    disabled: 'boolean',
+    required: 'boolean',
+  },
 });

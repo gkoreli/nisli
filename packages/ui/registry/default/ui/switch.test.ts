@@ -188,3 +188,109 @@ describe('Switch data-state reflection', () => {
     expect(input.getAttribute('data-state')).toBe('checked');
   });
 });
+
+// ── Live attribute reactivity (ADR 0025 item 3) ─────────
+//
+// The capability that did NOT exist before: with attributes declared on
+// component(), setAttribute() AFTER mount writes the prop signal LIVE, so the
+// rendered control updates. Under the old parse-time-only attr()/boolAttr(),
+// every assertion here that mutates an attribute post-mount would fail.
+
+describe('Switch — live attribute reactivity', () => {
+  /** Mount a plain-HTML host (nothing pinned) and return it. */
+  function mountHost(attrs = ''): HTMLElement {
+    document.body.innerHTML = `<ui-switch ${attrs}></ui-switch>`;
+    return document.body.querySelector('ui-switch') as HTMLElement;
+  }
+
+  it('setAttribute(checked) after mount toggles the control', () => {
+    const host = mountHost();
+    const input = getInput();
+    expect(input.checked).toBe(false);
+
+    host.setAttribute('checked', ''); // bare → true
+    flushEffects();
+    flushEffects();
+    expect(input.checked).toBe(true);
+    expect(input.getAttribute('data-state')).toBe('checked');
+
+    host.setAttribute('checked', 'false'); // our boolean semantics → false
+    flushEffects();
+    flushEffects();
+    expect(input.checked).toBe(false);
+
+    host.removeAttribute('checked'); // absent → default false
+    flushEffects();
+    flushEffects();
+    expect(input.checked).toBe(false);
+  });
+
+  it('live disabled + size changes re-render', () => {
+    const host = mountHost();
+    const input = getInput();
+    expect(input.disabled).toBe(false);
+
+    host.setAttribute('disabled', '');
+    flushEffects();
+    expect(input.disabled).toBe(true);
+    expect(input.hasAttribute('data-disabled')).toBe(true);
+
+    host.setAttribute('size', 'sm');
+    flushEffects();
+    expect(input.getAttribute('data-size')).toBe('sm');
+    expect(input.className).toContain('w-6'); // sm track width
+
+    host.removeAttribute('disabled');
+    flushEffects();
+    expect(input.disabled).toBe(false);
+    expect(input.hasAttribute('data-disabled')).toBe(false);
+  });
+
+  it('honors OUR boolean semantics live: bare=true, "false"=false', () => {
+    const host = mountHost('required'); // bare → true at seed
+    const input = getInput();
+    expect(input.required).toBe(true);
+
+    host.setAttribute('required', 'false');
+    flushEffects();
+    expect(input.required).toBe(false);
+  });
+
+  it("'forward' relocates id/name off the transparent host onto the inner control", () => {
+    const host = mountHost('id="live-id" name="live-name"');
+    const input = getInput();
+    expect(input.id).toBe('live-id');
+    expect(input.getAttribute('name')).toBe('live-name');
+    // Relocated — no duplicate id/name left on the host.
+    expect(host.hasAttribute('id')).toBe(false);
+    expect(host.hasAttribute('name')).toBe(false);
+  });
+
+  it('an explicit DEFINED prop PINS the value against later attribute writes', () => {
+    const host = document.createElement('ui-switch');
+    (host as unknown as { _setProp(k: string, v: unknown): void })._setProp('checked', true);
+    document.body.appendChild(host);
+    const input = getInput(host);
+    expect(input.checked).toBe(true);
+
+    // Pinned → a later attribute write does NOT override the explicit prop.
+    host.setAttribute('checked', 'false');
+    flushEffects();
+    flushEffects();
+    expect(input.checked).toBe(true);
+  });
+
+  it('an explicit UNDEFINED prop (spread of an unset optional) does NOT pin — the attribute wins', () => {
+    // Mirrors `Switch({ ...opts })` where opts.checked is present-but-undefined:
+    // the factory's Object.entries walk fires _setProp('checked', undefined).
+    // Defined-write-pins means this must NOT pin, so the attribute still drives.
+    const host = document.createElement('ui-switch');
+    host.setAttribute('checked', ''); // attribute says checked
+    const setProp = (host as unknown as { _setProp(k: string, v: unknown): void })._setProp.bind(host);
+    setProp('checked', undefined); // the spread-of-undefined write
+    document.body.appendChild(host);
+
+    // Not pinned → the attribute wins → checked (a silent pin here would be the trap).
+    expect(getInput(host).checked).toBe(true);
+  });
+});

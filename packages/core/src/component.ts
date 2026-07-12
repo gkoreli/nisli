@@ -76,10 +76,77 @@ export type ComponentFactory<P> = (
   hostAttrs?: HostAttrs,
 ) => TemplateResult;
 
+/**
+ * Opt-in attribute reactivity declaration (ADR 0025 item 3).
+ *
+ * Declares how a host attribute maps onto a prop signal, subsuming userland
+ * `attr()`/`boolAttr()`/`forwardedAttr()`. Unlike those (which read the
+ * attribute once at setup), a declared attribute is `observedAttributes`-wired,
+ * so `setAttribute()` AFTER mount writes the prop signal LIVE.
+ *
+ * - `'string'` — the attribute's string value (absent → `undefined`).
+ * - `'boolean'` — OUR boolean semantics: bare/any value → `true`, literal
+ *   `"false"` → `false`, absent → `false`.
+ * - `{ type: 'boolean', default: true }` — as above but absent → the default
+ *   (so a default-`true` flag can be opted out with `attr="false"`).
+ * - `{ type: 'string', default: '…' }` — string with an absent-value default.
+ * - `'forward'` — string semantics PLUS relocation: the attribute is removed
+ *   from the (layout-transparent) host so `id`/`name` live only on the inner
+ *   control (native form participation), matching `forwardedAttr()`.
+ *
+ * The attribute name is the kebab-case of the prop key (`className` ↔
+ * `class-name`, `showOutsideDays` ↔ `show-outside-days`, `id` ↔ `id`).
+ */
+export type AttrDecl =
+  | 'string'
+  | 'boolean'
+  | 'forward'
+  | { type: 'boolean'; default?: boolean }
+  | { type: 'string'; default?: string };
+
 /** Options for component() registration */
-export interface ComponentOptions {
+export interface ComponentOptions<P = unknown> {
   /** Custom error fallback renderer */
   onError?: (error: Error, host: HTMLElement) => TemplateResult | string;
+  /**
+   * Opt-in attribute reactivity (ADR 0025 item 3). Maps prop keys
+   * to attribute declarations. Omitted entirely → zero cost (empty
+   * `observedAttributes`, no `attributeChangedCallback` work).
+   */
+  attrs?: Partial<Record<Extract<keyof P, string>, AttrDecl>>;
+}
+
+// ── Attribute-reactivity helpers (ADR 0025 item 3) ───────
+
+interface AttrEntry {
+  /** camelCase prop key. */
+  key: string;
+  /** kebab-case observed attribute name. */
+  attrName: string;
+  decl: AttrDecl;
+}
+
+const camelToKebab = (s: string): string =>
+  s.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+
+const declType = (decl: AttrDecl): 'string' | 'boolean' | 'forward' =>
+  typeof decl === 'string' ? decl : decl.type;
+
+/** Resolve a raw attribute string (or null when absent) to the prop value. */
+function resolveAttrValue(decl: AttrDecl, raw: string | null): unknown {
+  if (declType(decl) === 'boolean') {
+    const def =
+      typeof decl === 'object' && 'default' in decl && decl.default !== undefined
+        ? decl.default
+        : false;
+    if (raw === null) return def; // absent → declared default (else false)
+    return raw !== 'false'; // bare/any → true, literal "false" → false
+  }
+  // 'string' | 'forward'
+  if (raw === null) {
+    return typeof decl === 'object' && 'default' in decl ? decl.default : undefined;
+  }
+  return raw;
 }
 
 // ── Internal component host ─────────────────────────────────────────
@@ -167,8 +234,23 @@ function createPropsProxy<P>(): {
 export function component<P extends object = Record<string, never>>(
   tagName: string,
   setup: SetupFunction<P>,
-  options?: ComponentOptions,
+  options?: ComponentOptions<P>,
 ): ComponentFactory<P> {
+  // Attribute-reactivity wiring (ADR 0025 item 3). Computed once
+  // per component definition; empty when no `attrs` declared (→ zero cost).
+  const attrEntries = new Map<string, AttrEntry>(); // by attrName
+  const attrEntriesByKey = new Map<string, AttrEntry>(); // by prop key
+  if (options?.attrs) {
+    for (const key of Object.keys(options.attrs)) {
+      const decl = (options.attrs as Record<string, AttrDecl>)[key]!;
+      const attrName = camelToKebab(key);
+      const entry: AttrEntry = { key, attrName, decl };
+      attrEntries.set(attrName, entry);
+      attrEntriesByKey.set(key, entry);
+    }
+  }
+  const observedList = Array.from(attrEntries.keys());
+
   // The custom element class
   class FrameworkComponent extends HTMLElement {
     private _host: ComponentHostImpl | null = null;
@@ -176,10 +258,54 @@ export function component<P extends object = Record<string, never>>(
     private _mounted = false;
     private _templateResult: TemplateResult | null = null;
     private _teardownScheduled = false;
+    // Props explicitly set via _setProp (factory / direct assignment) are
+    // "pinned": an explicit prop wins, so attribute writes no longer overwrite
+    // it. (Precedence ruling: prop-pins.)
+    private _pinned = new Set<string>();
+    // Guards our own removeAttribute() during 'forward' relocation from
+    // re-entering attributeChangedCallback.
+    private _relocating = false;
+
+    /** The browser reads this once at define time. Empty → no callbacks. */
+    static get observedAttributes(): string[] {
+      return observedList;
+    }
 
     constructor() {
       super();
       this._propsProxy = createPropsProxy<P>();
+    }
+
+    /** Write one declared attribute onto its prop signal, honoring pinning. */
+    private _applyAttr(entry: AttrEntry, raw: string | null): void {
+      if (declType(entry.decl) === 'forward') {
+        // Relocate off the layout-transparent host (no duplicate id/name), but
+        // only adopt the attribute's value when no explicit prop pinned it.
+        if (raw !== null) {
+          if (!this._pinned.has(entry.key)) {
+            this._propsProxy!.setProperty(entry.key, raw);
+          }
+          this._relocating = true;
+          this.removeAttribute(entry.attrName);
+          this._relocating = false;
+        }
+        return;
+      }
+      if (this._pinned.has(entry.key)) return; // explicit prop wins
+      this._propsProxy!.setProperty(entry.key, resolveAttrValue(entry.decl, raw));
+    }
+
+    /** Seed initial prop values from current attributes (incl. defaults). */
+    private _seedAttrs(): void {
+      for (const entry of attrEntries.values()) {
+        this._applyAttr(entry, this.getAttribute(entry.attrName));
+      }
+    }
+
+    attributeChangedCallback(name: string, _old: string | null, next: string | null): void {
+      if (this._relocating) return;
+      const entry = attrEntries.get(name);
+      if (entry) this._applyAttr(entry, next);
     }
 
     connectedCallback() {
@@ -195,6 +321,12 @@ export function component<P extends object = Record<string, never>>(
       untrack(() => {
         const host = new ComponentHostImpl(this);
         this._host = host;
+
+        // Seed prop signals from current attributes (incl. declared defaults
+        // and 'forward' relocation) BEFORE setup, so the setup sees correct
+        // initial values. Live changes arrive via attributeChangedCallback.
+        // No-op when no attrs are declared. (ADR 0025 item 3 — PROTOTYPE.)
+        if (attrEntries.size) this._seedAttrs();
 
         try {
           runWithContext(host, () => {
@@ -259,8 +391,27 @@ export function component<P extends object = Record<string, never>>(
     /**
      * Set a prop value. Called by the factory and by direct property assignment.
      * The Proxy intercepts and creates/updates backing signals.
+     *
+     * Precedence = DEFINED-write-pins (ADR 0025 item 3): a defined
+     * value pins the key so a declared attribute no longer overwrites it. An
+     * explicit `undefined` (e.g. a factory spreading an unset optional prop —
+     * `{...opts}` fires _setProp(key, undefined) per the Object.entries walk)
+     * must NOT pin; it falls back to the declared attribute/default, matching
+     * attr()'s coalesce. For a declared attribute, that fallback re-resolves
+     * from the current attribute, keeping declared-default booleans
+     * non-undefined.
      */
     _setProp(key: string, value: unknown): void {
+      if (value === undefined) {
+        this._pinned.delete(key);
+        const entry = attrEntriesByKey.get(key);
+        if (entry) {
+          this._applyAttr(entry, this.getAttribute(entry.attrName));
+          return;
+        }
+      } else {
+        this._pinned.add(key);
+      }
       this._propsProxy?.setProperty(key, value);
     }
   }
