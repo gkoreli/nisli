@@ -50,7 +50,9 @@ import { portal } from '../lib/portal.js';
 
 // ── Module-level open/delay manager (TooltipProvider semantics) ──────
 
-const DEFAULT_DELAY = 700;
+// shadcn's TooltipProvider pins delayDuration to 0 (tooltip.tsx:9) — canonical
+// tooltips open instantly; Radix's raw 700ms default does not apply.
+const DEFAULT_DELAY = 0;
 const SKIP_DELAY = 300;
 
 let openTimer: ReturnType<typeof setTimeout> | undefined;
@@ -110,7 +112,7 @@ const stateAttr = (open: boolean) => (open ? 'open' : 'closed');
 export type TooltipProps = {
   /** Controlled open state. */
   open?: boolean;
-  /** Hover/focus delay in ms before showing. Default 700 (Radix). */
+  /** Hover/focus delay in ms before showing. Default 0 (shadcn provider). */
   delayDuration?: number;
   className?: string;
   children?: string | TemplateResult;
@@ -127,11 +129,15 @@ export const Tooltip = component<TooltipProps>('ui-tooltip', (props, host) => {
   const delay = computed<number>(() => props.delayDuration.value ?? DEFAULT_DELAY);
   const anchor = ref<HTMLElement>();
 
+  // ONE stable close identity per tooltip: the module manager tracks the
+  // active tooltip by callback identity, so a fresh closure per setOpen call
+  // made a re-opening tooltip "close the previous one" — itself.
+  const close = (): void => setOpen(false);
   const setOpen = (next: boolean): void => {
     if (next === open.value) return;
     internal.value = next;
-    if (next) notifyOpened(() => setOpen(false));
-    else notifyClosed(() => setOpen(false));
+    if (next) notifyOpened(close);
+    else notifyClosed(close);
     host.dispatchEvent(
       new CustomEvent('ui-open-change', { detail: { open: next }, bubbles: true }),
     );
@@ -160,7 +166,7 @@ export const Tooltip = component<TooltipProps>('ui-tooltip', (props, host) => {
     style="display:contents"
     class="${classes}"
   >${children()}</div>`;
-}, { attrs: { className: 'string' } });
+}, { attrs: { className: 'string', delayDuration: 'number' } });
 
 // ── ui-tooltip-trigger ───────────────────────────────────────────────
 
@@ -291,6 +297,7 @@ export const TooltipContent = component<TooltipContentProps>(
     // PATTERN B: `portal` is a default-true boolean (absent → true, "false" → false).
     attrs: {
       side: 'string',
+      sideOffset: 'number',
       portal: { type: 'boolean', default: true },
       className: 'string',
     },

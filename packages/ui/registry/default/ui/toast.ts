@@ -213,6 +213,7 @@ export const Toaster = component<ToasterProps>('ui-toaster', (props, host) => {
   // names (className → class-name).
   attrs: {
     position: 'string',
+    visibleToasts: 'number',
     className: 'string',
   },
 });

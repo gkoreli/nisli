@@ -46,6 +46,8 @@ interface ToggleGroupState {
   variant: ReadonlySignal<ToggleVariant | undefined>;
   size: ReadonlySignal<ToggleSize | undefined>;
   spacing: ReadonlySignal<number>;
+  /** Group-level disable — disables every item (Radix Root `disabled`). */
+  disabled: ReadonlySignal<boolean>;
 }
 
 /** Subtree-scoped channel from the ToggleGroup provider to its parts. */
@@ -76,6 +78,7 @@ export const ToggleGroup = component<ToggleGroupProps>('ui-toggle-group', (props
   const variant = props.variant;
   const size = props.size;
   const spacing = computed(() => props.spacing.value ?? 0);
+  const disabled = computed<boolean>(() => props.disabled.value as boolean);
 
   // VALUE-STATE pattern (ADR 0025 item 3): the `value` ATTRIBUTE is the
   // uncontrolled selection state — the attribute IS the truth. `defaultValue`
@@ -144,7 +147,7 @@ export const ToggleGroup = component<ToggleGroupProps>('ui-toggle-group', (props
     });
   }
 
-  const state: ToggleGroupState = { type, value, toggleValue, variant, size, spacing };
+  const state: ToggleGroupState = { type, value, toggleValue, variant, size, spacing, disabled };
   ToggleGroupContext.provide(host, state);
 
   const root = ref<HTMLDivElement>();
@@ -166,8 +169,8 @@ export const ToggleGroup = component<ToggleGroupProps>('ui-toggle-group', (props
     ref="${root}"
     role="group"
     data-slot="toggle-group"
-    data-variant="${computed(() => variant.value ?? 'default')}"
-    data-size="${computed(() => size.value ?? 'default')}"
+    data-variant="${variant}"
+    data-size="${size}"
     data-spacing="${spacing}"
     style="${computed(() => `--gap: ${spacing.value}`)}"
     class="${classes}"
@@ -181,6 +184,7 @@ export const ToggleGroup = component<ToggleGroupProps>('ui-toggle-group', (props
     defaultValue: 'string',
     variant: 'string',
     size: 'string',
+    disabled: 'boolean',
     className: 'string',
   },
 });
@@ -190,6 +194,10 @@ export const ToggleGroup = component<ToggleGroupProps>('ui-toggle-group', (props
 export type ToggleGroupItemProps = {
   /** The value this item contributes to the group. Required. */
   value?: string;
+  /** Per-item variant — the group's `variant` wins when set (upstream `context.variant || variant`). */
+  variant?: ToggleVariant;
+  /** Per-item size — the group's `size` wins when set. */
+  size?: ToggleSize;
   disabled?: boolean;
   className?: string;
   children?: string | TemplateResult;
@@ -202,13 +210,21 @@ export const ToggleGroupItem = component<ToggleGroupItemProps>(
     transparentHost(host);
 
     const own = computed(() => props.value.value ?? '');
-    const disabled = computed<boolean>(() => props.disabled.value as boolean);
+    // Group-level disable wins alongside the item's own (Radix Root semantics).
+    const disabled = computed<boolean>(
+      () => state.disabled.value || (props.disabled.value as boolean),
+    );
     const pressed = computed(() => own.value !== '' && state.value.value.includes(own.value));
+    // Upstream: `context.variant || variant` — the group's setting wins when present.
+    const variant = computed<ToggleVariant | undefined>(
+      () => state.variant.value ?? props.variant.value,
+    );
+    const size = computed<ToggleSize | undefined>(() => state.size.value ?? props.size.value);
     const className = props.className;
 
     const classes = computed(() =>
       cn(
-        toggleVariants({ variant: state.variant.value, size: state.size.value }),
+        toggleVariants({ variant: variant.value, size: size.value }),
         'w-auto min-w-0 shrink-0 px-3 focus:z-10 focus-visible:z-10',
         'data-[spacing=0]:rounded-none data-[spacing=0]:shadow-none data-[spacing=0]:first:rounded-l-md data-[spacing=0]:last:rounded-r-md data-[spacing=0]:data-[variant=outline]:border-l-0 data-[spacing=0]:data-[variant=outline]:first:border-l',
         className.value,
@@ -218,8 +234,8 @@ export const ToggleGroupItem = component<ToggleGroupItemProps>(
     return html`<button
       type="button"
       data-slot="toggle-group-item"
-      data-variant="${computed(() => state.variant.value ?? 'default')}"
-      data-size="${computed(() => state.size.value ?? 'default')}"
+      data-variant="${variant}"
+      data-size="${size}"
       data-spacing="${state.spacing}"
       aria-pressed="${computed(() => (pressed.value ? 'true' : 'false'))}"
       data-state="${computed(() => (pressed.value ? 'on' : 'off'))}"
@@ -228,5 +244,5 @@ export const ToggleGroupItem = component<ToggleGroupItemProps>(
       @click=${() => { if (!disabled.value) state.toggleValue(own.value); }}
     >${children()}</button>`;
   },
-  { attrs: { value: 'string', disabled: 'boolean', className: 'string' } },
+  { attrs: { value: 'string', variant: 'string', size: 'string', disabled: 'boolean', className: 'string' } },
 );

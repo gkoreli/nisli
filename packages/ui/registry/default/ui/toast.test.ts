@@ -186,3 +186,18 @@ describe('<ui-toaster>', () => {
     expect(region.className).toContain('top-4');
   });
 });
+
+describe('Toaster parity (UI-36B)', () => {
+  it('honors the visible-toasts attribute (live, declared attr)', () => {
+    const c = mount(html`${Toaster({})}`);
+    const host = c.querySelector('ui-toaster') as HTMLElement;
+    host.setAttribute('visible-toasts', '1');
+    flushEffects();
+
+    toast('one');
+    toast('two');
+    flushEffects();
+    const visible = [...c.querySelectorAll('[data-slot="toast"]')];
+    expect(visible.length).toBe(1);
+  });
+});

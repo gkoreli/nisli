@@ -241,3 +241,36 @@ describe('Tooltip — portal', () => {
     expect(document.querySelector('[data-slot="tooltip-content"]')).toBeNull();
   });
 });
+
+describe('Tooltip parity (UI-36B)', () => {
+  it('opens immediately on hover by default (shadcn provider pins delayDuration to 0)', () => {
+    const c = mountTooltip({});
+    fire(q(c, 'tooltip-trigger'), 'pointerenter');
+    // No timer advance: shadcn's TooltipProvider sets delayDuration={0}.
+    expect(isOpen(c)).toBe(true);
+  });
+
+  it('honors the delay-duration attribute (live, declared attr)', () => {
+    const c = mountTooltip({});
+    const host = c.querySelector('ui-tooltip') as HTMLElement;
+    host.setAttribute('delay-duration', '300');
+    flushEffects();
+
+    // Drain the module-level skip window deterministically in THIS test's
+    // fake-timer context: a close starts the window; advancing past
+    // SKIP_DELAY ends it, so the next hover honors the full delay.
+    fire(q(c, 'tooltip-trigger'), 'pointerenter');
+    fire(q(c, 'tooltip-trigger'), 'pointerleave');
+    vi.advanceTimersByTime(301);
+    flushEffects();
+
+    fire(q(c, 'tooltip-trigger'), 'pointerenter');
+    expect(isOpen(c)).toBe(false);
+    vi.advanceTimersByTime(299);
+    flushEffects();
+    expect(isOpen(c)).toBe(false);
+    vi.advanceTimersByTime(1);
+    flushEffects();
+    expect(isOpen(c)).toBe(true);
+  });
+});

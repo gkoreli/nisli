@@ -201,3 +201,60 @@ describe('ToggleGroup rendering', () => {
     spy.mockRestore();
   });
 });
+
+describe('ToggleGroup parity (UI-36B)', () => {
+  it('group-level disabled disables every item and blocks toggling', () => {
+    const c = mountGroup({ disabled: true });
+    expect([...c.querySelectorAll('button')].every((b) => b.hasAttribute('disabled'))).toBe(true);
+
+    item(c, 0).click();
+    flushEffects();
+    expect(states(c)).toEqual(['off', 'off', 'off']);
+  });
+
+  it('group disabled works as a live attribute', () => {
+    const c = mountGroup({});
+    const groupHost = c.querySelector('ui-toggle-group') as HTMLElement;
+    expect(item(c, 0).hasAttribute('disabled')).toBe(false);
+
+    groupHost.setAttribute('disabled', '');
+    flushEffects();
+    expect([...c.querySelectorAll('button')].every((b) => b.hasAttribute('disabled'))).toBe(true);
+
+    groupHost.setAttribute('disabled', 'false');
+    flushEffects();
+    expect(item(c, 0).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('omits data-variant/data-size when unset (upstream DOM contract)', () => {
+    const c = mountGroup({});
+    const root = c.querySelector('[data-slot="toggle-group"]')!;
+    expect(root.hasAttribute('data-variant')).toBe(false);
+    expect(root.hasAttribute('data-size')).toBe(false);
+    expect(item(c, 0).hasAttribute('data-variant')).toBe(false);
+    expect(item(c, 0).hasAttribute('data-size')).toBe(false);
+  });
+
+  it('per-item variant applies when the group sets none, and the group wins when set', () => {
+    // Item-level variant honored.
+    const c1 = mount(
+      html`${ToggleGroup({
+        children: html`${ToggleGroupItem({ value: 'a', variant: 'outline', children: 'A' })}`,
+      })}`,
+    );
+    const i1 = c1.querySelector<HTMLButtonElement>('[data-slot="toggle-group-item"]')!;
+    expect(i1.getAttribute('data-variant')).toBe('outline');
+    expect(i1.className).toContain('border-input');
+
+    // Group variant overrides the item's own (upstream `context.variant || variant`).
+    const c2 = mount(
+      html`${ToggleGroup({
+        variant: 'outline',
+        children: html`${ToggleGroupItem({ value: 'a', variant: 'default', children: 'A' })}`,
+      })}`,
+    );
+    const i2 = c2.querySelector<HTMLButtonElement>('[data-slot="toggle-group-item"]')!;
+    expect(i2.getAttribute('data-variant')).toBe('outline');
+    expect(i2.className).toContain('border-input');
+  });
+});

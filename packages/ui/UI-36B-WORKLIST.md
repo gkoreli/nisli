@@ -80,12 +80,47 @@ No real visual drift found in batch 1; no registry source changes required.
 
 No real visual drift found in batch 2; no registry source changes required.
 
-## Remaining
+## Batch 3 — table through tooltip (arch)
 
-- [ ] `table`
-- [ ] `tabs`
-- [ ] `textarea`
-- [ ] `toast` (no upstream file in the reference checkout)
-- [ ] `toggle-group`
-- [ ] `toggle`
-- [ ] `tooltip`
+- [x] `table` — all 9 class strings, slots, and table elements verbatim-match
+  (mechanical containment check). Intentional: declared colspan/rowspan attrs
+  replace prop spreading. Manual side-by-side: ☐
+- [x] `tabs` — root/list/trigger/content class strings byte-identical incl. the
+  line-variant `after:` indicator; variant taxonomy identical. Nits (inert):
+  extra `data-value` on trigger (roving plumbing); Radix's `data-orientation`/
+  `data-disabled` on trigger absent — no shipped selector depends. Manual
+  side-by-side: ☐
+- [x] `textarea` — class string byte-identical. Gap: `aria-invalid` cannot reach
+  the class-bearing inner element (lands on the display:contents host) →
+  **UI-44** (registry-wide sweep, eng2's input-otp mechanism). Manual
+  side-by-side: ☐
+- [x] `toast` — NO-UPSTREAM (sonner.tsx is a theming shim over the sonner npm
+  package; no upstream DOM exists). Shim's visual contract honored: popover
+  tokens, 356px width, radius. Not implemented (documented v1 scope): per-type
+  icons, loading/promise toasts, swipe/exit animations. FIXED this batch:
+  `visible-toasts` declared as a live number attr (was factory-only). Manual
+  side-by-side: ☐
+- [x] `toggle` — variant taxonomy + all class strings byte-identical. Same
+  `aria-invalid` delivery gap → UI-44. Manual side-by-side: ☐
+- [x] `toggle-group` — class strings byte-identical (incl. upstream's own
+  never-matching `data-[spacing=default]` quirk, kept verbatim). FIXED this
+  batch (real drift): dead group-level `disabled` prop now disables every item
+  (Radix Root semantics, live attr); per-item `variant`/`size` added (group
+  wins when set, upstream `context.variant || variant`); `data-variant`/
+  `data-size` now omitted when unset (upstream DOM contract; nothing targeted
+  `="default"`). `aria-invalid` gap → UI-44. Manual side-by-side: ☐
+- [x] `tooltip` — content class string byte-identical; drift FIXED this batch:
+  default delay 700 → 0 (shadcn's TooltipProvider pins `delayDuration={0}`,
+  tooltip.tsx:9 — Radix's raw 700 was wrong); `delay-duration`/`side-offset`
+  declared as live number attrs; BUG found+fixed: per-call close-closure broke
+  the module manager's identity tracking, so open→close→reopen self-closed —
+  one stable `close` per tooltip now. Deferred (ticketed): arrow not rendered
+  (**UI-46**); `origin-(--radix-tooltip-content-transform-origin)` var unset +
+  exit animations unreachable (**UI-45**, registry-wide, architect); trigger
+  `data-state` uses open|closed vs Radix's delayed/instant-open trio (no
+  shipped selector depends); `aria-describedby` present while hidden (a11y
+  nit). Manual side-by-side: ☐
+
+Cross-cutting (recorded): the `aria-invalid:` variants in textarea/toggle/
+toggle-group class lists have no delivery path onto the inner element —
+ticketed **UI-44** (cdx2), reference mechanism = eng2's input-otp (70c0bb2).
