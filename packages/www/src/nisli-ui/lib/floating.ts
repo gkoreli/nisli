@@ -297,9 +297,13 @@ export function positionFloating(
   const update = (): void => {
     const a = anchor.getBoundingClientRect();
     const f = floating.getBoundingClientRect();
+    // Placement follows the stable layout box, not a transformed enter-animation
+    // rect (for example zoom-in-95). Fall back for SVG/test doubles.
+    const floatingWidth = floating.offsetWidth || f.width;
+    const floatingHeight = floating.offsetHeight || f.height;
     const pos = computePosition(
       { x: a.x, y: a.y, width: a.width, height: a.height },
-      { x: f.x, y: f.y, width: f.width, height: f.height },
+      { x: f.x, y: f.y, width: floatingWidth, height: floatingHeight },
       { width: window.innerWidth, height: window.innerHeight },
       options,
     );
@@ -314,7 +318,7 @@ export function positionFloating(
       const arrowRect = options.arrow.getBoundingClientRect();
       const arrowPos = computeArrowPosition(
         { x: a.x, y: a.y, width: a.width, height: a.height },
-        { x: f.x, y: f.y, width: f.width, height: f.height },
+        { x: f.x, y: f.y, width: floatingWidth, height: floatingHeight },
         pos,
         { width: arrowRect.width, height: arrowRect.height },
         options.arrowPadding,
