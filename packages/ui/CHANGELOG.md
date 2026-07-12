@@ -19,6 +19,9 @@ checkpoints (ADR 0022); dates are release dates.
 - **empty** and **item** — content-layout primitives.
 - **use-mobile** (lib) — viewport signal helper backing responsive
   components.
+- **sidebar** — the full ~23-part composite: provider state with cookie
+  persistence and Cmd/Ctrl+B, desktop rail + icon-collapse variants, the
+  complete menu/group family (mobile off-canvas deferred; documented).
 
 ### Fixed
 - `spinner` now carries `data-slot` per the house styling-hook invariant.
