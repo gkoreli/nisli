@@ -144,6 +144,19 @@ templates or `each()`.
 and 10; static factory arrays now use the same factory mounting helper as the
 reactive array path.
 
+### 11. Dynamic tag names in templates — MEDIUM
+
+`html\`<\${tag}>\`` is not expressible — the template parser only handles
+static tag names, so registry-driven rendering (www's auto-default previews:
+"render the element named by this string") needs an `onMount` +
+`document.createElement(tag)` workaround, which bypasses template binding
+for that subtree. Found by eng3 building the /ui preview system; flagged by
+Goga for tracking.
+**Proposal**: either a dynamic-element primitive (e.g.
+`el(tagName, props?, children?)` returning a mountable TemplateResult) or
+first-class documentation of the createElement-in-onMount pattern with a
+helper. Design work — the parser itself should stay static.
+
 ## Process
 
 New friction found while building ui/www lands here first (PR review may
