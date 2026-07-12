@@ -13,6 +13,7 @@ import { uiIndexPage } from './pages/ui-index.js';
 import { uiComponentPage } from './pages/ui-component.js';
 import { components, primitives, itemPath, type RegistryItem } from './registry.js';
 import { docPages, docPath, docsLayout, type DocPage } from './pages/docs.js';
+import { themesPage } from './pages/themes.js';
 
 export interface SiteRoute {
   path: string;
@@ -38,6 +39,15 @@ const staticRoutes: readonly SiteRoute[] = [
         'The @nisli/ui component gallery — shadcn-style components you copy into your project and own, installed with npx @nisli/ui add <name>.',
     },
     body: () => layout(uiIndexPage(), { current: '/ui' }),
+  },
+  {
+    path: '/themes',
+    meta: {
+      title: 'Themes — nisli',
+      description:
+        'The @nisli/ui token layer — semantic color tokens, chart colors, radius, and typography, in light and dark. Theming is editing CSS variables you own.',
+    },
+    body: () => layout(themesPage(), { current: '/themes' }),
   },
 ];
 

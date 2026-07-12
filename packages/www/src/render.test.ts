@@ -86,4 +86,14 @@ describe('nisli website', () => {
     expect(page).toContain("from '@nisli/core'");
     expect(page).toContain('href="/docs/signals"'); // sidebar nav
   });
+
+  it('renders the themes token showcase', async () => {
+    const built = await buildSite();
+    const themes = built.find((p) => p.path === '/themes');
+    expect(themes).toBeDefined();
+    const page = readFileSync(themes!.filePath, 'utf8');
+    expect(page).toContain('Color tokens');
+    expect(page).toContain('--primary'); // token names shown
+    expect(page).toContain('bg-chart-1'); // chart palette
+  });
 });
