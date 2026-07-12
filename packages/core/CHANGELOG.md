@@ -4,6 +4,18 @@ All notable changes to `@nisli/core`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
+## 0.53.0 — 2026-07-12
+
+- Declared-type-aware `ReactiveProps`: `component<P, typeof attrs>` threads the
+  `attrs` declaration into prop types, so a declared `'boolean'` reads as
+  `Signal<boolean>` and a `'number'` with a default as `Signal<number>` —
+  retiring the `as boolean`/`?? false` stopgap across every consumer. Exported
+  `ComponentAttrs<P>` types the declaration. Narrowing applies only when the
+  declared kind's type and the author's prop type agree exactly (mutual
+  assignability): `boolean | string` unions and literal types (`true`, `1`)
+  soundly fall back to the author's type. Options are required when the attrs
+  type parameter is supplied. Pure type-level — zero runtime change.
+
 ## 0.52.0 — 2026-07-11
 
 - Subtree-scoped context: `createContext` with typed `provide`/`inject`/`peek`,

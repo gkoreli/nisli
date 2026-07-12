@@ -4,6 +4,45 @@ All notable changes to `@nisli/ui`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
+## 0.3.0 — 2026-07-12
+
+The typed-props + animation-fidelity release. **Requires `@nisli/core`
+>= 0.53.0** — copied source now uses core's declared-type-aware
+`ReactiveProps` (`ComponentAttrs` + the second `component()` type argument),
+so every declared boolean/number prop is typed exactly and the registry
+carries zero `as boolean` casts.
+
+### Added
+- **Sidebar: mobile off-canvas drawer** — below the breakpoint the sidebar
+  renders through a Sheet (focus trap, Escape, controlled `openMobile`),
+  matching upstream's mobile branch; previously a documented v1 deferral.
+  `SidebarMenuButton` gains an `href` anchor mode (real `<a>` +
+  `aria-current`) so sidebars can be zero-JS navigation.
+- **Command: active-descendant wiring** — items carry generated ids and the
+  input tracks `aria-activedescendant`, restoring the cmdk a11y contract
+  (benefits combobox too).
+- **`aria-invalid` delivery registry-wide** — every form control whose class
+  list carries `aria-invalid:` variants now forwards the attribute to the
+  class-bearing inner element (declare the prop, live attribute included),
+  so invalid-state visuals are actually reachable past the
+  `display: contents` host.
+
+### Fixed
+- **Floating-layer animation fidelity** — `lib/floating.ts` now sets the
+  primitive's `transform-origin` variable (zoom animates from the anchored
+  edge, as in Radix) and overlays keep `data-state="closed"` visible until
+  `animationend`, so exit animations actually render; synchronous hide
+  remains the no-animation fallback.
+- **Sheet: content `style` passthrough** restored (upstream prop-spread
+  parity; the sidebar's mobile width var rides it).
+
+### Setup
+- **`tw-animate-css` is now a documented requirement** (upstream parity:
+  the shadcn v4 style injects `@import "tw-animate-css"`). `init` surfaces
+  it and the README install steps carry it — without it, the registry's
+  `animate-in/out` utilities resolve to no animation. Dev-tooling only;
+  copied source still has zero runtime dependencies.
+
 ## 0.2.1 — 2026-07-12
 
 The published-consumer hardening release: the copy-in flow is now proven
