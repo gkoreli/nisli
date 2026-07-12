@@ -58,6 +58,14 @@
       ]
     },
     {
+      "name": "portal",
+      "type": "lib",
+      "description": "Move a component subtree into another container (document.body by default) to escape overflow/transform/z-index stacking contexts.",
+      "files": [
+        "lib/portal.ts"
+      ]
+    },
+    {
       "name": "button",
       "type": "ui",
       "description": "Displays a button. Port of shadcn/ui button.",
