@@ -92,6 +92,34 @@ Already migrated / intentionally excluded from UI-30:
 | `toggle` | `variant`, `size`, `className` via current helpers; `disabled`, `defaultPressed` via `boolAttr` | `captureChildren×1`, `projectChildren×1` | tail | 3 |
 | `tooltip` | `side`, `className` via current helpers | `captureChildren×3`, `projectChildren×3` | tail | 3 |
 
+## Direct attr sites in the remaining UI-30 scope
+
+Scan basis: raw `host.getAttribute()` / `host.hasAttribute()` calls outside the
+helper layer, excluding the 11 components already in flight (`batch 1` plus
+`switch` / `button` / `message-scroller`).
+
+| Component | Direct attr sites | Semantics | Notes |
+| --- | --- | --- | --- |
+| `alert-dialog` | `open`, `default-open`, `portal` | booleans; `portal` defaults true when absent / anything except `"false"` | root open state + portaled content |
+| `aspect-ratio` | `ratio` | number; defaults to `1` | parse guarded with `Number.isFinite` |
+| `calendar` | `month`, `default-month`, `min`, `max`, `week-starts-on` | ISO date strings parsed to `Date`; `week-starts-on` is a number defaulting to `0` | local fallback parsing, not helper-based |
+| `collapsible` | `open`, `default-open` | booleans | root open state fallback |
+| `combobox` | `multiple`, `value`, `default-value` | `multiple` is boolean; `value` / `default-value` are strings (comma-separated when `multiple`) | root selection fallback |
+| `context-menu` | `open`, `default-open`, `portal`, `checked`, `default-value` | booleans for `open` / `default-open` / `checked`; `portal` defaults true; `default-value` is a string | menu root + checkbox/radio item fallbacks |
+| `dialog` | `open`, `default-open`, `portal` | booleans; `portal` defaults true when absent / anything except `"false"` | root open state + portaled content |
+| `drawer` | `open`, `default-open` | booleans | root open state fallback |
+| `dropdown-menu` | `open`, `default-open`, `portal`, `checked`, `default-value` | booleans for `open` / `default-open` / `checked`; `portal` defaults true; `default-value` is a string | menu root + checkbox/radio item fallbacks |
+| `menubar` | `portal`, `checked`, `default-value`, `default-open` | `portal` defaults true; `checked` is boolean; `default-value` is a string; `default-open` is boolean | menu content + item/submenu fallbacks |
+| `navigation-menu` | `active` | boolean | item active-state fallback |
+| `popover` | `open`, `default-open`, `portal` | booleans; `portal` defaults true when absent / anything except `"false"` | root open state + portaled content |
+| `progress` | `value`, `max` | numbers; `max` defaults to `100` | value is indeterminate when absent |
+| `resizable` | `default-size`, `min-size`, `with-handle` | `default-size` / `min-size` are numbers; `with-handle` is boolean | panel defaults + handle chrome |
+| `sheet` | `open`, `default-open`, `portal` | booleans; `portal` defaults true when absent / anything except `"false"` | root open state + portaled content |
+| `sidebar` | `default-open` | boolean; defaults true when absent, and only `"false"` forces closed | provider bootstrap fallback |
+| `toggle-group` | `default-value` | string list encoded as a string / comma-separated string | uncontrolled selection seed |
+| `toggle` | `pressed` | boolean | bare attribute seeds the uncontrolled pressed state |
+| `tooltip` | `portal` | boolean; defaults true when absent / anything except `"false"` | portaled content fallback |
+
 ## Already migrated / excluded from UI-30 planning
 
 | Component | Why it is not on the batch plan | Batch |
