@@ -563,6 +563,11 @@ export type SidebarMenuButtonProps = {
    * (works with zero JS). This is the Nisli translation of upstream's
    * `<SidebarMenuButton asChild><a href>` (asChild unsupported), and mirrors
    * `SidebarMenuSubButton`'s existing href/anchor mode.
+   *
+   * The tag choice is INIT-STRUCTURAL (decided once at setup, like `asChild`):
+   * setting `href` on a live host later will not convert a `<button>` into an
+   * `<a>`, though an existing anchor's `href` value stays reactive. Fine for the
+   * stable navigation definitions this is meant for.
    */
   href?: string;
   className?: string;
