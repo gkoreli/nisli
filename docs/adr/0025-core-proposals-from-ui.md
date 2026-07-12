@@ -168,6 +168,18 @@ Goga for tracking.
 first-class documentation of the createElement-in-onMount pattern with a
 helper. Design work — the parser itself should stay static.
 
+### 12. `refetch()` is suppressed by `staleTime` — DESIGN QUESTION
+
+`QueryResult.refetch()` increments the generation and calls `doFetch()`,
+but `doFetch()` returns fresh cached data first when `staleTime > 0` — so a
+manual refetch inside the freshness window never invokes the fetcher. Found
+by rev fact-checking www's query docs. Every mainstream data library treats
+an explicit refetch as a force; a silent no-op is surprising.
+**Proposal**: decide the contract — either `refetch()` bypasses freshness
+(react-query semantics, likely right) or it is documented loudly as
+cache-first. Core change + tests either way; www docs currently describe
+the actual (suppressing) behavior.
+
 ## Process
 
 New friction found while building ui/www lands here first (PR review may
