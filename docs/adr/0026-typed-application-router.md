@@ -649,3 +649,12 @@ scroll and focus contract from amendment 5. Cross-page and initial-load hash
 jumps are post-render `scrollIntoView()` emulation; same-document hash anchors
 remain unintercepted and browser-native. This distinction closes the previous
 documentation gap without introducing a second navigation behavior.
+
+### HMR composition validation (RTR-4)
+
+A scripted route-page module edit now verifies `nisliHmr()` and
+`nisliRoutes()` together: core HMR transforms both the original and edited
+component module into self-accepting updates and retains the edited render
+body, while the independent route middleware continues to match and serve the
+same dynamic direct URL. `nisliRoutes()` still owns no transform or hot-update
+hook; component replacement remains exclusively a core HMR responsibility.

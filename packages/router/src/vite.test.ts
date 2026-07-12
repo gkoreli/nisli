@@ -1,8 +1,9 @@
-import { mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { html } from '@nisli/core';
+import { nisliHmr } from '@nisli/core/vite-hmr';
 import { defineRouter } from './application.js';
 import { notFound, route } from './route.js';
 import { nisliRoutes, type NisliViteServer, type ViteNext, type ViteRequest, type ViteResponse } from './vite.js';
@@ -56,6 +57,38 @@ describe('nisliRoutes()', () => {
     expect(plugin).toMatchObject({ name: 'nisli-routes', apply: 'serve' });
     expect(plugin).not.toHaveProperty('transform');
     expect(plugin).not.toHaveProperty('handleHotUpdate');
+  });
+
+  it('composes with core HMR across a scripted route-module edit', async () => {
+    const { directory, middleware, plugin } = harness(app());
+    const modulePath = join(directory, 'user-page.ts');
+    const before = `import { component, html } from '@nisli/core';\nexport const UserPage = component('user-page', () => html\`<p>before</p>\`);\n`;
+    const after = before.replace('before', 'after');
+    const hmr = nisliHmr();
+
+    writeFileSync(modulePath, before);
+    const firstTransform = hmr.transform(readFileSync(modulePath, 'utf8'), modulePath);
+    expect(firstTransform?.code).toContain('import.meta.hot.accept');
+    expect(firstTransform?.code).toContain('<p>before</p>');
+
+    writeFileSync(modulePath, after);
+    const editedTransform = hmr.transform(readFileSync(modulePath, 'utf8'), modulePath);
+    expect(editedTransform?.code).toContain('import.meta.hot.accept');
+    expect(editedTransform?.code).toContain('<p>after</p>');
+    expect(editedTransform?.code).not.toContain('<p>before</p>');
+
+    // Route fallback stays independent: the dynamic direct URL is still
+    // matched and served after the component module edit.
+    expect(plugin.match('/users/42', 'http://nisli.local/')).toMatchObject({ name: 'user' });
+    const output = response();
+    const next = vi.fn();
+    await middleware(
+      { method: 'GET', url: '/users/42', headers: { accept: 'text/html' } },
+      output.value,
+      next,
+    );
+    expect(next).not.toHaveBeenCalled();
+    expect(output.result.body).toBe('<main>shell</main>:/users/42');
   });
 
   it('serves the transformed shell for direct dynamic and not-found URLs', async () => {
