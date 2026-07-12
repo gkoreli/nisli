@@ -670,6 +670,17 @@
         "utils",
         "use-mobile"
       ]
+    },
+    {
+      "name": "direction",
+      "type": "ui",
+      "description": "Provides an LTR or RTL writing direction to descendant components. Port of shadcn/ui direction.",
+      "files": [
+        "ui/direction.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
     }
   ]
 }

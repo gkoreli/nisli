@@ -14,6 +14,7 @@ import { Button, buttonVariants } from './src/nisli-ui/ui/button.js';
 import { AspectRatio } from './src/nisli-ui/ui/aspect-ratio.js';
 import { Kbd, KbdGroup } from './src/nisli-ui/ui/kbd.js';
 import { Spinner } from './src/nisli-ui/ui/spinner.js';
+import { DirectionProvider } from './src/nisli-ui/ui/direction.js';
 import {
   ButtonGroup,
   ButtonGroupSeparator,
@@ -317,6 +318,14 @@ export function renderKitchenSink(): TemplateResult {
         ${Spinner({})}
         <span class="text-sm text-muted-foreground">Loading</span>
       </div>`,
+    )}
+
+    ${section(
+      'Direction',
+      DirectionProvider({
+        direction: 'rtl',
+        children: html`<p class="rounded-md border p-3 text-sm">مرحبا بالعالم</p>`,
+      }),
     )}
 
     ${section(
