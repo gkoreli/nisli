@@ -136,3 +136,25 @@ describe('Separator as a plain custom element', () => {
     expect(getSeparator(host).getAttribute('data-orientation')).toBe('vertical');
   });
 });
+
+describe('Separator — live attributes (UI-30 attrs{})', () => {
+  it('reacts to post-mount decorative / orientation attribute changes', () => {
+    document.body.innerHTML = '<ui-separator></ui-separator>';
+    flushEffects();
+    const host = document.querySelector('ui-separator')!;
+    const sep = getSeparator();
+    // Default: decorative → role="none", no aria-orientation.
+    expect(sep.getAttribute('role')).toBe('none');
+
+    // decorative="false" flips to a semantic separator, live.
+    host.setAttribute('decorative', 'false');
+    flushEffects();
+    expect(sep.getAttribute('role')).toBe('separator');
+
+    // orientation="vertical" now surfaces aria-orientation (semantic + vertical).
+    host.setAttribute('orientation', 'vertical');
+    flushEffects();
+    expect(sep.getAttribute('data-orientation')).toBe('vertical');
+    expect(sep.getAttribute('aria-orientation')).toBe('vertical');
+  });
+});
