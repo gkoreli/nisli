@@ -103,6 +103,9 @@ No real visual drift found in batch 2; no registry source changes required.
   promise toasts, swipe, and exit animations stay out of scope. Earlier parity
   work declared `visible-toasts` as a live number attr (was factory-only).
   Tests assert every type/icon path, default omission, and loading lifetime.
+  **UI-62** groups the optional icon and title in a semantic flex row, keeping
+  default no-icon titles flush while descriptions and action-space remain
+  separate vertical rows; built CSS/Chromium covers desktop and 390px wrapping.
   Manual side-by-side (including icon/content row layout): ☐
 - [x] `toggle` — variant taxonomy + all class strings byte-identical. Same
   `aria-invalid` delivery gap → UI-44. Manual side-by-side: ☐

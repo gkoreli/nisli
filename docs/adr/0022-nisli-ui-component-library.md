@@ -166,6 +166,11 @@ and InputOTP groups derive first/last from their transparent child-host order,
 while Accordion removes the final painted item's border through its last item
 host. The original primitive-local utilities remain for native/plain structure.
 
+**Toast content rows (UI-62):** the zero-dependency Sonner-compatible toast
+keeps its outer vertical stack, but groups the optional type icon and title in
+a min-width-safe flex row. Default toasts omit the icon without indentation;
+description and action-space remain independent rows for wrapping and controls.
+
 ### 3. Styling and theming: Tailwind v4 + shadcn token layer
 
 - Consumers are expected to use **Tailwind CSS v4** (CSS-first config). The

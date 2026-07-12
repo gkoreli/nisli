@@ -215,6 +215,21 @@ describe('Toaster parity (UI-36B)', () => {
 
     const item = c.querySelector('[data-slot="toast"][data-type="default"]');
     expect(item?.querySelector('[data-slot="toast-icon"]')).toBeNull();
+    expect(item?.querySelector('[data-slot="toast-heading"]')?.children).toHaveLength(1);
+  });
+
+  it('groups typed icons beside the title while description remains a sibling row', () => {
+    const c = mount(html`${Toaster({})}`);
+    toast.success('A long success title', { description: 'Supporting detail' });
+    flushEffects();
+
+    const item = c.querySelector('[data-slot="toast"]')!;
+    const heading = item.querySelector('[data-slot="toast-heading"]')!;
+    expect([...heading.children].map((child) => child.getAttribute('data-slot'))).toEqual([
+      'toast-icon', 'toast-title',
+    ]);
+    expect(heading.className).toContain('items-start');
+    expect(item.querySelector('[data-slot="toast-description"]')?.parentElement).toBe(item);
   });
 
   it('keeps loading toasts until explicitly dismissed by default', () => {

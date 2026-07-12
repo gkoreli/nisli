@@ -219,8 +219,10 @@ export const Toaster = component<ToasterProps>('ui-toaster', (props, host) => {
         class="${toastClasses}"
         @click=${() => toast.dismiss(t.value.id)}
       >
-        ${computed(() => icon(t.value.type))}
-        <div data-slot="toast-title" class="font-medium">${computed(() => t.value.title)}</div>
+        <div data-slot="toast-heading" class="flex min-w-0 items-start gap-2 [&>[data-slot=toast-icon]]:shrink-0">
+          ${computed(() => icon(t.value.type))}
+          <div data-slot="toast-title" class="min-w-0 flex-1 font-medium wrap-break-word">${computed(() => t.value.title)}</div>
+        </div>
         ${computed(() =>
           t.value.description
             ? html`<div data-slot="toast-description" class="text-muted-foreground">${t.value.description}</div>`
