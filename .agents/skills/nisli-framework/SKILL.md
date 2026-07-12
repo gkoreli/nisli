@@ -53,6 +53,17 @@ Reference these guidelines when:
 - `comp-host-attrs` - Use second factory arg `{ class: '...' }` for host-level CSS classes (ADR 0009)
 - `comp-prop-input` - Factory props accept `T | Signal<T>` — plain values are auto-wrapped (ADR 0009)
 
+**Attribute reactivity (ADR 0025 item 3) — prefer over userland `attr()`/`boolAttr()`/`forwardedAttr()`:**
+- `comp-attrs-declare` - Declare live attribute fallbacks via the `attrs` option: `component(tag, setup, { attrs: { disabled: 'boolean', id: 'forward', variant: 'string' } })`. Attribute name = kebab-case of the prop key (`className` ↔ `class-name`); `setAttribute` after mount updates the prop signal LIVE. Zero cost when `attrs` is omitted
+- `comp-attrs-boolean` - Declared booleans: bare/any attribute → `true`, literal `"false"` → `false`, absent → declared default; use `{ type: 'boolean', default: true }` for opt-out flags. Declared-default booleans are runtime-guaranteed non-undefined
+- `comp-attrs-forward` - `'forward'` relocates `id`/`name` off the layout-transparent host onto the inner control (native form participation) — replaces `forwardedAttr()`
+- `comp-attrs-prop-pins` - An explicit DEFINED prop wins over its attribute; passing `undefined` does NOT pin (falls back to the attribute/default) — so spreading an unset optional prop stays attribute-driven
+
+**Content projection (ADR 0025 item 1) — prefer over `captureChildren()`/`projectChildren()`:**
+- `comp-children-slot` - Project content with `children(fallback?)`, interpolated as a slot: `html`<button>${children()}</button>``. It folds the factory `children` prop + captured light-DOM children + late parser children into ONE slot; no `captureChildren`/`projectChildren`/`onMount` dance
+- `comp-children-fallback` - `children(fallback)` renders the fallback ONLY when no MEANINGFUL children exist (whitespace-only ignored) and REPLACES it reactively when children arrive — the conditional-default pattern; never hand-roll a default-swap
+- `comp-children-single-slot` - One default slot per component (v1); named/multiple slots are not yet supported
+
 ### 2. Signals & Reactivity (CRITICAL)
 
 - `signal-value-read` - Always use `.value` in JS code; signals are implicit in `html` templates

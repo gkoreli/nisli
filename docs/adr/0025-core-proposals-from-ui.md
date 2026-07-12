@@ -25,7 +25,7 @@ ADR 0003/0004.
 
 ## Open proposals
 
-### 1. First-class content projection (children) — HIGH
+### 1. First-class content projection (children) — FIXED (2026-07-11)
 
 Every one of the ~40 components re-implements the same userland machinery:
 a `children` prop (`string | TemplateResult`) plus
@@ -36,6 +36,38 @@ ghost bug. Factories have no native child-content concept.
 and exposes them (plus a factory `children` input) as a first-class,
 correctly-timed primitive — the registry's subtlest copied code deleted
 everywhere at once.
+
+**Resolution (UI-31 prototype + design gate, 2026-07-11)**: core exports
+`children(fallback?)` — a setup-context primitive returning a reactive slot
+value a template interpolates (`html`<button>${children()}</button>``). It
+subsumes `captureChildren`/`projectChildren` + the per-component
+conditional-default swap. Priority: factory `children` prop → captured
+light-DOM children → fallback. `component()` captures the host's light-DOM
+children pre-setup (CAPTURE, second of **SEED → CAPTURE → CONTEXT → setup**;
+snapshot-only, gated on `childNodes.length` → zero cost when none). The
+streaming microtask sweep + ancestor guard (the ADR 0023 machinery) now live in
+core. `children(fallback)` renders the fallback only when no MEANINGFUL children
+exist (whitespace-only does not count) and REPLACES it reactively, including
+late parser children — natively solving the conditional-default class.
+
+Design-gate finding (the correction that became the architecture): a first
+implementation ROUTED the factory `children` prop into the host's light DOM
+before connect (one capture path). That detached factory children before their
+`connectedCallback`, breaking `closest()`-based parent lookup — `useScroller`
+threw, and it generalizes to every context-composed family (tabs/accordion/
+select). CORRECTION — **read-and-render**: `children()` READS the host's
+`children` prop signal (via internal `element._propSignal(key)`) and renders it
+AT the slot position, not by relocating it, so a factory-composed child is a
+DOM descendant of its parent when its `connectedCallback` runs, and factory
+children stay reactive. Rulings folded in: the `TemplateResult` fallback is
+mounted once into a detached holder (its bindings live in the component context
+and dispose with it) and exposed as a re-mountable node slot so
+empty→filled→empty cannot crash; `_propSignal` stays an internal (underscore)
+bridge — no public read API; single default slot only (named/multiple slots are
+a later design). Proof: `button` and `message-scroller-button` migrated (full
+suites green unchanged), `core/projection.test.ts` (8 cases), and SSG
+regressions (factory children + light-DOM projection settling under `tick()`)
+in `ssg/build.test.ts`.
 
 ### 2. Subtree-scoped context / DI — FIXED (2026-07-11)
 
@@ -116,7 +148,7 @@ nearest-provider, same-name distinctness, reactive pass-through, error boundary,
 `dialog.test.ts` reactivity-survives-portal assertion + the `menubar.test.ts`
 multi-context acceptance suite.
 
-### 3. Opt-in attribute reactivity / reflection — MEDIUM
+### 3. Opt-in attribute reactivity / reflection — FIXED (2026-07-11)
 
 `attr()`/`boolAttr()`/`forwardedAttr()` are parse-time-only userland
 fallbacks; there is no `observedAttributes` path, so plain-HTML consumers
@@ -127,6 +159,33 @@ nothing about.
 **Proposal**: `component()` option declaring observed attributes mapped to
 prop signals, with the ui boolean semantics; forwarding hooks for
 `id`/`name` so form controls stop hand-rolling it.
+
+**Resolution (UI-29 prototype + design gate, 2026-07-11)**: `component()`
+gains an optional `attrs` declaration mapping prop keys to attribute behavior
+— `'string' | 'boolean' | { type:'boolean', default } | { type:'string',
+default } | 'forward'`. Declared attributes feed `static observedAttributes`,
+so `setAttribute()` AFTER mount writes the prop signal live (removing ADR 0022
+§5's parse-time-only limit). The ui boolean semantics are core's now
+(bare/any → true, literal `"false"` → false, absent → declared default else
+false); `'forward'` relocates `id`/`name` off the layout-transparent host onto
+the inner control. Attribute name = kebab-case of the prop key (`className` ↔
+`class-name`). Prop signals are seeded from attributes pre-setup (SEED, first
+of the canonical **SEED → CAPTURE → CONTEXT → setup** order); live changes
+arrive via `attributeChangedCallback`. Zero cost when `attrs` is omitted.
+Userland `attr()/boolAttr()/forwardedAttr()` keep working during the UI-30
+migration.
+
+Design-gate ruling (binding): precedence is **defined-write-pins** — NOT
+`attr()`'s nullish-coalesce and NOT unconditional pinning. `_setProp(key, v)`
+pins the key only when `v` is defined; an explicit `undefined` (a factory
+spreading an unset optional — `{...opts}` fires `_setProp(key, undefined)` per
+the `Object.entries` walk) must not pin, and for a declared attribute
+re-resolves from the current attribute so declared-default booleans stay
+non-undefined. This keeps determinism AND the established coalesce behavior.
+Proof: `switch` migrated (boolean + forward + string), all 15 prior tests green
+plus live-update + spread-of-undefined regressions; a `signal`-typed
+`as boolean` in switch is the stopgap until `ReactiveProps` carries the
+declared type (future work).
 
 ### 4. Reactive-slot primitive transition gap — FIXED (2026-07-11)
 
