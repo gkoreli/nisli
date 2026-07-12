@@ -380,10 +380,19 @@ rendering deltas for marginal signal):
    same token layer, identical class lists on identical structure IS visual
    parity up to browser rendering.
 2. **Manual side-by-side checklist**: each worklist entry gets a final
-   eyeball pass — the www gallery preview (`nisli.dev/ui/<name>`) next to
-   ui.shadcn.com's default-style demo — recorded as a checkbox per
-   component in the same worklist file, covering what class diffs cannot
-   (stacking, focus rings, animation feel).
+   eyeball pass — the www gallery preview (`nisli.dev/ui/<name>`) against
+   the parity baseline — recorded as a checkbox per component in the same
+   worklist file, covering what class diffs cannot (stacking, focus rings,
+   animation feel). **Baseline correction (2026-07-12)**: ui.shadcn.com now
+   defaults to the "Base UI" (nova) style, so the live site is NO LONGER
+   the baseline — the pinned `new-york-v4` checkout remains the sole parity
+   truth (NORTH-STAR tenet 3 already pins it). Site demos may still serve
+   as a rendered visual aid where they match the checkout era (use the
+   Radix tab where offered), but any site-vs-ours delta must be checked
+   against the CHECKOUT before it counts as drift; nova-only deltas are
+   annotated, not fixed. A checkbox additionally requires the live copy to
+   be the CURRENT sync generation (the stale-artifact rule — verify which
+   registry generation the deployed www copy renders before judging).
 
 The component roadmap and v1 milestone live in
 [`packages/ui/NORTH-STAR.md`](../../packages/ui/NORTH-STAR.md).

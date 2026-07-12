@@ -138,14 +138,15 @@ ticketed **UI-44** (cdx2), reference mechanism = eng2's input-otp (70c0bb2).
 the "Base UI" (nova) style — the LIVE SITE is no longer our parity baseline.
 Judgments below use the pinned `new-york-v4` CHECKOUT (class-verified in the
 batches above) as truth; site comparisons annotated where nova drift explains
-a visible delta. ADR 0022's manual-pass wording needs the same correction.
+a visible delta. ADR 0022's manual-pass wording is amended accordingly (same
+commit as this correction).
 
-**VERIFIED ☑ (12):** pagination, separator, select (native-first baseline),
-slider, spinner, switch, tabs, textarea, toggle-group, menubar (open-state
-verified) — no visible differences; radio-group ☑ (classic dot indicator per
-new-york-v4; site shows nova donut = baseline drift, not ours), progress ☑
-(h-2 per checkout; site's thinner bar = nova), skeleton ☑ (demo-markup
-delta only). *(That's 13 — recount: 10 clean + 3 nova-annotated.)*
+**VERIFIED ☑ (13 — 10 clean + 3 nova-annotated):** pagination, separator,
+select (native-first baseline), slider, spinner, switch, tabs, textarea,
+toggle-group, menubar (open-state verified) — no visible differences;
+radio-group ☑ (classic dot indicator per new-york-v4; site shows nova donut
+= baseline drift, not ours), progress ☑ (h-2 per checkout; site's thinner
+bar = nova), skeleton ☑ (demo-markup delta only).
 
 **RECHECK POST-UI-55 ⏸ (3):** table, scroll-area, resizable — class parity
 verified; the observed near-black borders are the missing base-layer
@@ -156,16 +157,31 @@ confirm the local scrollbar-thumb CSS actually paints a thumb.)
 **DEFECT — OPEN ✗:** sheet (UI-54: style-attr feedback loop paints
 display:contents onto the fixed panel; open state visibly broken on live).
 
-**INVESTIGATE:** popover open-state renders right-shifted vs centered under
-its trigger (floating `align` math or preview-frame interference — needs a
-browser look; queued behind UI-54 in the codex lane).
+**INVESTIGATE → ticketed UI-56:** popover open-state renders right-shifted
+vs centered under its trigger (floating `align` math or preview-frame
+interference — needs a browser look; fix-or-disposition, queued behind
+UI-54 in the codex lane).
 
-**CURATION (eng3 batch, with empty/input-group):** toggle (auto-default
-renders empty/invisible — needs an iconed example), navigation-menu (demo
-is links-only; dropdown surface unassessable), sidebar (preview container
-inflated ~965px by min-h-svh; header clips demo top), marker + message +
-message-scroller (NO-UPSTREAM; current examples render bare/undesigned —
-human call: needs a designed example, not a component fix).
+**CURATION → ticketed WWW-14 (eng3, after WWW-13):** six wave-B items —
+toggle (auto-default renders empty/invisible — needs an iconed example),
+navigation-menu (demo is links-only; dropdown surface unassessable), sidebar
+(preview container inflated ~965px by min-h-svh; header clips demo top),
+marker + message + message-scroller (NO-UPSTREAM; current examples render
+bare/undesigned — human call: needs a designed example, not a component
+fix). WWW-14 also carries the two wave-A recaptures (empty, input-group) —
+those are eng2's ledger, listed here only for the ticket's scope.
 
 **DEFERRED (stale live copies — next resync+deploy):** tooltip (UI-46 arrow
 + UI-51), toast (UI-50 icons).
+
+**Criterion-2 closure equation (wave B stays OPEN until every term is
+VERIFIED, not merely fixed/deployed):**
+13 ☑ (above)
++ 3 held → verified only by a post-UI-55 recheck against the deployed fix
++ 1 sheet → verified only by a post-UI-54 recheck (open panel, real box)
++ 1 popover → verified only after UI-56 resolves (fix-or-disposition)
++ 6 curation → verified only against the WWW-14-curated examples
++ 2 stale → verified only against the next resync+deploy generation
+= 26 wave-B surfaces. Planned fixes, landings, and deploys close NOTHING
+here — only performed rechecks flip a term. (Wave A's parallel equation:
+27 ☑ + avatar-batch-2 visual + 2 recaptures + sidebar mobile, per 0c64b71.)
