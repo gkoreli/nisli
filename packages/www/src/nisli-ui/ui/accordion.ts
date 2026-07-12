@@ -180,7 +180,11 @@ export const Accordion = component<AccordionProps, typeof accordionAttrs>('ui-ac
   AccordionContext.provide(host, state);
 
   const className = props.className;
-  const classes = computed(() => cn(className.value));
+  // Translate host-sequence `last` onto the last item's painted descendant.
+  const classes = computed(() => cn(
+    '[&>[data-slot=accordion-item]:last-child]:border-b-0 [&>ui-accordion-item:last-child>[data-slot=accordion-item]]:border-b-0',
+    className.value,
+  ));
 
   const root = ref<HTMLDivElement>();
 
@@ -226,7 +230,7 @@ export const AccordionItem = component<AccordionItemProps>(
     const open = computed(() => value !== '' && state.openValues.value.has(value));
 
     const className = props.className;
-    const classes = computed(() => cn('border-b last:border-b-0', className.value));
+    const classes = computed(() => cn('border-b', className.value));
 
     return html`<div
       data-slot="accordion-item"

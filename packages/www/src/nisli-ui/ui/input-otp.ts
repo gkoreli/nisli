@@ -240,7 +240,12 @@ export const InputOTPGroup = component<InputOTPGroupProps, typeof inputOtpGroupA
   (props, host) => {
     transparentHost(host);
     const className = props.className;
-    const classes = computed(() => cn('flex items-center', className.value));
+    // The group owns first/last because each painted slot is the sole child of
+    // its transparent ui-input-otp-slot host.
+    const classes = computed(() => cn(
+      'flex items-center [&>[data-slot=input-otp-slot]:first-child]:rounded-l-md [&>[data-slot=input-otp-slot]:first-child]:border-l [&>[data-slot=input-otp-slot]:last-child]:rounded-r-md [&>ui-input-otp-slot:first-child>[data-slot=input-otp-slot]]:rounded-l-md [&>ui-input-otp-slot:first-child>[data-slot=input-otp-slot]]:border-l [&>ui-input-otp-slot:last-child>[data-slot=input-otp-slot]]:rounded-r-md',
+      className.value,
+    ));
     return html`<div data-slot="input-otp-group" class="${classes}">${children()}</div>`;
   },
   { attrs: inputOtpGroupAttrs },
@@ -249,7 +254,7 @@ export const InputOTPGroup = component<InputOTPGroupProps, typeof inputOtpGroupA
 // ── ui-input-otp-slot ────────────────────────────────────────────────
 
 export const inputOTPSlotClasses =
-  'relative flex h-9 w-9 items-center justify-center border-y border-r border-input text-sm shadow-xs transition-all outline-none first:rounded-l-md first:border-l last:rounded-r-md aria-invalid:border-destructive data-[active=true]:z-10 data-[active=true]:border-ring data-[active=true]:ring-[3px] data-[active=true]:ring-ring/50 data-[active=true]:aria-invalid:border-destructive data-[active=true]:aria-invalid:ring-destructive/20 dark:bg-input/30 dark:data-[active=true]:aria-invalid:ring-destructive/40';
+  'relative flex h-9 w-9 items-center justify-center border-y border-r border-input text-sm shadow-xs transition-all outline-none aria-invalid:border-destructive data-[active=true]:z-10 data-[active=true]:border-ring data-[active=true]:ring-[3px] data-[active=true]:ring-ring/50 data-[active=true]:aria-invalid:border-destructive data-[active=true]:aria-invalid:ring-destructive/20 dark:bg-input/30 dark:data-[active=true]:aria-invalid:ring-destructive/40';
 
 export type InputOTPSlotProps = {
   /** Slot position (0-based). Required. */
