@@ -104,6 +104,28 @@ import {
   SidebarFooter,
 } from './nisli-ui/ui/sidebar.js';
 import { Calendar } from './nisli-ui/ui/calendar.js';
+import {
+  Table,
+  TableCaption,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from './nisli-ui/ui/table.js';
+import { FormField, FieldDescription, FieldError } from './nisli-ui/ui/form-field.js';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselPrevious,
+  CarouselNext,
+} from './nisli-ui/ui/carousel.js';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from './nisli-ui/ui/resizable.js';
 
 export const examples: Record<string, () => TemplateResult> = {
   button: () =>
@@ -362,6 +384,81 @@ export const examples: Record<string, () => TemplateResult> = {
       selected: { from: new Date(2024, 5, 9), to: new Date(2024, 5, 15) },
       className: 'rounded-md border',
     })}`,
+  table: () =>
+    html`<div class="w-full max-w-md">
+      ${Table({
+        children: html`${TableCaption({ children: 'Recent invoices.' })}
+        ${TableHeader({
+          children: TableRow({
+            children: html`${TableHead({ children: 'Invoice' })}${TableHead({ children: 'Status' })}${TableHead({
+              children: 'Amount',
+            })}`,
+          }),
+        })}
+        ${TableBody({
+          children: html`${TableRow({
+            children: html`${TableCell({ children: 'INV-001' })}${TableCell({ children: 'Paid' })}${TableCell({
+              children: '$250.00',
+            })}`,
+          })}
+          ${TableRow({
+            children: html`${TableCell({ children: 'INV-002' })}${TableCell({ children: 'Pending' })}${TableCell({
+              children: '$150.00',
+            })}`,
+          })}
+          ${TableRow({
+            children: html`${TableCell({ children: 'INV-003' })}${TableCell({ children: 'Unpaid' })}${TableCell({
+              children: '$350.00',
+            })}`,
+          })}`,
+        })}`,
+      })}
+    </div>`,
+  'form-field': () =>
+    html`<div class="w-full max-w-sm">
+      ${FormField({
+        invalid: true,
+        children: html`${Label({ children: 'Email' })}
+        ${Input({ type: 'email', name: 'field-email', value: 'not-an-email' })}
+        ${FieldDescription({ children: "We'll never share your email." })}
+        ${FieldError({ children: 'Enter a valid email address.' })}`,
+      })}
+    </div>`,
+  carousel: () =>
+    html`<div class="mx-auto max-w-xs px-12">
+      ${Carousel({
+        children: html`${CarouselContent({
+          children: html`${CarouselItem({
+            children: html`<div class="flex aspect-square items-center justify-center rounded-lg border p-6 text-4xl font-semibold">1</div>`,
+          })}
+          ${CarouselItem({
+            children: html`<div class="flex aspect-square items-center justify-center rounded-lg border p-6 text-4xl font-semibold">2</div>`,
+          })}
+          ${CarouselItem({
+            children: html`<div class="flex aspect-square items-center justify-center rounded-lg border p-6 text-4xl font-semibold">3</div>`,
+          })}`,
+        })}
+        ${CarouselPrevious({})}${CarouselNext({})}`,
+      })}
+    </div>`,
+  resizable: () =>
+    html`<div class="h-48 w-full max-w-md">
+      ${ResizablePanelGroup({
+        direction: 'horizontal',
+        className: 'rounded-lg border',
+        children: html`${ResizablePanel({
+          defaultSize: 40,
+          minSize: 20,
+          children: html`<div class="flex h-full items-center justify-center p-6 text-sm">Sidebar</div>`,
+        })}
+        ${ResizableHandle({ withHandle: true })}
+        ${ResizablePanel({
+          defaultSize: 60,
+          minSize: 20,
+          children: html`<div class="flex h-full items-center justify-center p-6 text-sm">Content</div>`,
+        })}`,
+      })}
+    </div>`,
 };
 
 export function getExample(name: string): (() => TemplateResult) | undefined {
