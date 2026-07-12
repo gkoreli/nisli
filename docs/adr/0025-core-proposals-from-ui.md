@@ -499,6 +499,33 @@ stays at one call) and a superseded response is still discarded; the automatic
 path stays cache-first. www's `/docs/query` `staleTime` sentence updated to the
 new contract in the same commit.
 
+### 13. Floating-layer transform origin and exit visibility — FIXED (UI-45, 2026-07-12)
+
+The registry copied Radix-derived `origin-(--radix-*-content-transform-origin)`
+and closed-state animation classes across tooltip, popover, hover-card,
+dropdown-menu, context-menu, and menubar, but `lib/floating.ts` never assigned
+the referenced primitive-specific variables. Scale animations therefore used
+the element center instead of the anchor-facing edge. Closing also bound
+`hidden` directly to `!open`, making the closed state and `animate-out` classes
+unobservable for a rendered frame.
+
+**Resolution (UI-45)**: `positionFloating()` now derives the origin from the
+post-collision `side` and `align` and assigns the variable selected by the
+content's `data-slot`, so root/sub-content and flipped placements share one
+mechanism. `floatingHidden()` preserves the existing open signal as the sole
+dismissal/focus truth, but keeps a closing element visible when computed CSS
+reports a real animation; `animationend` or `animationcancel` then hides it.
+No-animation environments hide synchronously, reopening cancels stale close
+completion, and disconnect cleanup removes listeners. Menubar's root content
+also gains its missing closed-state `animate-out` token.
+
+**Proof**: `lib/floating.test.ts` covers side/alignment origin math, every
+primitive/root/sub-content variable mapping, immediate no-animation hiding,
+animated end/cancel completion, and stale-close cancellation. The six consumer
+suites verify the shared helper integration. A real-browser animation check is
+required before the UI-45 landing verdict; happy-dom intentionally exercises
+only the no-CSS fallback unless inline animation properties are supplied.
+
 ## Process
 
 New friction found while building ui/www lands here first (PR review may

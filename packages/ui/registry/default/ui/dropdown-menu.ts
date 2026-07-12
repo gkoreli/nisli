@@ -46,7 +46,7 @@ import {
   type TemplateResult,
 } from '@nisli/core';
 import { cn, isPinned, transparentHost } from '../lib/utils.js';
-import { positionFloating, type Align, type Side } from '../lib/floating.js';
+import { floatingHidden, positionFloating, type Align, type Side } from '../lib/floating.js';
 import { portal } from '../lib/portal.js';
 import { dismissableLayer } from '../lib/dismissable-layer.js';
 import { focusTrap } from '../lib/focus.js';
@@ -395,7 +395,7 @@ export const DropdownMenuContent = component<DropdownMenuContentProps>(
       data-slot="dropdown-menu-content"
       id="${contentId}"
       data-state="${computed(() => stateAttr(state.open.value))}"
-      hidden="${computed(() => !state.open.value)}"
+      hidden="${floatingHidden(state.open, content)}"
       tabindex="-1"
       class="${classes}"
       @keydown=${onKeyDown}
@@ -873,7 +873,7 @@ export const DropdownMenuSubContent = component<DropdownMenuSubContentProps>(
       data-slot="dropdown-menu-sub-content"
       id="${contentId}"
       data-state="${computed(() => stateAttr(sub.open.value))}"
-      hidden="${computed(() => !sub.open.value)}"
+      hidden="${floatingHidden(sub.open, content)}"
       tabindex="-1"
       class="${classes}"
       @keydown=${onKeyDown}

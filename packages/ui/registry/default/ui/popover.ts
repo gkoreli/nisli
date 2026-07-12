@@ -42,7 +42,7 @@ import {
   type TemplateResult,
 } from '@nisli/core';
 import { cn, isPinned, transparentHost } from '../lib/utils.js';
-import { positionFloating, type Align, type Side } from '../lib/floating.js';
+import { floatingHidden, positionFloating, type Align, type Side } from '../lib/floating.js';
 import { dismissableLayer } from '../lib/dismissable-layer.js';
 import { focusTrap } from '../lib/focus.js';
 import { portal } from '../lib/portal.js';
@@ -282,7 +282,7 @@ export const PopoverContent = component<PopoverContentProps>(
       data-slot="popover-content"
       id="${contentId}"
       data-state="${computed(() => stateAttr(state.open.value))}"
-      hidden="${computed(() => !state.open.value)}"
+      hidden="${floatingHidden(state.open, content)}"
       tabindex="-1"
       class="${classes}"
     >${children()}</div>`;

@@ -4,7 +4,20 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, vi } from 'vitest';
-import { computePosition, positionFloating } from './floating.js';
+import {
+  component,
+  computed,
+  flushEffects,
+  html,
+  ref,
+  signal,
+} from '@nisli/core';
+import {
+  computePosition,
+  floatingHidden,
+  positionFloating,
+  transformOrigin,
+} from './floating.js';
 
 // A 100×40 anchor centered-ish in a 1000×800 viewport; a 200×100 floater.
 const viewport = { width: 1000, height: 800 };
@@ -64,6 +77,15 @@ describe('computePosition()', () => {
   });
 });
 
+describe('transformOrigin()', () => {
+  it('uses the anchor-facing edge and requested cross-axis alignment', () => {
+    expect(transformOrigin('bottom', 'start')).toBe('0% 0%');
+    expect(transformOrigin('top', 'end')).toBe('100% 100%');
+    expect(transformOrigin('right', 'center')).toBe('0% 50%');
+    expect(transformOrigin('left', 'start')).toBe('100% 0%');
+  });
+});
+
 describe('positionFloating()', () => {
   function mockRect(el: HTMLElement, rect: { x: number; y: number; width: number; height: number }): void {
     el.getBoundingClientRect = () =>
@@ -73,6 +95,7 @@ describe('positionFloating()', () => {
   it('applies fixed position, coordinates, and data attributes', () => {
     const anchorEl = document.createElement('button');
     const floatEl = document.createElement('div');
+    floatEl.dataset.slot = 'tooltip-content';
     document.body.append(anchorEl, floatEl);
     mockRect(anchorEl, anchor);
     mockRect(floatEl, floating);
@@ -84,6 +107,29 @@ describe('positionFloating()', () => {
     expect(floatEl.style.top).toBe('200px');
     expect(floatEl.getAttribute('data-side')).toBe('top');
     expect(floatEl.getAttribute('data-align')).toBe('start');
+    expect(floatEl.style.getPropertyValue('--radix-tooltip-content-transform-origin')).toBe('0% 100%');
+    dispose();
+  });
+
+  it.each([
+    ['popover-content', '--radix-popover-content-transform-origin'],
+    ['hover-card-content', '--radix-hover-card-content-transform-origin'],
+    ['dropdown-menu-content', '--radix-dropdown-menu-content-transform-origin'],
+    ['dropdown-menu-sub-content', '--radix-dropdown-menu-content-transform-origin'],
+    ['context-menu-content', '--radix-context-menu-content-transform-origin'],
+    ['context-menu-sub-content', '--radix-context-menu-content-transform-origin'],
+    ['menubar-content', '--radix-menubar-content-transform-origin'],
+    ['menubar-sub-content', '--radix-menubar-content-transform-origin'],
+  ])('sets the anchored origin variable for %s', (slot, variable) => {
+    const anchorEl = document.createElement('button');
+    const floatEl = document.createElement('div');
+    floatEl.dataset.slot = slot;
+    document.body.append(anchorEl, floatEl);
+    mockRect(anchorEl, anchor);
+    mockRect(floatEl, floating);
+
+    const dispose = positionFloating(anchorEl, floatEl, { side: 'right', align: 'end' });
+    expect(floatEl.style.getPropertyValue(variable)).toBe('0% 100%');
     dispose();
   });
 
@@ -103,5 +149,85 @@ describe('positionFloating()', () => {
     mockRect(anchorEl, { ...anchor, y: 500 });
     window.dispatchEvent(new Event('scroll'));
     expect(floatEl.style.top).toBe('140px'); // unchanged — disposed
+  });
+});
+
+describe('floatingHidden()', () => {
+  const open = signal(true);
+  const TestLayer = component('test-floating-visibility-ui45', () => {
+    const element = ref<HTMLDivElement>();
+    return html`<div
+      ref="${element}"
+      data-state="${computed(() => (open.value ? 'open' : 'closed'))}"
+      hidden="${floatingHidden(open, element)}"
+    ></div>`;
+  });
+
+  function mountLayer(): { host: HTMLElement; layer: HTMLDivElement } {
+    open.value = true;
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    html`${TestLayer({})}`.mount(container);
+    const host = container.querySelector('test-floating-visibility-ui45') as HTMLElement;
+    flushEffects();
+    return { host, layer: host.querySelector('div') as HTMLDivElement };
+  }
+
+  it('hides immediately when no closing animation is computed', () => {
+    const { host, layer } = mountLayer();
+    open.value = false;
+    flushEffects();
+    expect(layer.hidden).toBe(true);
+    host.remove();
+  });
+
+  it('waits for animationend and ignores a stale close after reopening', () => {
+    const { host, layer } = mountLayer();
+    layer.style.animationName = 'floating-close';
+    layer.style.animationDuration = '100ms';
+
+    open.value = false;
+    flushEffects();
+    expect(layer.dataset.state).toBe('closed');
+    expect(layer.hidden).toBe(false);
+
+    open.value = true;
+    flushEffects();
+    layer.dispatchEvent(new AnimationEvent('animationend', { bubbles: true }));
+    expect(layer.hidden).toBe(false);
+
+    open.value = false;
+    flushEffects();
+    layer.dispatchEvent(new AnimationEvent('animationend', { bubbles: true }));
+    flushEffects();
+    expect(layer.hidden).toBe(true);
+    host.remove();
+  });
+
+  it('also completes closing on animationcancel', () => {
+    const { host, layer } = mountLayer();
+    layer.style.animationName = 'floating-close';
+    layer.style.animationDuration = '100ms';
+    open.value = false;
+    flushEffects();
+
+    layer.dispatchEvent(new AnimationEvent('animationcancel', { bubbles: true }));
+    flushEffects();
+    expect(layer.hidden).toBe(true);
+    host.remove();
+  });
+
+  it('removes pending animation listeners on disconnect', async () => {
+    const { host, layer } = mountLayer();
+    layer.style.animationName = 'floating-close';
+    layer.style.animationDuration = '100ms';
+    open.value = false;
+    flushEffects();
+    expect(layer.hidden).toBe(false);
+
+    host.remove();
+    await Promise.resolve();
+    layer.dispatchEvent(new AnimationEvent('animationend', { bubbles: true }));
+    expect(layer.hidden).toBe(false);
   });
 });

@@ -46,7 +46,7 @@ import {
   type TemplateResult,
 } from '@nisli/core';
 import { cn, isPinned, transparentHost } from '../lib/utils.js';
-import { positionFloating, type Align, type Side } from '../lib/floating.js';
+import { floatingHidden, positionFloating, type Align, type Side } from '../lib/floating.js';
 import { portal } from '../lib/portal.js';
 import { dismissableLayer } from '../lib/dismissable-layer.js';
 import { focusTrap } from '../lib/focus.js';
@@ -396,7 +396,7 @@ function wireMenuSurface(cfg: MenuSurfaceConfig): {
 // ── ui-menubar-content ───────────────────────────────────────────────
 
 const contentClasses =
-  'z-50 min-w-[12rem] origin-(--radix-menubar-content-transform-origin) overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95';
+  'z-50 min-w-[12rem] origin-(--radix-menubar-content-transform-origin) overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95';
 
 export type MenubarContentProps = {
   align?: Align;
@@ -457,7 +457,7 @@ export const MenubarContent = component<MenubarContentProps>(
       data-slot="menubar-content"
       id="${contentId}"
       data-state="${computed(() => stateAttr(menu.open.value))}"
-      hidden="${computed(() => !menu.open.value)}"
+      hidden="${floatingHidden(menu.open, content)}"
       tabindex="-1"
       class="${classes}"
       @keydown=${onKeyDown}
@@ -900,7 +900,7 @@ export const MenubarSubContent = component<MenubarSubContentProps>(
       data-slot="menubar-sub-content"
       id="${contentId}"
       data-state="${computed(() => stateAttr(sub.open.value))}"
-      hidden="${computed(() => !sub.open.value)}"
+      hidden="${floatingHidden(sub.open, content)}"
       tabindex="-1"
       class="${classes}"
       @keydown=${onKeyDown}

@@ -45,7 +45,7 @@ import {
   type TemplateResult,
 } from '@nisli/core';
 import { cn, transparentHost } from '../lib/utils.js';
-import { positionFloating, type Side } from '../lib/floating.js';
+import { floatingHidden, positionFloating, type Side } from '../lib/floating.js';
 import { portal } from '../lib/portal.js';
 
 // ── Module-level open/delay manager (TooltipProvider semantics) ──────
@@ -289,7 +289,7 @@ export const TooltipContent = component<TooltipContentProps>(
       data-slot="tooltip-content"
       id="${contentId}"
       data-state="${computed(() => stateAttr(state.open.value))}"
-      hidden="${computed(() => !state.open.value)}"
+      hidden="${floatingHidden(state.open, content)}"
       class="${classes}"
     >${children()}</div>`;
   },
