@@ -188,6 +188,49 @@ describe('<ui-toaster>', () => {
 });
 
 describe('Toaster parity (UI-36B)', () => {
+  it.each([
+    ['success', () => toast.success('Saved'), 'm9 12 2 2 4-4'],
+    ['info', () => toast.info('Note'), 'M12 16v-4'],
+    ['warning', () => toast.warning('Careful'), 'm21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'],
+    ['error', () => toast.error('Failed'), 'M2.586 16.726A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2h6.624a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586z'],
+    ['loading', () => toast.loading('Loading'), 'M21 12a9 9 0 1 1-6.219-8.56'],
+  ] as const)('renders the upstream %s size-4 Lucide icon', (type, show, path) => {
+    const c = mount(html`${Toaster({})}`);
+    show();
+    flushEffects();
+
+    const item = c.querySelector(`[data-slot="toast"][data-type="${type}"]`);
+    const icon = item?.querySelector('[data-slot="toast-icon"]');
+    expect(icon?.getAttribute('data-icon')).toBe(type);
+    expect(icon?.classList.contains('size-4')).toBe(true);
+    expect(icon?.getAttribute('aria-hidden')).toBe('true');
+    expect(icon?.querySelector(`path[d="${path}"]`)).not.toBeNull();
+    expect(icon?.classList.contains('animate-spin')).toBe(type === 'loading');
+  });
+
+  it('renders no icon for the default toast type', () => {
+    const c = mount(html`${Toaster({})}`);
+    toast('Plain');
+    flushEffects();
+
+    const item = c.querySelector('[data-slot="toast"][data-type="default"]');
+    expect(item?.querySelector('[data-slot="toast-icon"]')).toBeNull();
+  });
+
+  it('keeps loading toasts until explicitly dismissed by default', () => {
+    const c = mount(html`${Toaster({})}`);
+    const id = toast.loading('Loading');
+    flushEffects();
+
+    vi.advanceTimersByTime(60_000);
+    flushEffects();
+    expect(titles(c)).toEqual(['Loading']);
+
+    toast.dismiss(id);
+    flushEffects();
+    expect(titles(c)).toEqual([]);
+  });
+
   it('honors the visible-toasts attribute (live, declared attr)', () => {
     const c = mount(html`${Toaster({})}`);
     const host = c.querySelector('ui-toaster') as HTMLElement;

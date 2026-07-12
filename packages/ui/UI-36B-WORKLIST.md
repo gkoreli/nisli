@@ -96,10 +96,14 @@ No real visual drift found in batch 2; no registry source changes required.
   side-by-side: ☐
 - [x] `toast` — NO-UPSTREAM (sonner.tsx is a theming shim over the sonner npm
   package; no upstream DOM exists). Shim's visual contract honored: popover
-  tokens, 356px width, radius. Not implemented (documented v1 scope): per-type
-  icons, loading/promise toasts, swipe/exit animations. FIXED this batch:
-  `visible-toasts` declared as a live number attr (was factory-only). Manual
-  side-by-side: ☐
+  tokens, 356px width, radius. **UI-50 IMPLEMENTED/EVIDENCED** the shim's five
+  inline Lucide icons: success/info/warning/error use `size-4`, loading uses
+  `size-4 animate-spin`, persists until dismissed by default, and default
+  intentionally has no icon. Loading is now a first-class toast type/API;
+  promise toasts, swipe, and exit animations stay out of scope. Earlier parity
+  work declared `visible-toasts` as a live number attr (was factory-only).
+  Tests assert every type/icon path, default omission, and loading lifetime.
+  Manual side-by-side (including icon/content row layout): ☐
 - [x] `toggle` — variant taxonomy + all class strings byte-identical. Same
   `aria-invalid` delivery gap → UI-44. Manual side-by-side: ☐
 - [x] `toggle-group` — class strings byte-identical (incl. upstream's own
