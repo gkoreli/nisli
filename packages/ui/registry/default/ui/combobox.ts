@@ -35,6 +35,7 @@
 
 import {
   component,
+  createContext,
   computed,
   html,
   onMount,
@@ -63,18 +64,10 @@ export interface ComboboxState {
   baseId: string;
 }
 
-type ComboboxHost = HTMLElement & { __uiCombobox?: ComboboxState };
+/** Subtree-scoped channel from <ui-combobox> to its parts. */
+const ComboboxContext = createContext<ComboboxState>('Combobox');
 
 let uid = 0;
-
-function useComboboxState(host: HTMLElement, tag: string): ComboboxState {
-  const parent = host.closest('ui-combobox') as ComboboxHost | null;
-  const state = parent?.__uiCombobox;
-  if (!state) {
-    throw new Error(`<${tag}> must be used inside <ui-combobox>.`);
-  }
-  return state;
-}
 
 // ── ui-combobox (root: owns selection + open, composes popover+command) ─
 
@@ -167,7 +160,7 @@ export const Combobox = component<ComboboxProps>('ui-combobox', (props, host) =>
     },
     baseId: `ui-combobox-${++uid}`,
   };
-  (host as ComboboxHost).__uiCombobox = state;
+  ComboboxContext.provide(host, state);
 
   // Match the popup width to the trigger (Radix's --radix-popover-trigger-width
   // equivalent), measured locally — lib/floating is untouched.
@@ -247,7 +240,7 @@ export type ComboboxItemProps = {
 };
 
 export const ComboboxItem = component<ComboboxItemProps>('ui-combobox-item', (props, host) => {
-  const combo = useComboboxState(host, 'ui-combobox-item');
+  const combo = ComboboxContext.inject();
   transparentHost(host);
 
   const value = attr(props.value, host, 'value');
