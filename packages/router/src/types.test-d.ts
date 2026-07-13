@@ -18,6 +18,12 @@ localized.href({ params: { locale: 'fr', id: 42 } });
 // @ts-expect-error numberParam path segment expects a number, not a string
 localized.href({ params: { locale: 'en', id: '42' } });
 
+// Lossless URL state: arbitrary search (URLSearchParams | record | string) + hash
+// compose with typed params/query.
+localized.href({ params: { locale: 'ka', id: 1 }, search: new URLSearchParams('utm=x'), hash: '#a' });
+localized.href({ params: { locale: 'ka', id: 1 }, search: { utm: 'x' }, hash: 'a' });
+localized.href({ params: { locale: 'ka', id: 1 }, search: 'utm=x' });
+
 const user = route('/users/:userId', {
   query: {
     tab: enumParam(['profile', 'activity'] as const),

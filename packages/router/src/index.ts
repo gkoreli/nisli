@@ -5,6 +5,7 @@ export {
   notFound,
   redirect,
   type AlternateLink,
+  type HrefExtras,
   type NotFoundDefinition,
   type PathCodecs,
   type PathParams,

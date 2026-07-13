@@ -130,14 +130,35 @@ route('/:locale/posts/:slug', {
 ```
 
 The browser router *owns* the SEO tag types it manages — `title`,
-`<meta name>`, `<meta property>`, `<link rel="canonical">`, and `<link
-rel="alternate">`. It marks each element `data-nisli-managed` (adopting a
-matching server-rendered tag rather than duplicating it), and on every
-navigation creates/updates the desired set and **removes** the ones a later
-route omits, so a canonical or `og:*` tag never lingers after a client
-navigation. `title` reconciles the same way, falling back to the title present
-when the router connected. Head elements outside those types (charset,
-viewport, stylesheets, scripts) are never touched.
+`<meta name>`, `<meta property>`, `<link rel="canonical">`, `<link
+rel="alternate">`, `<html lang>`/`<html dir>`, and keyed JSON-LD blocks. It
+marks each element `data-nisli-managed` (adopting a matching server-rendered
+tag rather than duplicating it), and on every navigation creates/updates the
+desired set and **removes** the ones a later route omits, so a canonical or
+`og:*` tag never lingers after a client navigation. `title`, `lang`, and `dir`
+reconcile the same way, falling back to the value present when the router
+connected. Head elements outside those types (charset, viewport, stylesheets,
+unmanaged scripts) are never touched.
+
+```ts
+route('/:locale/business', {
+  params: { locale: enumParam(['en', 'ka']) },
+  metadata: ({ params }) => ({
+    lang: params.locale,                 // <html lang="ka">
+    canonical: `https://example.com/${params.locale}/business`,
+    // Keyed JSON-LD: set/update/removed by key across navigations.
+    jsonLd: {
+      business: { '@context': 'https://schema.org', '@type': 'LocalBusiness', name: 'Example' },
+    },
+  }),
+});
+```
+
+Managed JSON-LD adopts a server-rendered `application/ld+json` block (whether
+or not it is pre-tagged) rather than duplicating it, then keeps it in sync and
+removes it when a later route drops the key. If a route render throws, the
+router atomically resets all managed head state so the previous route's tags
+cannot survive the error.
 
 ## Typed path segments
 
@@ -186,6 +207,30 @@ html`<a href="/docs" aria-current="${router.isActive('/docs') ? 'page' : nothing
 
 Pathname-prefix match by default; `{ exact: true }` and the root path `/`
 require an exact match.
+
+## Lossless URL state (counterpart-locale links, attribution)
+
+`href()` accepts open-ended `search` and `hash` alongside the typed
+`params`/`query`. Arbitrary query parameters — including ones not in the route's
+query schema — are merged **under** the declared query (declared wins), and the
+fragment is preserved. This is one builder for campaign-attribution passthrough
+and for a language switcher that rebuilds the same page in the other locale
+without dropping inquiry selection, attribution params, or the anchor:
+
+```ts
+const url = inject(Router).url.value; // current location
+
+const counterpart = AppRouter.routes.page.href({
+  params: { locale: 'ka' },     // swap the locale segment
+  search: url.searchParams,     // preserve ?inquiry=…&utm_source=…
+  hash: url.hash,               // preserve #section
+});
+
+html`<a href="${counterpart}" hreflang="ka">ქართული</a>`;
+```
+
+A declared `query` key set to its default value clears any carried-over copy,
+so declared parameters stay canonical while undeclared ones pass through.
 
 See [ADR 0026: Typed Application Router](https://github.com/gkoreli/nisli/blob/main/docs/adr/0026-typed-application-router.md)
 for the architecture, shared browser/Vite/SSG contract, and scope.

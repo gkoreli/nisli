@@ -51,6 +51,16 @@ export interface RouteMetadata {
   canonical?: string;
   /** `<link rel="alternate" hreflang="…" href="…">` entries. */
   alternates?: readonly AlternateLink[];
+  /** `<html lang="…">`. Falls back to the connect-time value when omitted. */
+  lang?: string;
+  /** `<html dir="…">`. Falls back to the connect-time value when omitted. */
+  dir?: 'ltr' | 'rtl' | 'auto';
+  /**
+   * Managed `<script type="application/ld+json">` blocks, keyed by a stable id.
+   * Serialized to JSON and reconciled (set/update/remove) like the meta/link
+   * tags, so structured data never lingers after a client navigation.
+   */
+  jsonLd?: Readonly<Record<string, unknown>>;
 }
 
 export interface RouteContext<
@@ -75,10 +85,23 @@ export interface RouteOptions<Path extends string, Q extends QuerySchema, P exte
   metadata?: RouteMetadata | ((context: RouteContext<Path, Q, P>) => RouteMetadata);
 }
 
+/**
+ * Open-ended href extras, independent of the route's declared params/query.
+ * `search` merges arbitrary query parameters (declared `query` wins on key
+ * conflicts); `hash` appends a fragment. Used to carry the current URL's
+ * untyped query (inquiry selection, attribution params) and anchor across a
+ * counterpart-locale link without declaring every possible key as a codec.
+ */
+export interface HrefExtras {
+  search?: URLSearchParams | Readonly<Record<string, string>> | string;
+  hash?: string;
+}
+
 type HasKeys<T> = keyof T extends never ? false : true;
 type HrefArgs<Path extends string, Q extends QuerySchema, P> =
   (HasKeys<ResolvedParams<Path, P>> extends true ? { params: ResolvedParams<Path, P> } : { params?: never }) &
-  (HasKeys<QueryValues<Q>> extends true ? { query: QueryValues<Q> } : { query?: never });
+  (HasKeys<QueryValues<Q>> extends true ? { query: QueryValues<Q> } : { query?: never }) &
+  HrefExtras;
 type NeedsHrefOptions<Path extends string, Q extends QuerySchema, P> =
   HasKeys<ResolvedParams<Path, P>> extends true ? true : HasKeys<QueryValues<Q>>;
 
@@ -123,6 +146,17 @@ function encodeCatchAll(value: string | undefined, name: string): string {
   return value.split('/').map(encodeURIComponent).join('/');
 }
 
+function toSearchParams(input: HrefExtras['search']): URLSearchParams {
+  if (input === undefined) return new URLSearchParams();
+  // Copy so a passed-in URLSearchParams (e.g. the live location.search) is not mutated.
+  return new URLSearchParams(input as URLSearchParams | Record<string, string> | string);
+}
+
+function normalizeHash(hash: string | undefined): string {
+  if (!hash) return '';
+  return hash.startsWith('#') ? hash : `#${hash}`;
+}
+
 /** Serialize typed path-parameter values back to their raw string segments. */
 function serializePathParams(
   params: Record<string, unknown>,
@@ -164,16 +198,20 @@ export function route<
     href(args?: HrefArgs<Path, Q, P>) {
       const serialized = serializePathParams((args?.params ?? {}) as Record<string, unknown>, paramCodecs);
       const pathname = replacePathParams(path, serialized);
-      const search = new URLSearchParams();
+      // Seed from arbitrary carry-over params (attribution, inquiry selection,
+      // counterpart-locale passthrough); declared query wins on key conflicts.
+      const search = toSearchParams(args?.search);
       const values = (args?.query ?? {}) as Record<string, unknown>;
       for (const [name, value] of Object.entries(values)) {
         const queryCodec = query[name];
         if (!queryCodec) throw new TypeError(`Unknown query parameter: ${name}`);
         const serializedValue = queryCodec.serialize(value);
         if (serializedValue !== undefined) search.set(name, serializedValue);
+        else search.delete(name);
       }
       const string = search.toString();
-      return string ? `${pathname}?${string}` : pathname;
+      const hash = normalizeHash(args?.hash);
+      return `${string ? `${pathname}?${string}` : pathname}${hash}`;
     },
   });
 }

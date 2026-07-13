@@ -24,6 +24,37 @@ describe('route href construction', () => {
     expect(files.href({ params: { path: 'docs/hello world' } })).toBe('/files/docs/hello%20world');
   });
 
+  it('carries over arbitrary query params and hash while keeping typed query', () => {
+    const page = route('/:locale/posts/:slug', {
+      params: { locale: enumParam(['en', 'ka'] as const) },
+      query: { tab: enumParam(['a', 'b'] as const).default('a') },
+      render: noop,
+    });
+    const current = new URL('http://x/en/posts/hello?tab=b&utm_source=news&inquiry=42#section');
+    const href = page.href({
+      params: { locale: 'ka', slug: 'hello' },
+      query: { tab: 'b' },
+      search: current.searchParams,
+      hash: current.hash,
+    });
+    const u = new URL(href, 'http://x');
+    expect(u.pathname).toBe('/ka/posts/hello');
+    expect(u.searchParams.get('tab')).toBe('b');           // typed declared query
+    expect(u.searchParams.get('utm_source')).toBe('news');  // arbitrary passthrough
+    expect(u.searchParams.get('inquiry')).toBe('42');       // arbitrary passthrough
+    expect(u.hash).toBe('#section');
+  });
+
+  it('declared query at its default value overrides carried-over passthrough', () => {
+    const page = route('/p', { query: { tab: enumParam(['a', 'b'] as const).default('a') }, render: noop });
+    // passthrough carries tab=b, but the builder explicitly asks for the default 'a'
+    expect(page.href({ query: { tab: 'a' }, search: 'tab=b&keep=1' })).toBe('/p?keep=1');
+    // hash string without a leading '#' is normalized (query-less route)
+    const simple = route('/s', { render: noop });
+    expect(simple.href({ hash: 'top' })).toBe('/s#top');
+    expect(simple.href({ search: 'utm=x', hash: '#a' })).toBe('/s?utm=x#a');
+  });
+
   it('constructs hrefs under the application base path', () => {
     const AppRouter = defineRouter({
       home: route('/', { render: noop }),

@@ -794,6 +794,46 @@ restoration.
 match by default; `{ exact: true }` and the root path `/` require an exact
 match (so a Home link is not always active).
 
+### 6. erent SEO gap-audit additions (A–D)
+
+erent's SEO engineer ran a final gap audit before its v0.2 freeze. Four items
+entered 0.2.0 (the consuming project owns Worker sitemap, HTTP status, and
+server redirects — explicitly out of scope):
+
+- **(A) Managed JSON-LD** — `RouteMetadata.jsonLd` is a stable-key map; each
+  entry becomes a `<script type="application/ld+json" data-nisli-managed>`
+  reconciled by the same set/update/**remove** pass as meta/link, so
+  Worker-injected `Car`/`LocalBusiness` structured data does not go stale after
+  SPA navigation, notFound, redirect-away, or transition-away. **API boundary:**
+  a server-rendered JSON-LD block is *adopted* (not duplicated) — a block
+  already tagged `data-nisli-managed="jsonld:<key>"` is reused by key, and an
+  untagged `application/ld+json` block is adopted (tagged + updated) on the
+  first client render (each key adopts a distinct block; a fresh one is created
+  only when no unmanaged block remains). Adopted/created blocks are removed when
+  a later route omits the key. A `jsonLd` value that stringifies to `undefined`
+  or throws (circular/BigInt) is treated as "no block for this key" — removed,
+  never left stale or breaking the render path.
+- **(B) Document-level `lang`/`dir`** — `RouteMetadata.lang` and `dir` set
+  `<html lang>`/`<html dir>`, reconciled against the connect-time values
+  (omission restores the default, removing the attribute when there was none).
+  This is the same class as the title reconciliation; URL locale becomes
+  authoritative without a per-app locale DOM effect.
+- **(C) Lossless href URL state** — `href()` gains open-ended `search`
+  (`URLSearchParams | Record | string`) and `hash`. Arbitrary query params are
+  merged **under** the typed declared `query` (declared wins; a declared key at
+  its default value clears any carried-over copy), and the fragment is appended.
+  One URL builder serves both campaign-attribution passthrough and
+  counterpart-locale links (`href({ params:{locale:'ka'}, search:url.searchParams,
+  hash:url.hash })`), instead of two.
+- **(D) Atomic managed-head reset on render failure** *(correctness)* — when a
+  route renderer throws, the router now resets all managed head state
+  (title/meta/property/canonical/alternate/JSON-LD/lang/dir) to the connect
+  defaults, so URL B's error state cannot retain route A's canonical/OG/hreflang/
+  JSON-LD — an SEO-visible defect in the P1 reconciler as first built. The
+  larger application-level error-fallback-renderer + fallback-metadata API from
+  the audit is **deferred to 0.3**; the atomic clearing is not deferrable and
+  ships now.
+
 ### Validation status update (supersedes RTR-6 row 7)
 
 | Concern | Status | Evidence / remaining gap |
@@ -803,6 +843,10 @@ match (so a Home link is not always active).
 | Redirect replace semantics | **Validated (unit)** | Matcher resolves targets with params; browser test follows `/u/:id`→`/users/:id` and `/start`→`/` and asserts the resolved route/pathname. |
 | Scroll restoration | **Validated (unit); browser-level manual** | Happy-DOM test drives `popstate` and asserts `scrollTo(x,y)` with the remembered position, and asserts `history.scrollRestoration === 'manual'`. Real-browser back/forward scroll across tall pages, `scrollIntoView` for hashes, and outlet focus effects still require **manual** verification (Chrome DevTools): navigate a tall page, scroll, navigate away, press Back, confirm the prior offset is restored and no double-scroll occurs. A durable real-browser guard is deferred; happy-DOM now exercises the code path that was previously only "specified and unit-inspected". |
 | Active-link `aria-current` | **Validated (unit)** | Browser test asserts prefix vs `{exact}` vs root behavior across two navigations. |
+| Managed JSON-LD (A) | **Validated (unit)** | Browser test sets, updates, and removes a keyed `LocalBusiness` block across three navigations. |
+| html `lang`/`dir` (B) | **Validated (unit)** | Browser test applies `en`/`ltr`, switches to `ka`, and resets to connect defaults on a bare route. |
+| Lossless href (C) | **Validated (unit + type)** | Matcher tests: passthrough of `utm_source`/`inquiry` + hash with declared query retained; default-value override. `types.test-d.ts`: `search`/`hash` compose with typed params/query. |
+| Atomic head reset on render error (D) | **Validated (unit)** | Browser test: route A canonical + JSON-LD are gone after route B render throws. |
 
 The remaining explicit gap is unchanged in kind from RTR-6 — **real-browser
 automation of scroll/focus/hash effects** — but its surface is now smaller: the
@@ -816,3 +860,6 @@ browser confirmation manual.
 - SSG emission of redirect routes (e.g. `<meta http-equiv=refresh>` files) —
   redirects are client-only in 0.2.0; the Worker owns server redirects.
 - A durable real-browser scroll/focus automation harness.
+- Application-level error-fallback renderer + fallback-metadata contract
+  (erent audit item D's larger form) — deferred to 0.3; 0.2.0 ships only the
+  atomic managed-head reset on render failure.

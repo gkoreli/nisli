@@ -35,9 +35,11 @@ const MANAGED_ATTR = 'data-nisli-managed';
 
 interface HeadDescriptor {
   readonly key: string;
-  readonly tag: 'meta' | 'link';
+  readonly tag: 'meta' | 'link' | 'script';
   readonly selector: string;
   readonly attrs: Readonly<Record<string, string>>;
+  /** Text content, for JSON-LD script blocks. */
+  readonly text?: string;
 }
 
 /** Escape a value for safe use inside an attribute selector. */
@@ -83,6 +85,28 @@ function desiredHeadElements(metadata: RouteMetadata | undefined): HeadDescripto
       attrs: { rel: 'alternate', hreflang: alternate.hreflang, href: alternate.href },
     });
   }
+  for (const [id, data] of Object.entries(metadata.jsonLd ?? {})) {
+    // Serialize defensively: a value that stringifies to `undefined` (function,
+    // `undefined`) or throws (circular, BigInt) yields no block for this key,
+    // so it is removed rather than left stale or breaking the render path.
+    let text: string | undefined;
+    try {
+      text = JSON.stringify(data);
+    } catch {
+      continue;
+    }
+    if (text === undefined) continue;
+    descriptors.push({
+      key: `jsonld:${id}`,
+      tag: 'script',
+      // Adopt an as-yet-unmanaged JSON-LD block (e.g. a server-rendered one)
+      // rather than duplicating it; once tagged it is excluded from `:not`, so
+      // multiple keys adopt distinct blocks.
+      selector: `script[type="application/ld+json"]:not([${MANAGED_ATTR}])`,
+      attrs: { type: 'application/ld+json' },
+      text,
+    });
+  }
   return descriptors;
 }
 
@@ -112,8 +136,11 @@ export class Router {
   private currentKey = '0';
   private keySeq = 0;
   private previousScrollRestoration: ScrollRestoration | null = null;
-  // Title to fall back to when a route declares no title (set at connect).
+  // Document title / html lang / html dir to fall back to when a route omits
+  // them (captured at connect).
   private defaultTitle = '';
+  private defaultLang = '';
+  private defaultDir = '';
   // Consecutive redirect hops in the current navigation (loop guard).
   private redirectHops = 0;
 
@@ -139,7 +166,11 @@ export class Router {
     const onClick = (event: MouseEvent) => this.onDocumentClick(event);
     window.addEventListener('popstate', onPopState);
     document.addEventListener('click', onClick);
-    if (typeof document !== 'undefined') this.defaultTitle = document.title;
+    if (typeof document !== 'undefined') {
+      this.defaultTitle = document.title;
+      this.defaultLang = document.documentElement.getAttribute('lang') ?? '';
+      this.defaultDir = document.documentElement.getAttribute('dir') ?? '';
+    }
     this.enableManualScrollRestoration();
     const connection: Connection = {
       match: createMatcher(definition),
@@ -276,22 +307,39 @@ export class Router {
           });
       if (this.connection !== connection || generation !== connection.generation) return;
       connection.rendered.value = output;
-      this.applyMetadata(match);
+      this.applyMetadata(match.metadata);
       this.applyNavigationEffects(connection.outlet, url, kind, scroll);
     } catch (error) {
       if (this.connection !== connection || generation !== connection.generation) return;
       this.errorState.value = error;
+      // Atomic head reset: a failed render must not retain the previous route's
+      // managed title/meta/canonical/OG/hreflang/JSON-LD/lang/dir.
+      this.applyMetadata(undefined);
     } finally {
       if (this.connection === connection && generation === connection.generation) this.pendingState.value = false;
     }
   }
 
-  private applyMetadata(match: RouteMatch): void {
-    const metadata = match.metadata;
+  private applyMetadata(metadata: RouteMetadata | undefined): void {
     // Reconcile the title too: a route that omits it falls back to the title
     // present at connect, so a previous route's title never lingers.
     document.title = metadata?.title ?? this.defaultTitle;
+    this.applyDocumentLocale(metadata);
     this.reconcileHead(desiredHeadElements(metadata));
+  }
+
+  /**
+   * Reconcile `<html lang>` / `<html dir>`. A route that declares them wins; a
+   * route that omits them restores the connect-time value (removing the
+   * attribute when there was none), so URL locale can be authoritative.
+   */
+  private applyDocumentLocale(metadata: RouteMetadata | undefined): void {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    const lang = metadata?.lang ?? this.defaultLang;
+    if (lang) root.setAttribute('lang', lang); else root.removeAttribute('lang');
+    const dir = metadata?.dir ?? this.defaultDir;
+    if (dir) root.setAttribute('dir', dir); else root.removeAttribute('dir');
   }
 
   /**
@@ -316,6 +364,9 @@ export class Router {
         ?? document.head.appendChild(document.createElement(descriptor.tag));
       element.setAttribute(MANAGED_ATTR, descriptor.key);
       for (const [name, value] of Object.entries(descriptor.attrs)) element.setAttribute(name, value);
+      if (descriptor.text !== undefined && element.textContent !== descriptor.text) {
+        element.textContent = descriptor.text;
+      }
     }
     for (const [key, element] of managed) {
       if (!keep.has(key)) element.remove();

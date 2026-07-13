@@ -12,7 +12,10 @@ describe('Router browser service and outlet', () => {
   beforeEach(() => {
     resetInjector();
     document.body.replaceChildren();
-    document.head.querySelectorAll('meta').forEach((node) => node.remove());
+    document.head.querySelectorAll('meta, link, script[type="application/ld+json"]').forEach((node) => node.remove());
+    document.documentElement.removeAttribute('lang');
+    document.documentElement.removeAttribute('dir');
+    document.title = '';
     history.replaceState(null, '', '/');
   });
 
@@ -84,6 +87,121 @@ describe('Router browser service and outlet', () => {
     expect(document.querySelector('link[rel="canonical"]')).toBeNull();
     expect(document.querySelectorAll('link[rel="alternate"]')).toHaveLength(0);
     expect(document.querySelector('meta[name="description"]')).toBeNull();
+  });
+
+  it('manages keyed JSON-LD blocks with set, update, and removal', async () => {
+    const AppRouter = defineRouter({
+      biz: route('/biz', {
+        render: () => html`<p>biz</p>`,
+        metadata: { jsonLd: { org: { '@type': 'LocalBusiness', name: 'A' } } },
+      }),
+      other: route('/other', {
+        render: () => html`<p>other</p>`,
+        metadata: { jsonLd: { org: { '@type': 'LocalBusiness', name: 'B' } } },
+      }),
+      plain: route('/plain', { render: () => html`<p>plain</p>` }),
+    });
+    const shell = document.createElement('div');
+    html`${AppRouter({})}`.mount!(shell);
+    document.body.appendChild(shell);
+    const router = inject(Router);
+
+    await router.navigate('/biz');
+    flushEffects();
+    const script = document.head.querySelector('script[type="application/ld+json"]');
+    expect(JSON.parse(script!.textContent!)).toEqual({ '@type': 'LocalBusiness', name: 'A' });
+
+    await router.navigate('/other');
+    flushEffects();
+    expect(document.head.querySelectorAll('script[type="application/ld+json"]')).toHaveLength(1);
+    expect(JSON.parse(document.head.querySelector('script[type="application/ld+json"]')!.textContent!).name).toBe('B');
+
+    await router.navigate('/plain');
+    flushEffects();
+    expect(document.head.querySelector('script[type="application/ld+json"]')).toBeNull();
+  });
+
+  it('adopts an untagged server-rendered JSON-LD block instead of duplicating it', async () => {
+    const ssr = document.createElement('script');
+    ssr.type = 'application/ld+json';
+    ssr.textContent = JSON.stringify({ '@type': 'LocalBusiness', name: 'SSR' });
+    document.head.appendChild(ssr);
+    const AppRouter = defineRouter({
+      biz: route('/biz', {
+        render: () => html``,
+        metadata: { jsonLd: { org: { '@type': 'LocalBusiness', name: 'Client' } } },
+      }),
+      plain: route('/plain', { render: () => html`` }),
+    });
+    const shell = document.createElement('div');
+    html`${AppRouter({})}`.mount!(shell);
+    document.body.appendChild(shell);
+    const router = inject(Router);
+
+    await router.navigate('/biz');
+    flushEffects();
+    const scripts = document.head.querySelectorAll('script[type="application/ld+json"]');
+    expect(scripts).toHaveLength(1); // adopted the SSR block, not duplicated
+    expect(JSON.parse(scripts[0]!.textContent!).name).toBe('Client');
+    expect(scripts[0]!.getAttribute('data-nisli-managed')).toBe('jsonld:org');
+
+    await router.navigate('/plain');
+    flushEffects();
+    expect(document.head.querySelectorAll('script[type="application/ld+json"]')).toHaveLength(0);
+  });
+
+  it('applies and resets html lang/dir per route', async () => {
+    document.documentElement.removeAttribute('lang');
+    document.documentElement.removeAttribute('dir');
+    const AppRouter = defineRouter({
+      en: route('/en', { render: () => html``, metadata: { lang: 'en', dir: 'ltr' } }),
+      ka: route('/ka', { render: () => html``, metadata: { lang: 'ka' } }),
+      plain: route('/plain', { render: () => html`` }),
+    });
+    const shell = document.createElement('div');
+    html`${AppRouter({})}`.mount!(shell);
+    document.body.appendChild(shell);
+    const router = inject(Router);
+
+    await router.navigate('/en');
+    flushEffects();
+    expect(document.documentElement.getAttribute('lang')).toBe('en');
+    expect(document.documentElement.getAttribute('dir')).toBe('ltr');
+
+    await router.navigate('/ka');
+    flushEffects();
+    expect(document.documentElement.getAttribute('lang')).toBe('ka');
+    expect(document.documentElement.getAttribute('dir')).toBeNull(); // reset to connect default
+
+    await router.navigate('/plain');
+    flushEffects();
+    expect(document.documentElement.getAttribute('lang')).toBeNull();
+  });
+
+  it('atomically clears managed head state when a route render fails', async () => {
+    const AppRouter = defineRouter({
+      good: route('/good', {
+        render: () => html`<p>good</p>`,
+        metadata: { title: 'Good', canonical: 'https://x/good', jsonLd: { o: { a: 1 } } },
+      }),
+      bad: route('/bad', { render: () => { throw new Error('boom'); }, metadata: { title: 'Bad' } }),
+    });
+    const shell = document.createElement('div');
+    html`${AppRouter({})}`.mount!(shell);
+    document.body.appendChild(shell);
+    const router = inject(Router);
+
+    await router.navigate('/good');
+    flushEffects();
+    expect(document.querySelector('link[rel="canonical"]')).not.toBeNull();
+    expect(document.head.querySelector('script[type="application/ld+json"]')).not.toBeNull();
+
+    await router.navigate('/bad');
+    flushEffects();
+    expect(router.error.value).toBeInstanceOf(Error);
+    // Route A's managed head must not survive route B's failed render.
+    expect(document.querySelector('link[rel="canonical"]')).toBeNull();
+    expect(document.head.querySelector('script[type="application/ld+json"]')).toBeNull();
   });
 
   it('navigates, replaces, handles popstate, and renders not-found', async () => {
