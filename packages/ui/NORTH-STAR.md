@@ -147,11 +147,13 @@ four new surfaces proven by computed paint on live); wave B at 24/26 ☑
 (UI-36A/B worklists are the evidence record); and the settled browser
 guard proves all 133 preview surfaces — desktop + phone touch — on live
 production, independently confirmed three times (eng3, architect, CI run
-29224888268), with one qualification under investigation: the guard's fit
-dimension is relative (scrollWidth ≤ innerWidth), and the form-field page
-reports a 704px effective viewport at phone width post-UI-52 (UI-68,
-root-classification in progress; an absolute-width guard assertion is
-queued). Named open items, all owned: UI-68, the guard's absolute-fit
+29224888268), with one qualification RESOLVED: the form-field page's 704px
+effective phone viewport (UI-68) was root-classified as a www
+page-typography defect — the registry DESCRIPTION's unbroken token chain,
+not the field family (whose mobile proof stands unimpaired) — and fixed
+with general metadata containment (`825c429`, real-390 proof: 704→390);
+live re-verification and the guard's absolute-390 assertion (both queued)
+close it fully. Named open items, all owned: UI-68, the guard's absolute-fit
 assertion, gallery demos for the field family and the pinned toggle
 example, the sidebar preview's iframe presentation, UI-66's live re-proof
 and UI-67's polish on the next deploy, and message curation nits — none is
