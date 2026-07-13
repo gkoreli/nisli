@@ -34,14 +34,10 @@ jobs:
             dir: packages/ui
             tag-prefix: ui
             trusted-publisher: true
-          # Router's npm Trusted Publisher is not configured yet (ADR 0026,
-          # Goga-gated). Until it is, the job SKIPS publishing explicitly and
-          # stays green — a permanently red job is alarm fatigue that buries
-          # real failures. Flip to true once the Trusted Publisher exists.
           - name: '@nisli/router'
             dir: packages/router
             tag-prefix: router
-            trusted-publisher: false
+            trusted-publisher: true
     steps:
       - uses: actions/checkout@v4
         with:
