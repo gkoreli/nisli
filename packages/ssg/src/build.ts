@@ -44,15 +44,28 @@ export interface StaticRouterNotFound {
   metadata?: StaticRouterMetadata | BivariantCallback<[{ url: URL }], StaticRouterMetadata>;
 }
 
+/**
+ * Structural view of a client-side redirect definition. Redirects are resolved
+ * in the browser (ADR 0026); the static build carries the type only so a router
+ * that declares redirects stays assignable to {@link StaticApplicationRouter}.
+ */
+export interface StaticRouterRedirect {
+  kind: 'redirect';
+  path: string;
+  resolve(context: { url: URL; params: Record<string, string>; searchParams: URLSearchParams }): string;
+}
+
 export interface StaticRouterMatch {
   name: string | null;
-  route: StaticRouterRoute | StaticRouterNotFound;
+  route: StaticRouterRoute | StaticRouterNotFound | StaticRouterRedirect;
   url: URL;
   params: Record<string, string>;
   query: Record<string, unknown>;
   searchParams: URLSearchParams;
   metadata?: StaticRouterMetadata;
   notFound: boolean;
+  /** Resolved redirect target when the match is a redirect definition. */
+  redirect?: string;
 }
 
 export interface StaticApplicationRouter {

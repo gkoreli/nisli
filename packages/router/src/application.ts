@@ -1,9 +1,9 @@
 import { component, getCurrentComponent, html, inject, signal, type ComponentFactory, type TemplateResult } from '@nisli/core';
 import { createMatcher, type RouteMatch } from './matcher.js';
-import type { NotFoundDefinition, RouteDefinition } from './route.js';
+import type { NotFoundDefinition, RedirectContext, RedirectDefinition, RouteDefinition } from './route.js';
 import { Router, type RouterApplicationDefinition } from './router.js';
 
-type AnyRouteDefinition = RouteDefinition<any, any>;
+type AnyRouteDefinition = RouteDefinition<any, any, any>;
 type RouteMap = Readonly<Record<string, AnyRouteDefinition>>;
 type RoutesFrom<Input extends Record<string, unknown>> = {
   readonly [K in keyof Input as Input[K] extends AnyRouteDefinition ? K : never]:
@@ -12,7 +12,8 @@ type RoutesFrom<Input extends Record<string, unknown>> = {
 type InvalidRouterKeys<Input extends Record<string, unknown>> = {
   [K in keyof Input]: K extends 'notFound'
     ? Input[K] extends NotFoundDefinition ? never : K
-    : Input[K] extends AnyRouteDefinition ? never : K;
+    : Input[K] extends AnyRouteDefinition ? never
+      : Input[K] extends RedirectDefinition<any> ? never : K;
 }[keyof Input];
 
 export type ApplicationRouter<R extends RouteMap> = ComponentFactory<Record<string, never>> & {
@@ -50,9 +51,23 @@ export function defineRouter<const Input extends Record<string, unknown>>(
         })];
       }),
   ) as R;
+  const redirects = Object.fromEntries(
+    Object.entries(input as Record<string, unknown>)
+      .filter((entry): entry is [string, RedirectDefinition] => (
+        typeof entry[1] === 'object' && entry[1] !== null &&
+        (entry[1] as { kind?: unknown }).kind === 'redirect'
+      ))
+      .map(([name, definition]) => {
+        if (!base) return [name, definition];
+        return [name, Object.freeze({
+          ...definition,
+          resolve: (context: RedirectContext) => prefixBase(base, definition.resolve(context)),
+        })];
+      }),
+  ) as Readonly<Record<string, RedirectDefinition<any>>>;
   const configuredNotFound = (input as { notFound?: NotFoundDefinition }).notFound;
   const notFound = configuredNotFound?.kind === 'not-found' ? configuredNotFound : undefined;
-  const definition: RouterApplicationDefinition = Object.freeze({ routes, notFound, base });
+  const definition: RouterApplicationDefinition = Object.freeze({ routes, redirects, notFound, base });
   const match = createMatcher(definition);
   const tagName = `nisli-router-${++routerId}`;
   let outletFactory: ComponentFactory<Record<string, never>> | undefined;

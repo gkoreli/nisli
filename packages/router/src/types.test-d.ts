@@ -1,5 +1,22 @@
-import { defineRouter, enumParam, optional, route, stringParam } from './index.js';
+import { defineRouter, enumParam, numberParam, optional, redirect, route, stringParam } from './index.js';
 import { html } from '@nisli/core';
+
+// Path-parameter codecs refine params to their codec type and re-serialize them.
+const localized = route('/:locale/posts/:id', {
+  params: { locale: enumParam(['en', 'ka'] as const), id: numberParam() },
+  render: ({ params }) => {
+    const locale: 'en' | 'ka' = params.locale;
+    const id: number = params.id;
+    void locale;
+    void id;
+    return html``;
+  },
+});
+localized.href({ params: { locale: 'en', id: 42 } });
+// @ts-expect-error path codec rejects an out-of-enum locale
+localized.href({ params: { locale: 'fr', id: 42 } });
+// @ts-expect-error numberParam path segment expects a number, not a string
+localized.href({ params: { locale: 'en', id: '42' } });
 
 const user = route('/users/:userId', {
   query: {
@@ -45,3 +62,14 @@ AppRouter.routes.settings.href({ query: { tab: 'billing' } });
 
 // @ts-expect-error router catalogs accept route definitions, not arbitrary values
 defineRouter({ invalid: 'not-a-route' });
+
+// Redirects are valid router entries but are not exposed as href-able routes.
+const WithRedirect = defineRouter({
+  home: route('/', { render: () => html`` }),
+  user: route('/users/:userId', { render: () => html`` }),
+  legacyUser: redirect('/u/:userId', ({ params }) => `/users/${params.userId}`),
+  legacyHome: redirect('/start', '/'),
+});
+WithRedirect.routes.user.href({ params: { userId: '42' } });
+// @ts-expect-error redirects are not part of the typed href catalog
+WithRedirect.routes.legacyUser;

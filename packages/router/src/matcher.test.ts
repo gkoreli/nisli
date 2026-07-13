@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createMatcher, normalizePathname } from './matcher.js';
 import { enumParam, numberParam } from './query.js';
-import { notFound, route } from './route.js';
+import { notFound, redirect, route } from './route.js';
 import { html } from '@nisli/core';
 import { defineRouter } from './application.js';
 
@@ -64,6 +64,42 @@ describe('pure matcher', () => {
     });
     expect(matcher('/app/files/a/b')?.params).toEqual({ path: 'a/b' });
     expect(matcher('/files/a/b')).toBeNull();
+  });
+
+  it('validates path-parameter codecs and treats an invalid segment as no-match', () => {
+    const matcher = createMatcher({
+      routes: {
+        localized: route('/:locale/about', {
+          params: { locale: enumParam(['en', 'ka'] as const) },
+          render: noop,
+        }),
+      },
+      notFound: notFound({ render: noop }),
+    });
+    expect(matcher('/en/about')?.params).toEqual({ locale: 'en' });
+    expect(matcher('/ka/about')?.params).toEqual({ locale: 'ka' });
+    // An unlisted locale is a NO-MATCH → falls through to not-found.
+    expect(matcher('/fr/about')?.notFound).toBe(true);
+  });
+
+  it('numberParam path codec parses and href re-serializes', () => {
+    const post = route('/posts/:id', { params: { id: numberParam() }, render: noop });
+    const matcher = createMatcher({ routes: { post } });
+    expect(matcher('/posts/42')?.params).toEqual({ id: 42 });
+    expect(post.href({ params: { id: 42 } })).toBe('/posts/42');
+  });
+
+  it('resolves redirect definitions to their target with matched params', () => {
+    const matcher = createMatcher({
+      routes: { user: route('/users/:id', { render: noop }) },
+      redirects: {
+        legacy: redirect('/u/:id', ({ params }) => `/users/${params.id}`),
+        root: redirect('/home', '/'),
+      },
+    });
+    expect(matcher('/u/42')?.redirect).toBe('/users/42');
+    expect(matcher('/home')?.redirect).toBe('/');
+    expect(matcher('/users/42')?.redirect).toBeUndefined();
   });
 
   it('rejects ambiguous route shapes and non-final catch-alls', () => {

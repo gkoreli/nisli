@@ -1,6 +1,6 @@
 import { signal, type ReadonlySignal, type Signal, type TemplateResult } from '@nisli/core';
-import { createMatcher, type MatcherDefinition, type RouteMatch } from './matcher.js';
-import type { NotFoundDefinition, RouteDefinition } from './route.js';
+import { createMatcher, normalizePathname, type MatcherDefinition, type RouteMatch } from './matcher.js';
+import type { NotFoundDefinition, RedirectDefinition, RouteDefinition, RouteMetadata } from './route.js';
 
 export interface NavigateOptions {
   replace?: boolean;
@@ -8,8 +8,87 @@ export interface NavigateOptions {
   scroll?: 'top' | 'preserve';
 }
 
+export interface IsActiveOptions {
+  /** Require an exact pathname match instead of a path-prefix match. */
+  exact?: boolean;
+}
+
+/** Reserved key under which the router stamps its per-entry scroll key. */
+const HISTORY_KEY = '__nisli_router';
+
+interface RouterHistoryState {
+  readonly [HISTORY_KEY]?: string;
+  readonly state?: unknown;
+}
+
+function readHistoryKey(state: unknown): string | null {
+  if (typeof state !== 'object' || state === null) return null;
+  const key = (state as RouterHistoryState)[HISTORY_KEY];
+  return typeof key === 'string' ? key : null;
+}
+
+/** Upper bound on consecutive client-side redirect hops before bailing. */
+const MAX_REDIRECTS = 10;
+
+/** Marker attribute for `<meta>`/`<link>` elements the router owns. */
+const MANAGED_ATTR = 'data-nisli-managed';
+
+interface HeadDescriptor {
+  readonly key: string;
+  readonly tag: 'meta' | 'link';
+  readonly selector: string;
+  readonly attrs: Readonly<Record<string, string>>;
+}
+
+/** Escape a value for safe use inside an attribute selector. */
+function escapeSelector(value: string): string {
+  return typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+    ? CSS.escape(value)
+    : value.replace(/["\\]/g, '\\$&');
+}
+
+/** Translate declarative route metadata into the head elements it implies. */
+function desiredHeadElements(metadata: RouteMetadata | undefined): HeadDescriptor[] {
+  if (!metadata) return [];
+  const descriptors: HeadDescriptor[] = [];
+  for (const [name, content] of Object.entries(metadata.meta ?? {})) {
+    descriptors.push({
+      key: `meta:name:${name}`,
+      tag: 'meta',
+      selector: `meta[name="${escapeSelector(name)}"]`,
+      attrs: { name, content },
+    });
+  }
+  for (const [property, content] of Object.entries(metadata.property ?? {})) {
+    descriptors.push({
+      key: `meta:property:${property}`,
+      tag: 'meta',
+      selector: `meta[property="${escapeSelector(property)}"]`,
+      attrs: { property, content },
+    });
+  }
+  if (metadata.canonical !== undefined) {
+    descriptors.push({
+      key: 'link:canonical',
+      tag: 'link',
+      selector: 'link[rel="canonical"]',
+      attrs: { rel: 'canonical', href: metadata.canonical },
+    });
+  }
+  for (const alternate of metadata.alternates ?? []) {
+    descriptors.push({
+      key: `link:alternate:${alternate.hreflang}`,
+      tag: 'link',
+      selector: `link[rel="alternate"][hreflang="${escapeSelector(alternate.hreflang)}"]`,
+      attrs: { rel: 'alternate', hreflang: alternate.hreflang, href: alternate.href },
+    });
+  }
+  return descriptors;
+}
+
 export interface RouterApplicationDefinition extends MatcherDefinition {
-  readonly routes: Readonly<Record<string, RouteDefinition<any, any>>>;
+  readonly routes: Readonly<Record<string, RouteDefinition<any, any, any>>>;
+  readonly redirects?: Readonly<Record<string, RedirectDefinition<any>>>;
   readonly notFound?: NotFoundDefinition;
 }
 
@@ -28,6 +107,16 @@ export class Router {
   private readonly errorState = signal<unknown | null>(null);
   private connection: Connection | null = null;
 
+  // Scroll restoration: per-history-entry remembered scroll positions.
+  private readonly scrollPositions = new Map<string, { x: number; y: number }>();
+  private currentKey = '0';
+  private keySeq = 0;
+  private previousScrollRestoration: ScrollRestoration | null = null;
+  // Title to fall back to when a route declares no title (set at connect).
+  private defaultTitle = '';
+  // Consecutive redirect hops in the current navigation (loop guard).
+  private redirectHops = 0;
+
   readonly url: ReadonlySignal<URL>;
   readonly current: ReadonlySignal<RouteMatch | null> = this.currentState;
   readonly pending: ReadonlySignal<boolean> = this.pendingState;
@@ -40,10 +129,18 @@ export class Router {
 
   connect(definition: RouterApplicationDefinition, outlet: HTMLElement, rendered: Signal<TemplateResult | null>): () => void {
     if (this.connection) throw new Error('Router already has a root application definition connected');
-    const onPopState = () => { void this.transition(this.browserURL(), 'pop'); };
+    const onPopState = () => {
+      // Record the scroll of the entry being left (manual restoration keeps it
+      // intact at popstate time), then adopt the target entry's key.
+      this.rememberScroll();
+      this.currentKey = readHistoryKey(history.state) ?? this.nextKey();
+      void this.transition(this.browserURL(), 'pop');
+    };
     const onClick = (event: MouseEvent) => this.onDocumentClick(event);
     window.addEventListener('popstate', onPopState);
     document.addEventListener('click', onClick);
+    if (typeof document !== 'undefined') this.defaultTitle = document.title;
+    this.enableManualScrollRestoration();
     const connection: Connection = {
       match: createMatcher(definition),
       outlet,
@@ -52,12 +149,52 @@ export class Router {
       dispose: () => {
         window.removeEventListener('popstate', onPopState);
         document.removeEventListener('click', onClick);
+        this.restoreScrollRestoration();
         if (this.connection === connection) this.connection = null;
       },
     };
     this.connection = connection;
     void this.transition(this.browserURL(), 'initial');
     return connection.dispose;
+  }
+
+  /** Take over scroll restoration and stamp the current entry with a key. */
+  private enableManualScrollRestoration(): void {
+    if (typeof history === 'undefined') return;
+    if ('scrollRestoration' in history) {
+      this.previousScrollRestoration = history.scrollRestoration;
+      history.scrollRestoration = 'manual';
+    }
+    const existing = readHistoryKey(history.state);
+    // Seed the sequence past any key persisted across a reload so freshly
+    // pushed entries never collide with keys still live in the back stack.
+    if (existing !== null) this.keySeq = Math.max(this.keySeq, Number(existing) || 0);
+    this.currentKey = existing ?? this.nextKey();
+    if (existing === null) {
+      history.replaceState(this.wrapHistoryState(this.currentKey, history.state), '', this.browserURL().href);
+    }
+  }
+
+  private restoreScrollRestoration(): void {
+    if (this.previousScrollRestoration !== null && typeof history !== 'undefined' && 'scrollRestoration' in history) {
+      history.scrollRestoration = this.previousScrollRestoration;
+    }
+    this.previousScrollRestoration = null;
+    this.scrollPositions.clear();
+  }
+
+  private nextKey(): string {
+    return String(++this.keySeq);
+  }
+
+  private wrapHistoryState(key: string, userState: unknown): RouterHistoryState {
+    const unwrapped = readHistoryKey(userState) !== null ? (userState as RouterHistoryState).state : userState;
+    return { [HISTORY_KEY]: key, state: unwrapped ?? null };
+  }
+
+  private rememberScroll(): void {
+    if (typeof window === 'undefined') return;
+    this.scrollPositions.set(this.currentKey, { x: window.scrollX, y: window.scrollY });
   }
 
   async navigate(href: string, options: NavigateOptions = {}): Promise<void> {
@@ -67,8 +204,13 @@ export class Router {
       return;
     }
     const replace = options.replace === true;
-    if (replace) history.replaceState(options.state ?? null, '', url);
-    else history.pushState(options.state ?? null, '', url);
+    // Remember where we are before leaving so back/forward can restore it.
+    this.rememberScroll();
+    const key = replace ? this.currentKey : this.nextKey();
+    const state = this.wrapHistoryState(key, options.state ?? null);
+    if (replace) history.replaceState(state, '', url);
+    else history.pushState(state, '', url);
+    this.currentKey = key;
     await this.transition(url, replace ? 'replace' : 'push', options.scroll);
   }
 
@@ -79,10 +221,40 @@ export class Router {
   back(): void { history.back(); }
   forward(): void { history.forward(); }
 
+  /**
+   * Whether `href` corresponds to the current location, for `aria-current` on
+   * navigation links. Reads the reactive `url` signal, so it re-evaluates
+   * inside templates/effects on every navigation. Matches by pathname prefix
+   * by default; `{ exact: true }` (and the root path `/`) require an exact
+   * match.
+   */
+  isActive(href: string, options: IsActiveOptions = {}): boolean {
+    const current = this.urlState.value;
+    const target = new URL(href, current);
+    if (target.origin !== current.origin) return false;
+    const targetPath = normalizePathname(target.pathname);
+    const currentPath = normalizePathname(current.pathname);
+    if (options.exact || targetPath === '/') return currentPath === targetPath;
+    return currentPath === targetPath || currentPath.startsWith(`${targetPath}/`);
+  }
+
   private async transition(url: URL, kind: 'initial' | 'push' | 'replace' | 'pop', scroll?: NavigateOptions['scroll']): Promise<void> {
     const connection = this.connection;
     if (!connection) throw new Error('Router cannot navigate before an AppRouter outlet is connected');
     const match = connection.match(url);
+    if (match?.redirect !== undefined) {
+      const target = new URL(match.redirect, url);
+      // Bail on a self-loop or an over-long chain/cycle across several redirects.
+      if (target.href === url.href || ++this.redirectHops > MAX_REDIRECTS) {
+        this.redirectHops = 0;
+        this.errorState.value = new Error(`Redirect loop detected at ${url.pathname} → ${match.redirect}`);
+        return;
+      }
+      // Replace semantics: the redirect source leaves no history entry.
+      await this.navigate(match.redirect, { replace: true });
+      return;
+    }
+    this.redirectHops = 0;
     this.urlState.value = url;
     this.currentState.value = match;
     this.errorState.value = null;
@@ -98,7 +270,7 @@ export class Router {
         ? await (match.route as NotFoundDefinition).render({ url: match.url })
         : await (match.route as RouteDefinition).render({
             url: match.url,
-            params: match.params,
+            params: match.params as Record<string, string>,
             query: match.query,
             searchParams: match.searchParams,
           });
@@ -115,16 +287,38 @@ export class Router {
   }
 
   private applyMetadata(match: RouteMatch): void {
-    if (match.metadata?.title !== undefined) document.title = match.metadata.title;
-    if (!match.metadata?.meta) return;
-    for (const [name, content] of Object.entries(match.metadata.meta)) {
-      let element = document.head.querySelector<HTMLMetaElement>(`meta[name="${CSS.escape(name)}"]`);
-      if (!element) {
-        element = document.createElement('meta');
-        element.name = name;
-        document.head.appendChild(element);
-      }
-      element.content = content;
+    const metadata = match.metadata;
+    // Reconcile the title too: a route that omits it falls back to the title
+    // present at connect, so a previous route's title never lingers.
+    document.title = metadata?.title ?? this.defaultTitle;
+    this.reconcileHead(desiredHeadElements(metadata));
+  }
+
+  /**
+   * Reconcile router-managed `<meta>`/`<link>` elements to exactly the desired
+   * set. Elements the router creates or adopts are tagged with
+   * `data-nisli-managed="<key>"`; any managed element whose key is no longer
+   * desired is removed, so canonical/OpenGraph/hreflang tags never go stale
+   * across client navigations.
+   */
+  private reconcileHead(desired: HeadDescriptor[]): void {
+    const managed = new Map<string, Element>();
+    for (const element of document.head.querySelectorAll(`[${MANAGED_ATTR}]`)) {
+      const key = element.getAttribute(MANAGED_ATTR);
+      if (key !== null) managed.set(key, element);
+    }
+    const keep = new Set<string>();
+    for (const descriptor of desired) {
+      if (keep.has(descriptor.key)) continue;
+      keep.add(descriptor.key);
+      const element = managed.get(descriptor.key)
+        ?? document.head.querySelector(descriptor.selector)
+        ?? document.head.appendChild(document.createElement(descriptor.tag));
+      element.setAttribute(MANAGED_ATTR, descriptor.key);
+      for (const [name, value] of Object.entries(descriptor.attrs)) element.setAttribute(name, value);
+    }
+    for (const [key, element] of managed) {
+      if (!keep.has(key)) element.remove();
     }
   }
 
@@ -139,6 +333,9 @@ export class Router {
         outlet.focus({ preventScroll: true });
       } else if (kind === 'replace' && scroll === 'top') {
         window.scrollTo(0, 0);
+      } else if (kind === 'pop') {
+        const saved = this.scrollPositions.get(this.currentKey);
+        if (saved) window.scrollTo(saved.x, saved.y);
       }
     });
   }

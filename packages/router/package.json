@@ -1,6 +1,6 @@
 {
   "name": "@nisli/router",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Typed application routing for Nisli browser, Vite, and static applications.",
   "type": "module",
   "license": "MIT",

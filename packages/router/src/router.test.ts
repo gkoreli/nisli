@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushEffects, html, inject, resetInjector } from '@nisli/core';
 import { defineRouter } from './application.js';
-import { notFound, route } from './route.js';
+import { notFound, redirect, route } from './route.js';
 import { Router } from './router.js';
 
 function settle(): Promise<void> {
@@ -45,6 +45,45 @@ describe('Router browser service and outlet', () => {
     expect(document.title).toBe('Home');
     expect(document.querySelector('meta[name="description"]')?.getAttribute('content')).toBe('start');
     expect(inject(Router).current.value?.name).toBe('home');
+  });
+
+  it('sets, updates, and removes OpenGraph, canonical, and hreflang across navigations', async () => {
+    const AppRouter = defineRouter({
+      en: route('/en', {
+        render: () => html`<p>en</p>`,
+        metadata: {
+          title: 'EN',
+          meta: { description: 'english' },
+          property: { 'og:title': 'EN OG', 'og:type': 'website' },
+          canonical: 'https://nisli.dev/en',
+          alternates: [
+            { hreflang: 'en', href: 'https://nisli.dev/en' },
+            { hreflang: 'ka', href: 'https://nisli.dev/ka' },
+          ],
+        },
+      }),
+      plain: route('/plain', { render: () => html`<p>plain</p>`, metadata: { title: 'Plain' } }),
+    });
+    const shell = document.createElement('div');
+    html`${AppRouter({})}`.mount!(shell);
+    document.body.appendChild(shell);
+    const router = inject(Router);
+
+    await router.navigate('/en');
+    flushEffects();
+    expect(document.querySelector('meta[property="og:title"]')?.getAttribute('content')).toBe('EN OG');
+    expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://nisli.dev/en');
+    expect(document.querySelectorAll('link[rel="alternate"]')).toHaveLength(2);
+    expect(document.querySelector('link[rel="alternate"][hreflang="ka"]')?.getAttribute('href'))
+      .toBe('https://nisli.dev/ka');
+
+    // Navigating to a route that omits SEO tags must REMOVE the stale ones.
+    await router.navigate('/plain');
+    flushEffects();
+    expect(document.querySelector('meta[property="og:title"]')).toBeNull();
+    expect(document.querySelector('link[rel="canonical"]')).toBeNull();
+    expect(document.querySelectorAll('link[rel="alternate"]')).toHaveLength(0);
+    expect(document.querySelector('meta[name="description"]')).toBeNull();
   });
 
   it('navigates, replaces, handles popstate, and renders not-found', async () => {
@@ -129,6 +168,131 @@ describe('Router browser service and outlet', () => {
     flushEffects();
     expect(shell.textContent).toContain('fast');
     expect(shell.textContent).not.toContain('slow');
+  });
+
+  it('follows client-side redirect routes with replace semantics', async () => {
+    const AppRouter = defineRouter({
+      home: route('/', { render: () => html`<p>home</p>` }),
+      user: route('/users/:id', { render: ({ params }) => html`<p>user ${params.id}</p>` }),
+      legacyUser: redirect('/u/:id', ({ params }) => `/users/${params.id}`),
+      legacyHome: redirect('/start', '/'),
+    });
+    const shell = document.createElement('div');
+    html`${AppRouter({})}`.mount!(shell);
+    document.body.appendChild(shell);
+    await settle();
+    const router = inject(Router);
+
+    await router.navigate('/u/42');
+    await settle();
+    flushEffects();
+    expect(location.pathname).toBe('/users/42');
+    expect(router.current.value?.name).toBe('user');
+    expect(shell.textContent).toContain('user 42');
+
+    await router.navigate('/start');
+    await settle();
+    flushEffects();
+    expect(location.pathname).toBe('/');
+    expect(router.current.value?.name).toBe('home');
+  });
+
+  it('bails out of a redirect cycle instead of hanging', async () => {
+    const AppRouter = defineRouter({
+      home: route('/', { render: () => html`<p>home</p>` }),
+      a: redirect('/a', '/b'),
+      b: redirect('/b', '/a'),
+    });
+    const shell = document.createElement('div');
+    html`${AppRouter({})}`.mount!(shell);
+    document.body.appendChild(shell);
+    await settle();
+    const router = inject(Router);
+
+    await router.navigate('/a');
+    await settle();
+    flushEffects();
+    expect(router.error.value).toBeInstanceOf(Error);
+    expect(String((router.error.value as Error).message)).toContain('Redirect loop');
+  });
+
+  it('resets the document title to the connect default when a route omits it', async () => {
+    document.title = 'Original';
+    const AppRouter = defineRouter({
+      titled: route('/titled', { render: () => html``, metadata: { title: 'Titled' } }),
+      plain: route('/plain', { render: () => html`` }),
+    });
+    const shell = document.createElement('div');
+    html`${AppRouter({})}`.mount!(shell);
+    document.body.appendChild(shell);
+    await settle();
+    const router = inject(Router);
+
+    await router.navigate('/titled');
+    flushEffects();
+    expect(document.title).toBe('Titled');
+    await router.navigate('/plain');
+    flushEffects();
+    expect(document.title).toBe('Original');
+  });
+
+  it('reports the active link for aria-current', async () => {
+    const AppRouter = defineRouter({
+      home: route('/', { render: () => html`` }),
+      docs: route('/docs', { render: () => html`` }),
+      topic: route('/docs/:topic', { render: () => html`` }),
+    });
+    const shell = document.createElement('div');
+    html`${AppRouter({})}`.mount!(shell);
+    document.body.appendChild(shell);
+    await settle();
+    const router = inject(Router);
+
+    await router.navigate('/docs/routing');
+    expect(router.isActive('/docs')).toBe(true);           // prefix match
+    expect(router.isActive('/docs', { exact: true })).toBe(false);
+    expect(router.isActive('/docs/routing', { exact: true })).toBe(true);
+    expect(router.isActive('/')).toBe(false);              // root is exact-only
+    await router.navigate('/');
+    expect(router.isActive('/')).toBe(true);
+  });
+
+  it('restores per-entry scroll position on back/forward', async () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    let scrollY = 0;
+    Object.defineProperty(window, 'scrollY', { configurable: true, get: () => scrollY });
+    Object.defineProperty(window, 'scrollX', { configurable: true, get: () => 0 });
+    try {
+      const AppRouter = defineRouter({
+        a: route('/a', { render: () => html`<p>a</p>` }),
+        b: route('/b', { render: () => html`<p>b</p>` }),
+      });
+      const shell = document.createElement('div');
+      html`${AppRouter({})}`.mount!(shell);
+      document.body.appendChild(shell);
+      await settle();
+      const router = inject(Router);
+
+      expect(history.scrollRestoration).toBe('manual');
+
+      await router.navigate('/a');
+      const stateA = history.state;
+      scrollY = 500;                       // user scrolls page /a down
+      await router.navigate('/b');         // leaving /a records {0, 500}
+      scrollY = 0;
+      scrollTo.mockClear();
+
+      // Simulate the browser popping back to /a.
+      history.replaceState(stateA, '', '/a');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      await settle();
+      flushEffects();
+      expect(scrollTo).toHaveBeenCalledWith(0, 500);
+    } finally {
+      scrollTo.mockRestore();
+      delete (window as unknown as Record<string, unknown>).scrollY;
+      delete (window as unknown as Record<string, unknown>).scrollX;
+    }
   });
 
   it('rejects a second root outlet on one Router singleton', async () => {

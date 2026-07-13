@@ -1,18 +1,22 @@
-import type { NotFoundDefinition, QuerySchema, RouteContext, RouteDefinition, RouteMetadata } from './route.js';
+import type { QueryCodec } from './query.js';
+import type { NotFoundDefinition, QuerySchema, RedirectDefinition, RouteContext, RouteDefinition, RouteMetadata } from './route.js';
 
-export interface RouteMatch<Params extends Record<string, string> = Record<string, string>, Query = Record<string, unknown>> {
+export interface RouteMatch<Params extends Record<string, unknown> = Record<string, string>, Query = Record<string, unknown>> {
   readonly name: string | null;
-  readonly route: RouteDefinition | NotFoundDefinition;
+  readonly route: RouteDefinition | NotFoundDefinition | RedirectDefinition;
   readonly url: URL;
   readonly params: Params;
   readonly query: Query;
   readonly searchParams: URLSearchParams;
   readonly metadata?: RouteMetadata;
   readonly notFound: boolean;
+  /** Resolved redirect target when the match is a redirect definition. */
+  readonly redirect?: string;
 }
 
 export interface MatcherDefinition {
-  readonly routes: Readonly<Record<string, RouteDefinition<any, any>>>;
+  readonly routes: Readonly<Record<string, RouteDefinition<any, any, any>>>;
+  readonly redirects?: Readonly<Record<string, RedirectDefinition<any>>>;
   readonly notFound?: NotFoundDefinition;
   readonly base?: string;
 }
@@ -21,7 +25,7 @@ type Segment = { kind: 'static'; value: string } | { kind: 'param'; name: string
 
 interface CompiledRoute {
   name: string;
-  route: RouteDefinition;
+  route: RouteDefinition<any, any, any> | RedirectDefinition<any>;
   segments: Segment[];
   score: number[];
 }
@@ -62,7 +66,11 @@ function decodeSegment(segment: string, path: string): string {
 
 function compiledRoutes(definition: MatcherDefinition): CompiledRoute[] {
   const seen = new Map<string, string>();
-  const result = Object.entries(definition.routes).map(([name, route]) => {
+  const matchable: Array<[string, RouteDefinition<any, any, any> | RedirectDefinition<any>]> = [
+    ...Object.entries(definition.routes),
+    ...Object.entries(definition.redirects ?? {}),
+  ];
+  const result = matchable.map(([name, route]) => {
     const segments = compile(route.path);
     const signature = segments.map((segment) => segment.kind === 'static' ? `s:${segment.value}` : segment.kind).join('/');
     const duplicate = seen.get(signature);
@@ -110,6 +118,29 @@ function parseQuery(schema: QuerySchema, searchParams: URLSearchParams): Record<
   return result;
 }
 
+/**
+ * Validate/refine raw path parameters through their declared codecs. Returns
+ * `null` when any codec rejects its segment, which the matcher treats as a
+ * NO-MATCH so the URL falls through to the next candidate or `notFound`.
+ */
+function applyParamCodecs(
+  codecs: Readonly<Record<string, QueryCodec<unknown> | undefined>> | undefined,
+  raw: Record<string, string>,
+): Record<string, unknown> | null {
+  if (!codecs) return raw;
+  const result: Record<string, unknown> = { ...raw };
+  for (const [name, codec] of Object.entries(codecs)) {
+    const value = raw[name];
+    if (!codec || value === undefined) continue;
+    try {
+      result[name] = codec.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  return result;
+}
+
 export function createMatcher(definition: MatcherDefinition): (input: URL | string, baseURL?: string | URL) => RouteMatch | null {
   const routes = compiledRoutes(definition);
   const base = normalizeBase(definition.base);
@@ -119,12 +150,30 @@ export function createMatcher(definition: MatcherDefinition): (input: URL | stri
     if (base && normalized !== base && !normalized.startsWith(`${base}/`)) return null;
     const pathname = normalizePathname(base ? normalized.slice(base.length) : normalized);
     for (const candidate of routes) {
-      const params = matchSegments(candidate, pathname);
-      if (!params) continue;
+      const rawParams = matchSegments(candidate, pathname);
+      if (!rawParams) continue;
+      if (candidate.route.kind === 'redirect') {
+        const redirectContext = { url, params: rawParams, searchParams: url.searchParams };
+        return {
+          name: candidate.name,
+          route: candidate.route,
+          url,
+          params: rawParams,
+          query: {},
+          searchParams: url.searchParams,
+          notFound: false,
+          redirect: candidate.route.resolve(redirectContext),
+        };
+      }
+      const parsed = applyParamCodecs(candidate.route.params, rawParams);
+      if (!parsed) continue;
       let query: Record<string, unknown>;
       try { query = parseQuery(candidate.route.query, url.searchParams); } catch { continue; }
-      const context = { url, params, query, searchParams: url.searchParams } as RouteContext;
+      const context = { url, params: parsed, query, searchParams: url.searchParams } as RouteContext;
       const metadata = typeof candidate.route.metadata === 'function' ? candidate.route.metadata(context) : candidate.route.metadata;
+      // Codec-refined values are preserved at runtime; the public RouteMatch
+      // surfaces params as strings (the typed view is the render context).
+      const params = parsed as Record<string, string>;
       return { name: candidate.name, route: candidate.route, url, params, query, searchParams: url.searchParams, metadata, notFound: false };
     }
     if (!definition.notFound) return null;

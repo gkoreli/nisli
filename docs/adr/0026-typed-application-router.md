@@ -696,3 +696,123 @@ Audit status for the original validation plan as of 2026-07-12:
 | 6. Browser/Vite/SSG equivalence | **Validated** | Router/SSG and `www` equivalence suites compare route identity, params, query, base paths, dynamic entries, and not-found results against actual static builds. |
 | 7. End-to-end navigation behaviors | **Partial** | Direct loads, native click exceptions, query parsing, client 404s, Vite refresh fallback, static output, stale renders, and scripted HMR composition are covered. Real browser back/forward scroll restoration and rendered-page scroll/focus/hash effects are specified and unit-inspected but do not yet have browser-level automation; retain this as the explicit remaining validation gap. |
 | 8. Blog route-family evaluation | **Evaluated — not yet** | RTR-2 records the post/prompt candidate and prerequisites; no migration until the blog core upgrade and canonical integration with its specialized static pipeline can be evaluated independently. npm publication is explicitly not a gate. |
+
+## 0.2.0 Gap-Closure Amendments (2026-07-13)
+
+`@nisli/router@0.2.0` closes five gaps left open by 0.1.0 (the ADR "Deferred"
+list plus the RTR-6 validation gap). Driver: **erent** is adopting the router
+for bilingual SEO routing; its ADR 009 splits duties between the client router
+and a Worker that emits server-side 301s and canonical/hreflang HTML. The
+client half needs declarative SEO metadata and validated locale segments. All
+changes keep zero runtime dependencies, keep the matcher pure and
+environment-neutral, and introduce no breaking API **signatures**. Two
+observable behavior changes are recorded with rationale below.
+
+### 1. SEO metadata is a managed lifecycle, not append-only (P1)
+
+`RouteMetadata` gains `property` (`<meta property>` for OpenGraph), `canonical`
+(`<link rel="canonical">`), and `alternates` (`<link rel="alternate" hreflang>`).
+0.1.0 only ever *added/updated* `document.title` and `<meta name>`; it never
+removed anything, so a canonical or `og:*` tag from route A stayed in the
+`<head>` after a client navigation to route B — a real SEO defect (stale
+canonical). 0.2.0 replaces `applyMetadata` with a **reconciler**:
+
+- every `<meta>`/`<link>` the router creates or adopts is tagged
+  `data-nisli-managed="<key>"`;
+- on each navigation the router computes the desired managed set and
+  set/update/**removes** to match exactly, so canonical/OG/hreflang never go
+  stale;
+- `document.title` reconciles the same way — a route that omits `title` falls
+  back to the title captured at connect, so a previous route's title never
+  lingers (a review-caught sibling of the stale-canonical defect).
+
+The router owns only the SEO tag *types* it manages (`title`, `<meta name>`,
+`<meta property>`, canonical, alternate); it adopts a matching server-rendered
+tag rather than duplicating it (adoption avoids two canonicals after
+hydration). Head elements outside those types (charset, viewport, stylesheets,
+scripts) are never touched.
+
+**Behavior change (rationale-recorded):** the router now *owns* the SEO head
+tag types it manages, including removing a managed tag when a subsequent route
+omits it. This is required for correct canonical/hreflang behavior across SPA
+navigations. The SSG shell remains the build-time authority; the browser
+applies the same typed contract on navigation (amendment 7 of the original
+ADR).
+
+### 2. Typed path-parameter codecs; invalid segment ⇒ NO-MATCH (P2)
+
+`route()` accepts an optional `params` codec map reusing the existing
+`QueryCodec` contract, e.g. `params: { locale: enumParam(['en','ka']) }` on
+`/:locale`. The **pure matcher** runs each codec during matching; a codec that
+throws is a NO-MATCH — the URL falls through to the next candidate or
+`notFound`, never a render-time error. `href()` re-serializes typed segments
+through the codec (`numberParam` path segment ⇒ `params.id: number`). The typed
+view is the `render` context (`RouteContext.params` is `ResolvedParams`); the
+public `RouteMatch.params` remains `Record<string,string>` for the SSG
+structural contract, with codec-refined values still present at runtime.
+
+Codecs validate *values*, not route *shape*: two identically-shaped param
+routes (`/:locale` and `/:slug`) remain ambiguous by design — a codec is not a
+discriminator and matching stays order-independent.
+
+### 3. Client-side redirect routes (P3)
+
+New `redirect(path, to)` definition; `to` is a fixed href or
+`(context) => href` of the matched params. The matcher compiles redirects
+alongside routes and resolves the target purely; the browser `Router` performs
+the redirect with `history.replaceState` (**replace semantics, no history
+entry for the redirect source**) and a bounded hop guard (`MAX_REDIRECTS`) that
+stops self-loops *and* multi-redirect cycles with an `error` instead of
+hanging. `defineRouter`
+base-prefixes redirect targets like `href`. Redirects are matcher-only: they
+are not part of the typed `.routes` href catalog and the SSG `routes` map does
+not emit them. **This is only the client half** — server 301s and canonical
+HTML stay in the consumer's Worker, per erent ADR 009.
+
+### 4. Scroll restoration (P4)
+
+On connect the router takes over `history.scrollRestoration = 'manual'`
+(restoring the previous value on disconnect), stamps each history entry with a
+key, remembers per-entry scroll positions, and restores the target entry's
+position on `popstate` (back/forward). Push still scrolls to top and focuses
+the outlet; `replace` still preserves; hash still jumps post-render. The key
+sequence is seeded from any key persisted across a reload, so freshly pushed
+entries never collide with keys still live in the back stack (review-caught).
+
+**Behavior change (rationale-recorded):** the router now wraps `history.state`
+as `{ __nisli_router: <key>, state: <userState> }`. `NavigateOptions.state` is
+unchanged and still round-trips (under `.state`); no public signature changes.
+The router owns `history.state` shape because per-entry scroll memory requires
+a stable key that survives `popstate`. The previous README row "Back/forward →
+leaves restoration to the browser" is superseded by explicit manual
+restoration.
+
+### 5. Active-link helper (P5)
+
+`Router.isActive(href, { exact? })` reads the reactive `url` signal so
+`aria-current` re-evaluates in templates on every navigation. Pathname-prefix
+match by default; `{ exact: true }` and the root path `/` require an exact
+match (so a Home link is not always active).
+
+### Validation status update (supersedes RTR-6 row 7)
+
+| Concern | Status | Evidence / remaining gap |
+| --- | --- | --- |
+| SEO metadata set/update/remove | **Validated (unit)** | Router test navigates between an SEO-rich route and a bare route and asserts `og:*`, canonical, and hreflang tags are created then **removed**. |
+| Path codec NO-MATCH + href round-trip | **Validated (unit + type)** | Matcher tests: enum locale valid/invalid→notFound, `numberParam` parse + href. `types.test-d.ts`: refined param types, rejected out-of-enum/`string` id. |
+| Redirect replace semantics | **Validated (unit)** | Matcher resolves targets with params; browser test follows `/u/:id`→`/users/:id` and `/start`→`/` and asserts the resolved route/pathname. |
+| Scroll restoration | **Validated (unit); browser-level manual** | Happy-DOM test drives `popstate` and asserts `scrollTo(x,y)` with the remembered position, and asserts `history.scrollRestoration === 'manual'`. Real-browser back/forward scroll across tall pages, `scrollIntoView` for hashes, and outlet focus effects still require **manual** verification (Chrome DevTools): navigate a tall page, scroll, navigate away, press Back, confirm the prior offset is restored and no double-scroll occurs. A durable real-browser guard is deferred; happy-DOM now exercises the code path that was previously only "specified and unit-inspected". |
+| Active-link `aria-current` | **Validated (unit)** | Browser test asserts prefix vs `{exact}` vs root behavior across two navigations. |
+
+The remaining explicit gap is unchanged in kind from RTR-6 — **real-browser
+automation of scroll/focus/hash effects** — but its surface is now smaller: the
+scroll-restoration logic itself is unit-driven, leaving only pixel-level
+browser confirmation manual.
+
+### Deferred (unchanged) / newly deferred
+
+- Path codecs as route discriminators (shape-level disambiguation) — out of
+  scope; codecs validate values only.
+- SSG emission of redirect routes (e.g. `<meta http-equiv=refresh>` files) —
+  redirects are client-only in 0.2.0; the Worker owns server redirects.
+- A durable real-browser scroll/focus automation harness.
