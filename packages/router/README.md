@@ -106,6 +106,24 @@ or focus. `navigate()` writes with `history.pushState()`, `replace()` writes
 with `history.replaceState()`, and `popstate` renders without creating another
 history entry.
 
+## Accessibility: the main landmark
+
+The outlet is the application's `<main>` landmark (`role="main"`,
+`tabindex="-1"`, focused on push navigation). Give it a stable `id` and/or
+`aria-*` via `defineRouter`'s `outletAttrs` — for a skip link or a labelled main
+region:
+
+```ts
+const AppRouter = defineRouter(catalog, {
+  outletAttrs: { id: 'main-content', 'aria-label': 'Main content' },
+});
+
+// html`<a href="#main-content" class="skip-link">Skip to content</a>`
+```
+
+Only `id` and `aria-*` are accepted (a type error otherwise); the managed
+`role`/`tabindex` are applied last and cannot be overridden.
+
 ## SEO metadata
 
 Route `metadata` is a declarative, typed contract applied by the SSG shell at

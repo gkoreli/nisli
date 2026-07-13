@@ -16,6 +16,17 @@ type InvalidRouterKeys<Input extends Record<string, unknown>> = {
       : Input[K] extends RedirectDefinition<any> ? never : K;
 }[keyof Input];
 
+/**
+ * Attributes applied to the router outlet's `<main>` landmark host. Conservative
+ * surface: `id` (e.g. for a skip link `href="#main-content"`) and any `aria-*`.
+ * The managed `role="main"`/`tabindex="-1"` are applied *after* these and are not
+ * part of this type, so the landmark + focus contract cannot be overridden.
+ */
+export interface OutletAttrs {
+  id?: string;
+  [attr: `aria-${string}`]: string | undefined;
+}
+
 export type ApplicationRouter<R extends RouteMap> = ComponentFactory<Record<string, never>> & {
   readonly routes: R;
   readonly notFound?: NotFoundDefinition;
@@ -27,7 +38,7 @@ let routerId = 0;
 
 export function defineRouter<const Input extends Record<string, unknown>>(
   input: Input,
-  options: { base?: string } = {},
+  options: { base?: string; outletAttrs?: OutletAttrs } = {},
   ...validation: InvalidRouterKeys<Input> extends never ? [] : [invalidRouterConfig: never]
 ): ApplicationRouter<RoutesFrom<Input>> {
   void validation;
@@ -61,6 +72,8 @@ export function defineRouter<const Input extends Record<string, unknown>>(
     outletFactory ??= component(tagName, (_props, host) => {
       const router = inject(Router);
       const rendered = signal<TemplateResult | null>(null);
+      applyOutletAttrs(host, options.outletAttrs);
+      // Managed landmark contract, applied last so it cannot be overridden.
       host.setAttribute('role', 'main');
       host.setAttribute('tabindex', '-1');
       host.style.display = 'contents';
@@ -77,4 +90,13 @@ export function defineRouter<const Input extends Record<string, unknown>>(
     match: { value: match, enumerable: true },
   });
   return factory;
+}
+
+/** Apply consumer outlet attributes, restricted to `id`/`aria-*` even at runtime. */
+function applyOutletAttrs(host: HTMLElement, attrs?: OutletAttrs): void {
+  if (!attrs) return;
+  for (const [name, value] of Object.entries(attrs)) {
+    if (value === undefined) continue;
+    if (name === 'id' || name.startsWith('aria-')) host.setAttribute(name, String(value));
+  }
 }

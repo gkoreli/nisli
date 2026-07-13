@@ -995,3 +995,39 @@ Navigating to an unbound route throws `Route "…" has no render; bind it with
 bindRenders() before defineRouter()`. `@nisli/ssg` relaxes its structural route
 `render` to optional and throws at build time if an unbound route is expanded
 statically. Semver: additive minor → **0.4.0**.
+
+## 0.5.0 Typed Outlet Host Attributes (2026-07-13)
+
+The router outlet is the application's `<main>` landmark (`role="main"`,
+`tabindex="-1"`), but 0.4.0 gave a consumer no way to put an `id` or `aria-*` on
+it — `@nisli/core`'s per-call `HostAttrs` accepts only `class`, so
+`AppRouter({}, { id: 'main-content' })` failed `TS2353`. erent needs a stable
+`id` for a skip link (`<a href="#main-content">`) and an `aria-label` on the
+main region.
+
+**Decision:** add a `defineRouter` option `outletAttrs`, applied by the router to
+the outlet host — **not** a widening of `@nisli/core` `HostAttrs`. Rationale:
+the outlet host is the router's own element and its landmark role is a router
+concern, so the router owns these attributes; widening core's `HostAttrs` would
+change every component's contract for a router-specific need.
+
+- **Surface (conservative):** `id` and any `aria-*` — the demonstrated need.
+  `role`/`tabindex`/`class`/`style` are **not** in the type.
+- **Precedence (documented):** `outletAttrs` are applied first; the managed
+  `role="main"`/`tabindex="-1"` are applied **last**, so the landmark and focus
+  contract cannot be overridden — enforced twice: the type omits them, and a
+  runtime filter applies only `id`/`aria-*` keys.
+- **Placement:** it is a `defineRouter` option (app-level, one stable landmark),
+  not per-render props — matching the single-root-outlet model.
+
+```ts
+const AppRouter = defineRouter(catalog, {
+  outletAttrs: { id: 'main-content', 'aria-label': 'Main content' },
+});
+// elsewhere:  html`<a href="#main-content" class="skip-link">Skip to content</a>`
+```
+
+Verified by an empirical probe (`router.test.ts`): the attributes land on the
+mounted host while `role`/`tabindex` remain intact, and `types.test-d.ts` proves
+`id`/`aria-*` are accepted and `role`/unknown attrs are compile errors. Additive
+option → **0.5.0**.

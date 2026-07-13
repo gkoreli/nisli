@@ -4,6 +4,15 @@ All notable changes to `@nisli/router`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
+## 0.5.0 — 2026-07-13
+
+- **Typed outlet host attributes**: `defineRouter(catalog, { outletAttrs })`
+  applies `id` and `aria-*` to the router's `<main>` landmark host — enabling a
+  skip link (`href="#main-content"`) and `aria-label` on the main region. The
+  surface is conservative and typed (unknown or managed attributes are compile
+  errors); the managed `role="main"`/`tabindex="-1"` are applied last and cannot
+  be overridden. The router applies these itself, with no `@nisli/core` change.
+
 ## 0.4.0 — 2026-07-13
 
 Render-separated route definitions with one identity — a strict-boundary

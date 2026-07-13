@@ -94,6 +94,19 @@ AppRouter.routes.settings.href({ query: { tab: 'billing' } });
 // @ts-expect-error router catalogs accept route definitions, not arbitrary values
 defineRouter({ invalid: 'not-a-route' });
 
+// Typed outlet host attrs: id + aria-* permitted; managed/unknown attrs rejected.
+defineRouter({ home: route('/', { render: () => html`` }) }, {
+  outletAttrs: { id: 'main-content', 'aria-label': 'Main', 'aria-current': 'page' },
+});
+defineRouter({ home: route('/', { render: () => html`` }) }, {
+  // @ts-expect-error role is a managed attribute, not a permitted outlet attr
+  outletAttrs: { role: 'main' },
+});
+defineRouter({ home: route('/', { render: () => html`` }) }, {
+  // @ts-expect-error unknown non-aria attribute is rejected
+  outletAttrs: { title: 'nope' },
+});
+
 // Redirects are valid router entries but are not exposed as href-able routes.
 const WithRedirect = defineRouter({
   home: route('/', { render: () => html`` }),

@@ -413,6 +413,23 @@ describe('Router browser service and outlet', () => {
     }
   });
 
+  it('applies typed outlet attrs (id + aria-*) to the main landmark host', async () => {
+    const AppRouter = defineRouter(
+      { home: route('/', { render: () => html`<p>home</p>` }) },
+      { outletAttrs: { id: 'main-content', 'aria-label': 'Main content' } },
+    );
+    const shell = document.createElement('div');
+    html`${AppRouter({})}`.mount!(shell);
+    document.body.appendChild(shell);
+    await settle();
+    const host = shell.querySelector('#main-content');
+    expect(host).not.toBeNull();
+    expect(host?.getAttribute('aria-label')).toBe('Main content');
+    // Managed landmark/focus contract stays intact and un-overridable.
+    expect(host?.getAttribute('role')).toBe('main');
+    expect(host?.getAttribute('tabindex')).toBe('-1');
+  });
+
   it('rejects a second root outlet on one Router singleton', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     const AppRouter = defineRouter({ home: route('/', { render: () => html`` }) });

@@ -1,4 +1,4 @@
-export { defineRouter, type ApplicationRouter } from './application.js';
+export { defineRouter, type ApplicationRouter, type OutletAttrs } from './application.js';
 export { createMatcher, defineRoutes, normalizePathname, type MatcherDefinition, type RouteCatalog, type RouteMatch } from './matcher.js';
 export {
   route,
