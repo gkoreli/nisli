@@ -135,10 +135,21 @@ into a clean Vite + Tailwind v4 application, exercised `list` / `init` /
 registry through stock strict TypeScript. The CI script now derives its
 default from `packages/ui/package.json`, so a checkpoint proves its own
 published artifact; only the explicit `0.2.0` override permits that version's
-exact four known diagnostics. (2) open — keyboard/ARIA tests,
-`data-slot`/`data-state`, dual factory/plain-HTML use, and the source-level
-wave-A/wave-B parity audits are landed; the manual side-by-side checkboxes
-remain open until the corrected www gallery is deployed (UI-36A/B). (3) done
+exact four known diagnostics. (2) done, with
+named deferrals — every component with an upstream contract is
+parity-verified (class-level vs the pinned `new-york-v4` checkout) AND
+interaction-verified: wave A closed at 29 ☑ + 3 N/A with zero residuals
+(avatar's four new surfaces proven by computed paint on live), wave B at
+24/26 ☑ (UI-36A/B worklists are the evidence record), and the settled
+browser guard proves all 133 preview surfaces — desktop + phone touch —
+on live production, independently confirmed three times (eng3, architect,
+CI run 29224888268). The field family's component truth is real-browser
+verified against the built registry (container-flip, both transparent-host
+rule categories). Named open items, all owned and post-1.0-safe: gallery
+demos for the field family and the pinned toggle example, the sidebar
+preview's iframe presentation, UI-66's live re-proof and UI-67's polish on
+the next deploy, and message curation nits — none is a component parity or
+interaction failure. (3) done
 — registry integrity fails on any bare runtime npm dependency (UI-37), and
 the current 58-item package passes it. (4) done — www installs all 58, its
 static coverage test and Playwright browser guard both derive the complete

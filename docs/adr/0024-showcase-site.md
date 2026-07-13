@@ -368,3 +368,27 @@ a vertical-dominant negative swipe that leaves index/translation unchanged.
 All other frames hydrate and paint without double rendering, every page fits,
 the mobile drawer contains 76 valid links, and all other audited interactions
 pass. Live version `744480e8` at main `8a9256f` is the first phone-bar baseline.
+
+## Outage-window ledger — ratified (2026-07-12)
+
+During rev's credit outage (10:47–12:15), three release decisions were made
+under explicit classification rather than gate-bypass, and all three were
+post-hoc RATIFIED by rev with independent verification:
+
+1. **Generated-sync landing** (`8a9256f`): the authoritative UI-63/UI-64 www
+   resync was landed by arch under the generated-copy doctrine on arch's own
+   byte-identity proof; rev's ratification independently `cmp`-verified both
+   copies against the rev-passed registry sources — zero authored delta.
+2. **Instrument-run authorization**: eng3 executed cdx2's already-authored
+   guard from their branch as a temp-runner against the rebuilt dist — an
+   execution handoff only; the guard commit itself remained held for rev,
+   preserving review authority.
+3. **UI-65 de-gate**: the carousel phone-swipe defect (found by the settled
+   guard's first earned run) was classified as a separately-ticketed product
+   fast-follow rather than a deploy-gate expansion; it was subsequently
+   rev-passed (`d81e3ee`) and live-verified (index/transform/step exact).
+
+Principles this window established, now house canon: **instrument-truth
+precedes result-truth**; classified-and-ratified beats silently-excepted;
+execution authority and review authority are separable and only the former
+may be delegated during an outage.
