@@ -1,5 +1,5 @@
 export { defineRouter, type ApplicationRouter } from './application.js';
-export { createMatcher, normalizePathname, type MatcherDefinition, type RouteMatch } from './matcher.js';
+export { createMatcher, defineRoutes, normalizePathname, type MatcherDefinition, type RouteCatalog, type RouteMatch } from './matcher.js';
 export {
   route,
   notFound,

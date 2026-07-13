@@ -1,6 +1,6 @@
 import { component, getCurrentComponent, html, inject, signal, type ComponentFactory, type TemplateResult } from '@nisli/core';
-import { createMatcher, type RouteMatch } from './matcher.js';
-import type { NotFoundDefinition, RedirectContext, RedirectDefinition, RouteDefinition } from './route.js';
+import { createMatcher, defineRoutes, prefixBase, type RouteMatch } from './matcher.js';
+import type { NotFoundDefinition, RedirectDefinition, RouteDefinition } from './route.js';
 import { Router, type RouterApplicationDefinition } from './router.js';
 
 type AnyRouteDefinition = RouteDefinition<any, any, any>;
@@ -32,42 +32,28 @@ export function defineRouter<const Input extends Record<string, unknown>>(
 ): ApplicationRouter<RoutesFrom<Input>> {
   void validation;
   type R = RoutesFrom<Input>;
-  const base = normalizeBase(options.base);
+  // Partition the flat catalog through the one shared normalizer so the browser
+  // outlet and any Worker consuming the same catalog can never disagree.
+  const partitioned = defineRoutes(input as Parameters<typeof defineRoutes>[0], { base: options.base });
+  const base = partitioned.base;
   const routes = Object.fromEntries(
-    Object.entries(input as Record<string, unknown>)
-      .filter((entry): entry is [string, AnyRouteDefinition] => (
-        typeof entry[1] === 'object' && entry[1] !== null &&
-        (entry[1] as { kind?: unknown }).kind === 'route'
-      ))
-      .map(([name, value]) => {
-        const definition = value as RouteDefinition;
-        if (!base) return [name, definition];
-        return [name, Object.freeze({
-          ...definition,
-          href: (...args: unknown[]) => prefixBase(
-            base,
-            (definition.href as (...hrefArgs: unknown[]) => string)(...args),
-          ),
-        })];
-      }),
+    Object.entries(partitioned.routes).map(([name, definition]) => {
+      if (!base) return [name, definition];
+      return [name, Object.freeze({
+        ...definition,
+        href: (...args: unknown[]) => prefixBase(
+          base,
+          (definition.href as (...hrefArgs: unknown[]) => string)(...args),
+        ),
+      })];
+    }),
   ) as R;
-  const redirects = Object.fromEntries(
-    Object.entries(input as Record<string, unknown>)
-      .filter((entry): entry is [string, RedirectDefinition] => (
-        typeof entry[1] === 'object' && entry[1] !== null &&
-        (entry[1] as { kind?: unknown }).kind === 'redirect'
-      ))
-      .map(([name, definition]) => {
-        if (!base) return [name, definition];
-        return [name, Object.freeze({
-          ...definition,
-          resolve: (context: RedirectContext) => prefixBase(base, definition.resolve(context)),
-        })];
-      }),
-  ) as Readonly<Record<string, RedirectDefinition<any>>>;
-  const configuredNotFound = (input as { notFound?: NotFoundDefinition }).notFound;
-  const notFound = configuredNotFound?.kind === 'not-found' ? configuredNotFound : undefined;
-  const definition: RouterApplicationDefinition = Object.freeze({ routes, redirects, notFound, base });
+  const definition: RouterApplicationDefinition = Object.freeze({
+    routes,
+    redirects: partitioned.redirects,
+    notFound: partitioned.notFound,
+    base,
+  });
   const match = createMatcher(definition);
   const tagName = `nisli-router-${++routerId}`;
   let outletFactory: ComponentFactory<Record<string, never>> | undefined;
@@ -86,18 +72,9 @@ export function defineRouter<const Input extends Record<string, unknown>>(
   }) as ApplicationRouter<R>;
   Object.defineProperties(factory, {
     routes: { value: routes, enumerable: true },
-    notFound: { value: notFound, enumerable: true },
+    notFound: { value: partitioned.notFound, enumerable: true },
     definition: { value: definition, enumerable: true },
     match: { value: match, enumerable: true },
   });
   return factory;
-}
-
-function normalizeBase(base?: string): string {
-  if (!base || base === '/') return '';
-  return `/${base.replace(/^\/+|\/+$/g, '')}`;
-}
-
-function prefixBase(base: string, href: string): string {
-  return href === '/' ? `${base}/` : `${base}${href}`;
 }

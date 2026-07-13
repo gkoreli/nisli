@@ -1,5 +1,13 @@
 import type { QueryCodec } from './query.js';
-import type { NotFoundDefinition, QuerySchema, RedirectDefinition, RouteContext, RouteDefinition, RouteMetadata } from './route.js';
+import type { NotFoundDefinition, QuerySchema, RedirectContext, RedirectDefinition, RouteContext, RouteDefinition, RouteMetadata } from './route.js';
+
+/**
+ * A flat route catalog: `route()`/`redirect()` entries under any key, plus an
+ * optional `notFound` under the `notFound` key. This is the exact shape
+ * `defineRouter` accepts; `defineRoutes`/`createMatcher` accept it too, so the
+ * browser and an edge Worker share one authored catalog with no adapter.
+ */
+export type RouteCatalog = Readonly<Record<string, RouteDefinition<any, any, any> | RedirectDefinition<any> | NotFoundDefinition>>;
 
 export interface RouteMatch<Params extends Record<string, unknown> = Record<string, string>, Query = Record<string, unknown>> {
   readonly name: string | null;
@@ -40,6 +48,54 @@ export function normalizePathname(pathname: string): string {
 function normalizeBase(base = '/'): string {
   const normalized = normalizePathname(base);
   return normalized === '/' ? '' : normalized;
+}
+
+/** Normalize a configured base to `''` or `/segment` (no trailing slash). */
+function normalizeCatalogBase(base?: string): string {
+  if (!base || base === '/') return '';
+  return `/${base.replace(/^\/+|\/+$/g, '')}`;
+}
+
+/** Prefix a catalog-relative href/target with the application base. */
+export function prefixBase(base: string, href: string): string {
+  return href === '/' ? `${base}/` : `${base}${href}`;
+}
+
+/**
+ * Partition a flat {@link RouteCatalog} into the normalized
+ * {@link MatcherDefinition} that {@link createMatcher} consumes — routes and
+ * redirects by `kind`, `notFound` by key, redirect targets base-prefixed. Pure
+ * and environment-neutral: an edge Worker imports this (via `@nisli/router/
+ * catalog`) to build the same matcher the browser does, with no @nisli/core
+ * runtime and no consumer-side adapter.
+ */
+export function defineRoutes(catalog: RouteCatalog, options: { base?: string } = {}): MatcherDefinition {
+  const base = normalizeCatalogBase(options.base);
+  const routes: Record<string, RouteDefinition<any, any, any>> = {};
+  const redirects: Record<string, RedirectDefinition<any>> = {};
+  for (const [name, value] of Object.entries(catalog)) {
+    const kind = (value as { kind?: unknown } | null)?.kind;
+    if (kind === 'route') {
+      routes[name] = value as RouteDefinition<any, any, any>;
+    } else if (kind === 'redirect') {
+      const def = value as RedirectDefinition<any>;
+      redirects[name] = base
+        ? Object.freeze({ ...def, resolve: (context: RedirectContext) => prefixBase(base, def.resolve(context)) })
+        : def;
+    }
+  }
+  const configured = (catalog as { notFound?: unknown }).notFound;
+  const notFound = (configured as { kind?: unknown } | undefined)?.kind === 'not-found'
+    ? (configured as NotFoundDefinition)
+    : undefined;
+  return { routes, redirects, notFound, base };
+}
+
+/** A MatcherDefinition has a `routes` record; a flat catalog does not (a route
+ *  literally keyed `routes` carries `kind`, so it is still treated as flat). */
+function isMatcherDefinition(input: MatcherDefinition | RouteCatalog): input is MatcherDefinition {
+  const routes = (input as { routes?: unknown }).routes;
+  return typeof routes === 'object' && routes !== null && (routes as { kind?: unknown }).kind === undefined;
 }
 
 function compile(path: string): Segment[] {
@@ -141,7 +197,10 @@ function applyParamCodecs(
   return result;
 }
 
-export function createMatcher(definition: MatcherDefinition): (input: URL | string, baseURL?: string | URL) => RouteMatch | null {
+export function createMatcher(input: MatcherDefinition | RouteCatalog): (input: URL | string, baseURL?: string | URL) => RouteMatch | null {
+  // Accept the same flat catalog `defineRouter` takes, or a pre-normalized
+  // definition — one catalog shape for browser and Worker, no adapter.
+  const definition = isMatcherDefinition(input) ? input : defineRoutes(input);
   const routes = compiledRoutes(definition);
   const base = normalizeBase(definition.base);
   return (input, baseURL = 'http://localhost/') => {

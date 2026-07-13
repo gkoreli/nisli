@@ -232,5 +232,74 @@ html`<a href="${counterpart}" hreflang="ka">ქართული</a>`;
 A declared `query` key set to its default value clears any carried-over copy,
 so declared parameters stay canonical while undeclared ones pass through.
 
+## Worker / edge usage (one catalog, no adapter)
+
+The matcher, route builders, and query codecs are environment-neutral (they
+import `@nisli/core` for *types only*). Import them from the side-effect-free
+`@nisli/router/catalog` subpath and an edge Worker consumes the **same** authored
+catalog the browser does — for HTTP status, redirect targets, and the initial
+canonical/hreflang metadata — without ever loading the component runtime.
+
+Author the catalog once. Route `render` callbacks must use dynamic `import()` so
+the Worker (which matches and reads metadata but never calls `render`) never
+pulls page/component chunks:
+
+```ts
+// routes.catalog.ts — shared, environment-neutral
+import { route, redirect, notFound, enumParam } from '@nisli/router/catalog';
+
+export const catalog = {
+  home: route('/', { render: async () => (await import('./pages/home.js')).HomePage({}) }),
+  about: route('/:locale/about', {
+    params: { locale: enumParam(['en', 'ka']) },
+    metadata: ({ params }) => ({ lang: params.locale, canonical: `https://x.dev/${params.locale}/about` }),
+    render: async ({ params }) => (await import('./pages/about.js')).AboutPage(params),
+  }),
+  legacy: redirect('/old', '/'),
+  notFound: notFound({ render: async () => (await import('./pages/nf.js')).NotFound({}) }),
+};
+```
+
+```ts
+// client.ts — browser
+import { defineRouter } from '@nisli/router';
+import { catalog } from './routes.catalog.js';
+export const AppRouter = defineRouter(catalog);
+```
+
+```ts
+// worker.ts — edge (no @nisli/core runtime in the bundle)
+import { createMatcher, normalizePathname } from '@nisli/router/catalog';
+import { catalog } from './routes.catalog.js';
+
+const match = createMatcher(catalog); // same flat catalog, no adapter
+
+export default {
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+
+    // Canonicalization (e.g. trailing-slash / www) is a raw-path Worker concern,
+    // done before matching; the client only ever generates canonical hrefs.
+    if (url.pathname.length > 1 && url.pathname.endsWith('/')) {
+      url.pathname = normalizePathname(url.pathname);
+      return Response.redirect(url.toString(), 308);
+    }
+
+    const m = match(url);
+    if (!m) return new Response('Not found', { status: 404 });
+    if (m.redirect) return Response.redirect(new URL(m.redirect, url).toString(), 308);
+    if (m.notFound) return new Response(shell(m.metadata), { status: 404, headers: html });
+    return new Response(shell(m.metadata), { status: 200, headers: html }); // m.metadata.canonical, .alternates, …
+  },
+};
+```
+
+The router is HTTP-status-agnostic: client redirects use `replaceState`, and the
+Worker chooses its own status (e.g. `308` for root/legacy/trailing/www). The
+`@nisli/router/catalog` import graph is guarded to never reach the `@nisli/core`
+runtime, so this stays true across refactors. `@nisli/core` remains a peer
+dependency for *types*; `import type` is erased, so the Worker's runtime bundle
+is core-free.
+
 See [ADR 0026: Typed Application Router](https://github.com/gkoreli/nisli/blob/main/docs/adr/0026-typed-application-router.md)
 for the architecture, shared browser/Vite/SSG contract, and scope.

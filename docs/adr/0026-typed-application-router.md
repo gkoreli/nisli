@@ -863,3 +863,64 @@ browser confirmation manual.
 - Application-level error-fallback renderer + fallback-metadata contract
   (erent audit item D's larger form) — deferred to 0.3; 0.2.0 ships only the
   atomic managed-head reset on render failure.
+
+## 0.3.0 Worker Single-Source Contract (2026-07-13)
+
+erent's SEO engineer audited the published 0.2.0 tarball for edge-Worker
+consumption (its ADR 010 runs a Worker for HTTP status, canonical/hreflang
+initial HTML, and 308 redirects, sharing the client's route catalog). Two
+defects blocked the "one catalog, both environments" invariant, plus three
+points that needed an explicit boundary. 0.3.0 resolves them.
+
+### Defects fixed
+
+1. **Root export loaded the component runtime.** `@nisli/router` (root) re-exports
+   `application.ts`/`router.ts`, which import `@nisli/core` runtime
+   (`component`/`html`/`inject`/`signal`). A Worker importing the root from a
+   core-free bundle failed `ERR_MODULE_NOT_FOUND`. **Fix:** a new side-effect-free
+   subpath **`@nisli/router/catalog`** re-exports only the pure surface
+   (`route`/`redirect`/`notFound`, query codecs, `createMatcher`, `defineRoutes`,
+   `normalizePathname`, `prefixBase`, and types). Its transitive import graph is
+   `route`/`matcher`/`query` only — no `@nisli/core` runtime.
+
+2. **`createMatcher` rejected the flat catalog.** `defineRouter(catalog)` accepts
+   a flat map (routes/redirects by `kind`, `notFound` by key), but `createMatcher`
+   required a pre-normalized `{ routes, redirects, notFound }`, forcing the
+   consumer to duplicate the partitioner. **Fix:** `createMatcher` now accepts
+   **either** the flat catalog **or** a `MatcherDefinition`, and the pure
+   `defineRoutes(catalog, { base })` normalizer is exported and used by
+   `defineRouter` internally — so browser and Worker share one partitioner and
+   can never disagree.
+
+### Boundaries confirmed (with the consuming architect)
+
+3. **Type-only erasure.** `route.ts` type-imports `TemplateResult` from
+   `@nisli/core`; with `verbatimModuleSyntax`, that is erased from emitted JS.
+   `@nisli/core` stays a peer dependency for *types*; the Worker's runtime bundle
+   through `@nisli/router/catalog` is core-free. A purity guard test
+   (`purity.test.ts`) asserts the source stays `import type`-only and BFS-checks
+   the built subpath graph — a future runtime import breaks the build.
+
+4. **Dynamic-render contract.** Route `render` callbacks must use dynamic
+   `import()` for page modules. The Worker matches and reads `metadata` but never
+   calls `render`, so page/component chunks never enter its bundle. This is a
+   consumer-authored discipline the README now documents explicitly (the router
+   guard covers only its own modules).
+
+5. **Trailing-slash & redirect status are Worker-side.** The matcher normalizes
+   `/ka/` → `/ka`, so a client redirect route cannot express trailing-slash
+   canonicalization. **Resolution (architect):** the Worker performs generic
+   raw-path canonicalization (trailing-slash, `www`) as a **308** *before*
+   matching — client-generated hrefs are already canonical, so no duplicate route
+   table is needed. `normalizePathname` is exported for that use. The router is
+   HTTP-status-agnostic (client redirects use `replaceState`); **308** is
+   authoritative for root/legacy/trailing/`www` per erent ADR 010 (an earlier
+   "301" relay was a mis-statement). No router API change for either point.
+
+### Scope
+
+Additive and non-breaking: new `@nisli/router/catalog` subpath, a widened
+`createMatcher` input, and the exported `defineRoutes` normalizer. No signature
+changed. Shipped as **0.3.0** (additive minor per repo convention). The larger
+application-level error-fallback renderer/metadata API (0.2.0 item D) remains
+deferred.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMatcher, normalizePathname } from './matcher.js';
+import { createMatcher, defineRoutes, normalizePathname } from './matcher.js';
 import { enumParam, numberParam } from './query.js';
 import { notFound, redirect, route } from './route.js';
 import { html } from '@nisli/core';
@@ -131,6 +131,41 @@ describe('pure matcher', () => {
     expect(matcher('/u/42')?.redirect).toBe('/users/42');
     expect(matcher('/home')?.redirect).toBe('/');
     expect(matcher('/users/42')?.redirect).toBeUndefined();
+  });
+
+  it('accepts the same flat catalog defineRouter takes (Worker single source)', () => {
+    // The exact object a client passes to defineRouter — routes/redirects by
+    // kind, notFound by key. A Worker calls createMatcher(catalog) directly.
+    const catalog = {
+      home: route('/', { render: noop }),
+      locale: route('/:locale/about', { params: { locale: enumParam(['en', 'ka'] as const) }, render: noop }),
+      legacy: redirect('/u/:id', ({ params }) => `/users/${params.id}`),
+      notFound: notFound({ render: noop }),
+    };
+    const workerMatch = createMatcher(catalog);
+    expect(workerMatch('/')?.name).toBe('home');
+    expect(workerMatch('/en/about')?.params).toEqual({ locale: 'en' });
+    expect(workerMatch('/fr/about')?.notFound).toBe(true); // codec no-match → notFound
+    expect(workerMatch('/u/7')?.redirect).toBe('/users/7');
+
+    // defineRoutes yields the normalized shape createMatcher also accepts.
+    const definition = defineRoutes(catalog);
+    expect(Object.keys(definition.routes).sort()).toEqual(['home', 'locale']);
+    expect(Object.keys(definition.redirects ?? {})).toEqual(['legacy']);
+    expect(definition.notFound).toBeDefined();
+
+    // Browser (defineRouter) and Worker (createMatcher(catalog)) agree.
+    const AppRouter = defineRouter(catalog);
+    for (const path of ['/', '/en/about', '/fr/about', '/ka/about', '/u/7']) {
+      expect(workerMatch(path)?.name ?? null).toBe(AppRouter.match(path)?.name ?? null);
+      expect(workerMatch(path)?.redirect).toBe(AppRouter.match(path)?.redirect);
+    }
+  });
+
+  it('defineRoutes base-prefixes redirect targets like defineRouter', () => {
+    const catalog = { legacy: redirect('/old', '/new'), page: route('/new', { render: noop }) };
+    const matcher = createMatcher(defineRoutes(catalog, { base: '/app/' }));
+    expect(matcher('/app/old')?.redirect).toBe('/app/new');
   });
 
   it('rejects ambiguous route shapes and non-final catch-alls', () => {

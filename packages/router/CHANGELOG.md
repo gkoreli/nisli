@@ -4,6 +4,27 @@ All notable changes to `@nisli/router`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
+## 0.3.0 — 2026-07-13
+
+Worker single-source-of-truth: an edge Worker can consume the same authored
+route catalog as the browser for HTTP status, redirect targets, and initial
+canonical/hreflang metadata — with no `@nisli/core` runtime and no adapter.
+
+- **Pure `@nisli/router/catalog` subpath**: side-effect-free entry exposing
+  `route`/`redirect`/`notFound`, the query codecs, `createMatcher`,
+  `defineRoutes`, and `normalizePathname` — never importing the `@nisli/core`
+  component runtime (the package root still does, via the browser outlet).
+- **`createMatcher` accepts the flat catalog**: the exact object `defineRouter`
+  takes now works in `createMatcher(catalog)` too — one catalog shape for
+  browser and Worker, no consumer-side partitioner.
+- **`defineRoutes(catalog, { base })`**: the blessed pure normalizer
+  (flat catalog → `MatcherDefinition`), shared by `defineRouter` internally so
+  browser and Worker can never disagree.
+- **Purity guard test**: enforces `matcher`/`route`/`query`/`catalog` stay free
+  of runtime `@nisli/core` imports and BFS-checks the built `catalog` subpath's
+  import graph, so a future refactor can't silently break Worker consumers.
+- No breaking changes; additive subpath + widened `createMatcher` input.
+
 ## 0.2.0 — 2026-07-13
 
 - **SEO metadata lifecycle**: `RouteMetadata` gains `property` (OpenGraph
