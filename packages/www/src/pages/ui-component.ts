@@ -41,7 +41,7 @@ export function uiComponentPage(item: RegistryItem): TemplateResult {
       >
     </div>
     ${item.description
-      ? html`<p class="mt-3 max-w-2xl text-lg text-muted-foreground text-pretty">${item.description}</p>`
+      ? html`<p class="mt-3 max-w-2xl text-lg text-muted-foreground text-pretty wrap-anywhere">${item.description}</p>`
       : ''}
 
     ${showPreview
