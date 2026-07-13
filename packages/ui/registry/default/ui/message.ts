@@ -53,7 +53,7 @@ export const MessageContent = messageSection(
 export const MessageHeader = messageSection(
   'ui-message-header',
   'message-header',
-  'flex max-w-full min-w-0 items-center px-3 text-xs font-medium text-muted-foreground group-has-data-[variant=ghost]/message:px-0',
+  'flex max-w-full min-w-0 items-center gap-1 px-3 text-xs font-medium text-muted-foreground group-has-data-[variant=ghost]/message:px-0',
 );
 
 export const MessageFooter = messageSection(

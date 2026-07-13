@@ -46,8 +46,23 @@ describe('Message', () => {
     expect(q(c, 'message').getAttribute('data-align')).toBe('start');
     expect(q(c, 'message-avatar').textContent).toBe('A');
     expect(q(c, 'message-content').className).toContain('flex-col');
-    expect(q(c, 'message-header').textContent).toBe('Ada');
+    const header = q(c, 'message-header');
+    expect(header.textContent).toBe('Ada');
+    expect(header.className).toContain('gap-1');
     expect(q(c, 'message-footer').textContent).toBe('2:30 PM');
+  });
+
+  it('keeps name and timestamp as separate header children with an explicit gap (UI-67)', () => {
+    const c = mount(
+      html`${MessageHeader({
+        children: html`<span data-name>Ada</span> <span data-timestamp>2:30 PM</span>`,
+      })}`,
+    );
+    flushEffects();
+    const header = q(c, 'message-header');
+    expect(header.className.split(/\s+/)).toContain('gap-1');
+    expect(header.querySelector(':scope > [data-name]')?.textContent).toBe('Ada');
+    expect(header.querySelector(':scope > [data-timestamp]')?.textContent).toBe('2:30 PM');
   });
 
   it('DOM regression (UI-60): message-content [data-slot] children are DESCENDANTS — align-end self-end reach needs `**:` (was `*:`, dead)', () => {

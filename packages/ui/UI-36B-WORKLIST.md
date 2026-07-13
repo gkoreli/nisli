@@ -346,6 +346,16 @@ WWW-14 deploy. (Wave A: closed at 75d77da, avatar residual also on WWW-14.)
   projected-slot class, noted to eng2), full-width code block splits a
   sentence with an orphaned period, name/timestamp lack a gap.
 
+**UI-67 local disposition (pending deploy recheck):** UI-60 already closed
+the avatar alignment defect. The remaining two presentation nits are fixed
+without a global code rule: `MessageHeader` intentionally adds `gap-1` beyond
+the upstream class list, and the curated WWW sentence wraps its inline
+`<code>` in a text-flow `<span>`. A built-site Chromium proof at 1280px and
+390px requires a nonzero computed header gap, inline code followed by its
+period on the same line, and an unchanged direct `<pre><code>` block. This
+records implementation evidence only; the message term flips after the next
+deployed human/browser recheck.
+
 **Equation after round 2:** 21 ☑ (17 + popover + nav-menu + marker +
 scroll-area) + 5 open: toast (UI-62 row fix), toggle + message-scroller +
 sidebar-iframe (all on the WWW-15 wave deploy), message (curation polish)

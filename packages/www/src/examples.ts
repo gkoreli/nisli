@@ -546,7 +546,7 @@ export const examples: Record<string, () => TemplateResult> = {
           })}
           ${MessageContent({
             children: html`${MessageHeader({ children: html`<span class="font-medium">You</span> <span class="text-xs text-muted-foreground">2:15 PM</span>` })}
-            Done — <code class="rounded bg-muted px-1 py-0.5 text-xs">npx @nisli/ui add dialog</code>.`,
+            <span data-message-sentence>Done — <code class="inline rounded bg-muted px-1 py-0.5 text-xs">npx @nisli/ui add dialog</code><span data-message-period>.</span></span>`,
           })}`,
         })}`,
       })}
