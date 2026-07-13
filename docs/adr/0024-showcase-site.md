@@ -392,3 +392,16 @@ Principles this window established, now house canon: **instrument-truth
 precedes result-truth**; classified-and-ratified beats silently-excepted;
 execution authority and review authority are separable and only the former
 may be delegated during an outage.
+
+**Final closure (2026-07-12/13).** The de-gated UI-65 carousel defect was
+fixed, rev-passed (`d81e3ee`), resynced, and the final settled instrument
+(`84b8cea`) then produced the authoritative **133/133, failing none** —
+locally, on CI, and against live production. The subsequent UI-52/UI-58
+resync generation (live version `d788f291`, main `170a377`) was
+independently swept **133/133 by both eng3 and architect** using the landed
+instrument (`node scripts/preview-sweep.mjs --base=https://nisli.dev`), and
+remote CI run `29224888268` completed fully green. One qualification stands
+(UI-68): the guard's fit dimension is relative (`scrollWidth ≤ innerWidth`),
+and the form-field page reports a 704px effective viewport at phone width
+post-UI-52 — root-classification in progress, an absolute-width assertion
+queued for the guard.
