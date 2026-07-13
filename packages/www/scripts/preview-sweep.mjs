@@ -26,7 +26,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { INTERACTIONS, assertInteractionCoverage, cleanupSweepResources, drawerIsUseful, isSweepFailure } from './preview-interactions.mjs';
+import { INTERACTIONS, assertInteractionCoverage, cleanupSweepResources, drawerIsUseful, isSweepFailure, phoneFit } from './preview-interactions.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
@@ -510,7 +510,7 @@ for (const name of names) {
       scroll: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
       viewport: window.innerWidth,
     }));
-    fit = widths.scroll <= widths.viewport + 1 ? `OK(${widths.scroll}/${widths.viewport})` : `FAIL(${widths.scroll}/${widths.viewport})`;
+    fit = phoneFit(widths.scroll, widths.viewport);
     const frame = page.locator(`[data-preview="${name}"]`).first();
     if (!(await frame.count())) {
       const primitive = await page.getByText('Primitive', { exact: true }).count() > 0;
@@ -601,10 +601,11 @@ for (const name of names) {
         const href = link.getAttribute('href');
         return href && href !== '#' && !href.startsWith('javascript:');
       }).length;
-      const overflow = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth;
-      return { sheet: !!drawer, mobile, navItems, links: links.length, validLinks, overflow };
+      const scroll = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
+      const viewport = window.innerWidth;
+      return { sheet: !!drawer, mobile, navItems, links: links.length, validLinks, overflow: scroll - viewport, scroll, viewport };
     });
-    fit = opened.overflow <= 1 ? `OK(${opened.overflow}px)` : `FAIL(${opened.overflow}px)`;
+    fit = phoneFit(opened.scroll, opened.viewport);
     open = drawerIsUseful(opened)
       ? `OK(items=${opened.navItems},links=${opened.links})`
       : `FAIL(${JSON.stringify(opened)})`;

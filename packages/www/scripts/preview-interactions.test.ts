@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AUDITED_INTERACTIVE, INTERACTIONS, assertInteractionCoverage, cleanupSweepResources, drawerIsUseful, interactionCoverage, isSweepFailure } from './preview-interactions.mjs';
+import { AUDITED_INTERACTIVE, INTERACTIONS, assertInteractionCoverage, cleanupSweepResources, drawerIsUseful, interactionCoverage, isSweepFailure, phoneFit } from './preview-interactions.mjs';
 
 describe('preview touch interaction manifest', () => {
   const names = [...AUDITED_INTERACTIVE, 'badge', 'card'];
@@ -38,9 +38,14 @@ describe('preview touch interaction manifest', () => {
 });
 
 describe('phone sweep non-vacuous failure dimensions', () => {
-  const pass = { upgrade: 'OK', open: 'n/a', touch: 'OK(false->true)', fit: 'OK(390/390)', hydrated: 'OK', assetFails: [] };
+  const pass = { upgrade: 'OK', open: 'n/a', touch: 'OK(false->true)', fit: phoneFit(390, 390), hydrated: 'OK', assetFails: [] };
 
   it('accepts only a fully proven phone result', () => expect(isSweepFailure(pass)).toBe(false));
+  it('mutation: rejects a 704/704 page that only proves relative fit', () => {
+    const fit = phoneFit(704, 704);
+    expect(fit).toBe('FAIL(704/704;expected=390)');
+    expect(isSweepFailure({ ...pass, fit })).toBe(true);
+  });
   it.each([
     ['trigger-only touch', { touch: 'FAIL(overlay 0->0)' }],
     ['paint-only inert tree', { upgrade: 'INERT ui-accordion' }],

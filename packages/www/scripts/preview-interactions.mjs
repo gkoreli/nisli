@@ -86,6 +86,14 @@ export function isSweepFailure(result) {
     Boolean(result.assetFails?.length);
 }
 
+export function phoneFit(scrollWidth, innerWidth, expectedWidth = 390) {
+  const absolute = innerWidth === expectedWidth;
+  const relative = scrollWidth <= innerWidth + 1;
+  return absolute && relative
+    ? `OK(${scrollWidth}/${innerWidth})`
+    : `FAIL(${scrollWidth}/${innerWidth};expected=${expectedWidth})`;
+}
+
 export function drawerIsUseful(state) {
   return state.sheet && state.mobile && state.navItems > 0 && state.links > 0 &&
     state.validLinks === state.links && state.overflow <= 1;

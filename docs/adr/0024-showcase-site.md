@@ -324,7 +324,9 @@ WWW-15 makes the product bar match what a phone user experiences:
 
 1. **Viewport fit:** every `/ui/<name>` page runs at desktop and in a real
    Playwright mobile context (`390px`, `isMobile`, `hasTouch`). Both assert
-   `scrollWidth <= innerWidth + 1`; the phone pass is not a resized desktop page.
+   `scrollWidth <= innerWidth + 1`; the phone pass additionally requires the
+   absolute `innerWidth === 390`, so a zoomed-out `704/704` page cannot satisfy
+   fit merely because its scroll width matches its enlarged layout viewport.
 2. **Observable touch interaction:** a reviewable manifest names every
    JS-driven interactive preview and its concrete before/after state. A real
    touchscreen action must change that state (expanded/selected/pressed,
@@ -400,8 +402,9 @@ locally, on CI, and against live production. The subsequent UI-52/UI-58
 resync generation (live version `d788f291`, main `170a377`) was
 independently swept **133/133 by both eng3 and architect** using the landed
 instrument (`node scripts/preview-sweep.mjs --base=https://nisli.dev`), and
-remote CI run `29224888268` completed fully green. One qualification stands
-(UI-68): the guard's fit dimension is relative (`scrollWidth ≤ innerWidth`),
-and the form-field page reports a 704px effective viewport at phone width
-post-UI-52 — root-classification in progress, an absolute-width assertion
-queued for the guard.
+remote CI run `29224888268` completed fully green. One qualification produced
+the GUARD-GAP follow-through: the form-field page reported a 704px effective
+viewport at phone width post-UI-52 while the old relative check
+(`scrollWidth ≤ innerWidth`) still passed. The guard now also requires
+`innerWidth === 390`, with a mutation proving `704/704` fails; UI-68 owns the
+page-level root fix independently.
