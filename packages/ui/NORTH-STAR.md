@@ -138,18 +138,24 @@ published artifact; only the explicit `0.2.0` override permits that version's
 exact four known diagnostics. (2) done, with
 named deferrals — every component with an upstream contract is
 parity-verified (class-level vs the pinned `new-york-v4` checkout) AND
-interaction-verified: wave A closed at 29 ☑ + 3 N/A with zero residuals
-(avatar's four new surfaces proven by computed paint on live), wave B at
-24/26 ☑ (UI-36A/B worklists are the evidence record), and the settled
-browser guard proves all 133 preview surfaces — desktop + phone touch —
-on live production, independently confirmed three times (eng3, architect,
-CI run 29224888268). The field family's component truth is real-browser
-verified against the built registry (container-flip, both transparent-host
-rule categories). Named open items, all owned and post-1.0-safe: gallery
-demos for the field family and the pinned toggle example, the sidebar
-preview's iframe presentation, UI-66's live re-proof and UI-67's polish on
-the next deploy, and message curation nits — none is a component parity or
-interaction failure. (3) done
+interaction-verified: wave A at 28 fully checked + 1
+component-verified/gallery-pending (form-field: four field-family surfaces
+real-browser verified against the built registry — container-flip, both
+transparent-host rule categories — with the live-gallery side-by-side
+awaiting the curated demo deploy) + 3 N/A, zero other residuals (avatar's
+four new surfaces proven by computed paint on live); wave B at 24/26 ☑
+(UI-36A/B worklists are the evidence record); and the settled browser
+guard proves all 133 preview surfaces — desktop + phone touch — on live
+production, independently confirmed three times (eng3, architect, CI run
+29224888268), with one qualification under investigation: the guard's fit
+dimension is relative (scrollWidth ≤ innerWidth), and the form-field page
+reports a 704px effective viewport at phone width post-UI-52 (UI-68,
+root-classification in progress; an absolute-width guard assertion is
+queued). Named open items, all owned: UI-68, the guard's absolute-fit
+assertion, gallery demos for the field family and the pinned toggle
+example, the sidebar preview's iframe presentation, UI-66's live re-proof
+and UI-67's polish on the next deploy, and message curation nits — none is
+a class-parity or interaction-contract failure. (3) done
 — registry integrity fails on any bare runtime npm dependency (UI-37), and
 the current 58-item package passes it. (4) done — www installs all 58, its
 static coverage test and Playwright browser guard both derive the complete
