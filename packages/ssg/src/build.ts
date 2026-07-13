@@ -35,12 +35,14 @@ export interface StaticRouterRoute {
   path: string;
   href(...args: unknown[]): string;
   entries?: () => Iterable<Record<string, string>> | Promise<Iterable<Record<string, string>>>;
-  render(context: StaticRouterRenderContext): Renderable | Promise<Renderable>;
+  // Optional: a route may be authored render-less (identity-only) for a Worker/
+  // shared catalog and bound on the client. A static build requires it (guarded).
+  render?(context: StaticRouterRenderContext): Renderable | Promise<Renderable>;
   metadata?: StaticRouterMetadata | BivariantCallback<[StaticRouterRenderContext], StaticRouterMetadata>;
 }
 
 export interface StaticRouterNotFound {
-  render(context: { url: URL }): Renderable | Promise<Renderable>;
+  render?(context: { url: URL }): Renderable | Promise<Renderable>;
   metadata?: StaticRouterMetadata | BivariantCallback<[{ url: URL }], StaticRouterMetadata>;
 }
 
@@ -182,6 +184,9 @@ async function renderRouterPages<Context extends Record<string, unknown>>(
       if (!match || match.notFound || match.route !== route) {
         throw new Error(`Router did not match its generated static URL: ${href}`);
       }
+      if (!route.render) {
+        throw new Error(`Route requires a render to build statically (bind it before buildStaticSite): ${route.path}`);
+      }
       const content = await route.render({
         url: match.url,
         params: match.params,
@@ -237,6 +242,9 @@ async function renderNotFound<Context extends Record<string, unknown>>(
     metadata,
     notFound: true,
   };
+  if (!definition.render) {
+    throw new Error('notFound requires a render to build statically (bind it before buildStaticSite)');
+  }
   const content = await definition.render({ url });
   return applyShell(config, {
     path: '/404.html',

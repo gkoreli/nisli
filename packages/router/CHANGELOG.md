@@ -4,6 +4,28 @@ All notable changes to `@nisli/router`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
+## 0.4.0 — 2026-07-13
+
+Render-separated route definitions with one identity — a strict-boundary
+monorepo (`shared` must not reference client render modules, even dynamically)
+can now author the whole catalog in its pure `shared` package.
+
+- **`route()`/`notFound()` `render` is optional**: a route may be authored as
+  pure identity (path, param/query codecs, metadata, redirects) with no render —
+  safe for a `shared` package and the `@nisli/router/catalog` subpath.
+- **`bindRenders(catalog, { name: renderer })`**: typed client-side binding that
+  attaches render implementations keyed by route name, with **compile-time
+  exhaustiveness** (a missing or extra name is a type error) and per-route
+  **context types flowing from the definition**. Identity is retained — binding
+  adds behavior only; it never re-declares a path.
+- **Worker path unchanged**: `createMatcher`/`defineRoutes` accept the
+  render-less catalog directly (matching, `href()`, and metadata all derive from
+  the single shared definition).
+- Navigating to an unbound route throws a clear "bind it with bindRenders()"
+  error; a static build likewise requires bound renders.
+- Additive/non-breaking (`render` widened to optional). SSG's structural route
+  type relaxes `render` to optional with a build-time guard.
+
 ## 0.3.0 — 2026-07-13
 
 Worker single-source-of-truth: an edge Worker can consume the same authored

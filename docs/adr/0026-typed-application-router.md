@@ -924,3 +924,74 @@ Additive and non-breaking: new `@nisli/router/catalog` subpath, a widened
 changed. Shipped as **0.3.0** (additive minor per repo convention). The larger
 application-level error-fallback renderer/metadata API (0.2.0 item D) remains
 deferred.
+
+## 0.4.0 Render-Separated Definitions (2026-07-13)
+
+erent's edge/client/shared split (`client → shared`, `server → shared`, and
+`shared` must not reference client modules — even via dynamic `import()`) could
+not place the one route catalog in `shared`, because 0.3.0's `route()` required
+a `render` callback, and render targets are client modules. The Worker needs
+the route *identity* (paths, codecs, metadata, redirects); only the client needs
+render.
+
+### Decision: optional `render` + typed `bindRenders` (not a def/compose split)
+
+Two shapes were considered: (a) a separate identity builder (`routeDef()`) plus
+a compose step, or (b) make `render` optional on the existing `route()` and add
+a client binding step. **We chose (b).** Rationale:
+
+- **One builder, one identity.** `route('/x', { params, query, metadata })`
+  authors identity; the same object gains render later. A def/compose split
+  introduces a second builder and a second object per route, inviting
+  path/identity drift — the exact failure ADR 0026 exists to prevent.
+- **Smallest additive surface.** `render` widening from required to optional is
+  non-breaking; existing catalogs (render inline) are unchanged.
+- **Purity preserved.** A render-less `route()` references no client module, so
+  it is authored in `shared` and re-exported from `@nisli/router/catalog` with
+  the 0.3.0 purity guarantees intact.
+
+### The binding step
+
+```ts
+bindRenders(catalog, {
+  home:  () => import('./pages/home').then((m) => m.Home()),
+  about: ({ params }) => import('./pages/about').then((m) => m.About(params)),
+  notFound: () => import('./pages/nf').then((m) => m.NotFound()),
+});
+```
+
+- **Exhaustive at compile time.** `RenderBindings<Catalog>` is the map over the
+  catalog's renderable keys (routes + `notFound`; redirects are excluded). A
+  missing key, an extra key, or a redirect key is a type error.
+- **Context-typed.** Each renderer's context is `RouteContext<Path, Q, P>`
+  derived from that route's definition, so `params`/`query` carry their codec
+  types.
+- **Identity-preserving.** `bindRenders` returns entries that reuse the same
+  path, codecs, and metadata (frozen copies with `render` added); `href()`,
+  matching, and metadata are unchanged. `defineRouter(bindRenders(catalog, …))`
+  is the client composition.
+
+### Placement (blessed dependency graph)
+
+```
+shared/routes.ts ─▶ @nisli/router/catalog   (route/redirect/notFound render-less; pure)
+     ▲     ▲
+client → shared    server → shared
+     │     │
+client: defineRouter(bindRenders(catalog, { … dynamic import client pages … }))
+server: createMatcher(catalog)   // render-less; identity + metadata only
+```
+
+No `server → client`, no `shared → client`, no `shared → framework runtime`, and
+one route identity in `shared`. Render *targets* live only in the client's
+`bindRenders` call. This is verified by an empirical two-module probe
+(`render-binding.test.ts`): a render-less catalog matches through `createMatcher`
+(Worker) and, after `bindRenders`, renders through `defineRouter` (client) with
+identical `href()` identity.
+
+### Runtime & build guards
+
+Navigating to an unbound route throws `Route "…" has no render; bind it with
+bindRenders() before defineRouter()`. `@nisli/ssg` relaxes its structural route
+`render` to optional and throws at build time if an unbound route is expanded
+statically. Semver: additive minor → **0.4.0**.

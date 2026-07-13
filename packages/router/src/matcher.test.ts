@@ -162,6 +162,25 @@ describe('pure matcher', () => {
     }
   });
 
+  it('matches a render-less (identity-only) catalog and derives href + metadata', () => {
+    // A pure catalog authored without render (Worker/shared package).
+    const catalog = {
+      about: route('/:locale/about', {
+        params: { locale: enumParam(['en', 'ka'] as const) },
+        metadata: ({ params }) => ({ lang: params.locale, canonical: `https://x/${params.locale}/about` }),
+      }),
+      notFound: notFound({ metadata: { title: '404' } }),
+    };
+    const match = createMatcher(catalog); // Worker path unchanged: no render needed
+    const m = match('/ka/about');
+    expect(m?.name).toBe('about');
+    expect(m?.metadata).toEqual({ lang: 'ka', canonical: 'https://x/ka/about' });
+    // Identity: href derives from the same definition, no render required.
+    expect(catalog.about.href({ params: { locale: 'en' } })).toBe('/en/about');
+    expect(match('/fr/about')?.notFound).toBe(true);
+    expect(catalog.about.render).toBeUndefined();
+  });
+
   it('defineRoutes base-prefixes redirect targets like defineRouter', () => {
     const catalog = { legacy: redirect('/old', '/new'), page: route('/new', { render: noop }) };
     const matcher = createMatcher(defineRoutes(catalog, { base: '/app/' }));

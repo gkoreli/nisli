@@ -1,5 +1,30 @@
-import { defineRouter, enumParam, numberParam, optional, redirect, route, stringParam } from './index.js';
+import { bindRenders, defineRouter, enumParam, notFound, numberParam, optional, redirect, route, stringParam } from './index.js';
 import { html } from '@nisli/core';
+
+// bindRenders: render-less identity catalog + exhaustive, context-typed binding.
+const identityCatalog = {
+  home: route('/', {}),
+  post: route('/posts/:id', { params: { id: numberParam() } }),
+  legacy: redirect('/old', '/'),
+  notFound: notFound({ metadata: { title: '404' } }),
+};
+
+bindRenders(identityCatalog, {
+  home: () => html``,
+  post: ({ params }) => {
+    const id: number = params.id; // ctx type flows from the definition's codec
+    void id;
+    return html``;
+  },
+  notFound: ({ url }) => { void url; return html``; },
+});
+
+// @ts-expect-error missing a required render key (post)
+bindRenders(identityCatalog, { home: () => html``, notFound: () => html`` });
+// @ts-expect-error extra key that is not a renderable route
+bindRenders(identityCatalog, { home: () => html``, post: () => html``, notFound: () => html``, legacy: () => html`` });
+// @ts-expect-error redirects are not renderable and must not appear
+bindRenders(identityCatalog, { home: () => html``, post: () => html``, notFound: () => html``, nope: () => html`` });
 
 // Path-parameter codecs refine params to their codec type and re-serialize them.
 const localized = route('/:locale/posts/:id', {

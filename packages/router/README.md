@@ -240,32 +240,41 @@ import `@nisli/core` for *types only*). Import them from the side-effect-free
 catalog the browser does — for HTTP status, redirect targets, and the initial
 canonical/hreflang metadata — without ever loading the component runtime.
 
-Author the catalog once. Route `render` callbacks must use dynamic `import()` so
-the Worker (which matches and reads metadata but never calls `render`) never
-pulls page/component chunks:
+Author the identity once (render-less), then bind render targets on the client.
+This keeps a strict `shared` package free of any client reference — `render` is
+optional, so the catalog carries only paths, codecs, and metadata:
 
 ```ts
-// routes.catalog.ts — shared, environment-neutral
+// routes.catalog.ts — shared, environment-neutral (no client import)
 import { route, redirect, notFound, enumParam } from '@nisli/router/catalog';
 
 export const catalog = {
-  home: route('/', { render: async () => (await import('./pages/home.js')).HomePage({}) }),
+  home: route('/', { metadata: { title: 'Home' } }),
   about: route('/:locale/about', {
     params: { locale: enumParam(['en', 'ka']) },
     metadata: ({ params }) => ({ lang: params.locale, canonical: `https://x.dev/${params.locale}/about` }),
-    render: async ({ params }) => (await import('./pages/about.js')).AboutPage(params),
   }),
   legacy: redirect('/old', '/'),
-  notFound: notFound({ render: async () => (await import('./pages/nf.js')).NotFound({}) }),
+  notFound: notFound({ metadata: { title: 'Not found' } }),
 };
 ```
 
 ```ts
-// client.ts — browser
-import { defineRouter } from '@nisli/router';
+// client.ts — browser: bind render targets (keyed, compile-time exhaustive)
+import { defineRouter, bindRenders } from '@nisli/router';
 import { catalog } from './routes.catalog.js';
-export const AppRouter = defineRouter(catalog);
+
+export const AppRouter = defineRouter(bindRenders(catalog, {
+  home:  () => import('./pages/home.js').then((m) => m.HomePage({})),
+  about: ({ params }) => import('./pages/about.js').then((m) => m.AboutPage(params)),
+  notFound: () => import('./pages/nf.js').then((m) => m.NotFound({})),
+}));
 ```
+
+`bindRenders` is exhaustive: a missing or extra route name is a type error, and
+each renderer's `params`/`query` carry their codec types. Route `render` may also
+be authored inline (single-package apps) — `bindRenders` is for the strict
+`client`/`server`/`shared` split where render targets must stay out of `shared`.
 
 ```ts
 // worker.ts — edge (no @nisli/core runtime in the bundle)

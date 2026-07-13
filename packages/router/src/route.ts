@@ -80,7 +80,13 @@ export type RouteRenderer<Path extends string, Q extends QuerySchema, P> =
 export interface RouteOptions<Path extends string, Q extends QuerySchema, P extends PathCodecs<Path>> {
   params?: P;
   query?: Q;
-  render: RouteRenderer<Path, Q, P>;
+  /**
+   * Page renderer. Optional so a route can be authored as pure *identity*
+   * (path, codecs, metadata) in an environment-neutral catalog — an edge Worker
+   * / `shared` package that must not reference client render modules. The client
+   * attaches render with {@link bindRenders} before `defineRouter`.
+   */
+  render?: RouteRenderer<Path, Q, P>;
   entries?: () => Iterable<ResolvedParams<Path, P>> | Promise<Iterable<ResolvedParams<Path, P>>>;
   metadata?: RouteMetadata | ((context: RouteContext<Path, Q, P>) => RouteMetadata);
 }
@@ -114,7 +120,9 @@ export interface RouteDefinition<
   readonly path: Path;
   readonly params: P;
   readonly query: Q;
-  readonly render: RouteRenderer<Path, Q, P>;
+  /** Present once bound (client) or authored inline; absent for a pure
+   *  identity-only definition consumed by the matcher/Worker. */
+  readonly render?: RouteRenderer<Path, Q, P>;
   readonly entries?: RouteOptions<Path, Q, P>['entries'];
   readonly metadata?: RouteOptions<Path, Q, P>['metadata'];
   href(...args: NeedsHrefOptions<Path, Q, P> extends true
@@ -216,14 +224,60 @@ export function route<
   });
 }
 
+export type NotFoundRenderer = (context: { url: URL }) => TemplateResult | Promise<TemplateResult>;
+
 export interface NotFoundDefinition {
   readonly kind: 'not-found';
-  readonly render: (context: { url: URL }) => TemplateResult | Promise<TemplateResult>;
+  /** Optional for the same reason as route `render`: identity/metadata may live
+   *  in a pure catalog and be bound on the client with {@link bindRenders}. */
+  readonly render?: NotFoundRenderer;
   readonly metadata?: RouteMetadata | ((context: { url: URL }) => RouteMetadata);
 }
 
-export function notFound(options: Omit<NotFoundDefinition, 'kind'>): NotFoundDefinition {
+export function notFound(options: Omit<NotFoundDefinition, 'kind'> = {}): NotFoundDefinition {
   return Object.freeze({ kind: 'not-found', ...options });
+}
+
+/** The renderer type for a catalog entry — context inferred from its definition. */
+export type BoundRenderer<Def> =
+  Def extends RouteDefinition<infer Path, infer Q, infer P> ? RouteRenderer<Path, Q, P>
+    : Def extends NotFoundDefinition ? NotFoundRenderer
+    : never;
+
+/** Catalog keys that carry a renderer (routes + notFound; redirects do not). */
+export type RenderableKeys<Catalog> = {
+  [K in keyof Catalog]: Catalog[K] extends RedirectDefinition<any> ? never
+    : Catalog[K] extends RouteDefinition<any, any, any> ? K
+    : Catalog[K] extends NotFoundDefinition ? K
+    : never;
+}[keyof Catalog];
+
+/** The exhaustive, context-typed render map for a catalog. */
+export type RenderBindings<Catalog> = {
+  [K in RenderableKeys<Catalog>]: BoundRenderer<Catalog[K]>;
+};
+
+/**
+ * Attach render implementations to a render-less (identity-only) catalog,
+ * keyed by route name. Compile-time exhaustive: a missing or extra name is a
+ * type error, and each renderer's context flows from its route definition.
+ * Identity is retained — the returned entries reuse the same paths, codecs, and
+ * metadata; binding adds behavior only, it never re-declares a route.
+ */
+export function bindRenders<const Catalog extends Record<string, unknown>>(
+  catalog: Catalog,
+  renders: RenderBindings<Catalog>,
+): Catalog {
+  const bindings = renders as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(catalog)) {
+    const kind = (value as { kind?: unknown } | null)?.kind;
+    const renderer = bindings[name];
+    result[name] = renderer && (kind === 'route' || kind === 'not-found')
+      ? Object.freeze({ ...(value as object), render: renderer })
+      : value;
+  }
+  return result as Catalog;
 }
 
 /** Context passed to a redirect's dynamic target resolver. */

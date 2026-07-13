@@ -297,9 +297,13 @@ export class Router {
     }
     this.pendingState.value = true;
     try {
+      const renderer = (match.route as RouteDefinition | NotFoundDefinition).render;
+      if (!renderer) {
+        throw new Error(`Route "${match.name ?? 'notFound'}" has no render; bind it with bindRenders() before defineRouter()`);
+      }
       const output = match.notFound
-        ? await (match.route as NotFoundDefinition).render({ url: match.url })
-        : await (match.route as RouteDefinition).render({
+        ? await (renderer as NotFoundDefinition['render'])!({ url: match.url })
+        : await (renderer as NonNullable<RouteDefinition['render']>)({
             url: match.url,
             params: match.params as Record<string, string>,
             query: match.query,
