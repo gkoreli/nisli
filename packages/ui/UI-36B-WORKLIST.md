@@ -351,3 +351,29 @@ scroll-area) + 5 open: toast (UI-62 row fix), toggle + message-scroller +
 sidebar-iframe (all on the WWW-15 wave deploy), message (curation polish)
 = 26. Every open term rides the wave or its named ticket; only performed
 rechecks flip.
+
+## Recheck round 3 — vs live 02dfe720 (arch, 2026-07-12 evening)
+
+- **toast ☑** — UI-62 verified live by rect geometry: icon and title share
+  y=823 in a `gap-2` heading row (was stacked); typed toasts fire with
+  correct icons. Note: the demo offers no untyped trigger, so the
+  default-no-icon contract remains test-covered only (UI-50 suite).
+- **toggle ☑ (component)** — interactivity verified live: the uncontrolled
+  toggle flips on↔off with accent bg both directions. The demo's FIRST
+  toggle stays pinned (`pressed: true` controlled example) — the approved
+  `defaultPressed` example fix rides the next www batch (queued, eng3).
+- **message — avatar sub-check ☑** (UI-60 verified live: align-end avatar
+  beside content, 8px gap, self-end — mirror of align-start). Two nits
+  ticketed **UI-67**: name/timestamp 0px gap (flex swallows whitespace);
+  inline `code` computes display:block and orphans the period.
+- **message-scroller ✗ → UI-66**: hydrated but NOT pinned to bottom on load
+  (scrollTop=0, 206px from bottom) — stick-to-bottom inactive under
+  replace-hydration; registry fix + hydrated-mount regression.
+
+**Wave-B FINAL equation:** 24 ☑ of 26 surfaces. Open: message-scroller
+(UI-66, owned) + sidebar PREVIEW presentation (iframe strategy, cdx2
+queued — the component itself is class-audited + desktop-live-verified +
+mobile-drawer-proven; only the /ui/sidebar preview box remains dishonest).
+Plus three named polish items with owners: UI-67 ×2, toggle example.
+Every open item is ticketed, owned, and none blocks a truthful 1.0 call —
+they are the exact known-opens the go/no-go package presents.
