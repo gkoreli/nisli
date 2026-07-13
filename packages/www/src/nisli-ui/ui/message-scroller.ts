@@ -16,7 +16,7 @@
  *
  * v1 limits (documented): a single stick-to-bottom mode (no per-item
  * scrollAnchor targeting — the prop is accepted and reflected as an attribute);
- * autoscroll triggers on content mutation via a MutationObserver.
+ * autoscroll reacts after layout to content mutation and resize while pinned.
  *
  * This file was copied into your project by `nisli-ui` — you own it.
  */
@@ -91,8 +91,14 @@ export const MessageScroller = component<MessageScrollerSectionProps, typeof mes
     const isAtStart = signal<boolean>(true);
     const isAtEnd = signal<boolean>(true);
     let viewportEl: HTMLElement | null = null;
+    let contentEl: HTMLElement | null = null;
     let sticky = true;
+    let initialized = false;
+    let disposed = false;
     let observer: MutationObserver | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    let layoutFrame = 0;
+    let settleFrame = 0;
 
     const update = (): void => {
       const v = viewportEl;
@@ -114,28 +120,77 @@ export const MessageScroller = component<MessageScrollerSectionProps, typeof mes
       }
     };
 
+    const cancelScheduledPin = (): void => {
+      if (layoutFrame) cancelAnimationFrame(layoutFrame);
+      if (settleFrame) cancelAnimationFrame(settleFrame);
+      layoutFrame = 0;
+      settleFrame = 0;
+    };
+    const schedulePostLayout = (forceInitial = false): void => {
+      if (disposed || !viewportEl || !contentEl) return;
+      cancelScheduledPin();
+      layoutFrame = requestAnimationFrame(() => {
+        layoutFrame = 0;
+        settleFrame = requestAnimationFrame(() => {
+          settleFrame = 0;
+          if (disposed) return;
+          if (forceInitial || sticky) scrollToEnd();
+          else update();
+          initialized = true;
+        });
+      });
+    };
+    const tryInitialPin = (): void => {
+      if (!initialized && viewportEl && contentEl) schedulePostLayout(true);
+    };
+
     const state: MessageScrollerState = {
       isAtStart,
       isAtEnd,
       scrollToStart,
       scrollToEnd,
-      handleScroll: update,
-      setViewport: (el) => {
-        viewportEl = el;
+      handleScroll: () => {
+        // A real scroll before the scheduled initial pin is user intent: cancel
+        // the forced pin so hydration never yanks someone who already moved.
+        if (!initialized) {
+          initialized = true;
+          cancelScheduledPin();
+        }
         update();
       },
+      setViewport: (el) => {
+        viewportEl = el;
+        resizeObserver?.observe(el);
+        tryInitialPin();
+      },
       setContent: (el) => {
-        if (typeof MutationObserver === 'undefined') return;
-        observer = new MutationObserver(() => {
-          // New content: keep the bottom pinned only if we were already there.
-          if (sticky) scrollToEnd();
-          else update();
-        });
-        observer.observe(el, { childList: true, subtree: true, characterData: true });
+        contentEl = el;
+        if (typeof MutationObserver !== 'undefined') {
+          observer = new MutationObserver(() => {
+            // New content: keep the bottom pinned only if we were already there.
+            if (sticky) schedulePostLayout();
+            else update();
+          });
+          observer.observe(el, { childList: true, subtree: true, characterData: true });
+        }
+        if (typeof ResizeObserver !== 'undefined') {
+          resizeObserver = new ResizeObserver(() => {
+            if (sticky) schedulePostLayout();
+            else update();
+          });
+          resizeObserver.observe(el);
+          if (viewportEl) resizeObserver.observe(viewportEl);
+        }
+        tryInitialPin();
       },
     };
     MessageScrollerContext.provide(host, state);
-    onCleanup(() => observer?.disconnect());
+    onCleanup(() => {
+      disposed = true;
+      cancelScheduledPin();
+      observer?.disconnect();
+      resizeObserver?.disconnect();
+    });
 
     const className = props.className;
     const classes = computed(() =>
