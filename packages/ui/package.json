@@ -65,6 +65,8 @@
     "e2e:context-touch": "node scripts/context-menu-touch-e2e.mjs",
     "e2e:context-touch:cleanup": "node scripts/context-menu-touch-e2e.mjs --self-test-cleanup",
     "e2e:carousel-touch": "node scripts/carousel-touch-e2e.mjs",
-    "e2e:carousel-touch:cleanup": "node scripts/carousel-touch-e2e.mjs --self-test-cleanup"
+    "e2e:carousel-touch:cleanup": "node scripts/carousel-touch-e2e.mjs --self-test-cleanup",
+    "e2e:message-scroller": "node scripts/message-scroller-e2e.mjs",
+    "e2e:message-scroller:cleanup": "node scripts/message-scroller-e2e.mjs --self-test-cleanup"
   }
 }

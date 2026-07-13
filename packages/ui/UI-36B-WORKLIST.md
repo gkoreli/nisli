@@ -172,6 +172,15 @@ viewport width, eliminating cumulative 16px drift. `data-active`, `aria-hidden`,
 compiled registry component at 390px proves CDP swipe/tap/cross-axis negatives,
 painted-slide bounds, track clamp, buttons, and keyboard.
 
+**MessageScroller hydration pin (UI-66):** initial replace hydration now pins
+after two layout frames, once projected rows have real geometry. Mutation and
+resize changes share that post-layout scheduler only while the viewport remains
+within the bottom threshold; a user scroll cancels a pending initial pin and
+disables sticky updates until they return to the end. Observer and RAF resources
+are disconnected/cancelled on teardown. Unit and actual compiled Chromium 390px
+proofs cover initial late layout, appended rows, resize, user scroll preservation,
+and the explicit scroll-to-end control.
+
 Mechanical audit of registry class lists for direct-child arbitrary variants,
 `*:` variants, positional first/last rules, and `divide-x/y` utilities. The
 classification is about the actual rendered target, not token similarity.

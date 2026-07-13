@@ -28,6 +28,11 @@ const q = (root: ParentNode, slot: string) =>
 function flush2(): void {
   flush();
 }
+async function settleLayout(): Promise<void> {
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  flush2();
+}
 /** Give the viewport a fake layout so the at-edge math is meaningful. */
 function fakeLayout(el: HTMLElement, scrollHeight: number, clientHeight: number): void {
   Object.defineProperty(el, 'scrollHeight', { configurable: true, get: () => scrollHeight });
@@ -152,6 +157,18 @@ describe('MessageScroller — scroll position', () => {
 });
 
 describe('MessageScroller — stick to bottom', () => {
+  it('pins to the final bottom after hydrated content layout settles', async () => {
+    const c = mountScroller();
+    const vp = q(c, 'message-scroller-viewport');
+    // Mount initially observed a zero-layout viewport; hydration/layout then
+    // supplies the real geometry before the two-frame pin.
+    fakeLayout(vp, 1000, 200);
+    expect(vp.scrollTop).toBe(0);
+    await settleLayout();
+    expect(vp.scrollTop).toBe(1000);
+    expect(endBtn(c).getAttribute('data-active')).toBe('false');
+  });
+
   it('a new message autoscrolls only while pinned to the bottom', async () => {
     const c = mountScroller();
     flush2();
@@ -166,8 +183,7 @@ describe('MessageScroller — stick to bottom', () => {
     fakeLayout(vp, 1400, 200);
     content.appendChild(document.createElement('div'));
     await Promise.resolve();
-    await Promise.resolve();
-    flush2();
+    await settleLayout();
     expect(vp.scrollTop).toBe(1400);
 
     // Now scroll up (not pinned); a new message must NOT yank the view down.
@@ -178,8 +194,7 @@ describe('MessageScroller — stick to bottom', () => {
     fakeLayout(vp, 1800, 200);
     content.appendChild(document.createElement('div'));
     await Promise.resolve();
-    await Promise.resolve();
-    flush2();
+    await settleLayout();
     expect(vp.scrollTop).toBe(0);
   });
 });

@@ -183,6 +183,12 @@ mandatory snap cleanup. Step size comes from rendered slide-to-slide geometry
 so upstream spacing utilities cannot accumulate drift. The settled index is
 the single source for active/hidden/current ARIA and navigation state.
 
+**MessageScroller post-layout pin (UI-66):** replace hydration cannot treat
+setup-time zero geometry as the final scroll position. Initial bottom pinning,
+sticky mutations, and resize changes settle after two animation frames; user
+scroll intent cancels a pending initial pin and remains authoritative away from
+the bottom. Mutation/resize observers and queued frames are lifecycle-owned.
+
 ### 3. Styling and theming: Tailwind v4 + shadcn token layer
 
 - Consumers are expected to use **Tailwind CSS v4** (CSS-first config). The
