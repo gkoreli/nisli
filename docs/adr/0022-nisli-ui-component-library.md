@@ -160,7 +160,8 @@ Every upstream port must mechanically classify direct-child (`>` / `*:`),
 positional (`first:` / `last:`), and divide utilities against Nisli's actual
 rendered DOM. Verbatim utility-token equality is not parity when a transparent
 host prevents the selector from reaching the painted node. The complete census
-and explicitly ticketed residuals live in `packages/ui/UI-36B-WORKLIST.md`.
+and explicitly ticketed residuals live in
+[`docs/worklists/ui/UI-36B-WORKLIST.md`](../worklists/ui/UI-36B-WORKLIST.md).
 UI-57 applies the same narrow translation to positional semantics: ToggleGroup
 and InputOTP groups derive first/last from their transparent child-host order,
 while Accordion removes the final painted item's border through its last item

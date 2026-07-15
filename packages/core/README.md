@@ -1,123 +1,167 @@
 # nisli
 
-A reactive web component framework. Signals, templates, dependency injection — no build step, no virtual DOM, no dependencies.
+A small, reactive web-component framework built on browser standards. Nisli
+combines fine-grained signals, typed component factories, light-DOM templates,
+dependency injection, routing, and static generation without a virtual DOM or
+a framework compiler.
 
 ## Install
 
-```bash
+```sh
 npm install @nisli/core
 ```
 
-To add the source-first component registry with Tailwind v4 animations:
+`@nisli/core` has no runtime dependencies. It works with TypeScript or plain
+JavaScript and does not require a framework-specific build step.
 
-```bash
-npm install @nisli/core
-npm install -D @nisli/ui tailwindcss tw-animate-css
-npx nisli-ui init
-```
+## Quick start
 
-Then import `tailwindcss`, `tw-animate-css`, and the copied
-`nisli-ui/styles/theme.css` in that order in your entry stylesheet.
-
-## Quick Start
-
-```typescript
-import { signal, component, html } from '@nisli/core';
+```ts
+import { component, html, signal } from '@nisli/core';
 
 const Counter = component('x-counter', () => {
   const count = signal(0);
+
   return html`
     <button @click=${() => count.value++}>
       Count: ${count}
     </button>
   `;
 });
+
+html`${Counter({})}`.mount(document.body);
 ```
 
-## Features
+Signals are read with `.value` in TypeScript and passed directly to templates.
+Only the bound text, attribute, class, or child slot updates when a signal
+changes.
 
-- **Signals** — Fine-grained reactivity with `signal`, `computed`, `effect`
-- **Components** — Web Components with a composition-style setup function
-- **Templates** — Tagged template literals with automatic signal binding
-- **Dependency Injection** — `inject` any class as a singleton, `provide` overrides for testing
-- **Queries** — Declarative async data loading with caching and auto-refetch
-- **Event Emitters** — Typed event bus with auto-disposal in component context
-- **Lifecycle** — `onMount`, `onCleanup`, `useHostEvent`
-- **Refs** — Direct element access via `ref()`
-- **Control Flow** — `when()` for toggles, `each()` for keyed list rendering
+## Components that also work as HTML
 
-## API
+`component()` registers a standard custom element and returns its typed factory.
+Factory callers can pass plain values or signals. The optional `attrs` map makes
+selected host attributes live, so plain-HTML consumers and factory consumers
+share the same component implementation.
 
-```typescript
-// Reactivity
-signal(value)           // Reactive signal
-computed(() => expr)    // Derived signal (lazy, cached)
-effect(() => { ... })   // Side effect that tracks dependencies
+```ts
+import {
+  children,
+  component,
+  html,
+  type ComponentAttrs,
+} from '@nisli/core';
 
-// Components
-component('tag-name', (props, host) => html`...`)
-component<Props>('tag-name', (props, host) => html`...`)
+interface DisclosureProps {
+  open?: boolean;
+  children?: unknown;
+}
 
-// Templates — signals are implicit, no .value needed
-html`<div>${count}</div>`
-html`<button @click=${handler}>Go</button>`
-html`<div class:active=${isActive}>...</div>`
+const attrs = {
+  open: 'boolean',
+} satisfies ComponentAttrs<DisclosureProps>;
 
-// Control flow
-when(condition, () => html`...`)
-each(items, item => item.id, (item) => html`...`)
-
-// Dependency injection — class IS the token
-inject(MyService)                    // Auto-creates singleton
-provide(MyService, () => mock)       // Override (testing)
-
-// Queries
-const { data, loading, error } = query(
-  () => ['tasks', id.value],         // Cache key (tracked)
-  () => api.getTasks(id.value),      // Fetcher
-)
-
-// Lifecycle
-onMount(() => { ... })
-onCleanup(() => { ... })
-useHostEvent(host, 'click', handler)
-
-// Refs
-const el = ref<HTMLDivElement>()
-html`<div ref="${el}">...</div>`
-
-// Events
-class Nav extends Emitter<{ select: { id: string } }> {}
-inject(Nav).emit('select', { id })
-inject(Nav).on('select', ({ id }) => { ... })
+const Disclosure = component<DisclosureProps, typeof attrs>(
+  'x-disclosure',
+  (props) => {
+    const content = children('Nothing to show');
+    return html`
+      <section class:open=${props.open}>
+        ${content}
+      </section>
+    `;
+  },
+  { attrs },
+);
 ```
 
-## Static Site Generation
+```ts
+html`${Disclosure({ open: true, children: 'Factory content' })}`;
+```
 
-Use the companion `@nisli/ssg` package when you want build-time pages,
-publication output, feeds, or other DOM-free static output.
+```html
+<x-disclosure open>Plain HTML content</x-disclosure>
+```
 
-```typescript
-import { buildStaticSite } from '@nisli/ssg';
+Declared string, boolean, number, and forwarded attributes react to
+`setAttribute()` after mount. `children(fallback?)` projects factory children,
+initial light-DOM children, and late parser children through one reactive slot.
 
-await buildStaticSite({
-  outDir: 'dist',
-  routes: [
-    { path: '/', render: () => '<article>...</article>' },
-  ],
+## Core capabilities
+
+- Fine-grained reactivity: `signal`, `computed`, `effect`, `untrack`, `flush`,
+  and awaitable `tick`.
+- Typed web components: composition-style synchronous setup, signal-backed
+  props, typed factories, and live attribute declarations.
+- Safe light-DOM templates: signal bindings, typed events and modifiers,
+  `class:*`, trusted `html:inner`, refs, and dynamic HTML tags through `el()`.
+- Stable control flow: lazy `when()` branches and keyed `each()` lists that
+  preserve focus, scroll position, and component state.
+- Two scopes of dependency injection: app-wide singleton services with
+  `inject`/`provide`, and portal-safe subtree state with `createContext`.
+- Lifecycle and resilience: `onMount`, `onCleanup`, `useHostEvent`, automatic
+  effect/event cleanup, move-resilient disconnects, and component error
+  boundaries.
+- Async data loading: `query` and `QueryClient` provide caching, invalidation,
+  stale-response guards, and reactive refetching.
+- Typed application events with `Emitter` and automatic component cleanup.
+
+## Ecosystem
+
+The Nisli repository contains four independently versioned packages and the
+site that exercises them together:
+
+- [`@nisli/core`](https://github.com/gkoreli/nisli/tree/main/packages/core) —
+  component authoring and browser runtime.
+- [`@nisli/router`](https://github.com/gkoreli/nisli/tree/main/packages/router)
+  — one typed route catalog for browser, Vite, static builds, and edge/Worker
+  matching. It includes codecs, redirects, managed SEO metadata,
+  render-separated catalogs, and accessible outlets.
+- [`@nisli/ssg`](https://github.com/gkoreli/nisli/tree/main/packages/ssg) —
+  renders normal Nisli templates and the shared application router to static
+  output.
+- [`@nisli/ui`](https://github.com/gkoreli/nisli/tree/main/packages/ui) —
+  “shadcn for Nisli”: a CLI and source registry that copy accessible, Tailwind
+  v4 components into your project.
+- [`packages/www`](https://github.com/gkoreli/nisli/tree/main/packages/www) —
+  the private nisli.dev application and end-to-end integration surface.
+
+### Source-owned UI components
+
+```sh
+npm install -D @nisli/ui tailwindcss tw-animate-css
+npx nisli-ui init
+npx nisli-ui add button dialog tabs
+```
+
+Import `tailwindcss`, `tw-animate-css`, and the copied
+`nisli-ui/styles/theme.css` in that order. The copied `ui-*` components support
+typed Nisli factories and plain HTML; your application owns the resulting
+source.
+
+### One router across environments
+
+```ts
+import { html } from '@nisli/core';
+import { defineRouter, route } from '@nisli/router';
+
+export const AppRouter = defineRouter({
+  home: route('/', {
+    metadata: { title: 'Home' },
+    render: () => html`<h1>Home</h1>`,
+  }),
 });
 ```
 
-`@nisli/core` stays focused on component authoring and the browser runtime.
-`@nisli/ssg` owns static site generation; static rendering internals stay behind
-the build tool.
+Mount `AppRouter({})` in the browser, pass the same router to
+`nisliRoutes(AppRouter)` for Vite direct-route fallback, and pass it to
+`buildStaticSite({ router: AppRouter })` for static output. Larger applications
+can author an environment-neutral catalog from `@nisli/router/catalog` and
+attach client renderers later with `bindRenders()`.
 
-## Vite HMR Plugin
-
-`@nisli/core/vite-hmr` — a dev-only Vite plugin for granular component hot module replacement. Edit a component, it re-mounts in place with no page reload.
+### Vite HMR
 
 ```ts
-// vite.config.ts
+import { defineConfig } from 'vite';
 import { nisliHmr } from '@nisli/core/vite-hmr';
 
 export default defineConfig({
@@ -125,21 +169,18 @@ export default defineConfig({
 });
 ```
 
-Used in production by [backlog-mcp](https://github.com/gkoreli/backlog-mcp) — a single Vite process serves the SPA + API on one origin, with component edits hot-swapping via this plugin.
+The development-only plugin remounts an edited component in place without a
+full page reload.
 
-## Size
-
-~2,600 lines of TypeScript. Zero dependencies.
+Architecture decisions live in the
+[`docs/adr`](https://github.com/gkoreli/nisli/tree/main/docs/adr) directory.
+Package-specific usage and release history live beside each package.
 
 ## Inspiration
 
-nisli stands on the shoulders of giants:
-
-- [React](https://react.dev) — Component model, declarative UI
-- [Solid](https://www.solidjs.com) — Signals, fine-grained reactivity, no virtual DOM
-- [Lit](https://lit.dev) — Web Components, tagged template literals
-- [Angular](https://angular.dev) — Dependency injection, typed tokens
-- [Vue](https://vuejs.org) — Composition-style setup functions, reactive system design
+Nisli stands on the shoulders of React's component model, Solid's fine-grained
+reactivity, Lit's web components and templates, Angular's dependency injection,
+and Vue's composition-style authoring.
 
 ## License
 

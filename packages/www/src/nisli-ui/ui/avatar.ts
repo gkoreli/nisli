@@ -235,7 +235,7 @@ export const AvatarGroup = component<AvatarGroupProps>('ui-avatar-group', (props
   // (`[&>*:not(:first-child)>*]:-ms-2`, also covering the AvatarGroupCount chip),
   // and the ring uses the descendant variant `**:` instead of the direct-child
   // `*:`. Same visual, translated for the transparent host. (See the box-model-
-  // through-display:contents rule in UI-36A-WORKLIST.)
+  // through-display:contents rule in docs/worklists/ui/UI-36A-WORKLIST.md.)
   const classes = computed(() =>
     cn(
       'group/avatar-group flex [&>*:not(:first-child)>*]:-ms-2 **:data-[slot=avatar]:ring-2 **:data-[slot=avatar]:ring-background',

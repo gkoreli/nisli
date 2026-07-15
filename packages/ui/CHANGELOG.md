@@ -93,7 +93,9 @@ fixes. No API breaks; requires `@nisli/core` >= 0.52.0 (unchanged).
 - A registry-integrity test bans bare npm imports in every shipped registry
   file (TS AST + CSS `@import`/`url()` scan) — zero-runtime-deps is now
   enforced, not conventional.
-- Visual-parity worklists (`UI-36A/B-WORKLIST.md`) record the per-component
+- Visual-parity worklists
+  ([UI-36A](../../docs/worklists/ui/UI-36A-WORKLIST.md) /
+  [UI-36B](../../docs/worklists/ui/UI-36B-WORKLIST.md)) record the per-component
   audit against the shadcn reference checkout, per the ADR 0022 process
   amendment.
 

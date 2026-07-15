@@ -1,5 +1,12 @@
 # UI-36A — Visual-parity audit worklist (wave A: component names a–l)
 
+> Historical audit evidence, retained with the other UI worklists under `docs/`.
+> This records the wave-A verification state as it was performed;
+> current release status and any accepted follow-ups live in the
+> [`@nisli/ui` North Star](../../../packages/ui/NORTH-STAR.md),
+> [`@nisli/ui` changelog](../../../packages/ui/CHANGELOG.md), and
+> [ADR 0022](../../adr/0022-nisli-ui-component-library.md).
+
 Method (per ADR 0022 visual-parity amendment 2026-07-11, v1 criterion 2): every wave-A component carries TWO verdicts —
 1. **Class-diff verdict** — char-level diff of every `cv`/`cva` base + variant string, `data-slot`/`data-state`/`data-variant`, element structure, and provenance header vs the canonical checkout at `shadcn-ref/apps/v4/registry/new-york-v4/ui`. Divergences logged here — real drift fixed, intentional platform divergences annotated and kept. (Automated audit, done.)
 2. **Side-by-side** — manual eyeball pass (OPEN — 28 of 29 non-N/A rows complete 2026-07-12; ONE event pending: the form-field field-family gallery side-by-side, awaiting eng3's curated Field demo deploy — form-field component truth is already verified local-dist, row 25): the live www gallery preview (`nisli.dev/ui/<name>`, headless-chromium screenshots incl. overlay open-states) vs ui.shadcn.com's default-style demo, covering what class diffs cannot (stacking, focus rings, spacing). Legend: **☑** verified-match · **N/A** nisli-custom, no ui.shadcn.com counterpart · **⚠** flagged (see notes). (⏸ = the formerly-deferred set calendar/carousel/checkbox/command/input-otp, all re-run + resolved post-deploy against 39a8d36.)

@@ -144,7 +144,9 @@ real-browser verified against the built registry — container-flip, both
 transparent-host rule categories — with the live-gallery side-by-side
 awaiting the curated demo deploy) + 3 N/A, zero other residuals (avatar's
 four new surfaces proven by computed paint on live); wave B at 24/26 ☑
-(UI-36A/B worklists are the evidence record); and the settled browser
+([UI-36A](../../docs/worklists/ui/UI-36A-WORKLIST.md) /
+[UI-36B](../../docs/worklists/ui/UI-36B-WORKLIST.md) are the evidence record);
+and the settled browser
 guard proves all 133 preview surfaces — desktop + phone touch — on live
 production, independently confirmed three times (eng3, architect, CI run
 29224888268), with one qualification RESOLVED: the form-field page's 704px
