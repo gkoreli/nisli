@@ -10,6 +10,9 @@ checkpoints (ADR 0022); dates are release dates.
   preserves projected light-DOM children, and provides a synchronous in-place
   HMR remount path. Failed setup also disposes partial effects/templates, and
   reactive error fallbacks are owned through disconnect.
+- Computed values recover after temporary errors when dependencies change, and
+  signal subscriptions now deliver once initially without tracking signals
+  read inside subscriber callbacks.
 
 ## 0.53.0 — 2026-07-12
 

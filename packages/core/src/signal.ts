@@ -92,6 +92,8 @@ const enum NodeState {
   Dirty = 2,        // Definitely needs recalculation
 }
 
+const NO_COMPUTED_ERROR = Symbol('no-computed-error');
+
 interface ReactiveNode {
   state: NodeState;
   /** Signals/computeds this node reads from */
@@ -138,13 +140,13 @@ class SignalImpl<T> implements Signal<T> {
   }
 
   subscribe(fn: (value: T) => void): () => void {
-    // Immediately notify with current value
-    fn(this._node.value);
-    // Create a lightweight effect that calls fn
-    const dispose = effect(() => {
-      fn(this.value);
+    return effect(() => {
+      const value = this.value;
+      // A subscription depends on THIS signal only. Reads performed by the
+      // consumer callback are observational work, not reactive dependencies
+      // of the subscription itself (issue 0004).
+      untrack(() => fn(value));
     });
-    return dispose;
   }
 }
 
@@ -171,6 +173,7 @@ class ComputedImpl<T> implements ReadonlySignal<T> {
   private state: NodeState = NodeState.Dirty; // Start dirty so first read computes
   private sources = new Set<SignalNode<unknown> | ComputedNode<unknown>>();
   private computing = false;
+  private error: unknown = NO_COMPUTED_ERROR;
 
   constructor(fn: () => T) {
     this.compute = fn;
@@ -197,6 +200,10 @@ class ComputedImpl<T> implements ReadonlySignal<T> {
       this.update();
     }
 
+    if (this.error !== NO_COMPUTED_ERROR) {
+      throw this.error;
+    }
+
     return this._node.value;
   }
 
@@ -213,6 +220,7 @@ class ComputedImpl<T> implements ReadonlySignal<T> {
     this.computing = true;
     try {
       const newValue = this.compute();
+      this.error = NO_COMPUTED_ERROR;
       if (!Object.is(this._node.value, newValue)) {
         this._node.value = newValue;
         this._node.lastChanged = ++globalEpoch;
@@ -223,11 +231,17 @@ class ComputedImpl<T> implements ReadonlySignal<T> {
         // re-schedule the very effect performing this read — a spurious
         // double-run that only surfaced once flush() began draining cascades.
       }
+    } catch (error) {
+      this.error = error;
+      throw error;
     } finally {
       this.computing = false;
       activeObserver = prevObserver;
+      // A failed computed remains in an error state, but it must look clean to
+      // notify(): the next dependency write then marks it dirty and propagates
+      // to downstream observers so the computation can recover (issue 0003).
+      this.state = NodeState.Clean;
     }
-    this.state = NodeState.Clean;
   }
 
   /** @internal — called by the ReactiveNode interface when a source changes */
@@ -241,11 +255,10 @@ class ComputedImpl<T> implements ReadonlySignal<T> {
   }
 
   subscribe(fn: (value: T) => void): () => void {
-    fn(this.value);
-    const dispose = effect(() => {
-      fn(this.value);
+    return effect(() => {
+      const value = this.value;
+      untrack(() => fn(value));
     });
-    return dispose;
   }
 
   // ReactiveNode interface — used by dependency tracking

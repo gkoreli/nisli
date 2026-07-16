@@ -67,10 +67,7 @@ describe('signal()', () => {
     const values: string[] = [];
     const unsub = s.subscribe(v => values.push(v));
 
-    // Immediate call
-    expect(values).toEqual(['hello', 'hello']); // effect also runs immediately
-    // Actually subscribe calls fn immediately, then effect also calls fn —
-    // let's verify the contract differently
+    expect(values).toEqual(['hello']);
 
     s.value = 'world';
     flushEffects();
@@ -81,6 +78,25 @@ describe('signal()', () => {
     flushEffects();
     // Should not have been called again
     expect(values.at(-1)).toBe('world');
+  });
+
+  it('subscribe() does not track signals read inside the callback', () => {
+    const source = signal('source');
+    const unrelated = signal('other');
+    const values: string[] = [];
+
+    source.subscribe((value) => {
+      values.push(`${value}:${unrelated.value}`);
+    });
+    expect(values).toEqual(['source:other']);
+
+    unrelated.value = 'changed';
+    flushEffects();
+    expect(values).toEqual(['source:other']);
+
+    source.value = 'next';
+    flushEffects();
+    expect(values).toEqual(['source:other', 'next:changed']);
   });
 });
 
@@ -160,6 +176,65 @@ describe('computed()', () => {
     });
 
     expect(() => selfRef.value).toThrow('Circular dependency');
+  });
+
+  it('recovers after a temporary computed error when a dependency changes', () => {
+    const source = signal(0);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const value = computed(() => {
+      if (source.value === 1) throw new Error('temporary');
+      return source.value;
+    });
+    const seen: number[] = [];
+
+    effect(() => {
+      seen.push(value.value);
+    });
+    expect(seen).toEqual([0]);
+
+    source.value = 1;
+    flushEffects();
+    expect(seen).toEqual([0]);
+
+    // The failed computed subscribed to `source` before throwing. Its state
+    // must allow this later write to re-schedule the downstream effect.
+    source.value = 2;
+    flushEffects();
+    expect(seen).toEqual([0, 2]);
+    errorSpy.mockRestore();
+  });
+
+  it('rethrows a cached computed error until a dependency changes', () => {
+    const source = signal(1);
+    const value = computed(() => {
+      if (source.value === 1) throw new Error('still broken');
+      return source.value;
+    });
+
+    expect(() => value.value).toThrow('still broken');
+    expect(() => value.value).toThrow('still broken');
+    source.value = 2;
+    expect(value.value).toBe(2);
+  });
+
+  it('computed subscribe() notifies once initially and ignores callback dependencies', () => {
+    const source = signal(2);
+    const unrelated = signal('a');
+    const doubled = computed(() => source.value * 2);
+    const values: string[] = [];
+
+    doubled.subscribe((value) => {
+      values.push(`${value}:${unrelated.value}`);
+    });
+    expect(values).toEqual(['4:a']);
+
+    unrelated.value = 'b';
+    flushEffects();
+    expect(values).toEqual(['4:a']);
+
+    source.value = 3;
+    flushEffects();
+    expect(values).toEqual(['4:a', '6:b']);
   });
 
   it('diamond dependency: D recomputes exactly once when A changes', () => {

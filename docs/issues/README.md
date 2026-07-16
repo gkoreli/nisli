@@ -8,8 +8,8 @@ of numbering.
 | --- | --- | --- |
 | [0001 — HMR remount is defeated by deferred teardown](./0001-core-hmr-remount-deferred-teardown.md) | resolved | P0 |
 | [0002 — True reconnect duplicates rendered DOM](./0002-core-reconnect-duplicates-dom.md) | resolved | P0 |
-| [0003 — Throwing computed values cannot recover](./0003-computed-errors-do-not-recover.md) | open | P0 |
-| [0004 — Signal subscriptions over-notify](./0004-signal-subscribe-over-notifies.md) | open | P1 |
+| [0003 — Throwing computed values cannot recover](./0003-computed-errors-do-not-recover.md) | resolved | P0 |
+| [0004 — Signal subscriptions over-notify](./0004-signal-subscribe-over-notifies.md) | resolved | P1 |
 | [0005 — Query deduplicates attempts instead of logical requests](./0005-query-logical-request-coordination.md) | open | P0 |
 | [0006 — Query invalidation does not revalidate active observers](./0006-query-invalidation-revalidates-active.md) | open | P0 |
 | [0007 — Query disable/cache transitions leave stale state](./0007-query-disabled-cache-state-transitions.md) | open | P0 |

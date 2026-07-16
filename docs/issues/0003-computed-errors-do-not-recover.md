@@ -1,7 +1,7 @@
 ---
 title: "0003. Throwing Computed Values Cannot Recover"
 date: 2026-07-16
-status: open
+status: resolved
 ---
 
 # Throwing computed values cannot recover
@@ -26,3 +26,10 @@ downstream effects are never scheduled again.
   recover.
 - Tests cover an effect observing a computed that throws temporarily, then
   succeeds.
+
+## Resolution
+
+Computed values now retain their thrown error while returning to a
+notification-ready clean state. Reads keep rethrowing the cached error until a
+tracked dependency changes; that change marks the computed dirty, propagates
+to downstream observers, and retries normally.

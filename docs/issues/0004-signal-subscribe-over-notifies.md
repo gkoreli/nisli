@@ -1,7 +1,7 @@
 ---
 title: "0004. Signal Subscriptions Over-Notify"
 date: 2026-07-16
-status: open
+status: resolved
 ---
 
 # Signal subscriptions over-notify
@@ -26,3 +26,10 @@ dependencies and retrigger the subscription.
 - Later notifications occur only when the subscribed signal changes.
 - Signals read inside the callback do not become dependencies.
 - Existing unsubscribe and component auto-disposal behavior remains intact.
+
+## Resolution
+
+Writable and computed subscriptions now use one immediate effect delivery.
+The target value is read reactively, then the consumer callback runs inside
+`untrack()`, preventing callback-local signal reads from widening the
+subscription.
