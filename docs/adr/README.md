@@ -32,3 +32,4 @@ They moved with the framework when `@nisli/core` became a standalone package.
 - [0025. Core Proposals Surfaced by `@nisli/ui` — Gap & Ergonomics Tracker](./0025-core-proposals-from-ui.md) - Open - 2026-07-11
 - [0026. Typed Application Router — Shared Browser, Vite, and SSG Routes](./0026-typed-application-router.md) - Accepted - 2026-07-11
 - [0026. Typed Application Router — Shared Browser, Vite, and SSG Routes](./0026-typed-application-router.md) - Proposed - 2026-07-11
+- [0028. Local Async Derivations with `resource()`](./0028-local-async-resource.md) - Accepted - 2026-07-16

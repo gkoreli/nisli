@@ -642,6 +642,42 @@ If called inside component context, auto-disposes. Outside context, the subscrip
 
 ## 6. Declarative Data Loading (MEDIUM-HIGH)
 
+### `resource-source-tracked` — Local async derivations have an explicit source
+
+Use `resource(source, loader)` when async work derives a local value and does
+not need query caching or invalidation policy. Only signal reads in the
+synchronous `source()` function are tracked:
+
+```typescript
+const rendered = resource(
+  () => props.markdown.value || undefined,
+  (markdown, signal) => renderMarkdown(markdown, { signal }),
+);
+```
+
+The loader starts outside the reactive observer. Signal reads inside it —
+before or after `await` — do not become dependencies. This makes the source
+contract explicit and avoids pretending async dependency tracking crosses
+await boundaries. Returning `undefined` disables the resource, aborts current
+work, and clears `data`/`error`.
+
+### `resource-stale-safe` — Older async work cannot commit
+
+Every source change and `refresh()` starts a new generation and aborts the
+previous loader's `AbortSignal`. Generation checks remain authoritative when a
+loader ignores abort. Component teardown disposes automatically; standalone
+callers must call `dispose()`.
+
+`resource()` exposes readonly `data`, `loading`, and `error` signals. It retains
+the latest successful data while a newer generation loads.
+
+### `resource-vs-query` — Local derivation vs shared server cache
+
+Use `resource()` for local transformations such as asynchronous markdown
+rendering. Use `query()` when consumers intentionally share a cache key and
+need stale-time, prefetch, or invalidation behavior. Do not invent a cache key
+for local derived content merely to obtain loading/error signals.
+
 ### `query-key-function` — First arg is a key function with tracked signals
 
 Any signals read inside the key function are automatically tracked. When they change, the query re-fetches.

@@ -109,3 +109,9 @@ export {
   type QueryResult,
   type QueryOptions,
 } from './query.js';
+
+// ── Local async derivations ─────────────────────────────────────────
+export {
+  resource,
+  type ResourceResult,
+} from './resource.js';

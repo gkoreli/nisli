@@ -16,6 +16,10 @@ checkpoints (ADR 0022); dates are release dates.
 - Reactive child slots now dispose the currently selected nested template and
   factory prop/class subscriptions on replacement and parent teardown, so
   data-driven renderer swaps do not keep detached components reactive.
+- Added `resource(source, loader)` for local async derivations with explicit
+  source tracking, stale-generation suppression, AbortSignal cancellation,
+  readonly data/loading/error signals, refresh, and automatic component
+  disposal.
 
 ## 0.53.0 — 2026-07-12
 

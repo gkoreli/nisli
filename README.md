@@ -86,6 +86,30 @@ Declared string, boolean, number, and forwarded attributes react to
 `setAttribute()` after mount. `children(fallback?)` projects factory children,
 initial light-DOM children, and late parser children through one reactive slot.
 
+## Async derivations
+
+Use `resource()` when a local value is derived asynchronously and does not need
+query caching or invalidation policy. Only the synchronous source function is
+tracked; stale work is aborted and cannot overwrite a newer result.
+
+```ts
+import { component, html, resource } from '@nisli/core';
+
+const Markdown = component<{ content: string }>('x-markdown', (props) => {
+  const rendered = resource(
+    () => props.content.value || undefined,
+    (content, signal) => renderMarkdown(content, { signal }),
+  );
+
+  return html`<article html:inner=${rendered.data}></article>`;
+});
+```
+
+`data`, `loading`, and `error` are readonly signals. `refresh()` reruns the
+current source; component teardown disposes automatically, while standalone
+callers can use `dispose()`. Returning `undefined` from the source disables the
+resource and clears its current state.
+
 ## Core capabilities
 
 - Fine-grained reactivity: `signal`, `computed`, `effect`, `untrack`, `flush`,
@@ -101,8 +125,8 @@ initial light-DOM children, and late parser children through one reactive slot.
 - Lifecycle and resilience: `onMount`, `onCleanup`, `useHostEvent`, automatic
   effect/event cleanup, move-resilient disconnects, and component error
   boundaries.
-- Async data loading: `query` and `QueryClient` provide caching, invalidation,
-  stale-response guards, and reactive refetching.
+- Async work: `resource` handles local async derivations; `query` and
+  `QueryClient` add shared caching, invalidation, and reactive refetching.
 - Typed application events with `Emitter` and automatic component cleanup.
 
 ## Ecosystem

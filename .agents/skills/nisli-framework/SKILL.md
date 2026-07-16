@@ -143,6 +143,9 @@ They do not overlap: services are singletons; component-family state is subtree-
 - `query-enabled-guard` - Use `enabled` option to conditionally skip fetches
 - `query-invalidate-prefix` - `invalidate(['tasks'])` matches all keys starting with `['tasks']`
 - `query-disposed-check` - All async writes check `!disposed` before updating signals
+- `resource-source-tracked` - For local async derivations, `resource(source, loader)` tracks ONLY synchronous signal reads in `source`; loader reads are never dependencies; `undefined` disables and clears
+- `resource-stale-safe` - Source changes, refresh, and disposal abort/invalidate older loader generations so stale results cannot commit
+- `resource-vs-query` - Use `resource()` for local derived async work (markdown, transforms); use `query()` only when shared cache keys/invalidation are required
 
 ### 7. Error Handling & Resilience (MEDIUM)
 

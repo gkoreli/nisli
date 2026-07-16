@@ -55,6 +55,7 @@
   - `createContext` for subtree-scoped, portal-safe component-family state
   - `el()` only when the native HTML tag name is selected at runtime
   - `each()` for reactive keyed lists
+  - `resource()` for local async derivations without query-cache policy
 - App services use global `inject` / `provide`; parent-descendant state uses
   `createContext`. Do not conflate the two scopes.
 - Tests live beside source in `packages/core/src` and run under happy-dom.

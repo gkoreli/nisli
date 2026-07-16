@@ -1,7 +1,7 @@
 ---
 title: "0013. Async Derivations Need a First-Class Resource Primitive"
 date: 2026-07-16
-status: open
+status: resolved
 ---
 
 # Async derivations need a first-class resource primitive
@@ -21,10 +21,10 @@ outstanding work can write after teardown.
 
 ## Acceptance
 
-- Add a source/loader `resource()` primitive with `data`, `loading`/status,
-  `error`, `refresh()`, and explicit `dispose()`.
+- Add a source/loader `resource()` primitive with readonly `data`, `loading`,
+  and `error` signals plus `refresh()` and explicit `dispose()`.
 - Only the synchronous source function is dependency-tracked.
-- Source change, disable, refresh, and disposal invalidate prior generations.
+- Source change, refresh, and disposal invalidate prior generations.
 - Loaders receive an `AbortSignal`; generation guards remain correct when abort
   is ignored.
 - Component setup auto-disposes; standalone use can dispose explicitly.
@@ -36,3 +36,16 @@ outstanding work can write after teardown.
 - `computed(async ...)` breaks computed's synchronous lazy-value contract.
 - `query()` adds global cache/invalidation policy to a local derivation.
 - Async component setup violates Nisli's synchronous setup context.
+
+## Resolution
+
+`resource(source, loader)` now provides the minimal local-derivation state
+machine. The loader receives an `AbortSignal`, starts outside reactive tracking,
+and may only commit when its generation is current and live. Component setup
+owns disposal automatically; standalone callers retain an explicit disposer.
+
+The first version intentionally omits cache keys, invalidation, stale times,
+callbacks, status enums, keep-previous-data configuration, suspense, and async
+setup. `data` naturally retains the latest success while a new generation is
+loading. `undefined` from the source is the one disabled sentinel and clears
+state; additional policy waits for a real second constraint.
