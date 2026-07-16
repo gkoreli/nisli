@@ -9,6 +9,8 @@ checkpoints (ADR 0022); dates are release dates.
 - Reactive child slots now preserve child semantics across primitive, empty,
   template, factory, and array transitions regardless of the initial value,
   while primitive-to-primitive updates reuse their existing text node.
+- `each()` now rejects duplicate keys before mutating reconciliation state,
+  preserves the last valid DOM, and recovers on the next unique array.
 
 ## 0.54.0 — 2026-07-16
 

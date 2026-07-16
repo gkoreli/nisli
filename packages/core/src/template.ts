@@ -927,6 +927,28 @@ export function each<T>(
     const parent = endMarker.parentNode;
     if (!parent) return;
 
+    // Validate the whole key set before updating item signals, mounting new
+    // entries, or touching DOM. A duplicate update must leave the last valid
+    // reconciliation intact so a later corrected array can recover normally.
+    const keyedItems: Array<{ item: T; index: number; key: string | number }> = [];
+    const keyIndices = new Map<string | number, number>();
+    for (let i = 0; i < newItems.length; i++) {
+      const item = newItems[i];
+      if (item === undefined) continue;
+      const key = keyFn(item, i);
+      const previousIndex = keyIndices.get(key);
+      if (previousIndex !== undefined) {
+        const formattedKey = typeof key === 'string' ? JSON.stringify(key) : String(key);
+        console.error(
+          `each() requires unique keys. Duplicate key ${formattedKey} ` +
+          `found at indices ${previousIndex} and ${i}; reconciliation skipped.`,
+        );
+        return;
+      }
+      keyIndices.set(key, i);
+      keyedItems.push({ item, index: i, key });
+    }
+
     // Build old key → entry map
     const oldMap = new Map<string | number, EachEntry<T>>();
     for (const entry of entries) {
@@ -937,17 +959,14 @@ export function each<T>(
     const newEntries: EachEntry<T>[] = [];
     const newKeys = new Set<string | number>();
 
-    for (let i = 0; i < newItems.length; i++) {
-      const item = newItems[i];
-      if (item === undefined) continue;
-      const key = keyFn(item, i);
+    for (const { item, index, key } of keyedItems) {
       newKeys.add(key);
 
       const existing = oldMap.get(key);
       if (existing) {
         // Reuse — update signals in place
         existing.itemSignal.value = item;
-        existing.indexSignal.value = i;
+        existing.indexSignal.value = index;
         newEntries.push(existing);
       } else {
         // Create new entry with a stable wrapper element.
@@ -955,7 +974,7 @@ export function each<T>(
         // inner reactive content can freely swap DOM nodes without
         // invalidating the each() reconciler's node tracking.
         const itemSignal = signal(item) as Signal<T>;
-        const indexSignal = signal(i);
+        const indexSignal = signal(index);
         const wrapper = document.createElement('each-item');
         wrapper.style.display = 'contents';
         const templateResult = templateFn(itemSignal, indexSignal);

@@ -474,6 +474,8 @@ html`<div>${each(
 **Key rules:**
 - First argument is a signal of an array
 - Key function maps each item to a unique, stable key
+- Duplicate keys log an actionable error and skip that reconciliation, leaving
+  the last valid DOM intact until the array is corrected
 - Template function receives `ReadonlySignal<T>` (not raw T) — use `.value` in computed/effect
 - Each item updates in-place via its signal — no remount for data changes
 - Cascading effects: after `flushEffects()` runs the each() effect, downstream text bindings need another `flushEffects()` in tests

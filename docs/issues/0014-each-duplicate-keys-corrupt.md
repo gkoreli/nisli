@@ -1,7 +1,7 @@
 ---
 title: "0014. Duplicate each() Keys Corrupt Reconciliation"
 date: 2026-07-16
-status: open
+status: resolved
 ---
 
 # Duplicate each() keys corrupt reconciliation
@@ -25,3 +25,10 @@ DOM and lose ownership of leaked entries.
 - The framework emits an actionable diagnostic that keys must be unique.
 - Existing DOM remains consistent after a duplicate update.
 - A later corrected array recovers normally.
+
+## Resolution
+
+`each()` now computes and validates the complete next key set before updating
+item signals, mounting entries, disposing prior entries, or moving DOM. A
+duplicate logs the key and conflicting indices, skips that reconciliation, and
+preserves the last valid list so the next unique array can recover normally.

@@ -19,7 +19,7 @@ of numbering.
 | [0011 — Reactive slots leak nested renderer ownership](./0011-reactive-slot-ownership-leaks.md) | resolved | P0 |
 | [0012 — Reactive child semantics depend on the initial value](./0012-reactive-slot-type-transitions.md) | resolved | P1 |
 | [0013 — Async derivations need a first-class resource primitive](./0013-resource-async-derivations.md) | resolved | P1 |
-| [0014 — Duplicate each() keys corrupt reconciliation](./0014-each-duplicate-keys-corrupt.md) | open | P1 |
+| [0014 — Duplicate each() keys corrupt reconciliation](./0014-each-duplicate-keys-corrupt.md) | resolved | P1 |
 | [0015 — The parsed-template cache is declared but unused](./0015-template-cache-unused.md) | open | P2 |
 | [0016 — Router intercepts same-origin links it cannot match](./0016-router-unmatched-link-interception.md) | open | P1 |
 | [0017 — Router no-match leaves stale managed metadata](./0017-router-no-match-stale-metadata.md) | open | P1 |

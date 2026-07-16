@@ -318,13 +318,13 @@ describe('each() disposal', () => {
 // ── Edge cases ───────────────────────────────────────────────────────
 
 describe('each() edge cases', () => {
-  it('handles duplicate keys gracefully (last wins)', () => {
+  it('rejects duplicate initial keys before mounting entries', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     const items = signal([
       { id: '1', title: 'First' },
       { id: '1', title: 'Second' },
     ]);
 
-    // Duplicate keys — last item with same key wins
     const result = html`<div>${each(
       items,
       (t) => t.id,
@@ -332,8 +332,47 @@ describe('each() edge cases', () => {
     )}</div>`;
     const host = mount(result);
 
-    // Should render without crashing
-    expect(host.querySelectorAll('.item').length).toBeGreaterThan(0);
+    expect(host.querySelectorAll('.item')).toHaveLength(0);
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(error).toHaveBeenCalledWith(
+      'each() requires unique keys. Duplicate key "1" found at indices 0 and 1; reconciliation skipped.',
+    );
+    error.mockRestore();
+  });
+
+  it('preserves the last valid DOM and recovers after a duplicate update', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const items = signal([
+      { id: '1', title: 'A' },
+      { id: '2', title: 'B' },
+    ]);
+    const result = html`<div>${each(
+      items,
+      (t) => t.id,
+      (item) => html`<span class="item">${computed(() => item.value.title)}</span>`,
+    )}</div>`;
+    const host = mount(result);
+    const before = [...host.querySelectorAll('.item')];
+
+    items.value = [
+      { id: '1', title: 'corrupt-A' },
+      { id: '1', title: 'corrupt-B' },
+    ];
+    flushEffects();
+
+    expect([...host.querySelectorAll('.item')]).toEqual(before);
+    expect(before.map((node) => node.textContent)).toEqual(['A', 'B']);
+    expect(error).toHaveBeenCalledTimes(1);
+
+    items.value = [
+      { id: '1', title: 'C' },
+      { id: '2', title: 'D' },
+    ];
+    flushEffects();
+
+    expect([...host.querySelectorAll('.item')]).toEqual(before);
+    expect(before.map((node) => node.textContent)).toEqual(['C', 'D']);
+    error.mockRestore();
   });
 
   it('works with numeric keys', () => {
