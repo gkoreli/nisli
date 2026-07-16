@@ -1,7 +1,7 @@
 ---
 title: "0017. Router No-Match Leaves Stale Managed Metadata"
 date: 2026-07-16
-status: open
+status: resolved
 ---
 
 # Router no-match leaves stale managed metadata
@@ -24,3 +24,9 @@ returns without resetting title, managed head elements, JSON-LD, `lang`, or
 - Connect-time title/lang/dir defaults are restored.
 - Managed canonical, OpenGraph, alternates, and JSON-LD are removed.
 - A navigation regression test covers the full reset.
+
+## Resolution
+
+A true no-match now clears the outlet and applies the same complete managed
+metadata reset as a failed render. Connect-time title, `lang`, and `dir`
+defaults return, and all router-owned head elements are removed.

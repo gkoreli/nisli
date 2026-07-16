@@ -4,6 +4,13 @@ All notable changes to `@nisli/router`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
+## Unreleased
+
+- Eligible same-origin anchors are intercepted only when the connected matcher
+  owns the URL; unmatched documents and resources keep native navigation.
+- True no-match navigations now clear all router-managed metadata and restore
+  connect-time title, language, and direction defaults.
+
 ## 0.5.0 — 2026-07-13
 
 - **Typed outlet host attributes**: `defineRouter(catalog, { outletAttrs })`

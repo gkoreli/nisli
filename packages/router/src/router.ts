@@ -234,6 +234,10 @@ export class Router {
       window.location.assign(url.href);
       return;
     }
+    await this.navigateSameOrigin(url, options);
+  }
+
+  private async navigateSameOrigin(url: URL, options: NavigateOptions, match?: RouteMatch): Promise<void> {
     const replace = options.replace === true;
     // Remember where we are before leaving so back/forward can restore it.
     this.rememberScroll();
@@ -242,7 +246,7 @@ export class Router {
     if (replace) history.replaceState(state, '', url);
     else history.pushState(state, '', url);
     this.currentKey = key;
-    await this.transition(url, replace ? 'replace' : 'push', options.scroll);
+    await this.transition(url, replace ? 'replace' : 'push', options.scroll, match);
   }
 
   replace(href: string, options: Omit<NavigateOptions, 'replace'> = {}): Promise<void> {
@@ -269,10 +273,15 @@ export class Router {
     return currentPath === targetPath || currentPath.startsWith(`${targetPath}/`);
   }
 
-  private async transition(url: URL, kind: 'initial' | 'push' | 'replace' | 'pop', scroll?: NavigateOptions['scroll']): Promise<void> {
+  private async transition(
+    url: URL,
+    kind: 'initial' | 'push' | 'replace' | 'pop',
+    scroll?: NavigateOptions['scroll'],
+    matched?: RouteMatch,
+  ): Promise<void> {
     const connection = this.connection;
     if (!connection) throw new Error('Router cannot navigate before an AppRouter outlet is connected');
-    const match = connection.match(url);
+    const match = matched ?? connection.match(url);
     if (match?.redirect !== undefined) {
       const target = new URL(match.redirect, url);
       // Bail on a self-loop or an over-long chain/cycle across several redirects.
@@ -293,6 +302,7 @@ export class Router {
     if (!match) {
       this.pendingState.value = false;
       connection.rendered.value = null;
+      this.applyMetadata(undefined);
       return;
     }
     this.pendingState.value = true;
@@ -403,8 +413,10 @@ export class Router {
     const url = new URL(target.href, this.urlState.value);
     if (url.origin !== this.urlState.value.origin) return;
     if (url.pathname === this.urlState.value.pathname && url.search === this.urlState.value.search && url.hash) return;
+    const match = this.connection?.match(url);
+    if (!match) return;
     event.preventDefault();
-    void this.navigate(url.href);
+    void this.navigateSameOrigin(url, {}, match);
   }
 
   private browserURL(): URL {

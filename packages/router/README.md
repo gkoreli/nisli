@@ -81,7 +81,9 @@ Static builds pass the same `AppRouter` to `buildStaticSite({ router })` from
 
 The package progressively enhances eligible same-origin anchors while
 preserving native external, modifier-key, target, download, hash-only, and
-opt-out navigation behavior.
+opt-out navigation behavior. Same-origin URLs outside the connected matcher
+also remain native so server-owned documents and resources are not swallowed
+by the SPA outlet.
 
 ## Scroll, focus, and history
 
@@ -176,7 +178,8 @@ Managed JSON-LD adopts a server-rendered `application/ld+json` block (whether
 or not it is pre-tagged) rather than duplicating it, then keeps it in sync and
 removes it when a later route drops the key. If a route render throws, the
 router atomically resets all managed head state so the previous route's tags
-cannot survive the error.
+cannot survive the error. An explicit navigation that produces a true no-match
+applies the same reset.
 
 ## Typed path segments
 

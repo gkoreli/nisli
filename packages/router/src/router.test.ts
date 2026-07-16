@@ -204,6 +204,60 @@ describe('Router browser service and outlet', () => {
     expect(document.head.querySelector('script[type="application/ld+json"]')).toBeNull();
   });
 
+  it('resets rendered output and all managed metadata on a true no-match', async () => {
+    document.title = 'Original';
+    document.documentElement.setAttribute('lang', 'en');
+    document.documentElement.setAttribute('dir', 'ltr');
+    const unmanaged = document.createElement('meta');
+    unmanaged.name = 'viewport';
+    unmanaged.content = 'width=device-width';
+    document.head.appendChild(unmanaged);
+    const AppRouter = defineRouter({
+      home: route('/', { render: () => html`<p>home</p>` }),
+      rich: route('/rich', {
+        render: () => html`<p>rich</p>`,
+        metadata: {
+          title: 'Rich',
+          meta: { description: 'rich page' },
+          property: { 'og:title': 'Rich OG' },
+          canonical: 'https://x/rich',
+          alternates: [{ hreflang: 'ka', href: 'https://x/ka/rich' }],
+          lang: 'ka',
+          dir: 'rtl',
+          jsonLd: { page: { '@type': 'WebPage', name: 'Rich' } },
+        },
+      }),
+    });
+    const shell = document.createElement('div');
+    html`${AppRouter({})}`.mount!(shell);
+    document.body.appendChild(shell);
+    await settle();
+    const router = inject(Router);
+
+    await router.navigate('/rich');
+    flushEffects();
+    expect(document.querySelector('meta[name="description"]')).not.toBeNull();
+    expect(document.querySelector('meta[property="og:title"]')).not.toBeNull();
+    expect(document.querySelector('link[rel="canonical"]')).not.toBeNull();
+    expect(document.querySelector('link[rel="alternate"]')).not.toBeNull();
+    expect(document.head.querySelector('script[type="application/ld+json"]')).not.toBeNull();
+
+    await router.navigate('/missing');
+    flushEffects();
+
+    expect(router.current.value).toBeNull();
+    expect(shell.textContent).toBe('');
+    expect(document.title).toBe('Original');
+    expect(document.documentElement.getAttribute('lang')).toBe('en');
+    expect(document.documentElement.getAttribute('dir')).toBe('ltr');
+    expect(document.querySelector('meta[name="description"]')).toBeNull();
+    expect(document.querySelector('meta[property="og:title"]')).toBeNull();
+    expect(document.querySelector('link[rel="canonical"]')).toBeNull();
+    expect(document.querySelector('link[rel="alternate"]')).toBeNull();
+    expect(document.head.querySelector('script[type="application/ld+json"]')).toBeNull();
+    expect(document.head.querySelector('meta[name="viewport"]')).toBe(unmanaged);
+  });
+
   it('navigates, replaces, handles popstate, and renders not-found', async () => {
     const AppRouter = defineRouter({
       home: route('/', { render: () => html`<p>home</p>` }),
@@ -230,9 +284,12 @@ describe('Router browser service and outlet', () => {
   });
 
   it('intercepts eligible anchors but preserves native exceptions', async () => {
+    const metadata = vi.fn(() => ({ title: 'Next' }));
+    const resolveLegacy = vi.fn(() => '/next');
     const AppRouter = defineRouter({
       home: route('/', { render: () => html`` }),
-      next: route('/next', { render: () => html`<p>next</p>` }),
+      next: route('/next', { render: () => html`<p>next</p>`, metadata }),
+      legacy: redirect('/legacy', resolveLegacy),
     });
     const shell = document.createElement('div');
     html`${AppRouter({})}`.mount!(shell);
@@ -244,6 +301,7 @@ describe('Router browser service and outlet', () => {
     expect(anchor.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }))).toBe(false);
     await settle();
     expect(location.pathname).toBe('/next');
+    expect(metadata).toHaveBeenCalledTimes(1);
     const selfTarget = document.createElement('a');
     selfTarget.href = '/';
     selfTarget.target = '_self';
@@ -251,6 +309,14 @@ describe('Router browser service and outlet', () => {
     expect(selfTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }))).toBe(false);
     await settle();
     expect(location.pathname).toBe('/');
+    const legacy = document.createElement('a');
+    legacy.href = '/legacy';
+    document.body.appendChild(legacy);
+    expect(legacy.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }))).toBe(false);
+    await settle();
+    expect(location.pathname).toBe('/next');
+    expect(resolveLegacy).toHaveBeenCalledTimes(1);
+    await inject(Router).navigate('/');
     const blankTarget = document.createElement('a');
     blankTarget.href = '/next';
     blankTarget.target = '_blank';
@@ -264,6 +330,42 @@ describe('Router browser service and outlet', () => {
     external.href = 'https://example.com/';
     document.body.appendChild(external);
     expect(external.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }))).toBe(true);
+
+    for (const href of ['/server-page', '/assets/report.pdf']) {
+      const unmatched = document.createElement('a');
+      unmatched.href = href;
+      document.body.appendChild(unmatched);
+      let routerPrevented = true;
+      document.addEventListener('click', (event) => {
+        routerPrevented = event.defaultPrevented;
+        event.preventDefault(); // Cancel happy-dom's native page load.
+      }, { once: true });
+      expect(unmatched.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }))).toBe(false);
+      expect(routerPrevented).toBe(false);
+      await settle();
+      expect(location.pathname).toBe('/');
+    }
+  });
+
+  it('intercepts links handled by configured not-found', async () => {
+    const AppRouter = defineRouter({
+      home: route('/', { render: () => html`<p>home</p>` }),
+      notFound: notFound({ render: ({ url }) => html`<p>missing ${url.pathname}</p>` }),
+    });
+    const shell = document.createElement('div');
+    html`${AppRouter({})}`.mount!(shell);
+    document.body.appendChild(shell);
+    await settle();
+    const anchor = document.createElement('a');
+    anchor.href = '/missing';
+    document.body.appendChild(anchor);
+
+    expect(anchor.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }))).toBe(false);
+    await settle();
+    flushEffects();
+
+    expect(inject(Router).current.value?.notFound).toBe(true);
+    expect(shell.textContent).toContain('missing /missing');
   });
 
   it('discards stale asynchronous page renders', async () => {

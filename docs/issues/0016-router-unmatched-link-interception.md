@@ -1,7 +1,7 @@
 ---
 title: "0016. Router Intercepts Same-Origin Links It Cannot Match"
 date: 2026-07-16
-status: open
+status: resolved
 ---
 
 # Router intercepts same-origin links it cannot match
@@ -24,3 +24,10 @@ the outlet.
 - Matched routes, redirects, and configured not-found behavior keep their
   documented semantics.
 - Tests cover matched, unmatched HTML, and unmatched resource links.
+
+## Resolution
+
+The document click handler now asks the connected matcher whether an eligible
+same-origin URL is router-managed before preventing native navigation.
+Ordinary routes, redirects, and configured not-found matches stay client-side;
+true no-matches remain browser/server-owned.
