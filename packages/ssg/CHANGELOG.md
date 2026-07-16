@@ -6,6 +6,14 @@ checkpoints (ADR 0022); dates are release dates.
 
 ## Unreleased
 
+## 0.4.0 — 2026-07-16
+
+- Static application routers that declare client-side redirects now remain
+  structurally assignable to the SSG contract without making redirects a
+  static-build concern.
+- Render-separated route and not-found definitions can flow from a shared
+  catalog into SSG; static builds fail with a targeted error until those
+  definitions have renders bound.
 - Top-level component factories now snapshot signal/computed props and host
   classes with the same static output as nested factory composition. Static
   snapshots also omit browser-runtime slot boundary comments.

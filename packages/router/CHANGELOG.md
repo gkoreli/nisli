@@ -6,6 +6,8 @@ checkpoints (ADR 0022); dates are release dates.
 
 ## Unreleased
 
+## 0.5.1 — 2026-07-16
+
 - Eligible same-origin anchors are intercepted only when the connected matcher
   owns the URL; unmatched documents and resources keep native navigation.
 - True no-match navigations now clear all router-managed metadata and restore

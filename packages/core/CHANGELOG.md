@@ -6,6 +6,8 @@ checkpoints (ADR 0022); dates are release dates.
 
 ## Unreleased
 
+## 0.54.1 — 2026-07-16
+
 - Reactive child slots now preserve child semantics across primitive, empty,
   template, factory, and array transitions regardless of the initial value,
   while primitive-to-primitive updates reuse their existing text node.
