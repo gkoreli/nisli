@@ -329,8 +329,65 @@ describe('template disposal', () => {
 
     name.value = 'Bob';
     flushEffects();
-    // Text should NOT have updated since we disposed
-    // (the text node still exists but the effect is gone)
+    expect(host.textContent).toContain('Alice');
+  });
+
+  it('dispose() tears down the currently mounted nested reactive template', () => {
+    const label = signal('first');
+    const onClick = vi.fn();
+    const branch = signal<TemplateResult | null>(
+      html`<button @click=${onClick}>${label}</button>`,
+    );
+    const result = html`<div>${branch}</div>`;
+    const host = mount(result);
+    const button = host.querySelector('button')!;
+
+    button.click();
+    expect(onClick).toHaveBeenCalledTimes(1);
+    result.dispose();
+
+    label.value = 'second';
+    flushEffects();
+    button.click();
+    expect(button.textContent).toBe('first');
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('reactive factory swaps dispose prop and host-class subscriptions immediately', () => {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const A = component<{ value: string }>(`slot-owner-a-${suffix}`, (props) =>
+      html`<span>${props.value}</span>`,
+    );
+    const B = component<{ value: string }>(`slot-owner-b-${suffix}`, (props) =>
+      html`<span>${props.value}</span>`,
+    );
+    const selected = signal<'a' | 'b'>('a');
+    const value = signal('one');
+    const hostClass = signal('before');
+    const view = computed(() =>
+      selected.value === 'a'
+        ? A({ value }, { class: hostClass })
+        : B({ value }, { class: hostClass }),
+    );
+    const result = html`${view}`;
+    const host = mount(result);
+    document.body.appendChild(host);
+    const detached = host.querySelector(`slot-owner-a-${suffix}`) as HTMLElement & {
+      _setProp(key: string, value: unknown): void;
+    };
+    const setProp = vi.spyOn(detached, '_setProp');
+
+    selected.value = 'b';
+    flushEffects();
+    expect(detached.isConnected).toBe(false);
+    setProp.mockClear();
+
+    value.value = 'two';
+    hostClass.value = 'after';
+    flushEffects();
+    expect(setProp).not.toHaveBeenCalled();
+    expect(detached.classList.contains('before')).toBe(true);
+    expect(detached.classList.contains('after')).toBe(false);
   });
 });
 

@@ -328,17 +328,16 @@ function processAttributes(
  */
 function mountFactoryResult(
   factory: { tagName: string; props: Record<string, unknown>; hostAttrs?: { class?: unknown } },
-  disposers: (() => void)[],
-): HTMLElement {
+): { element: HTMLElement; dispose: () => void } {
   const el = document.createElement(factory.tagName);
+  const localDisposers: (() => void)[] = [];
   for (const [key, raw] of Object.entries(factory.props)) {
     if (isSignal(raw)) {
       const sig = raw as ReadonlySignal<unknown>;
-      (el as any)._setProp?.(key, sig.value);
       const unsub = sig.subscribe((newVal: unknown) => {
         (el as any)._setProp?.(key, newVal);
       });
-      disposers.push(unsub);
+      localDisposers.push(unsub);
     } else {
       (el as any)._setProp?.(key, raw);
     }
@@ -358,16 +357,22 @@ function mountFactoryResult(
         }
         prevClasses = next;
       };
-      applyClasses(sig.value);
       const unsub = sig.subscribe(applyClasses);
-      disposers.push(unsub);
+      localDisposers.push(unsub);
     } else if (typeof classVal === 'string' && classVal) {
       for (const cls of classVal.split(/\s+/).filter(Boolean)) {
         el.classList.add(cls);
       }
     }
   }
-  return el;
+  return {
+    element: el,
+    dispose() {
+      for (const dispose of localDisposers.splice(0)) {
+        try { dispose(); } catch (_) { /* swallow */ }
+      }
+    },
+  };
 }
 
 function replaceMarkerWithBinding(
@@ -409,6 +414,7 @@ function replaceMarkerWithBinding(
 
       let currentResults: TemplateResult[] = [];
       let currentNodes: Node[] = [];
+      let currentFactoryDisposers: (() => void)[] = [];
       // Sentinel distinct from any resolvable value (including null/undefined)
       // so the FIRST effect run always mounts. See ADR 0008.1.
       const NOT_RENDERED = Symbol('not-rendered');
@@ -432,15 +438,21 @@ function replaceMarkerWithBinding(
         if (newValue === lastValue) return;
         lastValue = newValue;
 
-        // Remove previous content
+        // Dispose and remove the previous slot value before mounting the next.
+        // Ownership is per VALUE, not per outer template lifetime: factory prop
+        // subscriptions must stop as soon as their child leaves (issue 0011).
         for (const r of currentResults) {
           try { r.dispose(); } catch (_) {}
+        }
+        for (const dispose of currentFactoryDisposers) {
+          try { dispose(); } catch (_) {}
         }
         for (const node of currentNodes) {
           node.parentNode?.removeChild(node);
         }
         currentNodes = [];
         currentResults = [];
+        currentFactoryDisposers = [];
 
         if (newValue == null) {
           // null/undefined — nothing to mount
@@ -456,9 +468,10 @@ function replaceMarkerWithBinding(
               currentResults.push(tpl);
               liveParent.insertBefore(wrapper, endMarker);
             } else if (item && typeof item === 'object' && '__type' in item && (item as any).__type === 'factory') {
-              const el = mountFactoryResult(item as any, disposers);
-              currentNodes.push(el);
-              liveParent.insertBefore(el, endMarker);
+              const mounted = mountFactoryResult(item as any);
+              currentNodes.push(mounted.element);
+              currentFactoryDisposers.push(mounted.dispose);
+              liveParent.insertBefore(mounted.element, endMarker);
             } else if (item != null && item !== false) {
               const textNode = document.createTextNode(String(item));
               currentNodes.push(textNode);
@@ -475,9 +488,10 @@ function replaceMarkerWithBinding(
           liveParent.insertBefore(wrapper, endMarker);
         } else if (typeof newValue === 'object' && '__type' in newValue && (newValue as any).__type === 'factory') {
           // Factory result — create child element
-          const el = mountFactoryResult(newValue as any, disposers);
-          currentNodes.push(el);
-          liveParent.insertBefore(el, endMarker);
+          const mounted = mountFactoryResult(newValue as any);
+          currentNodes.push(mounted.element);
+          currentFactoryDisposers.push(mounted.dispose);
+          liveParent.insertBefore(mounted.element, endMarker);
         } else if (newValue !== false) {
           // Primitive reached from an initially null/undefined reactive slot.
           const textNode = document.createTextNode(String(newValue));
@@ -486,6 +500,18 @@ function replaceMarkerWithBinding(
         }
       });
       disposers.push(dispose);
+      // TemplateResult.dispose() intentionally leaves mounted DOM in place, but
+      // it must still dispose bindings owned by the CURRENT reactive slot value.
+      // Previously that cleanup only happened on the next value change.
+      disposers.push(() => {
+        for (const r of currentResults.splice(0)) {
+          try { r.dispose(); } catch (_) {}
+        }
+        for (const factoryDispose of currentFactoryDisposers.splice(0)) {
+          try { factoryDispose(); } catch (_) {}
+        }
+        currentNodes = [];
+      });
     } else {
       // Primitive signal — create a reactive text node
       const textNode = document.createTextNode(String(signalValue));
@@ -516,8 +542,9 @@ function replaceMarkerWithBinding(
     disposers.push(() => result.dispose());
   } else if (value && typeof value === 'object' && '__type' in value && (value as any).__type === 'factory') {
     // Factory result — create child element
-    const el = mountFactoryResult(value as any, disposers);
-    parent.replaceChild(el, comment);
+    const mounted = mountFactoryResult(value as any);
+    parent.replaceChild(mounted.element, comment);
+    disposers.push(mounted.dispose);
   } else if (Array.isArray(value)) {
     // Array of template results
     const startMarker = document.createComment('list-start');
@@ -532,8 +559,9 @@ function replaceMarkerWithBinding(
         parent.insertBefore(wrapper, endMarker);
         disposers.push(() => (item as TemplateResult).dispose());
       } else if (item && typeof item === 'object' && '__type' in item && (item as any).__type === 'factory') {
-        const el = mountFactoryResult(item as any, disposers);
-        parent.insertBefore(el, endMarker);
+        const mounted = mountFactoryResult(item as any);
+        parent.insertBefore(mounted.element, endMarker);
+        disposers.push(mounted.dispose);
       } else {
         const textNode = document.createTextNode(String(item));
         parent.insertBefore(textNode, endMarker);

@@ -1,7 +1,7 @@
 ---
 title: "0011. Reactive Slots Leak Nested Renderer Ownership"
 date: 2026-07-16
-status: open
+status: resolved
 ---
 
 # Reactive slots leak nested renderer ownership
@@ -29,3 +29,11 @@ so renderer swaps leave subscriptions writing to detached components.
 - Repeated renderer swaps do not grow subscriptions or update detached
   components.
 - Cover single and array factory values plus nested reactive templates.
+
+## Resolution
+
+Factory mounts now return a local disposer for prop and host-class
+subscriptions. Reactive slots retain those disposers beside the current nodes
+and nested templates, release them before every swap, and release the current
+value when the outer template is disposed. Static factory slots attach the
+same local disposer to their outer template lifetime.

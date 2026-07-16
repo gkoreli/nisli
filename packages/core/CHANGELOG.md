@@ -13,6 +13,9 @@ checkpoints (ADR 0022); dates are release dates.
 - Computed values recover after temporary errors when dependencies change, and
   signal subscriptions now deliver once initially without tracking signals
   read inside subscriber callbacks.
+- Reactive child slots now dispose the currently selected nested template and
+  factory prop/class subscriptions on replacement and parent teardown, so
+  data-driven renderer swaps do not keep detached components reactive.
 
 ## 0.53.0 — 2026-07-12
 
