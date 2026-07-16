@@ -1,7 +1,7 @@
 ---
 title: "0002. True Reconnect Duplicates Rendered DOM"
 date: 2026-07-16
-status: open
+status: resolved
 ---
 
 # True reconnect duplicates rendered DOM
@@ -26,3 +26,10 @@ subtree.
 - A later reconnect produces exactly one fresh subtree.
 - Same-tick move resilience remains unchanged.
 - The reconnect test asserts node count and content, not only setup calls.
+
+## Resolution
+
+True teardown now disposes the current scope and replaces the rendered tree
+before a later setup can append. `children()` returns projected light-DOM
+ownership to the host during cleanup so reconnect and HMR preserve authored
+content while still removing framework-owned output.

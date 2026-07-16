@@ -93,6 +93,8 @@ describe('component() registration', () => {
 
     document.body.appendChild(el);
     expect(setupFn).toHaveBeenCalledTimes(2);
+    expect(el.querySelectorAll('span')).toHaveLength(1);
+    expect(el.textContent).toBe('content');
   });
 });
 
@@ -222,6 +224,51 @@ describe('error boundaries', () => {
 
     expect(el.innerHTML).toContain('custom boom');
     expect(el.innerHTML).toContain('class="error"');
+    errorSpy.mockRestore();
+  });
+
+  it('setup failure disposes effects registered before the throw', () => {
+    const tag = uniqueTag('errcleanup');
+    const source = signal(0);
+    const runs = vi.fn();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    component(tag, () => {
+      effect(() => runs(source.value));
+      throw new Error('after effect');
+    });
+
+    const el = document.createElement(tag);
+    document.body.appendChild(el);
+    expect(runs).toHaveBeenCalledTimes(1);
+
+    source.value = 1;
+    flushEffects();
+    expect(runs).toHaveBeenCalledTimes(1);
+    errorSpy.mockRestore();
+  });
+
+  it('disposes a reactive TemplateResult error fallback on disconnect', async () => {
+    const tag = uniqueTag('errfallbackcleanup');
+    const label = signal('first');
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    component(tag, () => {
+      throw new Error('fallback');
+    }, {
+      onError: () => html`<span>${label}</span>`,
+    });
+
+    const el = document.createElement(tag);
+    document.body.appendChild(el);
+    const span = el.querySelector('span')!;
+    expect(span.textContent).toBe('first');
+
+    document.body.removeChild(el);
+    await settleTeardown();
+    label.value = 'second';
+    flushEffects();
+    expect(span.textContent).toBe('first');
     errorSpy.mockRestore();
   });
 

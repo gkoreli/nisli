@@ -1,7 +1,7 @@
 ---
 title: "0001. HMR Remount Is Defeated by Deferred Teardown"
 date: 2026-07-16
-status: open
+status: resolved
 ---
 
 # HMR remount is defeated by deferred teardown
@@ -26,3 +26,9 @@ component is left empty.
 - Old effects, subscriptions, mount cleanup, and nested custom elements are
   disposed before the new setup runs.
 - A direct `remount(tag)` regression test verifies non-empty replacement DOM.
+
+## Resolution
+
+Framework components now expose an internal synchronous `_remount()` hook that
+tears down the old scope, clears component-owned DOM, and reconnects the same
+host. The HMR registry prefers that hook over the legacy lifecycle emulation.

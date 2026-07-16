@@ -363,6 +363,7 @@ export function component<
     private _propsProxy: ReturnType<typeof createPropsProxy<P>> | null = null;
     private _mounted = false;
     private _templateResult: TemplateResult | null = null;
+    private _errorTemplateResult: TemplateResult | null = null;
     private _teardownScheduled = false;
     // Props explicitly set via _setProp (factory / direct assignment) are
     // "pinned": an explicit prop wins, so attribute writes no longer overwrite
@@ -470,15 +471,32 @@ export function component<
           const error = err instanceof Error ? err : new Error(String(err));
           console.error(`Component <${tagName}> setup error:`, error);
 
+          // Setup may already have registered effects/lifecycle cleanup, or
+          // mountTemplate() may have partially installed bindings before
+          // throwing. Tear that partial scope down BEFORE mounting the error
+          // fallback so no hidden work survives behind it (issue 0010).
+          if (this._templateResult?.dispose) {
+            this._templateResult.dispose();
+          }
+          this._templateResult = null;
+          host.dispose();
+          this._host = null;
+          this.replaceChildren();
+
           if (options?.onError) {
             try {
               const fallback = options.onError(error, this);
               if (typeof fallback === 'string') {
                 this.innerHTML = fallback;
               } else {
+                this._errorTemplateResult = fallback;
                 mountTemplate(this, fallback);
               }
             } catch (_) {
+              if (this._errorTemplateResult?.dispose) {
+                this._errorTemplateResult.dispose();
+              }
+              this._errorTemplateResult = null;
               this.innerHTML = `<div style="color:red;padding:4px">Error in &lt;${tagName}&gt;</div>`;
             }
           } else {
@@ -503,15 +521,45 @@ export function component<
       queueMicrotask(() => {
         this._teardownScheduled = false;
         if (this.isConnected) return;
-        this._mounted = false;
-        if (this._templateResult?.dispose) {
-          this._templateResult.dispose();
-        }
-        if (this._host) {
-          this._host.dispose();
-          this._host = null;
-        }
+        this._teardownNow();
       });
+    }
+
+    /**
+     * Synchronously dispose the current component scope and restore any
+     * projected light-DOM children as direct host children. Normal disconnect
+     * calls this after the move-detection microtask; HMR calls it directly so
+     * reconnect cannot be defeated by the `_mounted` guard (issues 0001/0002).
+     */
+    private _teardownNow(): void {
+      this._mounted = false;
+      if (this._templateResult?.dispose) {
+        this._templateResult.dispose();
+      }
+      this._templateResult = null;
+      if (this._errorTemplateResult?.dispose) {
+        this._errorTemplateResult.dispose();
+      }
+      this._errorTemplateResult = null;
+      if (this._host) {
+        this._host.dispose();
+        this._host = null;
+      }
+
+      // children() records the plain light-DOM nodes it owns during cleanup.
+      // Replacing the rendered tree with those nodes preserves author content
+      // for a later true reconnect/HMR setup; components without projection
+      // simply become empty before the fresh setup appends its new subtree.
+      const captured = (this as unknown as { __capturedChildren?: Node[] })
+        .__capturedChildren ?? [];
+      this.replaceChildren(...captured);
+    }
+
+    /** @internal — transport-agnostic HMR in-place remount hook. */
+    _remount(): void {
+      this._teardownScheduled = false;
+      this._teardownNow();
+      this.connectedCallback();
     }
 
     /**

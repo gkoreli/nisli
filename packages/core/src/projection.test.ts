@@ -118,3 +118,22 @@ describe('children() — factory children prop', () => {
     expect(root(c).querySelector('i')?.textContent).toBe('fb');
   });
 });
+
+describe('children() — true reconnect', () => {
+  it('restores projected light DOM before setup runs again', async () => {
+    const tag = defineSlot('DEFAULT');
+    const el = document.createElement(tag);
+    el.append('Persistent');
+    document.body.appendChild(el);
+    flushEffects();
+    expect(root(el).textContent).toBe('Persistent');
+
+    document.body.removeChild(el);
+    await Promise.resolve();
+    document.body.appendChild(el);
+    flushEffects();
+
+    expect(el.querySelectorAll('[data-slot="root"]')).toHaveLength(1);
+    expect(root(el).textContent).toBe('Persistent');
+  });
+});

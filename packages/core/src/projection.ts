@@ -114,6 +114,14 @@ export function children(fallback?: TemplateResult | string): ReadonlySignal<unk
   // Projected light-DOM nodes; grows when the late-parser sweep finds more.
   const projectedNodes = signal<Node[]>(captured);
 
+  // A true disconnect/HMR teardown clears the component-owned rendered tree
+  // before setup runs again. Hand the plain light-DOM nodes back to component.ts
+  // so it can restore them as direct host children for the next capture.
+  onCleanup(() => {
+    const nodes = projectedNodes.value;
+    host.__capturedChildren = nodes.length ? nodes : undefined;
+  });
+
   onMount(() => {
     // The host's direct children right after mount are the rendered template
     // roots. Anything that appears later is a late parser/innerHTML child.

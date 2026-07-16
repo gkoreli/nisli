@@ -6,8 +6,8 @@ of numbering.
 
 | Issue | Status | Priority |
 | --- | --- | --- |
-| [0001 — HMR remount is defeated by deferred teardown](./0001-core-hmr-remount-deferred-teardown.md) | open | P0 |
-| [0002 — True reconnect duplicates rendered DOM](./0002-core-reconnect-duplicates-dom.md) | open | P0 |
+| [0001 — HMR remount is defeated by deferred teardown](./0001-core-hmr-remount-deferred-teardown.md) | resolved | P0 |
+| [0002 — True reconnect duplicates rendered DOM](./0002-core-reconnect-duplicates-dom.md) | resolved | P0 |
 | [0003 — Throwing computed values cannot recover](./0003-computed-errors-do-not-recover.md) | open | P0 |
 | [0004 — Signal subscriptions over-notify](./0004-signal-subscribe-over-notifies.md) | open | P1 |
 | [0005 — Query deduplicates attempts instead of logical requests](./0005-query-logical-request-coordination.md) | open | P0 |
@@ -15,7 +15,7 @@ of numbering.
 | [0007 — Query disable/cache transitions leave stale state](./0007-query-disabled-cache-state-transitions.md) | open | P0 |
 | [0008 — Synchronous query fetcher throws stall loading](./0008-query-sync-fetcher-stalls.md) | open | P0 |
 | [0009 — Query keys have an unsafe serialization contract](./0009-query-key-contract.md) | open | P2 |
-| [0010 — Failed component setup leaks partial resources](./0010-component-setup-failure-leaks.md) | open | P0 |
+| [0010 — Failed component setup leaks partial resources](./0010-component-setup-failure-leaks.md) | resolved | P0 |
 | [0011 — Reactive slots leak nested renderer ownership](./0011-reactive-slot-ownership-leaks.md) | open | P0 |
 | [0012 — Reactive child semantics depend on the initial value](./0012-reactive-slot-type-transitions.md) | open | P1 |
 | [0013 — Async derivations need a first-class resource primitive](./0013-resource-async-derivations.md) | open | P1 |

@@ -20,6 +20,7 @@ export type HmrSetup = (props: unknown, host: HTMLElement) => unknown;
 interface CustomElementLike extends HTMLElement {
   connectedCallback?: () => void;
   disconnectedCallback?: () => void;
+  _remount?: () => void;
 }
 
 // ── Tag → setup registry (Ruling 2) ─────────────────────────────────
@@ -123,6 +124,10 @@ export function remount(tag: string): void {
   const elements = document.querySelectorAll(tag);
   elements.forEach((node) => {
     const el = node as CustomElementLike;
+    if (el._remount) {
+      el._remount();
+      return;
+    }
     // Dispose first: must run BEFORE clearing DOM or effects/subscriptions
     // leak across reloads (ADR 0008.1 hazard).
     el.disconnectedCallback?.();

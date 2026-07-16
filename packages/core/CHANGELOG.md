@@ -4,6 +4,13 @@ All notable changes to `@nisli/core`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
+## Unreleased
+
+- Component teardown now clears framework-owned DOM before true reconnect,
+  preserves projected light-DOM children, and provides a synchronous in-place
+  HMR remount path. Failed setup also disposes partial effects/templates, and
+  reactive error fallbacks are owned through disconnect.
+
 ## 0.53.0 — 2026-07-12
 
 - Declared-type-aware `ReactiveProps`: `component<P, typeof attrs>` threads the
