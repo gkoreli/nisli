@@ -23,6 +23,6 @@ of numbering.
 | [0015 — The parsed-template cache is declared but unused](./0015-template-cache-unused.md) | open | P2 |
 | [0016 — Router intercepts same-origin links it cannot match](./0016-router-unmatched-link-interception.md) | resolved | P1 |
 | [0017 — Router no-match leaves stale managed metadata](./0017-router-no-match-stale-metadata.md) | resolved | P1 |
-| [0018 — SSG top-level factories mishandle signal inputs](./0018-ssg-top-level-factory-signals.md) | open | P1 |
+| [0018 — SSG top-level factories mishandle signal inputs](./0018-ssg-top-level-factory-signals.md) | resolved | P1 |
 | [0019 — SSG truncates the shared router metadata contract](./0019-ssg-router-metadata-truncation.md) | open | P1 |
 | [0020 — No new runtime renderer-registry primitive](./0020-runtime-renderer-registries-no-new-primitive.md) | wont-fix | disposition |

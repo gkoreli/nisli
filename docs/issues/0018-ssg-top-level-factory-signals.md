@@ -1,7 +1,7 @@
 ---
 title: "0018. SSG Top-Level Factories Mishandle Signal Inputs"
 date: 2026-07-16
-status: open
+status: resolved
 ---
 
 # SSG top-level factories mishandle signal inputs
@@ -25,3 +25,10 @@ whether the same factory is top-level or nested.
 - Plain inputs remain unchanged.
 - Tests prove top-level and nested equivalent static HTML for signal props and
   reactive host class.
+
+## Resolution
+
+Top-level static factory rendering now snapshots each prop and host class
+through the public `isSignal()` contract before applying it to the element.
+Signal and computed inputs therefore produce the same static HTML as the nested
+factory path, without installing subscriptions in the one-time SSG snapshot.

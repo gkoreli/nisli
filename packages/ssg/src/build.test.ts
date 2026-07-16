@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { children, component, html, signal, ref, onMount } from '@nisli/core';
+import { children, component, computed, html, signal, ref, onMount } from '@nisli/core';
 import { defineRouter, notFound, numberParam, route } from '@nisli/router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildStaticSite } from './index.js';
@@ -199,6 +199,55 @@ describe('buildStaticSite', () => {
     const output = readFileSync(join(outDir, 'index.html'), 'utf-8');
     expect(output).toContain('<ssg-static-hero class="hero">');
     expect(output).toContain('<header><h1>Top Level Component</h1></header>');
+  });
+
+  it('matches nested factory output for signal props and reactive host class', async () => {
+    const outDir = tempDir();
+    const title = signal('Signal Title');
+    const tone = signal(' featured ');
+    const hostClass = computed(() => `  hero ${tone.value} `);
+    const SignalHero = component<{ title: string }>('ssg-signal-hero', props => {
+      return html`<header><h1>${props.title}</h1></header>`;
+    });
+
+    await buildStaticSite({
+      outDir,
+      routes: [
+        {
+          path: '/top',
+          render: () => SignalHero({ title }, { class: hostClass }),
+        },
+        {
+          path: '/nested',
+          render: () => html`${SignalHero({ title }, { class: hostClass })}`,
+        },
+      ],
+    });
+
+    const top = readFileSync(join(outDir, 'top', 'index.html'), 'utf-8');
+    const nested = readFileSync(join(outDir, 'nested', 'index.html'), 'utf-8');
+    expect(top).toBe(nested);
+    expect(top).toContain('<ssg-signal-hero class="hero featured">');
+    expect(top).toContain('<header><h1>Signal Title</h1></header>');
+    expect(top).not.toMatch(/<!--(?:slot|tpl|list|each)-(?:start|end)-->/);
+  });
+
+  it('removes the temporary top-level factory host when prop resolution throws', async () => {
+    const outDir = tempDir();
+    const before = document.body.childElementCount;
+    const brokenTitle = computed<string>(() => {
+      throw new Error('broken title');
+    });
+    const BrokenHero = component<{ title: string }>('ssg-broken-hero', props => {
+      return html`<h1>${props.title}</h1>`;
+    });
+
+    await expect(buildStaticSite({
+      outDir,
+      routes: [{ path: '/', render: () => BrokenHero({ title: brokenTitle }) }],
+    })).rejects.toThrow('broken title');
+
+    expect(document.body.childElementCount).toBe(before);
   });
 
   it('copies public assets before writing pages', async () => {

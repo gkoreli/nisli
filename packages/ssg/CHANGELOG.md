@@ -4,6 +4,12 @@ All notable changes to `@nisli/ssg`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
+## Unreleased
+
+- Top-level component factories now snapshot signal/computed props and host
+  classes with the same static output as nested factory composition. Static
+  snapshots also omit browser-runtime slot boundary comments.
+
 ## 0.3.0 — 2026-07-11
 
 - Typed router mode: `buildStaticSite` consumes a `StaticApplicationRouter`

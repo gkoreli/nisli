@@ -1,4 +1,4 @@
-import { tick, type TemplateResult } from '@nisli/core';
+import { isSignal, tick, type TemplateResult } from '@nisli/core';
 import { ensureSsgDomEnvironment } from './environment.js';
 
 interface ComponentFactoryResult {
@@ -9,6 +9,14 @@ interface ComponentFactoryResult {
 }
 
 export type Renderable = string | TemplateResult | ComponentFactoryResult;
+
+// These exact comment bodies are reserved by Nisli's browser runtime and have
+// no meaning in a static snapshot, so omit them from published HTML.
+const RUNTIME_MARKERS = /<!--(?:slot|tpl|list|each)-(?:start|end)-->/g;
+
+function serializeHost(host: HTMLElement): string {
+  return host.innerHTML.replace(RUNTIME_MARKERS, '');
+}
 
 function isTemplateResult(value: unknown): value is TemplateResult {
   return Boolean(
@@ -31,11 +39,16 @@ function isComponentFactoryResult(value: unknown): value is ComponentFactoryResu
 
 function setFactoryProps(element: HTMLElement, factory: ComponentFactoryResult): void {
   for (const [key, value] of Object.entries(factory.props)) {
-    (element as unknown as { _setProp?: (key: string, value: unknown) => void })._setProp?.(key, value);
+    const resolved = isSignal(value) ? value.value : value;
+    (element as unknown as { _setProp?: (key: string, value: unknown) => void })._setProp?.(key, resolved);
   }
 
-  if (typeof factory.hostAttrs?.class === 'string' && factory.hostAttrs.class) {
-    element.className = factory.hostAttrs.class;
+  const hostClass = factory.hostAttrs?.class;
+  const resolvedClass = isSignal(hostClass) ? hostClass.value : hostClass;
+  if (typeof resolvedClass === 'string' && resolvedClass) {
+    for (const className of resolvedClass.split(/\s+/).filter(Boolean)) {
+      element.classList.add(className);
+    }
   }
 }
 
@@ -56,7 +69,7 @@ export async function renderToHtml(value: Renderable): Promise<string> {
     try {
       value.mount(host);
       await tick();
-      return host.innerHTML;
+      return serializeHost(host);
     } finally {
       value.dispose();
       host.remove();
@@ -66,13 +79,15 @@ export async function renderToHtml(value: Renderable): Promise<string> {
   if (isComponentFactoryResult(value)) {
     const host = document.createElement('div');
     document.body.appendChild(host);
-    const element = document.createElement(value.tagName);
-    setFactoryProps(element, value);
-    host.appendChild(element);
-    await tick();
-    const html = host.innerHTML;
-    host.remove();
-    return html;
+    try {
+      const element = document.createElement(value.tagName);
+      setFactoryProps(element, value);
+      host.appendChild(element);
+      await tick();
+      return serializeHost(host);
+    } finally {
+      host.remove();
+    }
   }
 
   throw new Error('Static route render must return a string or @nisli/core TemplateResult');
