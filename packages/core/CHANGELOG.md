@@ -6,6 +6,8 @@ checkpoints (ADR 0022); dates are release dates.
 
 ## Unreleased
 
+## 0.54.0 — 2026-07-16
+
 - Component teardown now clears framework-owned DOM before true reconnect,
   preserves projected light-DOM children, and provides a synchronous in-place
   HMR remount path. Failed setup also disposes partial effects/templates, and
@@ -19,7 +21,7 @@ checkpoints (ADR 0022); dates are release dates.
 - Added `resource(source, loader)` for local async derivations with explicit
   source tracking, stale-generation suppression, AbortSignal cancellation,
   readonly data/loading/error signals, refresh, and automatic component
-  disposal.
+  disposal ([ADR 0028](../../docs/adr/0028-local-async-resource.md)).
 
 ## 0.53.0 — 2026-07-12
 
