@@ -11,8 +11,24 @@ export interface StaticRoute<Context extends Record<string, unknown> = Record<st
 
 /** Structural router metadata contract; keeps the router package optional. */
 export interface StaticRouterMetadata {
+  /** Document title (`<title>`). */
   title?: string;
+  /** `<meta name="…" content="…">` entries. */
   meta?: Readonly<Record<string, string>>;
+  /** `<meta property="…" content="…">` entries such as OpenGraph. */
+  property?: Readonly<Record<string, string>>;
+  /** `<link rel="canonical" href="…">`. */
+  canonical?: string;
+  /** `<link rel="alternate" hreflang="…" href="…">` entries. */
+  alternates?: readonly {
+    readonly hreflang: string;
+    readonly href: string;
+  }[];
+  /** Document language and direction. */
+  lang?: string;
+  dir?: 'ltr' | 'rtl' | 'auto';
+  /** Keyed structured-data blocks for a static shell to serialize. */
+  jsonLd?: Readonly<Record<string, unknown>>;
 }
 
 // Under strictFunctionTypes, a precise route metadata callback is

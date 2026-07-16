@@ -1,11 +1,37 @@
 import { html } from '@nisli/core';
 import { defineRouter, notFound, route } from '@nisli/router';
-import { buildStaticSite, type StaticApplicationRouter } from './index.js';
+import {
+  buildStaticSite,
+  type StaticApplicationRouter,
+  type StaticRouterMetadata,
+} from './index.js';
+
+const fullMetadata: StaticRouterMetadata = {
+  title: 'Home',
+  meta: { description: 'Start' },
+  property: { 'og:title': 'Home OG' },
+  canonical: 'https://nisli.dev/',
+  alternates: [{ hreflang: 'ka', href: 'https://nisli.dev/ka/' }],
+  lang: 'en',
+  dir: 'ltr',
+  jsonLd: { page: { '@type': 'WebPage' } },
+};
+const metadataFields = [
+  fullMetadata.title,
+  fullMetadata.meta?.description,
+  fullMetadata.property?.['og:title'],
+  fullMetadata.canonical,
+  fullMetadata.alternates?.[0]?.hreflang,
+  fullMetadata.lang,
+  fullMetadata.dir,
+  fullMetadata.jsonLd?.page,
+];
+void metadataFields;
 
 const AppRouter = defineRouter({
   home: route('/', {
     render: () => html`home`,
-    metadata: { title: 'Home' },
+    metadata: fullMetadata,
   }),
   component: route('/ui/:name', {
     entries: () => [{ name: 'button' }, { name: 'dialog' }],

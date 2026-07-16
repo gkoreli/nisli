@@ -71,7 +71,9 @@ Dynamic routes must provide `entries()`. Each entry is expanded with its typed
 `href()` and re-matched before rendering, so a build fails rather than silently
 using different URL rules. A configured not-found route is emitted as root
 `404.html`. The optional `shell` receives the shared
-`{ title, meta: Record<string, string> }` metadata contract.
+router metadata contract: `title`, named `meta`, property/OpenGraph metadata,
+canonical and alternate links, `lang`/`dir`, and keyed JSON-LD. SSG keeps this
+contract structural, so `@nisli/router` remains optional at runtime.
 
 ## Output Helpers
 

@@ -9,6 +9,9 @@ checkpoints (ADR 0022); dates are release dates.
 - Top-level component factories now snapshot signal/computed props and host
   classes with the same static output as nested factory composition. Static
   snapshots also omit browser-runtime slot boundary comments.
+- The structural router metadata contract now includes property metadata,
+  canonical/alternate links, document language/direction, and keyed JSON-LD,
+  matching the full browser-router surface without a runtime router dependency.
 
 ## 0.3.0 — 2026-07-11
 

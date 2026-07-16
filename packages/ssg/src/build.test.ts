@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { children, component, computed, html, signal, ref, onMount } from '@nisli/core';
 import { defineRouter, notFound, numberParam, route } from '@nisli/router';
 import { afterEach, describe, expect, it } from 'vitest';
-import { buildStaticSite } from './index.js';
+import { buildStaticSite, type StaticRouterMetadata } from './index.js';
 
 const tempRoots: string[] = [];
 
@@ -341,11 +341,23 @@ describe('buildStaticSite', () => {
 
   it('emits root 404.html and passes shared metadata through shell', async () => {
     const outDir = tempDir();
-    const shellPages: Array<{ path: string; title?: string; description?: string; notFound: boolean }> = [];
+    const shellPages: Array<{ path: string; metadata?: StaticRouterMetadata; notFound: boolean }> = [];
     const AppRouter = defineRouter({
       home: route('/', {
         render: () => html`<h1>Home</h1>`,
-        metadata: { title: 'Home', meta: { description: 'Start' } },
+        metadata: {
+          title: 'Home',
+          meta: { description: 'Start' },
+          property: { 'og:title': 'Home OG' },
+          canonical: 'https://nisli.dev/',
+          alternates: [
+            { hreflang: 'en', href: 'https://nisli.dev/' },
+            { hreflang: 'ka', href: 'https://nisli.dev/ka/' },
+          ],
+          lang: 'en',
+          dir: 'ltr',
+          jsonLd: { page: { '@type': 'WebPage', name: 'Home' } },
+        },
       }),
       notFound: notFound({
         render: () => html`<h1>Missing</h1>`,
@@ -359,8 +371,7 @@ describe('buildStaticSite', () => {
       shell: (page) => {
         shellPages.push({
           path: page.path,
-          title: page.metadata?.title,
-          description: page.metadata?.meta?.description,
+          metadata: page.metadata,
           notFound: page.notFound,
         });
         return html`<!doctype html><title>${page.metadata?.title}</title><main>${page.content}</main>`;
@@ -372,8 +383,28 @@ describe('buildStaticSite', () => {
     expect(readFileSync(join(outDir, '404.html'), 'utf8')).toContain('<h1>Missing</h1>');
     expect(result.pages.map((page) => page.path)).toEqual(['/', '/404.html']);
     expect(shellPages).toEqual([
-      { path: '/', title: 'Home', description: 'Start', notFound: false },
-      { path: '/404.html', title: 'Not Found', description: 'Missing page', notFound: true },
+      {
+        path: '/',
+        metadata: {
+          title: 'Home',
+          meta: { description: 'Start' },
+          property: { 'og:title': 'Home OG' },
+          canonical: 'https://nisli.dev/',
+          alternates: [
+            { hreflang: 'en', href: 'https://nisli.dev/' },
+            { hreflang: 'ka', href: 'https://nisli.dev/ka/' },
+          ],
+          lang: 'en',
+          dir: 'ltr',
+          jsonLd: { page: { '@type': 'WebPage', name: 'Home' } },
+        },
+        notFound: false,
+      },
+      {
+        path: '/404.html',
+        metadata: { title: 'Not Found', meta: { description: 'Missing page' } },
+        notFound: true,
+      },
     ]);
   });
 
