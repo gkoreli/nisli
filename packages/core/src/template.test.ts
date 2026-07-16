@@ -101,6 +101,74 @@ describe('text bindings', () => {
     flushEffects();
     expect(host.querySelector('span')?.textContent).toBe('ready');
   });
+
+  it('preserves child semantics across reactive type transitions', () => {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const Child = component<{ label: string }>(`slot-transition-${suffix}`, (props) =>
+      html`<strong>${props.label}</strong>`,
+    );
+    const value = signal<unknown>('one');
+    const result = html`<div class="slot">${value}</div>`;
+    const host = mount(result);
+    document.body.appendChild(host);
+    const slot = host.querySelector('.slot')!;
+    const initialText = slot.firstChild;
+
+    value.value = 'two';
+    flushEffects();
+    expect(slot.textContent).toBe('two');
+    expect(slot.firstChild).toBe(initialText);
+
+    value.value = null;
+    flushEffects();
+    expect(slot.textContent).toBe('');
+
+    value.value = html`<em>template</em>`;
+    flushEffects();
+    expect(slot.querySelector('em')?.textContent).toBe('template');
+
+    value.value = 'after-template';
+    flushEffects();
+    expect(slot.textContent).toBe('after-template');
+    expect(slot.querySelector('em')).toBeNull();
+    const demotedText = slot.firstChild;
+
+    value.value = 'after-template-again';
+    flushEffects();
+    expect(slot.firstChild).toBe(demotedText);
+
+    value.value = Child({ label: 'factory' });
+    flushEffects();
+    expect(slot.querySelector(`slot-transition-${suffix}`)?.textContent).toBe('factory');
+
+    value.value = 'after-factory';
+    flushEffects();
+    expect(slot.textContent).toBe('after-factory');
+    expect(slot.querySelector(`slot-transition-${suffix}`)).toBeNull();
+
+    value.value = [
+      html`<b>array-template</b>`,
+      ' + ',
+      Child({ label: 'array-factory' }),
+    ];
+    flushEffects();
+    expect(slot.querySelector('b')?.textContent).toBe('array-template');
+    expect(slot.querySelector(`slot-transition-${suffix}`)?.textContent).toBe('array-factory');
+    expect(slot.textContent).toBe('array-template + array-factory');
+
+    value.value = 'after-array';
+    flushEffects();
+    expect(slot.textContent).toBe('after-array');
+    expect(slot.querySelector('b')).toBeNull();
+
+    value.value = false;
+    flushEffects();
+    expect(slot.textContent).toBe('');
+
+    value.value = 'done';
+    flushEffects();
+    expect(slot.textContent).toBe('done');
+  });
 });
 
 // ── Attribute bindings ──────────────────────────────────────────────

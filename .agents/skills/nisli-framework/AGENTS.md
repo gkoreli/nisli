@@ -330,9 +330,9 @@ subscribes, not the view.
 subscribing the enclosing scope, wrap it in `untrack()` (see `signal-untrack`).
 
 **Contributor note:** the engine obeys the same invariant — mounting must never
-establish dependencies in the enclosing scope. The mount-time value probe in
-`replaceMarkerWithBinding` is `untrack`-ed and reactive slots memoize by
-referential identity for exactly this reason. See ADR 0008.1.
+establish dependencies in the enclosing scope. `replaceMarkerWithBinding`
+creates the child slot's dedicated effect before reading its current value, and
+reactive slots memoize by referential identity. See ADR 0008.1.
 
 ### `tmpl-event-colocated` — Use @event on the element
 

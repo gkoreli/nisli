@@ -6,6 +6,10 @@ checkpoints (ADR 0022); dates are release dates.
 
 ## Unreleased
 
+- Reactive child slots now preserve child semantics across primitive, empty,
+  template, factory, and array transitions regardless of the initial value,
+  while primitive-to-primitive updates reuse their existing text node.
+
 ## 0.54.0 — 2026-07-16
 
 - Component teardown now clears framework-owned DOM before true reconnect,

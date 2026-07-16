@@ -70,11 +70,9 @@ function textTemplate(text: string): TemplateResult {
 
 /**
  * Normalize a slot value so the template ALWAYS sees a TemplateResult / factory
- * / array / null — never a bare primitive. The engine picks the slot binding
- * kind by probing the FIRST value: a bare string would bind a plain text node,
- * which then can't host a later template child (it stringifies to
- * "[object Object]"). Wrapping primitives keeps the slot a reactive-template
- * slot for its whole life.
+ * / array / null — never a bare primitive. Projection values may be detached
+ * and reinserted as fallback/light-DOM ownership changes, so wrapping primitive
+ * text keeps that projection value explicitly re-mountable.
  */
 function asSlot(value: unknown): unknown {
   if (value == null || value === '') return null;

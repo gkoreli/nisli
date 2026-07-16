@@ -15,7 +15,6 @@ import {
   isSignal,
   effect,
   computed,
-  untrack,
   type Signal,
   type ReadonlySignal,
 } from './signal.js';
@@ -385,147 +384,136 @@ function replaceMarkerWithBinding(
   if (!parent) return;
 
   if (isSignal(value)) {
-    // Probe the current value WITHOUT tracking. This read runs during mount,
-    // which may execute inside an enclosing reactive scope (a parent reactive
-    // slot's effect, or an each() reconcile effect). The real subscription for
-    // THIS slot is established by the dedicated inner effect(s) below — the
-    // probe is only used to decide which kind of binding to create. If the
-    // probe were tracked, every nested `${signal}` slot would leak its signal
-    // (and its transitive deps) into the enclosing effect, so unrelated state
-    // changes would tear down and rebuild the whole subtree. Mount must never
-    // establish dependencies in the enclosing scope — same principle as the
-    // child-component connectedCallback isolation (ADR 0008 Gap 1).
-    let signalValue: unknown;
-    untrack(() => { signalValue = (value as ReadonlySignal<unknown>).value; });
+    // Every reactive child is a slot because its future values may have any
+    // documented child type. The slot still keeps a single Text node alive for
+    // primitive-to-primitive updates, preserving the O(1) text fast path.
+    const startMarker = document.createComment('slot-start');
+    const endMarker = document.createComment('slot-end');
+    parent.replaceChild(endMarker, comment);
+    parent.insertBefore(startMarker, endMarker);
 
-    // Check if the signal holds a TemplateResult, factory, null, undefined, or array
-    // (e.g., from reactive when(), computed(() => items.map(renderFn)), or factory results)
-    const isReactiveSlot = signalValue === null || signalValue === undefined
-      || (signalValue && typeof signalValue === 'object' && '__templateResult' in signalValue)
-      || (signalValue && typeof signalValue === 'object' && '__type' in signalValue)
-      || Array.isArray(signalValue);
+    let currentResults: TemplateResult[] = [];
+    let currentNodes: Node[] = [];
+    let currentFactoryDisposers: (() => void)[] = [];
+    let currentText: Text | null = null;
+    // Sentinel distinct from any resolvable value (including null/undefined)
+    // so the FIRST effect run always mounts. See ADR 0008.1.
+    const NOT_RENDERED = Symbol('not-rendered');
+    let lastValue: unknown = NOT_RENDERED;
 
-    if (isReactiveSlot) {
-      // Reactive template slot — mount/unmount templates as signal changes
-      const startMarker = document.createComment('slot-start');
-      const endMarker = document.createComment('slot-end');
-      parent.replaceChild(endMarker, comment);
-      parent.insertBefore(startMarker, endMarker);
+    const dispose = effect(() => {
+      const newValue = (value as ReadonlySignal<unknown>).value;
+      // Use endMarker.parentNode — the captured `parent` may be a
+      // DocumentFragment that was already appended to the real DOM,
+      // leaving the markers reparented under the actual DOM element.
+      const liveParent = endMarker.parentNode;
+      if (!liveParent) return;
 
-      let currentResults: TemplateResult[] = [];
-      let currentNodes: Node[] = [];
-      let currentFactoryDisposers: (() => void)[] = [];
-      // Sentinel distinct from any resolvable value (including null/undefined)
-      // so the FIRST effect run always mounts. See ADR 0008.1.
-      const NOT_RENDERED = Symbol('not-rendered');
-      let lastValue: unknown = NOT_RENDERED;
+      // Memoize by referential identity. A computed/signal only notifies
+      // when its value changes by Object.is, so an EQUAL value here means
+      // this effect was re-triggered by some OTHER dependency (a tracking
+      // leak), not by an actual change to this slot. Re-mounting identical
+      // content would destroy live DOM (and reset scroll/focus) for nothing.
+      // See ADR 0008.1.
+      if (newValue === lastValue) return;
+      lastValue = newValue;
 
-      const dispose = effect(() => {
-        const newValue = (value as ReadonlySignal<unknown>).value;
-        // Use endMarker.parentNode — the captured `parent` may be a
-        // DocumentFragment that was already appended to the real DOM,
-        // leaving the markers reparented under the actual DOM element.
-        const liveParent = endMarker.parentNode;
-        if (!liveParent) return;
+      const isTemplate = Boolean(
+        newValue
+        && typeof newValue === 'object'
+        && '__templateResult' in newValue,
+      );
+      const isFactory = Boolean(
+        newValue
+        && typeof newValue === 'object'
+        && '__type' in newValue
+        && (newValue as any).__type === 'factory',
+      );
+      const isPrimitive = newValue != null
+        && newValue !== false
+        && !Array.isArray(newValue)
+        && !isTemplate
+        && !isFactory;
 
-        // Memoize by referential identity. A computed/signal only notifies
-        // when its value changes by Object.is, so an EQUAL value here means
-        // this effect was re-triggered by some OTHER dependency (a tracking
-        // leak), not by an actual change to this slot. Re-mounting identical
-        // content would destroy live DOM (and reset scroll/focus) for nothing.
-        // Defense-in-depth against the leak class fixed at the probe in this
-        // same file. See ADR 0008.1.
-        if (newValue === lastValue) return;
-        lastValue = newValue;
+      if (isPrimitive && currentText) {
+        currentText.data = String(newValue);
+        return;
+      }
 
-        // Dispose and remove the previous slot value before mounting the next.
-        // Ownership is per VALUE, not per outer template lifetime: factory prop
-        // subscriptions must stop as soon as their child leaves (issue 0011).
-        for (const r of currentResults) {
-          try { r.dispose(); } catch (_) {}
-        }
-        for (const dispose of currentFactoryDisposers) {
-          try { dispose(); } catch (_) {}
-        }
-        for (const node of currentNodes) {
-          node.parentNode?.removeChild(node);
-        }
-        currentNodes = [];
-        currentResults = [];
-        currentFactoryDisposers = [];
+      // Dispose and remove the previous slot value before mounting the next.
+      // Ownership is per VALUE, not per outer template lifetime: factory prop
+      // subscriptions must stop as soon as their child leaves (issue 0011).
+      for (const r of currentResults) {
+        try { r.dispose(); } catch (_) {}
+      }
+      for (const dispose of currentFactoryDisposers) {
+        try { dispose(); } catch (_) {}
+      }
+      for (const node of currentNodes) {
+        node.parentNode?.removeChild(node);
+      }
+      currentNodes = [];
+      currentResults = [];
+      currentFactoryDisposers = [];
+      currentText = null;
 
-        if (newValue == null) {
-          // null/undefined — nothing to mount
-        } else if (Array.isArray(newValue)) {
-          // Array of TemplateResults (or mixed content)
-          for (const item of newValue) {
-            if (item && typeof item === 'object' && '__templateResult' in item) {
-              const tpl = item as TemplateResult;
-              const wrapper = document.createDocumentFragment();
-              tpl.mount(wrapper as unknown as HTMLElement);
-              const nodes = [...wrapper.childNodes];
-              currentNodes.push(...nodes);
-              currentResults.push(tpl);
-              liveParent.insertBefore(wrapper, endMarker);
-            } else if (item && typeof item === 'object' && '__type' in item && (item as any).__type === 'factory') {
-              const mounted = mountFactoryResult(item as any);
-              currentNodes.push(mounted.element);
-              currentFactoryDisposers.push(mounted.dispose);
-              liveParent.insertBefore(mounted.element, endMarker);
-            } else if (item != null && item !== false) {
-              const textNode = document.createTextNode(String(item));
-              currentNodes.push(textNode);
-              liveParent.insertBefore(textNode, endMarker);
-            }
+      if (newValue == null) {
+        // null/undefined — nothing to mount
+      } else if (Array.isArray(newValue)) {
+        // Array of TemplateResults (or mixed content)
+        for (const item of newValue) {
+          if (item && typeof item === 'object' && '__templateResult' in item) {
+            const tpl = item as TemplateResult;
+            const wrapper = document.createDocumentFragment();
+            tpl.mount(wrapper as unknown as HTMLElement);
+            const nodes = [...wrapper.childNodes];
+            currentNodes.push(...nodes);
+            currentResults.push(tpl);
+            liveParent.insertBefore(wrapper, endMarker);
+          } else if (item && typeof item === 'object' && '__type' in item && (item as any).__type === 'factory') {
+            const mounted = mountFactoryResult(item as any);
+            currentNodes.push(mounted.element);
+            currentFactoryDisposers.push(mounted.dispose);
+            liveParent.insertBefore(mounted.element, endMarker);
+          } else if (item != null && item !== false) {
+            const textNode = document.createTextNode(String(item));
+            currentNodes.push(textNode);
+            liveParent.insertBefore(textNode, endMarker);
           }
-        } else if (typeof newValue === 'object' && '__templateResult' in newValue) {
-          // Single TemplateResult
-          const tpl = newValue as TemplateResult;
-          const wrapper = document.createDocumentFragment();
-          tpl.mount(wrapper as unknown as HTMLElement);
-          currentNodes = [...wrapper.childNodes];
-          currentResults.push(tpl);
-          liveParent.insertBefore(wrapper, endMarker);
-        } else if (typeof newValue === 'object' && '__type' in newValue && (newValue as any).__type === 'factory') {
-          // Factory result — create child element
-          const mounted = mountFactoryResult(newValue as any);
-          currentNodes.push(mounted.element);
-          currentFactoryDisposers.push(mounted.dispose);
-          liveParent.insertBefore(mounted.element, endMarker);
-        } else if (newValue !== false) {
-          // Primitive reached from an initially null/undefined reactive slot.
-          const textNode = document.createTextNode(String(newValue));
-          currentNodes.push(textNode);
-          liveParent.insertBefore(textNode, endMarker);
         }
-      });
-      disposers.push(dispose);
-      // TemplateResult.dispose() intentionally leaves mounted DOM in place, but
-      // it must still dispose bindings owned by the CURRENT reactive slot value.
-      // Previously that cleanup only happened on the next value change.
-      disposers.push(() => {
-        for (const r of currentResults.splice(0)) {
-          try { r.dispose(); } catch (_) {}
-        }
-        for (const factoryDispose of currentFactoryDisposers.splice(0)) {
-          try { factoryDispose(); } catch (_) {}
-        }
-        currentNodes = [];
-      });
-    } else {
-      // Primitive signal — create a reactive text node
-      const textNode = document.createTextNode(String(signalValue));
-      parent.replaceChild(textNode, comment);
-
-      const binding: TextBinding = { type: 'text', node: textNode };
-      bindings.push(binding);
-
-      const dispose = effect(() => {
-        textNode.data = String((value as ReadonlySignal<unknown>).value);
-      });
-      binding.dispose = dispose;
-      disposers.push(dispose);
-    }
+      } else if (isTemplate) {
+        // Single TemplateResult
+        const tpl = newValue as TemplateResult;
+        const wrapper = document.createDocumentFragment();
+        tpl.mount(wrapper as unknown as HTMLElement);
+        currentNodes = [...wrapper.childNodes];
+        currentResults.push(tpl);
+        liveParent.insertBefore(wrapper, endMarker);
+      } else if (isFactory) {
+        // Factory result — create child element
+        const mounted = mountFactoryResult(newValue as any);
+        currentNodes.push(mounted.element);
+        currentFactoryDisposers.push(mounted.dispose);
+        liveParent.insertBefore(mounted.element, endMarker);
+      } else if (newValue !== false) {
+        currentText = document.createTextNode(String(newValue));
+        currentNodes.push(currentText);
+        liveParent.insertBefore(currentText, endMarker);
+      }
+    });
+    disposers.push(dispose);
+    // TemplateResult.dispose() intentionally leaves mounted DOM in place, but
+    // it must still dispose bindings owned by the CURRENT reactive slot value.
+    disposers.push(() => {
+      for (const r of currentResults.splice(0)) {
+        try { r.dispose(); } catch (_) {}
+      }
+      for (const factoryDispose of currentFactoryDisposers.splice(0)) {
+        try { factoryDispose(); } catch (_) {}
+      }
+      currentNodes = [];
+      currentText = null;
+    });
   } else if (value && typeof value === 'object' && '__templateResult' in value) {
     // Nested template result — mount it
     const result = value as TemplateResult;

@@ -1,7 +1,7 @@
 ---
 title: "0012. Reactive Child Semantics Depend on the Initial Value"
 date: 2026-07-16
-status: open
+status: resolved
 ---
 
 # Reactive child semantics depend on the initial value
@@ -27,3 +27,10 @@ instead of using the documented child-slot semantics.
   possible.
 - Tests cover primitive/null/template/factory/array transitions in both
   directions.
+
+## Resolution
+
+Every reactive child now owns one marker-bounded slot regardless of its first
+value. The slot preserves a live text node across primitive-to-primitive
+updates, but promotes and demotes cleanly between empty, template, factory, and
+array values with the same ownership cleanup used by structured slots.

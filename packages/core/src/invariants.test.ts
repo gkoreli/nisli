@@ -1047,30 +1047,28 @@ describe('INVARIANT: unquoted attribute expressions (ADR 0069)', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════
-// ADR 0008.1: Mount-time signal probe reads must NOT leak into the
+// ADR 0008.1: Mounting reactive child bindings must NOT leak into the
 // enclosing reactive scope.
 //
-// replaceMarkerWithBinding probes a signal slot's `.value` to decide which
-// kind of binding to create. That probe runs during mount, which can execute
-// inside an enclosing effect — a parent reactive slot's effect, or an each()
-// reconcile effect. If the probe is tracked, the enclosing effect captures the
-// nested signal (and its transitive deps) as spurious dependencies. When any
-// of those leaked deps later changes, the enclosing effect re-runs and — since
-// the reactive-slot effect re-mounts unconditionally — tears down and rebuilds
-// the WHOLE subtree, replacing live DOM nodes.
+// replaceMarkerWithBinding creates a dedicated child-slot effect before it
+// reads the signal's current value. That isolates the read from an enclosing
+// parent-slot or each() reconcile effect. Otherwise the enclosing effect would
+// capture the nested signal (and its transitive deps) as spurious dependencies.
+// When any leaked dependency changed, the outer slot could tear down and
+// rebuild the WHOLE subtree, replacing live DOM nodes.
 //
 // Real regression (backlog-mcp activity-panel): clicking "Show more" toggled
 // `expandedTaskGroups`; the `mainContent` reactive slot had leaked
-// toggleText → isExpanded → expandedTaskGroups via the probe, so it re-ran and
-// replaced the entire <div class="activity-list"> node, resetting scrollTop to
-// 0 (observed: connected:false, sameNode:false on the captured element).
+// toggleText → isExpanded → expandedTaskGroups during mount, so it re-ran and
+// replaced the entire <div class="activity-list"> node, resetting scrollTop
+// to 0 (observed: connected:false, sameNode:false on the captured element).
 //
 // Invariant: mounting must never establish dependencies in the enclosing
-// scope. Each dynamic part owns its own subscription via its own effect; the
-// probe is wrapped in untrack(). Same principle as ADR 0008 / ADR 0009 Gap 1.
+// scope. Each dynamic part owns its own subscription via its own effect. Same
+// principle as ADR 0008 / ADR 0009 Gap 1.
 // ═══════════════════════════════════════════════════════════════════════
 
-describe('INVARIANT: mount-time probe does not leak deps (ADR 0008.1)', () => {
+describe('INVARIANT: reactive child mounting does not leak deps (ADR 0008.1)', () => {
   it('changing a nested slot signal does not rebuild the parent reactive slot', () => {
     const expanded = signal(false);
     // A "variable" computed used directly in a slot — returns a string.
