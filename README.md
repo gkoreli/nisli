@@ -5,7 +5,6 @@ combines fine-grained signals, typed component factories, light-DOM templates,
 dependency injection, routing, and static generation without a virtual DOM or
 a framework compiler.
 
-
 ## Built in public
 
 Nisli started inside backlog-mcp's web viewer rather than as a standalone
