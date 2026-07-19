@@ -5,6 +5,18 @@ combines fine-grained signals, typed component factories, light-DOM templates,
 dependency injection, routing, and static generation without a virtual DOM or
 a framework compiler.
 
+## Built in public
+
+Nisli started inside backlog-mcp's web viewer rather than as a standalone
+framework. Two public records show that origin and its production use:
+
+- [117 Pull Requests Later, It Wasn’t a Task Manager Anymore](https://gkoreli.com/one-hundred-pull-requests)
+  traces how the backlog produced the framework while its viewer was being built.
+- [gkoreli.com](https://gkoreli.com) is a production publication rendered with
+  `@nisli/core`.
+
+These are implementation records from the maintainer, not benchmarks.
+
 ## Install
 
 ```sh
