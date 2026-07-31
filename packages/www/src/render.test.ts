@@ -44,7 +44,7 @@ describe('nisli website', () => {
       expect(html).toContain('href="/docs"');
       expect(html).toContain('href="/ui"');
       expect(html).toContain('id="theme-toggle"');
-      expect(html).toContain('github.com/gogakoreli/nisli'); // footer
+      expect(html).toContain('github.com/gkoreli/nisli'); // footer
     }
   });
 

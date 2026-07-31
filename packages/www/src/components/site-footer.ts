@@ -22,9 +22,9 @@ export function SiteFooter(): TemplateResult {
         (MIT).
       </p>
       <a
-        href="https://github.com/gogakoreli/nisli"
+        href="https://github.com/gkoreli/nisli"
         class="transition-colors hover:text-foreground"
-        >github.com/gogakoreli/nisli</a
+        >github.com/gkoreli/nisli</a
       >
     </div>
   </footer>`;

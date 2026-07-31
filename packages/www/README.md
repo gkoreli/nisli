@@ -31,7 +31,7 @@ snapshot, and the deployed site always reflects the registry at build time.
 ## Deploy
 
 **Deploys run on Cloudflare Workers Builds** — the worker `nisli-www` is git-connected to
-`gogakoreli/nisli` (branch `main`), exactly like Goga's blog. A push to `main` that touches
+`gkoreli/nisli` (branch `main`), exactly like Goga's blog. A push to `main` that touches
 the watched paths triggers a clean-env build + deploy in ~60s. No GitHub Actions, no API
 token.
 
@@ -39,7 +39,7 @@ Cloudflare dashboard settings (Workers & Pages → `nisli-www` → Settings → 
 
 | Setting         | Value                                                       |
 | --------------- | ----------------------------------------------------------- |
-| Git repository  | `gogakoreli/nisli`, branch `main`                           |
+| Git repository  | `gkoreli/nisli`, branch `main`                           |
 | Root directory  | `packages/www`                                              |
 | Build command   | `pnpm install && pnpm --filter @nisli/www build`            |
 | Deploy command  | `npx wrangler deploy` (default)                             |

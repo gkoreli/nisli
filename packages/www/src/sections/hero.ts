@@ -41,7 +41,7 @@ export function hero(): TemplateResult {
           >Browse components</a
         >
         <a
-          href="https://github.com/gogakoreli/nisli"
+          href="https://github.com/gkoreli/nisli"
           class="${buttonVariants({ size: 'lg', variant: 'ghost' })}"
           >GitHub</a
         >

@@ -68,7 +68,7 @@ export function SiteShell(
         </nav>
         <div class="ml-auto flex items-center gap-2">
           <a
-            href="https://github.com/gogakoreli/nisli"
+            href="https://github.com/gkoreli/nisli"
             class="hidden text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-block"
             >GitHub</a
           >
