@@ -4,6 +4,13 @@
  * (see preview.ts) can render any component by tag. Regenerate when the
  * registry gains components; the WWW-6 enforcement test guards coverage.
  */
+import './nisli-ui/ui/acp/acp-content.js';
+import './nisli-ui/ui/acp/acp-diff.js';
+import './nisli-ui/ui/acp/acp-permission.js';
+import './nisli-ui/ui/acp/acp-plan.js';
+import './nisli-ui/ui/acp/acp-thought.js';
+import './nisli-ui/ui/acp/acp-tool-call.js';
+import './nisli-ui/ui/acp/acp-transcript.js';
 import './nisli-ui/ui/accordion.js';
 import './nisli-ui/ui/alert.js';
 import './nisli-ui/ui/alert-dialog.js';

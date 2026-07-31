@@ -47,6 +47,42 @@ The networked smoke test for the currently published package runs as a separate
 CI job and can be invoked locally with `pnpm --filter @nisli/ui e2e:npm`. Set
 `NISLI_UI_VERSION` to verify a specific release.
 
+## Agent Client Protocol (ACP)
+
+A set for rendering coding-agent sessions — the transcript UI that Zed, and the
+JetBrains/Neovim/Emacs ACP clients, each rebuild from scratch:
+
+```bash
+npx @nisli/ui add acp-transcript
+```
+
+That pulls the whole set: `acp-protocol` (type-only wire shapes),
+`acp-session` (the reducer), and the renderers — `acp-transcript`,
+`acp-tool-call`, `acp-diff`, `acp-plan`, `acp-thought`, `acp-content`,
+`acp-permission`. Point it at a stream of `session/update` notifications:
+
+```ts
+import { createTranscript } from './lib/acp-session.js';
+import { AcpTranscript } from './ui/acp-transcript.js';
+
+const transcript = createTranscript();
+connection.onSessionUpdate((notification) => transcript.apply(notification));
+
+html`${AcpTranscript({ entries: transcript.entries })}`;
+```
+
+Source-first matters more here than for a Button. ACP has shipped three
+breaking majors in a year, and the published ACP component libraries are all
+stranded on dead ones — so these files deliberately **do not** depend on
+`@agentclientprotocol/sdk`. They describe the JSON on the wire, an update
+variant this copy has never seen renders as an inspectable row instead of
+vanishing, and when the protocol moves you edit your own file.
+
+`acp-permission` is the consent surface for `session/request_permission`: it
+renders the requested tool call expanded (diff included) and styles
+`allow_always` distinctly from `allow_once`, because a standing grant should
+never be one muscle-memory click away.
+
 ## Design
 
 Architecture and conventions are recorded in

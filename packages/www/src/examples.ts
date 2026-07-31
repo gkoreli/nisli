@@ -153,6 +153,14 @@ import {
   MessageScrollerContent,
   MessageScrollerItem,
 } from './nisli-ui/ui/message-scroller.js';
+import { AcpContent } from './nisli-ui/ui/acp/acp-content.js';
+import { AcpDiff } from './nisli-ui/ui/acp/acp-diff.js';
+import { AcpPermission } from './nisli-ui/ui/acp/acp-permission.js';
+import { AcpPlan } from './nisli-ui/ui/acp/acp-plan.js';
+import { AcpThought } from './nisli-ui/ui/acp/acp-thought.js';
+import { AcpToolCall } from './nisli-ui/ui/acp/acp-tool-call.js';
+import { AcpTranscript } from './nisli-ui/ui/acp/acp-transcript.js';
+import type { TranscriptEntry } from './nisli-ui/lib/acp-session.js';
 // WWW-14 curation surfaces
 import navigationMenuExample from './hydrate-examples/navigation-menu.js';
 import toastExample from './hydrate-examples/toast.js';
@@ -618,6 +626,145 @@ export const examples: Record<string, () => TemplateResult> = {
       ${InputGroup({
         children: html`${InputGroupInput({ placeholder: 'you' })}
         ${InputGroupAddon({ align: 'inline-end', children: '@nisli.dev' })}`,
+      })}
+    </div>`,
+  // ── ACP (Agent Client Protocol) ────────────────────────────────────
+  // These render real session data: each example is the exact payload an ACP
+  // agent puts on the wire, folded through the same reducer a live client uses.
+  'acp-content': () =>
+    html`<div class="flex w-full max-w-xl flex-col gap-3">
+      ${AcpContent({
+        content: [
+          { type: 'text', text: 'Reading the config, then patching the resolver.' },
+          {
+            type: 'resource_link',
+            uri: 'file:///src/resolver.ts',
+            name: 'resolver.ts',
+            title: 'src/resolver.ts',
+          },
+          { type: 'resource', resource: { uri: 'file:///tsconfig.json', text: '{\n  "strict": true\n}' } },
+        ],
+      })}
+    </div>`,
+  'acp-diff': () =>
+    html`<div class="w-full max-w-xl">
+      ${AcpDiff({
+        path: 'src/resolver.ts',
+        oldText: 'export function resolve(id) {\n  return cache[id];\n}',
+        newText: 'export function resolve(id) {\n  const hit = cache[id];\n  if (hit) return hit;\n  return load(id);\n}',
+      })}
+    </div>`,
+  'acp-plan': () =>
+    html`<div class="w-full max-w-xl">
+      ${AcpPlan({
+        entries: [
+          { content: 'Read the failing test', status: 'completed', priority: 'high' },
+          { content: 'Patch the resolver cache', status: 'in_progress', priority: 'high' },
+          { content: 'Re-run the suite', status: 'pending', priority: 'medium' },
+        ],
+      })}
+    </div>`,
+  'acp-thought': () =>
+    html`<div class="w-full max-w-xl">
+      ${AcpThought({
+        content: [
+          {
+            type: 'text',
+            text: 'The cache is populated but never read on the hot path, so every call re-loads.',
+          },
+        ],
+      })}
+    </div>`,
+  'acp-tool-call': () =>
+    html`<div class="flex w-full max-w-xl flex-col gap-3">
+      ${AcpToolCall({
+        call: {
+          toolCallId: 'c1',
+          title: 'Read src/resolver.ts',
+          kind: 'read',
+          status: 'completed',
+          locations: [{ path: 'src/resolver.ts', line: 12 }],
+        },
+      })}
+      ${AcpToolCall({
+        call: {
+          toolCallId: 'c2',
+          title: 'Run the test suite',
+          kind: 'execute',
+          status: 'failed',
+          rawInput: { command: 'pnpm test' },
+          content: [{ type: 'content', content: { type: 'text', text: '1 failing: resolver caches' } }],
+        },
+      })}
+    </div>`,
+  'acp-permission': () =>
+    html`<div class="w-full max-w-xl">
+      ${AcpPermission({
+        prompt: 'The agent wants to write this change to disk.',
+        toolCall: {
+          toolCallId: 'c3',
+          title: 'Edit src/resolver.ts',
+          kind: 'edit',
+          status: 'pending',
+          content: [
+            {
+              type: 'diff',
+              path: 'src/resolver.ts',
+              oldText: '  return cache[id];',
+              newText: '  const hit = cache[id];\n  if (hit) return hit;',
+            },
+          ],
+        },
+        options: [
+          { optionId: 'o1', name: 'Allow once', kind: 'allow_once' },
+          { optionId: 'o2', name: 'Allow all edits', kind: 'allow_always' },
+          { optionId: 'o3', name: 'Reject', kind: 'reject_once' },
+        ],
+      })}
+    </div>`,
+  'acp-transcript': () =>
+    html`<div class="w-full max-w-xl">
+      ${AcpTranscript({
+        entries: [
+          {
+            kind: 'message',
+            id: 'm1',
+            role: 'user',
+            content: [{ type: 'text', text: 'Why is resolve() so slow?' }],
+            streaming: false,
+          },
+          {
+            kind: 'thought',
+            id: 't1',
+            content: [{ type: 'text', text: 'Checking whether the cache is read at all.' }],
+            streaming: false,
+          },
+          {
+            kind: 'tool-call',
+            id: 'c1',
+            call: {
+              toolCallId: 'x1',
+              title: 'Read src/resolver.ts',
+              kind: 'read',
+              status: 'completed',
+            },
+          },
+          {
+            kind: 'plan',
+            id: 'p1',
+            entries: [
+              { content: 'Patch the cache read', status: 'in_progress' },
+              { content: 'Re-run the suite', status: 'pending' },
+            ],
+          },
+          {
+            kind: 'message',
+            id: 'm2',
+            role: 'agent',
+            content: [{ type: 'text', text: 'The cache is written but never read — patching now.' }],
+            streaming: false,
+          },
+        ] satisfies TranscriptEntry[],
       })}
     </div>`,
 };

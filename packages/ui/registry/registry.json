@@ -774,6 +774,117 @@
         "utils",
         "button"
       ]
+    },
+    {
+      "name": "acp-protocol",
+      "type": "lib",
+      "description": "Type-only Agent Client Protocol (ACP) wire shapes \u2014 session updates, content blocks, tool calls, permission options \u2014 plus narrowing guards. No SDK dependency.",
+      "files": [
+        "lib/acp-protocol.ts"
+      ]
+    },
+    {
+      "name": "acp-session",
+      "type": "lib",
+      "description": "The ACP session reducer: folds session/update notifications into a keyed, streaming-safe transcript held in signals. Unknown update variants are preserved, never dropped.",
+      "files": [
+        "lib/acp-session.ts"
+      ],
+      "registryDependencies": [
+        "acp-protocol"
+      ]
+    },
+    {
+      "name": "acp-content",
+      "type": "ui",
+      "description": "Renders ACP/MCP content blocks (text, image, audio, resource link, embedded resource) as text, never as HTML.",
+      "files": [
+        "ui/acp/acp-content.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "acp-protocol"
+      ]
+    },
+    {
+      "name": "acp-diff",
+      "type": "ui",
+      "description": "A unified line diff for the ACP tool-call diff content variant, with collapsed unchanged context and add/remove counts.",
+      "files": [
+        "ui/acp/acp-diff.ts"
+      ],
+      "registryDependencies": [
+        "utils"
+      ]
+    },
+    {
+      "name": "acp-plan",
+      "type": "ui",
+      "description": "Renders the ACP plan update as a task list with per-entry status and priority.",
+      "files": [
+        "ui/acp/acp-plan.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "acp-protocol"
+      ]
+    },
+    {
+      "name": "acp-thought",
+      "type": "ui",
+      "description": "Collapsed agent reasoning (agent_thought_chunk) with a live tail while streaming.",
+      "files": [
+        "ui/acp/acp-thought.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "acp-protocol",
+        "acp-content"
+      ]
+    },
+    {
+      "name": "acp-tool-call",
+      "type": "ui",
+      "description": "An ACP tool call as a native details/summary card: kind glyph, status, arguments, output, and diffs. Opens itself on failure.",
+      "files": [
+        "ui/acp/acp-tool-call.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "acp-protocol",
+        "acp-session",
+        "acp-content",
+        "acp-diff"
+      ]
+    },
+    {
+      "name": "acp-permission",
+      "type": "ui",
+      "description": "The session/request_permission prompt. Shows the requested tool call expanded, and renders allow_always/reject_always distinctly from the one-time options.",
+      "files": [
+        "ui/acp/acp-permission.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "acp-protocol",
+        "acp-tool-call"
+      ]
+    },
+    {
+      "name": "acp-transcript",
+      "type": "ui",
+      "description": "The full ACP transcript: dispatches each reducer entry to its renderer, keyed on stable ids so streaming does not tear the list.",
+      "files": [
+        "ui/acp/acp-transcript.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "acp-session",
+        "acp-content",
+        "acp-plan",
+        "acp-thought",
+        "acp-tool-call"
+      ]
     }
   ]
 }
