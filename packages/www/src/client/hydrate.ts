@@ -26,8 +26,16 @@ import { html } from '@nisli/core';
 import { hydrateFrame, type ExampleLoader } from './hydrate-frame.js';
 import { resolveLoader } from './loader.js';
 
-// Component modules keyed by name — for the auto-default fallback (register on load).
-const components = import.meta.glob('../nisli-ui/ui/*.js');
+// Component modules keyed by name — for the auto-default fallback (register on
+// load). Recursive: domain sets (ui/acp/*) live in subfolders, and the item
+// name maps to the file's basename, not its path.
+const componentGlob = import.meta.glob('../nisli-ui/ui/**/*.js');
+const components = Object.fromEntries(
+  Object.entries(componentGlob).map(([path, load]) => [
+    path.split('/').pop()!.replace(/\.js$/, ''),
+    load,
+  ]),
+);
 
 // The curated compositions live in the examples registry (examples.ts). Load it
 // as ONE code-split chunk (per /ui page) and mount getExample(<name>) — this
@@ -45,7 +53,7 @@ const loadExamples = () => import('../examples.js');
 function loaderFor(name: string): ExampleLoader {
   return resolveLoader(name, {
     loadExamples,
-    registerComponent: (n) => components[`../nisli-ui/ui/${n}.js`]?.(),
+    registerComponent: (n) => components[n]?.(),
   });
 }
 

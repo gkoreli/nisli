@@ -22,6 +22,8 @@ import diProvideSrc from '../snippets/di-provide.ts?raw';
 import diTokenSrc from '../snippets/di-token.ts?raw';
 import querySrc from '../snippets/query.ts?raw';
 import ssgSrc from '../snippets/ssg.ts?raw';
+import acpWireSrc from '../snippets/acp-wire.ts?raw';
+import acpPermissionSrc from '../snippets/acp-permission.ts?raw';
 
 export interface DocPage {
   /** Route is `/docs` for '' , else `/docs/<slug>`. */
@@ -234,6 +236,31 @@ const ssgPage: DocPage = {
   </div>`,
 };
 
+const acpPage: DocPage = {
+  slug: 'acp',
+  title: 'Agent transcripts (ACP)',
+  description:
+    'Render a coding-agent session with the @nisli/ui ACP set — a reducer plus components for the Agent Client Protocol, copied as source with no SDK dependency.',
+  render: () => html`<div>
+    <h1 class="text-4xl font-bold tracking-tight">Agent transcripts (ACP)</h1>
+    ${Lead('The Agent Client Protocol is how editors talk to coding agents — Claude Code, Gemini CLI, goose, codex. The @nisli/ui ACP set renders those sessions: streaming messages, tool calls with diffs, plans, reasoning, and the permission prompt.')}
+    ${H2('Install')}
+    ${Command('npx @nisli/ui add acp-transcript')}
+    ${P(html`That copies the whole set into your project: ${code('lib/acp-protocol.ts')} (type-only wire shapes), ${code('lib/acp-session.ts')} (the reducer), and the ${code('ui/acp/')} components — transcript, tool-call, diff, plan, thought, content, permission. Like every registry item, it is source you own; the only import is ${code('@nisli/core')}.`)}
+    ${H2('Wire it to a session')}
+    ${P(html`An ACP connection delivers ${code('session/update')} notifications. Feed each one to ${code('createTranscript()')} and mount ${code('AcpTranscript')} on its ${code('entries')} signal — the reducer coalesces streamed chunks into stable keyed entries, merges ${code('tool_call_update')}s by id, and replaces the plan in place, so the DOM patches instead of rebuilding per token.`)}
+    ${CodeBlock(acpWireSrc.trimEnd())}
+    ${H2('The permission round-trip')}
+    ${P(html`${code('session/request_permission')} blocks the agent until the user answers. ${code('AcpPermission')} renders the requested tool call expanded — diff included, because approving a write you cannot read is the failure mode this exists to prevent — and styles ${code('allow_always')} distinctly from ${code('allow_once')}, so a standing grant is never one muscle-memory click away. Nothing autofocuses; dismissal maps to ${code('cancelled')}.`)}
+    ${CodeBlock(acpPermissionSrc.trimEnd())}
+    ${H2('Why no SDK dependency')}
+    ${P(html`ACP has shipped three breaking majors in a year, and the published ACP UI libraries are each type-coupled to a dead one. These files instead describe the JSON on the wire: a ${code('sessionUpdate')} variant this copy has never seen renders as an inspectable raw row instead of vanishing, and widening the union without handling the new variant is a build error (a ${code('never')} guard in the reducer), not a blank row. When the protocol moves, you edit your own file.`)}
+    ${P(html`Agent output and tool results are untrusted data — a tool result is a channel an attacker can steer. Every component renders content as text, never as HTML; if you add markdown, sanitize after parsing.`)}
+    ${H2('See it live')}
+    ${P(html`The ${code('/ui/acp-transcript')} page replays a canned session through the real reducer — streaming coalescence, the tool-call status flip, and plan updates, live. Each component in the set has its own page under ${code('/ui')}.`)}
+  </div>`,
+};
+
 // ── Structure ───────────────────────────────────────────────────────────────
 export const DOC_SECTIONS: readonly DocSection[] = [
   { title: 'Getting started', pages: [introPage, installationPage, quickStartPage] },
@@ -242,6 +269,7 @@ export const DOC_SECTIONS: readonly DocSection[] = [
     pages: [signalsPage, templatesPage, componentsPage, diPage, queryPage],
   },
   { title: 'Tooling', pages: [ssgPage, cliPage] },
+  { title: 'Recipes', pages: [acpPage] },
 ];
 
 export const docPages: readonly DocPage[] = DOC_SECTIONS.flatMap((s) => s.pages);

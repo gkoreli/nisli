@@ -138,12 +138,15 @@ function appendChunk(
     return { ...state, entries: [...state.entries.slice(0, -1), merged] };
   }
 
-  const seq = state.seq + 1;
+  // A chunk of a different kind/role ends the previous run — settle it, or a
+  // user message interrupted by a thought keeps its streaming caret forever.
+  const settled = settle(state);
+  const seq = settled.seq + 1;
   const entry: TranscriptEntry =
     kind === 'message'
       ? { kind: 'message', id: `m${seq}`, role, content: [block], streaming: true }
       : { kind: 'thought', id: `t${seq}`, content: [block], streaming: true };
-  return { ...state, seq, entries: [...state.entries, entry] };
+  return { ...settled, seq, entries: [...settled.entries, entry] };
 }
 
 /** Merge a `tool_call_update` into an existing call without clobbering fields. */

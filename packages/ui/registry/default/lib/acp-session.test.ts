@@ -70,6 +70,20 @@ describe('chunk coalescing', () => {
     expect(entry.content.map((b) => b.type)).toEqual(['text', 'image', 'text']);
   });
 
+  it('settles the interrupted run when a different-kind chunk starts', () => {
+    const state = fold(
+      { sessionUpdate: 'user_message_chunk', content: text('question') },
+      { sessionUpdate: 'agent_thought_chunk', content: text('thinking') },
+      { sessionUpdate: 'agent_message_chunk', content: text('answer') },
+    );
+    // Only the tail streams; the user message and the thought are settled —
+    // otherwise the user bubble keeps its streaming caret for the whole turn.
+    const [user, thought, agent] = state.entries as [MessageEntry, ThoughtEntry, MessageEntry];
+    expect(user.streaming).toBe(false);
+    expect(thought.streaming).toBe(false);
+    expect(agent.streaming).toBe(true);
+  });
+
   it('starts a new message run after a tool call interrupts', () => {
     const state = fold(
       { sessionUpdate: 'agent_message_chunk', content: text('before') },

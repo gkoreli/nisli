@@ -159,12 +159,11 @@ import { AcpPermission } from './nisli-ui/ui/acp/acp-permission.js';
 import { AcpPlan } from './nisli-ui/ui/acp/acp-plan.js';
 import { AcpThought } from './nisli-ui/ui/acp/acp-thought.js';
 import { AcpToolCall } from './nisli-ui/ui/acp/acp-tool-call.js';
-import { AcpTranscript } from './nisli-ui/ui/acp/acp-transcript.js';
-import type { TranscriptEntry } from './nisli-ui/lib/acp-session.js';
 // WWW-14 curation surfaces
 import navigationMenuExample from './hydrate-examples/navigation-menu.js';
 import toastExample from './hydrate-examples/toast.js';
 import scrollAreaExample from './hydrate-examples/scroll-area.js';
+import acpTranscriptExample from './hydrate-examples/acp-transcript.js';
 import { Toggle } from './nisli-ui/ui/toggle.js';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent, EmptyMedia } from './nisli-ui/ui/empty.js';
 import { InputGroup, InputGroupAddon, InputGroupInput } from './nisli-ui/ui/input-group.js';
@@ -722,51 +721,7 @@ export const examples: Record<string, () => TemplateResult> = {
         ],
       })}
     </div>`,
-  'acp-transcript': () =>
-    html`<div class="w-full max-w-xl">
-      ${AcpTranscript({
-        entries: [
-          {
-            kind: 'message',
-            id: 'm1',
-            role: 'user',
-            content: [{ type: 'text', text: 'Why is resolve() so slow?' }],
-            streaming: false,
-          },
-          {
-            kind: 'thought',
-            id: 't1',
-            content: [{ type: 'text', text: 'Checking whether the cache is read at all.' }],
-            streaming: false,
-          },
-          {
-            kind: 'tool-call',
-            id: 'c1',
-            call: {
-              toolCallId: 'x1',
-              title: 'Read src/resolver.ts',
-              kind: 'read',
-              status: 'completed',
-            },
-          },
-          {
-            kind: 'plan',
-            id: 'p1',
-            entries: [
-              { content: 'Patch the cache read', status: 'in_progress' },
-              { content: 'Re-run the suite', status: 'pending' },
-            ],
-          },
-          {
-            kind: 'message',
-            id: 'm2',
-            role: 'agent',
-            content: [{ type: 'text', text: 'The cache is written but never read — patching now.' }],
-            streaming: false,
-          },
-        ] satisfies TranscriptEntry[],
-      })}
-    </div>`,
+  'acp-transcript': acpTranscriptExample,
 };
 
 export function getExample(name: string): (() => TemplateResult) | undefined {
