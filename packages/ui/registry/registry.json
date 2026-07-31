@@ -885,6 +885,19 @@
         "acp-thought",
         "acp-tool-call"
       ]
+    },
+    {
+      "name": "acp-chat",
+      "type": "ui",
+      "description": "The composed agent chat: an ACP transcript above a prompt composer with Enter-to-send, busy state, and a cancel affordance.",
+      "files": [
+        "ui/acp/acp-chat.ts"
+      ],
+      "registryDependencies": [
+        "utils",
+        "acp-session",
+        "acp-transcript"
+      ]
     }
   ]
 }

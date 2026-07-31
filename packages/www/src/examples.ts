@@ -164,6 +164,7 @@ import navigationMenuExample from './hydrate-examples/navigation-menu.js';
 import toastExample from './hydrate-examples/toast.js';
 import scrollAreaExample from './hydrate-examples/scroll-area.js';
 import acpTranscriptExample from './hydrate-examples/acp-transcript.js';
+import acpChatExample from './hydrate-examples/acp-chat.js';
 import { Toggle } from './nisli-ui/ui/toggle.js';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent, EmptyMedia } from './nisli-ui/ui/empty.js';
 import { InputGroup, InputGroupAddon, InputGroupInput } from './nisli-ui/ui/input-group.js';
@@ -722,6 +723,7 @@ export const examples: Record<string, () => TemplateResult> = {
       })}
     </div>`,
   'acp-transcript': acpTranscriptExample,
+  'acp-chat': acpChatExample,
 };
 
 export function getExample(name: string): (() => TemplateResult) | undefined {

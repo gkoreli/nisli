@@ -53,13 +53,14 @@ A set for rendering coding-agent sessions — the transcript UI that Zed, and th
 JetBrains/Neovim/Emacs ACP clients, each rebuild from scratch:
 
 ```bash
-npx @nisli/ui add acp-transcript
+npx @nisli/ui add acp-chat
 ```
 
-That pulls the whole set: `acp-protocol` (type-only wire shapes),
-`acp-session` (the reducer), and the renderers — `acp-transcript`,
-`acp-tool-call`, `acp-diff`, `acp-plan`, `acp-thought`, `acp-content`,
-`acp-permission`. Point it at a stream of `session/update` notifications:
+That pulls the whole set: `acp-chat` (transcript + prompt composer),
+`acp-protocol` (type-only wire shapes), `acp-session` (the reducer), and the
+renderers — `acp-transcript`, `acp-tool-call`, `acp-diff`, `acp-plan`,
+`acp-thought`, `acp-content`, `acp-permission`. Point it at a stream of
+`session/update` notifications:
 
 ```ts
 import { createTranscript } from './lib/acp-session.js';

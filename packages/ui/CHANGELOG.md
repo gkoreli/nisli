@@ -4,6 +4,42 @@ All notable changes to `@nisli/ui`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
+## 0.4.0 — 2026-07-31
+
+The Agent Client Protocol release: a ten-item `acp-*` set for rendering
+coding-agent sessions, plus the chat composition.
+
+### Added
+- **ACP set** (`npx @nisli/ui add acp-chat` pulls everything):
+  `lib/acp-protocol` — type-only wire shapes for `session/update`, content
+  blocks, tool calls, and permission options, with narrowing guards and
+  deliberately **no `@agentclientprotocol/sdk` dependency** (the files
+  describe the JSON on the wire, so an SDK major cannot strand them);
+  `lib/acp-session` — the reducer folding notifications into a keyed,
+  streaming-safe transcript in signals (chunks coalesce with stable ids,
+  `tool_call_update` merges by id and may arrive before its `tool_call`,
+  plans replace in place, unknown update variants are preserved as
+  inspectable entries, and a `never` guard makes a widened union a build
+  error instead of a blank row).
+- **Components** under `ui/acp/` (the registry's first domain folder):
+  `acp-chat` (transcript + composer: Enter sends, Shift+Enter newline,
+  IME-safe, busy state with a Cancel affordance), `acp-transcript`,
+  `acp-tool-call` (native details/summary; opens itself on failure),
+  `acp-diff` (LCS line diff with collapsed context), `acp-plan`,
+  `acp-thought` (collapsed, live tail while streaming), `acp-content`
+  (all five block types, text-only rendering — agent output is untrusted),
+  and `acp-permission` (requested call rendered expanded with its diff;
+  `allow_always` visually distinct from `allow_once`; nothing autofocuses;
+  dismissal maps to `cancelled`).
+
+### Notes
+- Structural dispatch in the ACP renderers resolves once, outside reactive
+  scope: core propagates dirtiness through the computed chain, so even a
+  same-value computed re-fires per streamed token. Tests assert DOM node
+  identity survives streaming.
+- Registry files may now live in subfolders; the CLI already copied nested
+  paths and the integrity suite covers the closure.
+
 ## 0.3.0 — 2026-07-12
 
 The typed-props + animation-fidelity release. **Requires `@nisli/core`
