@@ -51,6 +51,10 @@ export default function acpChatExample(): TemplateResult {
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   function onPrompt(prompt: string): void {
+    // A steered prompt arrives mid-turn: abandon the in-flight canned turn
+    // (a real connection would keep streaming into the same turn instead).
+    clearTimeout(timer);
+    transcript.endTurn();
     transcript.apply({ sessionUpdate: 'user_message_chunk', content: text(prompt) });
     transcript.endTurn();
     busy.value = true;
@@ -76,6 +80,6 @@ export default function acpChatExample(): TemplateResult {
   }
 
   return html`<div class="flex h-96 w-full max-w-xl flex-col">
-    ${AcpChat({ entries: transcript.entries, onPrompt, onCancel, busy })}
+    ${AcpChat({ entries: transcript.entries, onPrompt, onCancel, busy, steerable: true })}
   </div>`;
 }

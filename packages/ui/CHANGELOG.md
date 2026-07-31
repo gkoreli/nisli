@@ -4,6 +4,18 @@ All notable changes to `@nisli/ui`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
+## 0.4.1 — 2026-07-31
+
+### Changed
+- **acp-chat: the composer never disables.** ACP allows one active prompt
+  turn per session and defines no mid-turn prompt semantics, so what to do
+  with a prompt sent while busy is per-agent — not the composer's call.
+  Two delivery modes replace the 0.4.0 lockout: `queue` (default; prompts
+  join a visible, removable queue and send when the turn ends) and `steer`
+  (fire immediately mid-turn, for agents with streaming input). New props:
+  `mode`, and `steerable` to show the queue/steer toggle. Cancel now sits
+  beside Send instead of replacing it.
+
 ## 0.4.0 — 2026-07-31
 
 The Agent Client Protocol release: a ten-item `acp-*` set for rendering

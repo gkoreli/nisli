@@ -81,31 +81,85 @@ describe('composer', () => {
   });
 });
 
-describe('busy state', () => {
-  it('disables the composer while a turn is in flight', () => {
-    const busy = signal(false);
-    const onPrompt = vi.fn();
-    const container = mount(html`${AcpChat({ busy, onPrompt })}`);
-
-    type(container, 'go');
-    busy.value = true;
-    flush();
-
-    expect(input(container).disabled).toBe(true);
-    pressEnter(container);
-    expect(onPrompt).not.toHaveBeenCalled();
-
-    busy.value = false;
-    flush();
+describe('busy: queue mode (default)', () => {
+  it('never disables the input — ACP does not queue for you, the client does', () => {
+    const busy = signal(true);
+    const container = mount(html`${AcpChat({ busy })}`);
     expect(input(container).disabled).toBe(false);
   });
 
-  it('swaps Send for Cancel while busy when onCancel is provided', () => {
+  it('queues a prompt submitted mid-turn and sends it when the turn ends', async () => {
+    const busy = signal(true);
+    const onPrompt = vi.fn();
+    const container = mount(html`${AcpChat({ busy, onPrompt })}`);
+
+    type(container, 'follow-up');
+    pressEnter(container);
+
+    // Held, visibly, not sent.
+    expect(onPrompt).not.toHaveBeenCalled();
+    const queued = container.querySelector('[data-slot="acp-chat-queued"]');
+    expect(queued?.textContent).toContain('follow-up');
+    expect(send(container).textContent).toContain('Queue');
+
+    busy.value = false;
+    flush();
+    await Promise.resolve(); // the drain is deferred a microtask
+    flush();
+
+    expect(onPrompt).toHaveBeenCalledWith('follow-up');
+    expect(container.querySelector('[data-slot="acp-chat-queued"]')).toBeNull();
+  });
+
+  it('drains one queued prompt per turn end, in order', async () => {
+    const onPrompt = vi.fn(() => (busy.value = true));
+    const busy = signal(true);
+    const container = mount(html`${AcpChat({ busy, onPrompt })}`);
+
+    type(container, 'first');
+    pressEnter(container);
+    type(container, 'second');
+    pressEnter(container);
+    expect(container.querySelectorAll('[data-slot="acp-chat-queued"]')).toHaveLength(2);
+
+    busy.value = false;
+    flush();
+    await Promise.resolve();
+    flush();
+    expect(onPrompt).toHaveBeenCalledTimes(1);
+    expect(onPrompt).toHaveBeenCalledWith('first');
+    // The drained prompt set busy again; 'second' waits for the next turn end.
+    expect(container.querySelectorAll('[data-slot="acp-chat-queued"]')).toHaveLength(1);
+
+    busy.value = false;
+    flush();
+    await Promise.resolve();
+    expect(onPrompt).toHaveBeenCalledWith('second');
+  });
+
+  it('a queued prompt can be removed before it sends', async () => {
+    const busy = signal(true);
+    const onPrompt = vi.fn();
+    const container = mount(html`${AcpChat({ busy, onPrompt })}`);
+
+    type(container, 'never mind');
+    pressEnter(container);
+    (container.querySelector('[data-slot="acp-chat-queued-remove"]') as HTMLButtonElement).click();
+    flush();
+    expect(container.querySelector('[data-slot="acp-chat-queued"]')).toBeNull();
+
+    busy.value = false;
+    flush();
+    await Promise.resolve();
+    expect(onPrompt).not.toHaveBeenCalled();
+  });
+
+  it('shows Cancel beside Send while busy when onCancel is provided', () => {
     const busy = signal(true);
     const onCancel = vi.fn();
     const container = mount(html`${AcpChat({ busy, onCancel })}`);
 
-    expect(send(container)).toBeNull();
+    expect(send(container)).not.toBeNull();
     const cancel = container.querySelector('[data-slot="acp-chat-cancel"]') as HTMLButtonElement;
     cancel.click();
     expect(onCancel).toHaveBeenCalledOnce();
@@ -113,13 +167,47 @@ describe('busy state', () => {
     busy.value = false;
     flush();
     expect(container.querySelector('[data-slot="acp-chat-cancel"]')).toBeNull();
-    expect(send(container)).not.toBeNull();
+  });
+});
+
+describe('busy: steer mode', () => {
+  it('fires the prompt immediately mid-turn', () => {
+    const busy = signal(true);
+    const onPrompt = vi.fn();
+    const container = mount(html`${AcpChat({ busy, onPrompt, mode: 'steer' })}`);
+
+    type(container, 'focus on the tests instead');
+    pressEnter(container);
+
+    expect(onPrompt).toHaveBeenCalledWith('focus on the tests instead');
+    expect(container.querySelector('[data-slot="acp-chat-queued"]')).toBeNull();
   });
 
-  it('keeps Send (disabled) while busy when no onCancel is given', () => {
-    const container = mount(html`${AcpChat({ busy: true })}`);
-    expect(container.querySelector('[data-slot="acp-chat-cancel"]')).toBeNull();
-    expect(send(container).disabled).toBe(true);
+  it('shows the toggle only when steerable, and flipping it changes delivery', async () => {
+    const busy = signal(true);
+    const onPrompt = vi.fn();
+    const plain = mount(html`${AcpChat({ busy, onPrompt })}`);
+    expect(plain.querySelector('[data-slot="acp-chat-mode-toggle"]')).toBeNull();
+
+    document.body.innerHTML = '';
+    const container = mount(html`${AcpChat({ busy, onPrompt, steerable: true })}`);
+    const toggle = container.querySelector('[data-slot="acp-chat-mode-toggle"]') as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+
+    toggle.click();
+    flush();
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+
+    type(container, 'redirect');
+    pressEnter(container);
+    expect(onPrompt).toHaveBeenCalledWith('redirect'); // steered, not queued
+
+    toggle.click();
+    flush();
+    type(container, 'later');
+    pressEnter(container);
+    expect(onPrompt).toHaveBeenCalledTimes(1); // back to queueing
+    expect(container.querySelector('[data-slot="acp-chat-queued"]')?.textContent).toContain('later');
   });
 });
 
