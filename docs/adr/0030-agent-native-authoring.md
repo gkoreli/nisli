@@ -271,6 +271,10 @@ the wins.
 
 ## Sequencing
 
+*[ADR 0030.1](./0030.1-agent-native-gap-audit.md) audits this plan against
+prior-art evidence and supersedes the ordering below; the batches remain
+the vocabulary.*
+
 1. **AGN-1 — Diagnostics + docs budget**: error-code taxonomy with
    structured payloads; core `llms.txt` with CI-measured budget. Cheap,
    immediate; pairs with 0029's AUI-4.
