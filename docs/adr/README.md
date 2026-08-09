@@ -36,3 +36,4 @@ They moved with the framework when `@nisli/core` became a standalone package.
 - [0029. Agent-Native UI — Neutral Transcript Core, Agent-Host Widgets, and Machine-Legible Components](./0029-agent-native-ui-strategy.md) - Proposed - 2026-08-09
 - [0030. Agent-Native Authoring — The Framework Written, Verified, and Debugged by Agents](./0030-agent-native-authoring.md) - Proposed - 2026-08-09
 - [0030.1. Agent-Native Authoring — Gap Audit and Work Plan](./0030.1-agent-native-gap-audit.md) - Proposed - 2026-08-09
+- [0030.2. Agent-Native Core Ergonomics — Primitive Audit, Certified Invariants, and Sidestep Decisions](./0030.2-agent-native-core-ergonomics.md) - Proposed - 2026-08-09
