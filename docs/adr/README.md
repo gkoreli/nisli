@@ -33,3 +33,5 @@ They moved with the framework when `@nisli/core` became a standalone package.
 - [0026. Typed Application Router — Shared Browser, Vite, and SSG Routes](./0026-typed-application-router.md) - Accepted - 2026-07-11
 - [0026. Typed Application Router — Shared Browser, Vite, and SSG Routes](./0026-typed-application-router.md) - Proposed - 2026-07-11
 - [0028. Local Async Derivations with `resource()`](./0028-local-async-resource.md) - Accepted - 2026-07-16
+- [0029. Agent-Native UI — Neutral Transcript Core, Agent-Host Widgets, and Machine-Legible Components](./0029-agent-native-ui-strategy.md) - Proposed - 2026-08-09
+- [0030. Agent-Native Authoring — The Framework Written, Verified, and Debugged by Agents](./0030-agent-native-authoring.md) - Proposed - 2026-08-09
