@@ -47,4 +47,28 @@ describe('HMR registry remount', () => {
     expect(element.querySelectorAll('span')).toHaveLength(1);
     expect(oldCleanup).toHaveBeenCalledTimes(1);
   });
+
+  it('marks its indirection thunks for the N201 duplicate-define exemption', () => {
+    const tag = `hmr-mark-${uid++}`;
+    const thunk = __register(tag, (() => html`<span>x</span>`) as HmrSetup);
+    expect((thunk as { __nisliHmr?: boolean }).__nisliHmr).toBe(true);
+  });
+
+  it('a module re-evaluation calling component() again does NOT trip N201 (thunk exemption)', () => {
+    const tag = `hmr-reeval-${uid++}`;
+    // Initial module evaluation (as the HMR transform emits it):
+    component(tag, __register(tag, (() => html`<span>v1</span>`) as HmrSetup) as never);
+    const element = document.createElement(tag);
+    document.body.appendChild(element);
+    expect(element.textContent).toBe('v1');
+
+    // Rebuild re-evaluates the whole module — component() runs AGAIN for an
+    // already-defined tag, but with the registry's marked thunk: exempt from
+    // the duplicate-define error, and the swap still lands via the registry.
+    expect(() => {
+      component(tag, __register(tag, (() => html`<span>v2</span>`) as HmrSetup) as never);
+    }).not.toThrow();
+    drainRemounts();
+    expect(element.textContent).toBe('v2');
+  });
 });

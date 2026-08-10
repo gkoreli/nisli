@@ -3,7 +3,7 @@
  *
  * @vitest-environment happy-dom
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createContext } from './element-context.js';
 import { component } from './component.js';
 import { html } from './template.js';
@@ -241,6 +241,36 @@ describe('createContext — through the component model', () => {
     document.body.appendChild(host);
     expect(host.querySelector('[data-slot="rc-reader"]')).toBeNull();
     expect(host.textContent).toContain('Error');
+  });
+
+  it('a missing provider is contained by the component boundary and stamped N401 (T6)', () => {
+    // inject() with no provider throws INSIDE setup; ADR 0030.2 T6 makes that
+    // containment a DOM fact — providerTag names the fix, the stamp names the
+    // victim, and the bubbling event carries the phase.
+    const Missing = createContext<Counter>('Missing', { providerTag: 'rc-provider' });
+    const tag = `rc-orphan-${Date.now()}`;
+    component(tag, () => {
+      Missing.inject();
+      return html`<span>never</span>`;
+    });
+
+    const seen: unknown[] = [];
+    const listener = (e: Event) => seen.push((e as CustomEvent).detail);
+    document.addEventListener('nisli-error', listener);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const el = document.createElement(tag);
+    document.body.appendChild(el);
+
+    expect(el.getAttribute('data-nisli-error')).toBe('N401');
+    expect(seen).toHaveLength(1);
+    const detail = seen[0] as { code: string; tag: string; phase: string; message: string };
+    expect(detail.code).toBe('N401');
+    expect(detail.phase).toBe('setup');
+    expect(detail.message).toContain('rc-provider'); // providerTag naming survives
+
+    document.removeEventListener('nisli-error', listener);
+    errorSpy.mockRestore();
   });
 
   it('the injected value survives the host being reparented (portal-safe capture)', () => {

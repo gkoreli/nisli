@@ -10,6 +10,8 @@ import { signal, computed, effect, flushEffects, type Signal } from './signal.js
 import { inject, provide, resetInjector } from './injector.js';
 import { getCurrentComponent, runWithContext } from './context.js';
 import { html, type TemplateResult } from './template.js';
+import { onMount } from './lifecycle.js';
+import { setDevMode } from './diagnostics.js';
 
 beforeEach(() => {
   resetInjector();
@@ -566,6 +568,10 @@ describe('_isPinned', () => {
     component<{ open: boolean }>(tag, () => html`<div></div>`, {
       attrs: { open: 'boolean' },
     });
+    // This setup deliberately never reads props.open, so the post-mount
+    // _setProp below legitimately trips the N202 echo — silence the console
+    // for output hygiene (the echo itself is pinned in its own suite).
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const el = document.createElement(tag) as any;
     document.body.appendChild(el);
 
@@ -581,5 +587,274 @@ describe('_isPinned', () => {
     // …and an undefined write (spread-of-unset) unpins.
     el._setProp('open', undefined);
     expect(el._isPinned('open')).toBe(false);
+    errorSpy.mockRestore();
+  });
+});
+
+// ── T6: failure is a DOM fact (ADR 0030.2) ──────────────────────────
+
+describe('T6: failure is a DOM fact', () => {
+  it('a contained setup failure stamps the host data-nisli-error="N401"', () => {
+    const tag = uniqueTag('t6-setup');
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    component(tag, () => { throw new Error('setup boom'); });
+
+    const el = document.createElement(tag);
+    document.body.appendChild(el);
+
+    expect(el.getAttribute('data-nisli-error')).toBe('N401');
+    // Discoverable with no listener installed in advance — the durable channel.
+    expect(Array.from(document.querySelectorAll('[data-nisli-error]'))).toContain(el);
+    expect(errorSpy.mock.calls.some((c) => String(c[0]).includes('[nisli N401]'))).toBe(true);
+    errorSpy.mockRestore();
+  });
+
+  it('dispatches a bubbling nisli-error CustomEvent {code, tag, phase, message}', () => {
+    const tag = uniqueTag('t6-event');
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    component(tag, () => { throw new Error('setup boom'); });
+
+    const seen: unknown[] = [];
+    const listener = (e: Event) => seen.push((e as CustomEvent).detail);
+    document.addEventListener('nisli-error', listener);
+
+    const el = document.createElement(tag);
+    document.body.appendChild(el);
+
+    expect(seen).toEqual([
+      { code: 'N401', tag, phase: 'setup', message: 'setup boom' },
+    ]);
+    document.removeEventListener('nisli-error', listener);
+    errorSpy.mockRestore();
+  });
+
+  it('the event bubbles through display:contents (transparent-host) ancestry', () => {
+    const tag = uniqueTag('t6-contents');
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    component(tag, () => { throw new Error('boom'); });
+
+    const seen = vi.fn();
+    document.addEventListener('nisli-error', seen);
+
+    // Transparent wrapper chain: bubbling is a DOM-tree walk — CSS display
+    // (including display:contents hosts) never affects delivery.
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'contents';
+    document.body.appendChild(wrapper);
+    const el = document.createElement(tag);
+    el.style.display = 'contents';
+    wrapper.appendChild(el);
+
+    expect(seen).toHaveBeenCalledTimes(1);
+    document.removeEventListener('nisli-error', seen);
+    errorSpy.mockRestore();
+  });
+
+  it('detached-fragment mounts swallow the event; the ATTRIBUTE is the durable channel', () => {
+    const tag = uniqueTag('t6-detached');
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    component(tag, () => { throw new Error('detached boom'); });
+
+    const seen = vi.fn();
+    document.addEventListener('nisli-error', seen);
+
+    // Simulate a detached mount (the HMR remount path invokes lifecycle
+    // callbacks directly): the element lives in a fragment with no path to
+    // document, so the bubbling event dies at the fragment root.
+    const frag = document.createDocumentFragment();
+    const el = document.createElement(tag) as HTMLElement & { connectedCallback(): void };
+    frag.appendChild(el);
+    el.connectedCallback();
+
+    expect(seen).not.toHaveBeenCalled();
+    // The stamp survives as the machine-readable record.
+    expect(el.getAttribute('data-nisli-error')).toBe('N401');
+    expect(frag.querySelectorAll('[data-nisli-error]').length).toBe(1);
+    document.removeEventListener('nisli-error', seen);
+    errorSpy.mockRestore();
+  });
+
+  it('a successful re-setup (_remount, the boundary reset) REMOVES the stamp', () => {
+    const tag = uniqueTag('t6-reset');
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let fail = true;
+    component(tag, () => {
+      if (fail) throw new Error('first mount fails');
+      return html`<span>recovered</span>`;
+    });
+
+    const el = document.createElement(tag) as HTMLElement & { _remount(): void };
+    document.body.appendChild(el);
+    expect(el.getAttribute('data-nisli-error')).toBe('N401');
+
+    fail = false;
+    el._remount();
+
+    expect(el.hasAttribute('data-nisli-error')).toBe(false);
+    expect(el.innerHTML).toContain('recovered');
+    errorSpy.mockRestore();
+  });
+
+  it('a repeat failure in a different phase updates the stamp code', () => {
+    const tag = uniqueTag('t6-code-swap');
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let phase: 'setup' | 'mount' = 'setup';
+    component(tag, () => {
+      if (phase === 'setup') throw new Error('setup boom');
+      onMount(() => { throw new Error('mount boom'); });
+      return html`<span>x</span>`;
+    });
+
+    const el = document.createElement(tag) as HTMLElement & { _remount(): void };
+    document.body.appendChild(el);
+    expect(el.getAttribute('data-nisli-error')).toBe('N401');
+
+    phase = 'mount';
+    el._remount();
+    expect(el.getAttribute('data-nisli-error')).toBe('N402');
+    errorSpy.mockRestore();
+  });
+
+  it('onError fallback still renders alongside the stamp (custom boundary kept)', () => {
+    const tag = uniqueTag('t6-onerror');
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    component(tag, () => { throw new Error('boom'); }, {
+      onError: (error) => `<div class="fb">${error.message}</div>`,
+    });
+
+    const el = document.createElement(tag);
+    document.body.appendChild(el);
+    expect(el.getAttribute('data-nisli-error')).toBe('N401');
+    expect(el.innerHTML).toContain('class="fb"');
+    errorSpy.mockRestore();
+  });
+});
+
+// ── Duplicate define — coded error N201 (ADR 0030.2 §3/§8) ──────────
+
+describe('duplicate define (N201)', () => {
+  it('throws a coded dev error to the SECOND definer, naming the first site', () => {
+    const tag = uniqueTag('dup');
+    component(tag, () => html`<a>first</a>`);
+
+    let thrown: Error | null = null;
+    try {
+      component(tag, () => html`<b>second</b>`);
+    } catch (e) {
+      thrown = e as Error;
+    }
+
+    expect(thrown).not.toBeNull();
+    expect(thrown!.message).toContain('[nisli N201]');
+    expect(thrown!.message).toContain(`<${tag}>`);
+    // First definition site captured (this test file's frame).
+    expect(thrown!.message).toMatch(/First defined .*component\.test/);
+
+    // First-wins preserved: the live element renders the FIRST definition.
+    const el = document.createElement(tag);
+    document.body.appendChild(el);
+    expect(el.innerHTML).toContain('first');
+  });
+
+  it('production keeps silent first-wins (dev/prod split)', () => {
+    const tag = uniqueTag('dup-prod');
+    setDevMode(false);
+    try {
+      component(tag, () => html`<a>first</a>`);
+      expect(() => component(tag, () => html`<b>second</b>`)).not.toThrow();
+      const el = document.createElement(tag);
+      document.body.appendChild(el);
+      expect(el.innerHTML).toContain('first');
+    } finally {
+      setDevMode(null);
+    }
+  });
+
+  it('HMR re-evaluations are exempt via the registry-thunk marker', () => {
+    const tag = uniqueTag('dup-hmr');
+    component(tag, () => html`<a>first</a>`);
+
+    // hmr/registry.__register marks its indirection thunks; a re-evaluated
+    // module re-calling component() with one must NOT trip N201.
+    const rebuiltSetup = Object.assign(() => html`<b>rebuilt</b>`, { __nisliHmr: true as const });
+    expect(() => component(tag, rebuiltSetup)).not.toThrow();
+  });
+});
+
+// ── Unknown-prop echo — N202 (ADR 0030.2, attribution-only) ─────────
+
+describe('unknown-prop echo (N202)', () => {
+  const echoCalls = (spy: { mock: { calls: unknown[][] } }) =>
+    spy.mock.calls.filter((c) => String(c[0]).includes('[nisli N202]'));
+
+  it('post-mount _setProp to a never-read key echoes once; the write still lands', () => {
+    const tag = uniqueTag('echo');
+    component<{ known: string }>(tag, (props) => html`<span>${props.known}</span>`);
+
+    const el = document.createElement(tag) as any;
+    document.body.appendChild(el);
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    el._setProp('varian', 'ghost'); // misspelled `variant`
+    expect(echoCalls(errorSpy).length).toBe(1);
+    expect(String(errorSpy.mock.calls[0]![0])).toContain("'varian'");
+    // Attribution-only: behavior unchanged, the signal was still written.
+    expect(el._propSignal('varian').value).toBe('ghost');
+
+    // Deduped per key per element.
+    el._setProp('varian', 'again');
+    expect(echoCalls(errorSpy).length).toBe(1);
+    errorSpy.mockRestore();
+  });
+
+  it('ignores undefined writes (factory-spread contract) and read keys', () => {
+    const tag = uniqueTag('echo-safe');
+    component<{ known: string }>(tag, (props) => html`<span>${props.known}</span>`);
+
+    const el = document.createElement(tag) as any;
+    document.body.appendChild(el);
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // {...opts} spreading an unset optional fires _setProp(key, undefined) —
+    // exempt by contract.
+    el._setProp('optionalThing', undefined);
+    // A key setup() actually read is never noise.
+    el._setProp('known', 'value');
+    expect(echoCalls(errorSpy).length).toBe(0);
+    errorSpy.mockRestore();
+  });
+
+  it('pre-mount factory seeding never echoes (echo gates on setup completion)', () => {
+    const tag = uniqueTag('echo-premount');
+    component<{ known: string }>(tag, (props) => html`<span>${props.known}</span>`);
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const el = document.createElement(tag) as any;
+    el._setProp('varian', 'seeded-before-connect'); // factory seeding path
+    document.body.appendChild(el);
+    expect(echoCalls(errorSpy).length).toBe(0);
+
+    // But a POST-mount write to the same never-read key does echo.
+    el._setProp('varian', 'updated-after-mount');
+    expect(echoCalls(errorSpy).length).toBe(1);
+    errorSpy.mockRestore();
+  });
+
+  it('is dev-only: production writes stay silent', () => {
+    const tag = uniqueTag('echo-prod');
+    component<{ known: string }>(tag, (props) => html`<span>${props.known}</span>`);
+
+    const el = document.createElement(tag) as any;
+    document.body.appendChild(el);
+
+    setDevMode(false);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      el._setProp('varian', 'x');
+      expect(echoCalls(errorSpy).length).toBe(0);
+    } finally {
+      errorSpy.mockRestore();
+      setDevMode(null);
+    }
   });
 });

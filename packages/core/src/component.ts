@@ -15,6 +15,7 @@ import { signal, effect, setContextHook, isSignal, untrack, type Signal, type Re
 import { runWithContext, hasContext, getCurrentComponent, type ComponentHost } from './context.js';
 import type { TemplateResult } from './template.js';
 import { runMountCallbacks } from './lifecycle.js';
+import { diag, formatDiag, isDev } from './diagnostics.js';
 
 // Wire up effect auto-disposal: when effect() is called during component setup,
 // auto-register the dispose function with the component host.
@@ -277,8 +278,18 @@ class ComponentHostImpl implements ComponentHost {
 function createPropsProxy<P>(): {
   props: ReactiveProps<P>;
   setProperty: (key: string, value: unknown) => void;
+  readKeys: ReadonlySet<string>;
 } {
   const signals = new Map<string, Signal<unknown>>();
+
+  // Keys the component has READ through the proxy, accumulated over the
+  // COMPONENT LIFETIME (the proxy is constructor-owned and survives
+  // remounts/HMR swaps, so a re-setup never false-positives). This is the
+  // truth source for the unknown-prop echo (N202, ADR 0030.2): a post-mount
+  // write to a never-read key is attribution noise, not state. A component
+  // that stashes `props` and reads a key dynamically AFTER such a write gets
+  // one stale echo — accepted; the echo is attribution-only.
+  const readKeys = new Set<string>();
 
   const getOrCreate = (key: string, initialValue?: unknown): Signal<unknown> => {
     let s = signals.get(key);
@@ -290,7 +301,10 @@ function createPropsProxy<P>(): {
   };
 
   const props = new Proxy({} as ReactiveProps<P>, {
-    get(_target, key: string) {
+    get(_target, key) {
+      // Symbol probes (well-known symbols, thenable checks) are not props.
+      if (typeof key !== 'string') return undefined;
+      readKeys.add(key);
       return getOrCreate(key);
     },
   });
@@ -300,7 +314,31 @@ function createPropsProxy<P>(): {
     s.value = value;
   };
 
-  return { props, setProperty };
+  return { props, setProperty, readKeys };
+}
+
+// ── Duplicate-define attribution (N201, dev only) ───────────────────
+
+/** First definition site per tag, captured in dev for N201 attribution. */
+const firstDefineSites = new Map<string, string>();
+
+/**
+ * Best-effort caller frame for N201: the first stack line that is neither the
+ * Error header nor a frame inside this module. Dev-only; a user file that is
+ * itself named `component.ts` gets skipped too (best-effort attribution, never
+ * behavior).
+ */
+function captureDefineSite(): string {
+  const stack = new Error().stack;
+  if (!stack) return '(site unavailable)';
+  const lines = stack.split('\n');
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i]!.trim();
+    if (!line) continue;
+    if (line.includes('captureDefineSite') || /[/\\]component\.(?:ts|js)\b/.test(line)) continue;
+    return line;
+  }
+  return '(site unavailable)';
 }
 
 // ── component() — the main entry point ──────────────────────────────
@@ -365,6 +403,13 @@ export function component<
     private _templateResult: TemplateResult | null = null;
     private _errorTemplateResult: TemplateResult | null = null;
     private _teardownScheduled = false;
+    // True once a setup cycle completed (template mounted, onMount ran).
+    // Gates the unknown-prop echo (N202): factory writes BEFORE connect are
+    // the normal seeding path, never noise.
+    private _setupDone = false;
+    // N202 keys already echoed for this element — one echo per key per
+    // element lifetime keeps a reactive binding from spamming the console.
+    private _echoed: Set<string> | null = null;
     // Props explicitly set via _setProp (factory / direct assignment) are
     // "pinned": an explicit prop wins, so attribute writes no longer overwrite
     // it. (Precedence ruling: prop-pins.)
@@ -448,6 +493,11 @@ export function component<
             Array.from(this.childNodes);
         }
 
+        // Phase attribution for the SHARED containment boundary (ADR 0030.2
+        // T6): 'setup' (N401) until the template is committed, 'mount' (N402)
+        // once onMount callbacks begin. Both phases route through the ONE
+        // catch below — runMountCallbacks no longer swallows (lifecycle.ts).
+        let phase: 'setup' | 'mount' = 'setup';
         try {
           // CONTEXT is established by runWithContext(host, …) below; setup then
           // runs with seed + capture already in place.
@@ -465,16 +515,47 @@ export function component<
             mountTemplate(this, this._templateResult, host);
           }
 
+          // PROJECTION PHASE (ADR 0030.2 §3): if setup called children(), run
+          // its late-children sweep scheduling NOW — after the template
+          // committed, BEFORE any onMount callback. The rendered-roots
+          // snapshot therefore never depends on where children() sat relative
+          // to onMount() registrations (the 0025 batch-3B ordering trap), and
+          // the rule becomes universal: any host child appearing after this
+          // point — late parser/innerHTML content OR an onMount host-append —
+          // classifies as projected content.
+          const sweepHost = this as unknown as { __nisliProjectionSweep?: () => void };
+          if (sweepHost.__nisliProjectionSweep) {
+            const sweep = sweepHost.__nisliProjectionSweep;
+            sweepHost.__nisliProjectionSweep = undefined; // consumed once per cycle
+            sweep();
+          }
+
           // Run onMount() callbacks — DOM is now committed
+          phase = 'mount';
           runMountCallbacks(host);
+
+          this._setupDone = true;
+          // T6: a SUCCESSFUL (re-)setup — including _remount(), the documented
+          // boundary reset — removes the failure stamp.
+          this.removeAttribute('data-nisli-error');
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
-          console.error(`Component <${tagName}> setup error:`, error);
+          const code = phase === 'setup' ? 'N401' : 'N402';
+          diag(code, `<${tagName}> ${phase} failed: ${error.message}`, {
+            tag: tagName,
+            phase,
+            error,
+          });
 
           // Setup may already have registered effects/lifecycle cleanup, or
           // mountTemplate() may have partially installed bindings before
-          // throwing. Tear that partial scope down BEFORE mounting the error
-          // fallback so no hidden work survives behind it (issue 0010).
+          // throwing — and a mount-phase throw arrives with the whole scope
+          // live. Tear the partial scope down BEFORE mounting the error
+          // fallback so no hidden work survives behind it (issue 0010; the
+          // onMount phase now shares these exact semantics per T6). An
+          // unconsumed projection sweep hook is part of that partial scope.
+          (this as unknown as { __nisliProjectionSweep?: () => void }).__nisliProjectionSweep =
+            undefined;
           if (this._templateResult?.dispose) {
             this._templateResult.dispose();
           }
@@ -482,6 +563,12 @@ export function component<
           host.dispose();
           this._host = null;
           this.replaceChildren();
+
+          // T6 — failure is a DOM fact. The attribute is the DURABLE channel:
+          // `querySelectorAll('[data-nisli-error]')` answers "which component
+          // failed" long after the fact, with no listener installed in
+          // advance. Client-runtime only — SSG failures stay build failures.
+          this.setAttribute('data-nisli-error', code);
 
           if (options?.onError) {
             try {
@@ -502,6 +589,21 @@ export function component<
           } else {
             this.innerHTML = `<div style="color:red;padding:4px">Error in &lt;${tagName}&gt;</div>`;
           }
+
+          // T6 — the EVENT is the live channel: one document-level listener
+          // observes every contained failure as it happens. Dispatched LAST so
+          // listeners see the settled DOM (stamp + fallback). Bubbling is a
+          // DOM-tree walk, so CSS (display:contents transparent hosts) never
+          // affects delivery — but a component mounted into a DETACHED
+          // fragment has no path to document and the event is swallowed; the
+          // attribute above is the durable record for those (ADR 0030.2 §8).
+          this.dispatchEvent(
+            new CustomEvent('nisli-error', {
+              bubbles: true,
+              composed: true,
+              detail: { code, tag: tagName, phase, message: error.message },
+            }),
+          );
         }
       });
     }
@@ -533,6 +635,7 @@ export function component<
      */
     private _teardownNow(): void {
       this._mounted = false;
+      this._setupDone = false;
       if (this._templateResult?.dispose) {
         this._templateResult.dispose();
       }
@@ -576,6 +679,28 @@ export function component<
      * non-undefined.
      */
     _setProp(key: string, value: unknown): void {
+      // Unknown-prop echo (N202, dev, ADR 0030.2): post-mount, a DEFINED write
+      // to a key setup() never read is attribution noise — a misspelled prop
+      // (`varian=`) arriving through the factory or the template
+      // auto-resolution path (both funnel through _setProp). `undefined`
+      // writes are exempt BY CONTRACT: a factory spreading unset optional
+      // props fires _setProp(key, undefined) per the Object.entries walk (see
+      // the pinning doc above). Attribution-only — the write still lands
+      // exactly as before; deduped per key per element.
+      if (
+        this._setupDone
+        && value !== undefined
+        && isDev()
+        && !this._propsProxy!.readKeys.has(key)
+        && !(this._echoed ??= new Set()).has(key)
+      ) {
+        this._echoed!.add(key);
+        diag(
+          'N202',
+          `<${tagName}> prop '${key}' was set but setup() never read it — misspelled or unsupported prop?`,
+          { tag: tagName, key },
+        );
+      }
       if (value === undefined) {
         this._pinned.delete(key);
         const entry = attrEntriesByKey.get(key);
@@ -623,9 +748,29 @@ export function component<
     }
   }
 
-  // Register the custom element (if not already registered)
+  // Register the custom element. A DUPLICATE definition is a coded dev error
+  // (N201, ADR 0030.2 §3/§8): first-wins-silently rendered the WRONG component
+  // while the second factory typechecked against the wrong props. The error
+  // names both definition sites and is thrown to the SECOND definer; the
+  // first definition stays live (first-wins preserved). Exemptions:
+  // - HMR re-evaluations arrive with the registry's marked indirection thunk
+  //   (hmr/registry.ts __register) — the live thunk already swapped setup, so
+  //   re-registration is the mechanism working, not a collision.
+  // - Production keeps the historical SILENT first-wins: a name clash must
+  //   not take down a live page (redefine-as-swap stays HMR/dev-only because
+  //   the copy-in registry model makes genuine duplicate tags structural).
   if (!customElements.get(tagName)) {
     customElements.define(tagName, FrameworkComponent);
+    if (isDev()) firstDefineSites.set(tagName, captureDefineSite());
+  } else if (isDev() && !(setup as { __nisliHmr?: boolean }).__nisliHmr) {
+    const first = firstDefineSites.get(tagName)
+      ?? '(unknown site — defined outside component(), or before dev mode was enabled)';
+    throw new Error(formatDiag(
+      'N201',
+      `duplicate define for <${tagName}>. First defined ${first}; the second `
+      + `definition site is this error's own stack. The first definition stays `
+      + `live (first-wins) — rename one of the components.`,
+    ));
   }
 
   // Return the typed factory function

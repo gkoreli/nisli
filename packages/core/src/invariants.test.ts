@@ -1222,3 +1222,36 @@ describe('INVARIANT: reactive slots survive DOM reparenting', () => {
     expect(host.querySelector('.fallback')).toBeNull();
   });
 });
+
+// ── ADR 0030.2 T6: failure is a DOM fact ────────────────────────────
+
+describe('INVARIANT: every contained failure is machine-addressable in the DOM', () => {
+  it('querySelectorAll("[data-nisli-error]") finds each failed component with its phase code', () => {
+    const setupFail = uniqueTag('inv-t6-setup');
+    const mountFail = uniqueTag('inv-t6-mount');
+    const healthy = uniqueTag('inv-t6-ok');
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    component(setupFail, () => { throw new Error('setup boom'); });
+    component(mountFail, () => {
+      onMount(() => { throw new Error('mount boom'); });
+      return html`<span>x</span>`;
+    });
+    component(healthy, () => html`<span>fine</span>`);
+
+    for (const tag of [setupFail, mountFail, healthy]) {
+      document.body.appendChild(document.createElement(tag));
+    }
+
+    // One deterministic DOM query answers "which components failed, and when" —
+    // no listener, no log scraping. Setup and mount failures carry distinct
+    // codes; healthy components are unstamped.
+    const stamped = Array.from(document.querySelectorAll('[data-nisli-error]'));
+    expect(stamped.map((el) => [el.tagName.toLowerCase(), el.getAttribute('data-nisli-error')]))
+      .toEqual([
+        [setupFail, 'N401'],
+        [mountFail, 'N402'],
+      ]);
+    errorSpy.mockRestore();
+  });
+});

@@ -100,24 +100,33 @@ export function useHostEvent<E extends Event = Event>(
 /**
  * Run all registered mount callbacks for a component host.
  * Called by component.ts after the template is mounted to the DOM.
+ *
+ * A throw here PROPAGATES to component.ts's containment boundary — the SAME
+ * boundary as a setup throw (ADR 0030.2 T6, code N402): remaining callbacks
+ * are skipped, the partial scope (including cleanups already registered by
+ * earlier callbacks) is disposed, the error fallback renders, and the host is
+ * stamped `data-nisli-error`. The pre-T6 behavior (console-and-limp per
+ * callback) left a half-mounted component alive with no machine-readable
+ * trace and no teardown — the one containment semantics setup already had
+ * (issue 0010) now covers mount too.
  * @internal
  */
 export function runMountCallbacks(comp: object): void {
   const callbacks = mountCallbacks.get(comp);
   if (!callbacks) return;
 
-  for (const cb of callbacks) {
-    try {
+  try {
+    for (const cb of callbacks) {
       const cleanup = cb();
       if (typeof cleanup === 'function') {
         // Register cleanup as a disposer on the component
         (comp as any).addDisposer(cleanup);
       }
-    } catch (err) {
-      console.error('onMount callback error:', err);
     }
+  } finally {
+    // Clear — mount callbacks run once (also when a throw contains the scope:
+    // the boundary re-runs setup from scratch on the next mount, which
+    // re-registers a fresh callback list).
+    mountCallbacks.delete(comp);
   }
-
-  // Clear — mount callbacks run once
-  mountCallbacks.delete(comp);
 }

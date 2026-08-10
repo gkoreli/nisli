@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { component } from './component.js';
-import { signal, flushEffects } from './signal.js';
+import { signal, effect, flushEffects } from './signal.js';
 import { onMount, onCleanup } from './lifecycle.js';
 import { html } from './template.js';
 import { resetInjector } from './injector.js';
@@ -108,7 +108,11 @@ describe('onMount()', () => {
     expect(() => onMount(() => {})).toThrow('outside setup');
   });
 
-  it('onMount error does not crash sibling callbacks', () => {
+  // ── T6: an onMount throw routes through the SAME boundary as setup ──
+  // (ADR 0030.2 — the pre-T6 behavior logged per-callback and limped on,
+  // leaving a half-mounted component alive with no machine-readable trace.)
+
+  it('onMount throw contains the component: later callbacks skipped, host stamped N402, fallback rendered', () => {
     const tag = uniqueTag('mount-err');
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const secondCb = vi.fn();
@@ -122,8 +126,41 @@ describe('onMount()', () => {
     const el = document.createElement(tag);
     document.body.appendChild(el);
 
-    expect(errorSpy).toHaveBeenCalled();
-    expect(secondCb).toHaveBeenCalledTimes(1);
+    // Contained, not limped: the second callback never ran.
+    expect(secondCb).not.toHaveBeenCalled();
+    // The failure is a DOM fact (durable stamp) + the error fallback rendered.
+    expect(el.getAttribute('data-nisli-error')).toBe('N402');
+    expect(el.innerHTML).toContain('Error in');
+    // Coded diagnostic on the console.
+    expect(errorSpy.mock.calls.some((c) => String(c[0]).includes('[nisli N402]'))).toBe(true);
+    errorSpy.mockRestore();
+  });
+
+  it('onMount throw tears the scope down with setup-failure parity (issue 0010): effects disposed, earlier cleanups run', () => {
+    const tag = uniqueTag('mount-err-parity');
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const source = signal(0);
+    const effectRuns = vi.fn();
+    const earlierCleanup = vi.fn();
+
+    component(tag, () => {
+      effect(() => effectRuns(source.value));
+      onMount(() => earlierCleanup); // returns a cleanup — registered BEFORE the throw
+      onMount(() => { throw new Error('mount boom'); });
+      return html`<span>content</span>`;
+    });
+
+    const el = document.createElement(tag);
+    document.body.appendChild(el);
+    expect(effectRuns).toHaveBeenCalledTimes(1);
+
+    // The boundary disposed the partial scope: the setup effect is dead …
+    source.value = 1;
+    flushEffects();
+    expect(effectRuns).toHaveBeenCalledTimes(1);
+    // … and the earlier callback's registered cleanup ran.
+    expect(earlierCleanup).toHaveBeenCalledTimes(1);
+    expect(el.getAttribute('data-nisli-error')).toBe('N402');
     errorSpy.mockRestore();
   });
 });

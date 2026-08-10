@@ -74,11 +74,18 @@ export function __register(tag: string, setup: HmrSetup): HmrSetup {
     pendingRemounts.add(tag);
     if (!suppressAutoDrain) scheduleRemount();
   }
-  return (props: unknown, host: HTMLElement) => {
+  const thunk: HmrSetup = (props: unknown, host: HTMLElement) => {
     const current = registry.get(tag);
     if (!current) throw new Error(`[nisli-hmr] no setup registered for <${tag}>`);
     return current(props, host);
   };
+  // N201 exemption marker (ADR 0030.2 §3/§8): component() throws a coded dev
+  // error on duplicate `define`, EXCEPT when the incoming setup is a registry
+  // thunk — an HMR re-evaluation of the same module re-calling component() is
+  // the swap mechanism working, not a second definer. The marker rides the
+  // thunk itself so component.ts needs no import from this dev-only module.
+  (thunk as HmrSetup & { __nisliHmr?: true }).__nisliHmr = true;
+  return thunk;
 }
 
 /** Number of tags awaiting a re-mount (for orchestration/tests). */
