@@ -2,9 +2,25 @@
  * signal.ts — Reactive primitives: signal(), computed(), effect()
  *
  * Push-pull hybrid model:
- * - Writes push "dirty" flags up the dependency graph
+ * - Writes push dirty flags up the dependency graph in two flavors: a signal
+ *   write pushes Dirty (the value definitely changed), a computed propagates
+ *   MaybeDirty (recompute to find out). Flags never downgrade.
  * - Reads pull fresh values lazily (computed only recalculates when read)
  * - Multiple synchronous writes coalesce into one microtask flush
+ *
+ * Scheduler invariants (ADR 0030.2 T5):
+ * - An effect re-runs iff a value it read changed. Before a MaybeDirty
+ *   effect runs, its computed sources are polled (recomputed via the
+ *   node→impl back-pointer); if no source's change-epoch advanced past the
+ *   effect's last completed run, the run is skipped. A computed's
+ *   change-epoch also bumps on every error-state TRANSITION (enter and
+ *   exit), so effects never skip across error entry or equal-value recovery
+ *   (issue 0003 containment happens at the effect's own read).
+ * - Pending effects flush in creation order (monotonic index), so identical
+ *   writes produce identical run order. Documented cost: a later-created
+ *   writer effect costs one deterministic extra run vs. topological order.
+ * - The loop guard is clock-free: an effect that re-schedules ITSELF on
+ *   MAX_EFFECT_RERUNS consecutive runs is diagnosed (N301) and disposed.
  *
  * Dependency tracking is automatic: reading a signal inside a computed
  * or effect registers it as a dependency. Dependencies are re-tracked
@@ -38,6 +54,13 @@ export interface ReadonlySignal<T> {
   readonly value: T;
   /** Subscribe to value changes. Returns unsubscribe function. */
   subscribe(fn: (value: T) => void): () => void;
+  /**
+   * Read the current value WITHOUT registering a dependency.
+   * Equivalent to reading inside `untrack()`. On a computed this still
+   * pulls a fresh value (and rethrows a cached error) — it only skips
+   * dependency registration.
+   */
+  peek(): T;
 }
 
 /** Read-write reactive container. */
@@ -54,11 +77,52 @@ export interface Signal<T> extends ReadonlySignal<T> {
 let activeObserver: ReactiveNode | null = null;
 
 /**
- * Global epoch counter. Incremented on every signal write.
- * Used to determine if a computed needs recalculation: if a dependency's
- * lastChanged > this computed's lastChecked, the computed is stale.
+ * The effect whose fn frame is currently executing. Unlike activeObserver
+ * (which switches to a computed during its recompute, and to null under
+ * untrack()), this stays pinned to the running effect — it exists solely to
+ * attribute writes to the effect that performed them (N302).
+ */
+let runningEffect: EffectNode | null = null;
+
+/**
+ * Global epoch counter. Incremented on every observable change: a signal
+ * write, a computed recomputing to a different value, and a computed's
+ * error-state transitions (enter and exit). A node's `lastChanged` epoch is
+ * compared against an observer's last-validated/last-run epoch to decide
+ * staleness.
  */
 let globalEpoch = 0;
+
+/** Monotonic effect creation index — pending effects flush in this order. */
+let nextEffectOrder = 0;
+
+// ── Dev diagnostics (minimal local shim) ────────────────────────────
+// TODO(diagnostics): replace with core diagnostics leaf (diagnostics.ts —
+// ADR 0030.2 §7 places codes + payload builder in a leaf importable by every
+// layer; this shim keeps T5's scheduler diagnostics self-contained until it
+// lands). Assigned codes: N301 effect loop, N302 write-in-own-effect,
+// N303 flush/tick cap, N310 effect(async).
+
+let devMode = true;
+
+/**
+ * Enable/disable dev diagnostics (N3xx console output). Guard behavior
+ * (loop disposal, rejection containment) is NOT gated — only the reporting.
+ * @internal TODO(diagnostics): replace with core diagnostics leaf.
+ */
+export function __setDevMode(on: boolean): void {
+  devMode = on;
+}
+
+// TODO(diagnostics): replace with core diagnostics leaf
+function diag(code: string, message: string, detail?: object): void {
+  if (!devMode) return;
+  if (detail !== undefined) {
+    console.error(`[nisli:${code}] ${message}`, detail);
+  } else {
+    console.error(`[nisli:${code}] ${message}`);
+  }
+}
 
 // ── Effect scheduling ────────────────────────────────────────────────
 
@@ -74,8 +138,9 @@ function scheduleFlush(): void {
 
 function flushPendingEffects(): void {
   flushScheduled = false;
-  // Copy to avoid mutation during iteration
-  const effects = [...pendingEffects];
+  // Copy to avoid mutation during iteration; sort by creation index so
+  // identical writes produce identical run order forever (ADR 0030.2 T5).
+  const effects = [...pendingEffects].sort((a, b) => a.order - b.order);
   pendingEffects.clear();
   for (const effect of effects) {
     if (!effect.disposed) {
@@ -88,9 +153,12 @@ function flushPendingEffects(): void {
 
 const enum NodeState {
   Clean = 0,
-  MaybeDirty = 1,  // A dependency changed, but we haven't checked yet
-  Dirty = 2,        // Definitely needs recalculation
+  MaybeDirty = 1,  // A computed source may have changed — poll before acting
+  Dirty = 2,        // A signal source definitely changed — must recompute/run
 }
+
+/** Notification flavor: Dirty from signal writes, MaybeDirty through computeds. */
+type DirtyFlavor = NodeState.MaybeDirty | NodeState.Dirty;
 
 const NO_COMPUTED_ERROR = Symbol('no-computed-error');
 
@@ -98,8 +166,8 @@ interface ReactiveNode {
   state: NodeState;
   /** Signals/computeds this node reads from */
   sources: Set<SignalNode<unknown> | ComputedNode<unknown>>;
-  /** Called when a source changes */
-  notify(): void;
+  /** Called when a source changes. Never downgrades an existing dirtier state. */
+  notify(flavor: DirtyFlavor): void;
 }
 
 // ── Signal (writable) ───────────────────────────────────────────────
@@ -134,9 +202,30 @@ class SignalImpl<T> implements Signal<T> {
 
   set value(newValue: T) {
     if (Object.is(this._node.value, newValue)) return;
+    // N302: write-in-own-sources — the running effect wrote a signal it also
+    // reads this run, so this write re-triggers it. Attribution-only (never
+    // disposes; the loop guard owns disposal). Placed AFTER the Object.is
+    // cutoff so certified converging writers — registry reflect effects,
+    // each() item-signal reuse — never warn on equal-value writes.
+    if (
+      runningEffect !== null &&
+      runningEffect.sources.has(this._node as SignalNode<unknown>)
+    ) {
+      diag(
+        'N302',
+        'Effect wrote to a signal it also reads — the write re-schedules the ' +
+        'effect. If this does not converge to an equal value it is an ' +
+        'infinite loop. Derive the value with computed() instead.',
+        runningEffect.createdAt ? { effect: runningEffect.createdAt } : undefined,
+      );
+    }
     this._node.value = newValue;
     this._node.lastChanged = ++globalEpoch;
-    notifyObservers(this._node.observers);
+    notifyObservers(this._node.observers, NodeState.Dirty);
+  }
+
+  peek(): T {
+    return this._node.value;
   }
 
   subscribe(fn: (value: T) => void): () => void {
@@ -150,9 +239,9 @@ class SignalImpl<T> implements Signal<T> {
   }
 }
 
-function notifyObservers(observers: Set<ReactiveNode>): void {
+function notifyObservers(observers: Set<ReactiveNode>, flavor: DirtyFlavor): void {
   for (const observer of observers) {
-    observer.notify();
+    observer.notify(flavor);
   }
 }
 
@@ -162,6 +251,13 @@ interface ComputedNode<T> {
   value: T;
   lastChanged: number;
   observers: Set<ReactiveNode>;
+  /**
+   * Back-pointer into the owning ComputedImpl (ADR 0030.2 §8 T5): recompute
+   * this computed if stale, WITHOUT dependency tracking. Lets an effect's
+   * pre-run poll refresh a computed source's change-epoch. Throws the
+   * computed's (possibly cached) error.
+   */
+  pull(): void;
 }
 
 class ComputedImpl<T> implements ReadonlySignal<T> {
@@ -174,6 +270,12 @@ class ComputedImpl<T> implements ReadonlySignal<T> {
   private sources = new Set<SignalNode<unknown> | ComputedNode<unknown>>();
   private computing = false;
   private error: unknown = NO_COMPUTED_ERROR;
+  /**
+   * globalEpoch snapshot at the end of the last update()/validation pass.
+   * A MaybeDirty computed recomputes only if some source's lastChanged
+   * advanced past this — otherwise it revalidates to Clean for free.
+   */
+  private lastValidated = 0;
 
   constructor(fn: () => T) {
     this.compute = fn;
@@ -181,6 +283,7 @@ class ComputedImpl<T> implements ReadonlySignal<T> {
       value: undefined as T,
       lastChanged: 0,
       observers: new Set(),
+      pull: () => { this.peek(); },
     };
   }
 
@@ -191,11 +294,11 @@ class ComputedImpl<T> implements ReadonlySignal<T> {
 
     // Track dependency if inside a reactive context
     if (activeObserver) {
-      activeObserver.sources.add(this._node);
+      activeObserver.sources.add(this._node as ComputedNode<unknown>);
       this._node.observers.add(activeObserver);
     }
 
-    // Pull: recalculate if dirty
+    // Pull: recalculate if (maybe) dirty
     if (this.state !== NodeState.Clean) {
       this.update();
     }
@@ -207,7 +310,46 @@ class ComputedImpl<T> implements ReadonlySignal<T> {
     return this._node.value;
   }
 
+  peek(): T {
+    if (this.computing) {
+      throw new Error('Circular dependency detected in computed()');
+    }
+    // Same pull as `get value`, minus dependency registration.
+    if (this.state !== NodeState.Clean) {
+      this.update();
+    }
+    if (this.error !== NO_COMPUTED_ERROR) {
+      throw this.error;
+    }
+    return this._node.value;
+  }
+
+  /**
+   * MaybeDirty validation: pull each source (computeds recompute lazily) and
+   * report whether any source's change-epoch advanced past our last
+   * validation. A pulled source may throw — its error-state transition
+   * already bumped its change-epoch, so the epoch comparison decides.
+   */
+  private sourcesChanged(): boolean {
+    for (const source of this.sources) {
+      if ('pull' in source) {
+        try { source.pull(); } catch (_) { /* transition bumped lastChanged */ }
+      }
+      if (source.lastChanged > this.lastValidated) return true;
+    }
+    return false;
+  }
+
   private update(): void {
+    // MaybeDirty means "an upstream computed MAY have changed". Validate
+    // first: if no polled source advanced, revalidate to Clean without
+    // recomputing (the half of push-pull that was previously unimplemented).
+    if (this.state === NodeState.MaybeDirty && !this.sourcesChanged()) {
+      this.state = NodeState.Clean;
+      this.lastValidated = globalEpoch;
+      return;
+    }
+
     // Unsubscribe from previous sources (for dynamic dependency tracking)
     for (const source of this.sources) {
       source.observers.delete(this as unknown as ReactiveNode);
@@ -218,6 +360,7 @@ class ComputedImpl<T> implements ReadonlySignal<T> {
     const prevObserver = activeObserver;
     activeObserver = this as unknown as ReactiveNode;
     this.computing = true;
+    const wasError = this.error !== NO_COMPUTED_ERROR;
     try {
       const newValue = this.compute();
       this.error = NO_COMPUTED_ERROR;
@@ -230,9 +373,20 @@ class ComputedImpl<T> implements ReadonlySignal<T> {
         // propagates through the computed chain). Re-notifying here would
         // re-schedule the very effect performing this read — a spurious
         // double-run that only surfaced once flush() began draining cascades.
+      } else if (wasError) {
+        // Error-state TRANSITION (exit) recovering to an EQUAL value: the
+        // epoch must still advance, or downstream effects would skip the
+        // recovery in their pre-run poll (ADR 0030.2 §8 T5 error rule).
+        this._node.lastChanged = ++globalEpoch;
       }
     } catch (error) {
       this.error = error;
+      if (!wasError) {
+        // Error-state TRANSITION (enter) counts as a change: polls must see
+        // the epoch advance so the effect re-runs and its own read rethrows
+        // into the effect's containment (issue 0003 semantics).
+        this._node.lastChanged = ++globalEpoch;
+      }
       throw error;
     } finally {
       this.computing = false;
@@ -241,16 +395,23 @@ class ComputedImpl<T> implements ReadonlySignal<T> {
       // notify(): the next dependency write then marks it dirty and propagates
       // to downstream observers so the computation can recover (issue 0003).
       this.state = NodeState.Clean;
+      this.lastValidated = globalEpoch;
     }
   }
 
   /** @internal — called by the ReactiveNode interface when a source changes */
-  notify(): void {
-    if (this.state === NodeState.Clean) {
-      this.state = NodeState.Dirty;
-      // Propagate dirty flags to downstream observers
-      // (they need to re-check if this computed's value actually changed)
-      notifyObservers(this._node.observers);
+  notify(flavor: DirtyFlavor): void {
+    // Never downgrade: a Dirty mark (definite signal change) survives a
+    // later MaybeDirty from a parallel computed path.
+    if (flavor > this.state) {
+      const wasClean = this.state === NodeState.Clean;
+      this.state = flavor;
+      // Propagate once per dirty episode. Downstream observers always get
+      // MaybeDirty — through a computed, "changed" is only knowable after a
+      // recompute, which stays lazy (pull-based).
+      if (wasClean) {
+        notifyObservers(this._node.observers, NodeState.MaybeDirty);
+      }
     }
   }
 
@@ -272,32 +433,19 @@ Object.defineProperty(ComputedImpl.prototype, 'sources', {
   enumerable: false,
 });
 
-// Bridge ComputedImpl to ReactiveNode — the observer interface.
-// We cast in notify() above; here we make the computed usable as a ReactiveNode
-// by defining the properties the tracker expects.
-const computedAsReactiveNode = (c: ComputedImpl<unknown>): ReactiveNode => ({
-  get state() { return c['state']; },
-  set state(v) { c['state'] = v; },
-  get sources() { return c['sources']; },
-  notify: () => c.notify(),
-});
-
 // ── Effect (side-effect, auto-tracks, auto-disposes) ────────────────
 
 /**
- * Maximum consecutive re-runs within a time window before we assume an infinite loop.
- * An effect that writes to a signal it reads will re-trigger itself
- * on every flush. This guard prevents silent UI freezes.
- * See ADR 0008 Gap 2 / ADR 0009.
+ * Maximum CONSECUTIVE self-re-schedules before we assume an infinite loop.
+ * An effect that writes to a signal it reads re-schedules itself on every
+ * run; when that happens MAX_EFFECT_RERUNS times in a row (the counter
+ * resets whenever a run does NOT re-schedule the effect), the effect is
+ * diagnosed (N301) and disposed. Clock-free — deterministic under CI and
+ * fake timers, and convergent clamps pass because their second run writes
+ * an equal value (Object.is cutoff → no re-schedule → counter reset).
+ * See ADR 0008 Gap 2 / ADR 0009 / ADR 0030.2 T5.
  */
 const MAX_EFFECT_RERUNS = 100;
-
-/**
- * Time window (ms) for counting consecutive re-runs.
- * If an effect runs MAX_EFFECT_RERUNS times within this window, it's a loop.
- * Resets when the effect hasn't been re-triggered for longer than this window.
- */
-const LOOP_WINDOW_MS = 2000;
 
 interface EffectNode extends ReactiveNode {
   fn: () => void | (() => void);
@@ -306,10 +454,16 @@ interface EffectNode extends ReactiveNode {
   sources: Set<SignalNode<unknown> | ComputedNode<unknown>>;
   /** List of dispose callbacks registered by the component */
   disposers: (() => void)[];
-  /** Consecutive re-run counter for loop detection */
-  runCount: number;
-  /** Timestamp of first run in current counting window */
-  windowStart: number;
+  /** Monotonic creation index — flush order (deterministic scheduler) */
+  order: number;
+  /** globalEpoch snapshot at the end of the last completed run */
+  lastRunEpoch: number;
+  /** Consecutive runs that re-scheduled this effect (clock-free loop guard) */
+  selfReschedules: number;
+  /** Dev-captured creation-site stack — effect identity for N301/N302 */
+  createdAt?: string;
+  /** N310 (async effect) already reported for this effect */
+  asyncWarned?: boolean;
 }
 
 function createEffectNode(fn: () => void | (() => void)): EffectNode {
@@ -320,43 +474,54 @@ function createEffectNode(fn: () => void | (() => void)): EffectNode {
     disposed: false,
     sources: new Set(),
     disposers: [],
-    runCount: 0,
-    windowStart: 0,
-    notify() {
+    order: nextEffectOrder++,
+    lastRunEpoch: 0,
+    selfReschedules: 0,
+    notify(flavor: DirtyFlavor) {
       if (this.disposed) return;
-      this.state = NodeState.Dirty;
+      // Never downgrade Dirty (definite signal change) to MaybeDirty.
+      if (flavor > this.state) this.state = flavor;
       pendingEffects.add(this);
       scheduleFlush();
     },
   };
 }
 
+/**
+ * Pre-run poll (ADR 0030.2 T5): the effect was notified MaybeDirty, meaning
+ * only computed sources MAY have changed. Pull each computed source (via the
+ * node back-pointer) so its change-epoch is fresh, then compare every
+ * source's epoch against the effect's last completed run. A pull may throw:
+ * the computed's error-state transition already bumped its epoch, so the
+ * comparison decides — a NEW error re-runs the effect (whose own read
+ * rethrows into its containment, issue 0003), while an error the effect
+ * already observed does not.
+ */
+function effectSourcesChanged(node: EffectNode): boolean {
+  for (const source of node.sources) {
+    if ('pull' in source) {
+      try { source.pull(); } catch (_) { /* transition bumped lastChanged */ }
+    }
+    if (source.lastChanged > node.lastRunEpoch) return true;
+  }
+  return false;
+}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    typeof (value as { then?: unknown }).then === 'function'
+  );
+}
+
 function runEffect(node: EffectNode): void {
   if (node.disposed) return;
 
-  // Loop detection: count consecutive re-runs within a time window.
-  // If the effect runs MAX_EFFECT_RERUNS times within LOOP_WINDOW_MS,
-  // it's almost certainly a write-to-own-dependency loop. Dispose it.
-  const now = Date.now();
-  if (now - node.windowStart > LOOP_WINDOW_MS) {
-    // New window — reset counter
-    node.runCount = 0;
-    node.windowStart = now;
-  }
-  node.runCount++;
-  if (node.runCount > MAX_EFFECT_RERUNS) {
-    console.error(
-      `Effect exceeded maximum re-run limit (${MAX_EFFECT_RERUNS}). ` +
-      `This usually means the effect writes to a signal it reads. ` +
-      `The effect has been disposed to prevent a UI freeze.`
-    );
-    node.disposed = true;
-    // Unsubscribe from all sources to stop further notifications
-    for (const source of node.sources) {
-      source.observers.delete(node);
-    }
-    node.sources.clear();
-    pendingEffects.delete(node);
+  // MaybeDirty: poll sources — skip the run when no value the effect read
+  // actually changed (equal recomputes through a computed chain stop here).
+  if (node.state === NodeState.MaybeDirty && !effectSourcesChanged(node)) {
+    node.state = NodeState.Clean;
     return;
   }
 
@@ -372,13 +537,36 @@ function runEffect(node: EffectNode): void {
   }
   node.sources.clear();
 
+  // Reset state BEFORE running: a notify fired by the effect's own writes
+  // must survive into the next flush pass, not be clobbered afterwards.
+  node.state = NodeState.Clean;
+
   // Run effect with tracking
   const prevObserver = activeObserver;
+  const prevRunning = runningEffect;
   activeObserver = node;
+  runningEffect = node;
   try {
-    const result = node.fn();
+    const result: unknown = node.fn();
     if (typeof result === 'function') {
-      node.cleanup = result;
+      node.cleanup = result as () => void;
+    } else if (isThenable(result)) {
+      // effect(async …) — rejected at the type level, guarded at runtime for
+      // JS callers (ADR 0030.2 §3). The Promise is NOT a cleanup; route its
+      // rejection into the effect error path so nothing goes unhandled.
+      if (!node.asyncWarned) {
+        node.asyncWarned = true;
+        diag(
+          'N310',
+          'effect() callback returned a Promise — effects must be synchronous. ' +
+          'Async state belongs in resource(). The returned Promise is not a ' +
+          'cleanup function; its rejection is contained by the effect error path.',
+          node.createdAt ? { effect: node.createdAt } : undefined,
+        );
+      }
+      result.then(undefined, (err: unknown) => {
+        console.error('Effect error:', err);
+      });
     }
   } catch (err) {
     // Effect errors: log but don't crash the system.
@@ -386,8 +574,34 @@ function runEffect(node: EffectNode): void {
     console.error('Effect error:', err);
   } finally {
     activeObserver = prevObserver;
+    runningEffect = prevRunning;
+    // Everything observable up to now — including epochs bumped by this
+    // run's own lazy computed pulls — counts as SEEN by this run.
+    node.lastRunEpoch = globalEpoch;
   }
-  node.state = NodeState.Clean;
+
+  // Clock-free loop guard: this run re-scheduled the effect iff the effect
+  // is back in the pending set (only its own writes can do that mid-run).
+  if (pendingEffects.has(node)) {
+    if (++node.selfReschedules > MAX_EFFECT_RERUNS) {
+      diag(
+        'N301',
+        `Effect exceeded maximum re-run limit (${MAX_EFFECT_RERUNS}). ` +
+        `This usually means the effect writes to a signal it reads. ` +
+        `The effect has been disposed to prevent a UI freeze.`,
+        node.createdAt ? { effect: node.createdAt } : undefined,
+      );
+      // Dispose as today: unsubscribe everywhere and drop from the queue.
+      node.disposed = true;
+      for (const source of node.sources) {
+        source.observers.delete(node);
+      }
+      node.sources.clear();
+      pendingEffects.delete(node);
+    }
+  } else {
+    node.selfReschedules = 0;
+  }
 }
 
 // ── Public API ──────────────────────────────────────────────────────
@@ -399,6 +613,7 @@ function runEffect(node: EffectNode): void {
  * const count = signal(0);
  * count.value;     // read (auto-tracks in reactive contexts)
  * count.value = 5; // write (notifies dependents)
+ * count.peek();    // read WITHOUT tracking
  * ```
  */
 export function signal<T>(initialValue: T): Signal<T> {
@@ -419,11 +634,22 @@ export function computed<T>(fn: () => T): ReadonlySignal<T> {
 }
 
 /**
+ * Type-level rejection of async callbacks: a Promise-returning fn makes the
+ * call require an impossible second argument, so `effect(async () => {})`
+ * fails to compile. Async work belongs in resource() (ADR 0030.2 §3; N310).
+ */
+type SyncEffectGuard<R> = [R] extends [Promise<unknown>]
+  ? [error: 'effect() callbacks must be synchronous — async work belongs in resource() (nisli N310)']
+  : [];
+
+/**
  * Create a side-effect that re-runs when its dependencies change.
  * Returns a dispose function to stop the effect.
  *
  * The effect function may return a cleanup callback that runs
- * before each re-execution and on disposal.
+ * before each re-execution and on disposal. It must be SYNCHRONOUS —
+ * async functions are rejected at the type level and diagnosed at
+ * runtime (N310); async state belongs in resource().
  *
  * ```ts
  * const dispose = effect(() => {
@@ -435,8 +661,12 @@ export function computed<T>(fn: () => T): ReadonlySignal<T> {
  * dispose(); // stop the effect
  * ```
  */
-export function effect(fn: () => void | (() => void)): () => void {
-  const node = createEffectNode(fn);
+export function effect<R>(fn: () => R, ..._rejectAsync: SyncEffectGuard<R>): () => void {
+  const node = createEffectNode(fn as unknown as () => void | (() => void));
+  if (devMode) {
+    // Dev-captured effect identity: N301/N302 diagnostics name this site.
+    node.createdAt = new Error('effect() created here').stack;
+  }
   // Run immediately to establish initial dependencies
   runEffect(node);
 
@@ -482,17 +712,18 @@ export function isSignal(value: unknown): value is ReadonlySignal<unknown> {
 
 /**
  * Run a function with activeObserver set to null, preventing any
- * signal reads inside `fn` from being tracked by an outer effect.
+ * signal reads inside `fn` from being tracked by an outer effect,
+ * and return the function's result.
  *
  * Used by component.ts to isolate connectedCallback: child component
  * setup signal reads must not leak into a parent effect's dependency
  * set. See ADR 0008 Gap 1.
  */
-export function untrack(fn: () => void): void {
+export function untrack<T>(fn: () => T): T {
   const prev = activeObserver;
   activeObserver = null;
   try {
-    fn();
+    return fn();
   } finally {
     activeObserver = prev;
   }
@@ -517,7 +748,15 @@ export function flush(): void {
   let guard = 0;
   while (pendingEffects.size > 0) {
     flushPendingEffects();
-    if (++guard > 100000) break;
+    if (++guard > 100000) {
+      diag(
+        'N303',
+        'flush() cascade cap reached (100000 passes) — effects keep ' +
+        'scheduling more effects (a cross-effect write cycle?). Breaking out ' +
+        'to avoid a freeze; pending work remains unflushed.',
+      );
+      break;
+    }
   }
 }
 
@@ -535,7 +774,7 @@ export { flush as flushEffects };
  * TASKS scheduled by that microtask work (e.g. a microtask calling
  * setTimeout) may fire after tick() resolves; awaiting arbitrary future
  * tasks is unbounded. Self-perpetuating schedulers are cut off at the
- * iteration cap.
+ * iteration cap (loudly — N303).
  *
  * ```ts
  * host.setProp('x', 1);
@@ -559,4 +798,10 @@ export async function tick(): Promise<void> {
     if (pendingEffects.size === 0) return; // the microtask drain scheduled nothing
     flush();
   }
+  diag(
+    'N303',
+    'tick() iteration cap (50) reached with effects still pending — ' +
+    'something keeps scheduling reactive work every task (a ' +
+    'self-perpetuating scheduler?). Returning with work still queued.',
+  );
 }
