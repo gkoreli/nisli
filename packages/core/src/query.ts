@@ -60,7 +60,8 @@ import { __enrollPending, __setSettleDiagSink } from './settle.js';
 
 // ── Diagnostics shim ────────────────────────────────────────────────
 // TODO(diagnostics): replace with the core diagnostics leaf owned by the
-// Wave-1 worktree. Codes N601–N603 belong to the query/async cluster.
+// Wave-1 worktree. Codes N602–N603 belong to the query/async cluster
+// (N601 retired before release — see the eliminated-class note below).
 
 let devMode = true;
 
@@ -69,7 +70,7 @@ export function __setQueryDevMode(on: boolean): void {
   devMode = on;
 }
 
-function diag(code: 'N601' | 'N603', message: string): void {
+function diag(code: 'N603', message: string): void {
   if (!devMode) return;
   console.error(`[nisli:${code}] ${message}`);
 }
@@ -420,35 +421,14 @@ function startRun(
   return run;
 }
 
-// ── Mixed-client diagnostic (N601) ──────────────────────────────────
-// With inject() as the single resolution path there is exactly one client
-// per app — UNLESS provide(QueryClient, ...) lands after queries already
-// bound the auto-created singleton. That split-brain is the one mixing
-// case left; detect it by remembering the first client with live
-// observers.
-
-let boundClient: QueryClient | null = null;
-let warnedMixedClients = false;
-
-/** @internal test hook — resets N601 tracking between test cases. */
-export function __resetQueryDiagnostics(): void {
-  boundClient = null;
-  warnedMixedClients = false;
-}
-
-function trackClient(client: QueryClient): void {
-  if (boundClient && boundClient !== client && boundClient._observers > 0 && !warnedMixedClients) {
-    warnedMixedClients = true;
-    diag(
-      'N601',
-      'two QueryClients are live in one app — queries created before '
-      + 'provide(QueryClient, ...) stay bound to the earlier client and '
-      + 'will not share this cache. provide() the client before the first '
-      + 'query() call (or resetInjector() in tests).',
-    );
-  }
-  if (!boundClient || boundClient._observers === 0) boundClient = client;
-}
+// ── Mixed clients: an eliminated class (formerly N601) ──────────────
+// With inject() as the single resolution path, the only way two clients
+// could mix was provide(QueryClient, ...) landing after queries already
+// bound the auto-created singleton. The injector now throws N501 at that
+// exact provide() (DI freeze, ADR 0030.2 T6), so the split-brain state is
+// unrepresentable in dev and was always silent in prod — the symptom-side
+// warning this block used to hold (N601) died with its cause. Retired
+// before release; the code number is not reused.
 
 // ── query() — the thin observer ─────────────────────────────────────
 
@@ -469,7 +449,6 @@ export function query<T>(
   const { staleTime = 0, retry = 0, enabled, initialData } = options;
 
   const client = inject(QueryClient);
-  trackClient(client);
 
   // Surface key-contract violations at the call site: the observer effect
   // is error-contained (a later reactive key going invalid is logged with

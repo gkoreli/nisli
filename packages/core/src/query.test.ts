@@ -8,7 +8,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   query,
   QueryClient,
-  __resetQueryDiagnostics,
   type QueryKey,
 } from './query.js';
 import { settle, __resetPending } from './settle.js';
@@ -33,7 +32,7 @@ function deferred<T>(): {
 }
 
 // Observers are real registrations now — dispose them so records never see
-// stale observers across tests (and N601 tracking stays truthful).
+// stale observers across tests.
 const live: { dispose(): void }[] = [];
 function track<Q extends { dispose(): void }>(q: Q): Q {
   live.push(q);
@@ -42,7 +41,6 @@ function track<Q extends { dispose(): void }>(q: Q): Q {
 
 beforeEach(() => {
   resetInjector();
-  __resetQueryDiagnostics();
   __resetPending();
 });
 
@@ -593,20 +591,15 @@ describe('record store (QueryClient)', () => {
   });
 });
 
-// ── Client resolution (N601) ────────────────────────────────────────
+// ── Client resolution — the mixed-client class is eliminated ────────
 
 describe('client resolution', () => {
-  it('warns with N601 when a provided client appears while the implicit one has live observers', async () => {
-    const q1 = track(query(() => ['n601-a'], async () => 1)); // binds the auto-singleton
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    provide(QueryClient, () => new QueryClient());
-    const q2 = track(query(() => ['n601-b'], async () => 2));
-
-    expect(spy.mock.calls.some((args) => String(args[0]).includes('N601'))).toBe(true);
-    await settle();
-    expect(q1.data.value).toBe(1);
-    expect(q2.data.value).toBe(2);
+  it('post-inject provide(QueryClient) throws N501 at the cause — the mixed-client state is unrepresentable', () => {
+    track(query(() => ['n501-a'], async () => 1)); // binds the auto-singleton
+    // Formerly this scenario produced a symptom-side warning (N601). The
+    // injector freeze (ADR 0030.2 T6) now throws at the provide() itself,
+    // so two live clients cannot exist in dev; N601 was retired.
+    expect(() => provide(QueryClient, () => new QueryClient())).toThrowError(/N501/);
   });
 });
 

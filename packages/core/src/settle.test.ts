@@ -12,7 +12,7 @@ import {
   __resetPending,
   __pendingCount,
 } from './settle.js';
-import { query, QueryClient, __resetQueryDiagnostics } from './query.js';
+import { query, QueryClient } from './query.js';
 import { resource } from './resource.js';
 import { resetInjector, inject } from './injector.js';
 
@@ -39,7 +39,6 @@ function track<Q extends { dispose(): void }>(q: Q): Q {
 
 beforeEach(() => {
   resetInjector();
-  __resetQueryDiagnostics();
   __resetPending();
 });
 
