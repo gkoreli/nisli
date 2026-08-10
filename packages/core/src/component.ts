@@ -691,6 +691,10 @@ export function component<
         this._setupDone
         && value !== undefined
         && isDev()
+        // A declared attrs key is contract, not a typo — 'forward' especially,
+        // where CORE owns the read and setup() never touches the prop. Gate
+        // ruling on ADR 0030.2 §8 T6 Q3: declared keys are exempt.
+        && !attrEntriesByKey.has(key)
         && !this._propsProxy!.readKeys.has(key)
         && !(this._echoed ??= new Set()).has(key)
       ) {

@@ -824,6 +824,25 @@ describe('unknown-prop echo (N202)', () => {
     errorSpy.mockRestore();
   });
 
+  it('never echoes a declared attrs key — forward keys are read by core, not setup (gate Q3)', () => {
+    const tag = uniqueTag('echo-forward');
+    interface EchoForwardProps { name?: string }
+    const attrs = { name: 'forward' } satisfies ComponentAttrs<EchoForwardProps>;
+    component<EchoForwardProps, typeof attrs>(
+      tag,
+      () => html`<input data-slot="control" />`,
+      { attrs },
+    );
+
+    const el = document.createElement(tag) as any;
+    document.body.appendChild(el);
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    el._setProp('name', 'email'); // factory path; setup never reads forward keys
+    expect(echoCalls(errorSpy).length).toBe(0);
+    errorSpy.mockRestore();
+  });
+
   it('pre-mount factory seeding never echoes (echo gates on setup completion)', () => {
     const tag = uniqueTag('echo-premount');
     component<{ known: string }>(tag, (props) => html`<span>${props.known}</span>`);
