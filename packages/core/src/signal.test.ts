@@ -13,7 +13,9 @@ import {
   flush,
   flushEffects,
   tick,
+  untrack,
   SIGNAL_BRAND,
+  __setDevMode,
 } from './signal.js';
 
 // ── signal() ────────────────────────────────────────────────────────
@@ -671,5 +673,406 @@ describe('flush() drains cascades + tick()', () => {
     await tick();
     expect(s.value).toBe(3);
     expect(log).toEqual([0, 3]);
+  });
+});
+
+// ── ADR 0030.2 T5: deterministic flush order ────────────────────────
+
+describe('deterministic flush order (ADR 0030.2 T5)', () => {
+  it('pending effects run in creation order, surviving observer-set reshuffles', () => {
+    const s = signal(0);
+    const flag = signal(true);
+    const log: number[] = [];
+
+    effect(() => { s.value; log.push(1); });               // e1
+    effect(() => { flag.value; s.value; log.push(2); });   // e2 — re-tracks below
+    effect(() => { s.value; log.push(3); });               // e3
+
+    // Force e2 to re-track: it unsubscribes and re-subscribes to `s`,
+    // moving it to the END of s's observer set. Notification order is now
+    // e1, e3, e2 — flush order must still be creation order.
+    flag.value = false;
+    flush();
+    log.length = 0;
+
+    s.value = 1;
+    flushEffects();
+    expect(log).toEqual([1, 2, 3]);
+  });
+
+  it('identical writes produce identical run order across repetitions', () => {
+    const s = signal(0);
+    const log: number[] = [];
+    effect(() => { s.value; log.push(1); });
+    effect(() => { s.value; log.push(2); });
+    effect(() => { s.value; log.push(3); });
+    log.length = 0;
+
+    for (let i = 1; i <= 3; i++) {
+      s.value = i;
+      flushEffects();
+    }
+    expect(log).toEqual([1, 2, 3, 1, 2, 3, 1, 2, 3]);
+  });
+
+  it('documented cost: a later-created writer costs one deterministic extra run', () => {
+    const src = signal(1);
+    const derived = signal(10);
+    const log: string[] = [];
+
+    // Reader created FIRST (lower creation index) — reads both signals.
+    effect(() => { log.push(`reader:${src.value}:${derived.value}`); });
+    // Writer created SECOND — derives `derived` from `src`.
+    effect(() => { derived.value = src.value * 10; });
+    flush();
+    log.length = 0;
+
+    src.value = 2;
+    flush();
+    // Both are pending; creation order runs the reader first (sees the stale
+    // derived value), the writer then updates `derived`, and the reader runs
+    // once more. One extra run versus topological order — accepted, because
+    // the order is identical on every replay.
+    expect(log).toEqual(['reader:2:10', 'reader:2:20']);
+
+    log.length = 0;
+    src.value = 3;
+    flush();
+    expect(log).toEqual(['reader:3:20', 'reader:3:30']);
+  });
+});
+
+// ── ADR 0030.2 T5: clock-free loop guard (N301) ─────────────────────
+
+describe('clock-free loop guard (N301)', () => {
+  it('disposes a self-rescheduling effect after a deterministic run count, under fake timers', () => {
+    vi.useFakeTimers();
+    const calls: unknown[][] = [];
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      calls.push(args);
+    });
+    try {
+      const counter = signal(0);
+      effect(() => {
+        counter.value = counter.value + 1;
+      });
+      expect(counter.value).toBe(1); // initial run
+
+      for (let i = 0; i < 5; i++) flushEffects();
+
+      // Clock-free and deterministic: initial run + exactly 100 guarded
+      // re-runs, regardless of timers or wall-clock (the old guard counted
+      // a Date.now window and was nondeterministic under fake timers).
+      expect(counter.value).toBe(101);
+      expect(calls.some((a) => String(a[0]).includes('[nisli:N301]'))).toBe(true);
+      expect(calls.some((a) => String(a[0]).includes('maximum re-run limit'))).toBe(true);
+
+      const final = counter.value;
+      flushEffects();
+      expect(counter.value).toBe(final); // truly disposed
+    } finally {
+      errorSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it('a convergent clamp passes: the counter resets when a run does not re-schedule', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const s = signal(10);
+      effect(() => {
+        if (s.value > 5) s.value = 5; // converges: second run writes an equal value
+      });
+      flushEffects();
+      expect(s.value).toBe(5);
+
+      // Re-trigger convergence far more than MAX_EFFECT_RERUNS times in a
+      // row — consecutive-self-reschedule never exceeds 1, so the guard
+      // must not trip and the effect must stay alive.
+      for (let i = 0; i < 150; i++) {
+        s.value = 10 + i;
+        flushEffects();
+        expect(s.value).toBe(5);
+      }
+
+      s.value = 100;
+      flushEffects();
+      expect(s.value).toBe(5); // still clamping — never disposed
+      expect(errorSpy.mock.calls.some((a) => String(a[0]).includes('N301'))).toBe(false);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+});
+
+// ── ADR 0030.2 T5: write-in-own-sources diagnostic (N302) ───────────
+
+describe('write-in-own-sources diagnostic (N302)', () => {
+  const n302Calls = (spy: ReturnType<typeof vi.spyOn>) =>
+    spy.mock.calls.filter((a) => String(a[0]).includes('[nisli:N302]')).length;
+
+  it('warns at the write when a running effect writes a CHANGED value to a signal it read', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const s = signal(0);
+      effect(() => {
+        if (s.value < 3) s.value = s.value + 1;
+      });
+      // Initial run read s(0) then wrote 1 — in-sources, changed → warn.
+      expect(n302Calls(errorSpy)).toBe(1);
+
+      flushEffects(); // converges 1 → 2 → 3, warning at each changing write
+      expect(s.value).toBe(3);
+      expect(n302Calls(errorSpy)).toBe(3);
+
+      // Attribution-only: the effect is NOT disposed by N302.
+      s.value = 0;
+      flushEffects();
+      expect(s.value).toBe(3);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it('does not warn when the write targets a signal the effect did not read', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const a = signal(0);
+      const b = signal('');
+      effect(() => { b.value = `v-${a.value}`; });
+      a.value = 1;
+      flushEffects();
+      expect(b.value).toBe('v-1');
+      expect(n302Calls(errorSpy)).toBe(0);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it('does not warn on equal-value writes — certified converging writers stay silent', () => {
+    // Registry reflect effects (0025 open-state) and each()'s item-signal
+    // reuse write back the value they read; the Object.is cutoff runs
+    // BEFORE the diagnostic, so they never warn.
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const reflected = signal('open');
+      const item = signal({ id: 1 });
+      const sameRef = item.value;
+      let runs = 0;
+      effect(() => {
+        runs++;
+        reflected.value = reflected.value;   // reflect-style equal write
+        item.value = sameRef;                // each()-style same-reference reuse
+      });
+      flushEffects();
+      expect(runs).toBe(1);
+      expect(n302Calls(errorSpy)).toBe(0);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it('does not warn when the signal was read only via peek()', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const gate = signal(0);
+      const out = signal(0);
+      effect(() => {
+        gate.value;
+        out.value = out.peek() + 1; // peek does not track → out is not a source
+      });
+      gate.value = 1;
+      flushEffects();
+      expect(out.value).toBe(2);
+      expect(n302Calls(errorSpy)).toBe(0);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it('__setDevMode(false) silences the diagnostic (loop-guard behavior is unaffected)', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    __setDevMode(false);
+    try {
+      const s = signal(0);
+      effect(() => {
+        if (s.value < 2) s.value = s.value + 1;
+      });
+      flushEffects();
+      expect(s.value).toBe(2);
+      expect(n302Calls(errorSpy)).toBe(0);
+    } finally {
+      __setDevMode(true);
+      errorSpy.mockRestore();
+    }
+  });
+});
+
+// ── ADR 0030.2 §3: effect(async) guard (N310) ───────────────────────
+
+describe('effect(async) guard (N310)', () => {
+  it('diagnoses a Promise-returning effect once, names resource(), and contains the rejection', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const n310Calls = () =>
+      errorSpy.mock.calls.filter((a) => String(a[0]).includes('[nisli:N310]'));
+    try {
+      const s = signal(0);
+      let runs = 0;
+      const asyncFn = async () => {
+        runs++;
+        s.value; // synchronous part still tracks
+        if (runs === 1) throw new Error('async boom');
+      };
+      // Cast past the type-level rejection to exercise the runtime guard.
+      effect(asyncFn as unknown as () => void);
+      expect(runs).toBe(1);
+      expect(n310Calls().length).toBe(1);
+      expect(String(n310Calls()[0]?.[0])).toContain('resource()');
+
+      // The rejection routes into the effect error path — logged, never an
+      // unhandled rejection (vitest would fail this test on one).
+      await new Promise((r) => setTimeout(r, 0));
+      expect(errorSpy).toHaveBeenCalledWith('Effect error:', expect.any(Error));
+
+      // Dependency tracked in the synchronous part still re-runs the effect,
+      // but N310 reports once per effect, not once per run.
+      s.value = 1;
+      flushEffects();
+      expect(runs).toBe(2);
+      expect(n310Calls().length).toBe(1);
+      await new Promise((r) => setTimeout(r, 0));
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it('does not treat the returned Promise as a cleanup', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const s = signal(0);
+      effect((async () => { s.value; }) as unknown as () => void);
+      s.value = 1;
+      // If the Promise had been stored as `cleanup`, the re-run would try to
+      // call it and throw. It must re-run cleanly.
+      expect(() => flushEffects()).not.toThrow();
+      await new Promise((r) => setTimeout(r, 0));
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+});
+
+// ── ADR 0030.2 T5: loud cap breaks (N303) ───────────────────────────
+
+describe('loud cap breaks (N303)', () => {
+  it('flush() breaks a cross-effect ping-pong loop loudly instead of silently', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const a = signal(0);
+      const b = signal(0);
+      // Neither effect re-schedules ITSELF (each writes the other's source),
+      // so the N301 self-loop guard never trips — this is exactly the shape
+      // only the flush cascade cap can catch.
+      const d1 = effect(() => { b.value = a.value + 1; });
+      const d2 = effect(() => { a.value = b.value + 1; });
+
+      flushEffects(); // drains to the cascade cap, then breaks LOUDLY
+
+      expect(
+        errorSpy.mock.calls.some((c) => String(c[0]).includes('[nisli:N303]')),
+      ).toBe(true);
+      expect(
+        errorSpy.mock.calls.some((c) => String(c[0]).includes('flush()')),
+      ).toBe(true);
+
+      d1();
+      d2();
+      flushEffects(); // remnant drains without further work
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+});
+
+// ── ADR 0030.2 §3 papercuts: untrack value + peek ───────────────────
+
+describe('papercuts: untrack<T> and peek()', () => {
+  it('untrack returns the value of its callback', () => {
+    const s = signal(21);
+    expect(untrack(() => s.value * 2)).toBe(42);
+  });
+
+  it('untrack-returned reads are still not tracked', () => {
+    const s = signal(1);
+    let runs = 0;
+    let last = 0;
+    effect(() => {
+      runs++;
+      last = untrack(() => s.value);
+    });
+    expect([runs, last]).toEqual([1, 1]);
+
+    s.value = 2;
+    flushEffects();
+    expect(runs).toBe(1); // not a dependency
+  });
+
+  it('signal.peek() reads without tracking', () => {
+    const s = signal(1);
+    let runs = 0;
+    effect(() => {
+      runs++;
+      s.peek();
+    });
+    expect(s.peek()).toBe(1);
+
+    s.value = 2;
+    flushEffects();
+    expect(runs).toBe(1); // peek did not subscribe
+    expect(s.peek()).toBe(2);
+  });
+
+  it('computed.peek() pulls a fresh value without tracking', () => {
+    const s = signal(1);
+    const c = computed(() => s.value * 2);
+    expect(c.peek()).toBe(2);
+
+    s.value = 5;
+    expect(c.peek()).toBe(10); // fresh pull
+
+    let runs = 0;
+    effect(() => {
+      runs++;
+      c.peek();
+    });
+    s.value = 6;
+    flushEffects();
+    expect(runs).toBe(1); // not tracked
+  });
+
+  it('computed.peek() rethrows the cached error until a dependency changes', () => {
+    const s = signal(1);
+    const c = computed(() => {
+      if (s.value === 1) throw new Error('nope');
+      return s.value;
+    });
+    expect(() => c.peek()).toThrow('nope');
+    expect(() => c.peek()).toThrow('nope');
+    s.value = 2;
+    expect(c.peek()).toBe(2);
+  });
+
+  it('subscribe() on a computed skips equal recomputes', () => {
+    const s = signal(1);
+    const clamped = computed(() => Math.min(s.value, 5));
+    const seen: number[] = [];
+    clamped.subscribe((v) => seen.push(v));
+    expect(seen).toEqual([1]);
+
+    s.value = 10;
+    flushEffects();
+    s.value = 20; // clamped recomputes equal — no notification
+    flushEffects();
+    expect(seen).toEqual([1, 5]);
   });
 });

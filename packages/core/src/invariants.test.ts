@@ -1199,6 +1199,134 @@ describe('INVARIANT: reactive child mounting does not leak deps (ADR 0008.1)', (
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════════
+// INVARIANT: an effect re-runs iff a value it read changed
+// ADR 0030.2 T5 — MaybeDirty completion (the push-pull algorithm, finished).
+// A signal write is a change (Object.is cutoff at the write). A computed
+// "changes" when it recomputes to a non-equal value OR its error state
+// TRANSITIONS (enter and exit both count — issue 0003 containment happens
+// at the effect's own read). Equal recomputes through a computed chain are
+// cut off before the effect runs.
+// ═══════════════════════════════════════════════════════════════════════
+
+describe('INVARIANT: an effect re-runs iff a value it read changed (ADR 0030.2 T5)', () => {
+  it('equal recompute through a computed chain does NOT re-run the effect', () => {
+    const source = signal(1);
+    const clamped = computed(() => Math.min(source.value, 5));
+    const labeled = computed(() => `v=${clamped.value}`);
+    const seen: string[] = [];
+
+    effect(() => { seen.push(labeled.value); });
+    expect(seen).toEqual(['v=1']);
+
+    source.value = 3; // real change propagates
+    flushEffects();
+    expect(seen).toEqual(['v=1', 'v=3']);
+
+    source.value = 10; // clamped: 3 → 5 — real change
+    flushEffects();
+    expect(seen).toEqual(['v=1', 'v=3', 'v=5']);
+
+    source.value = 20; // clamped recomputes to 5 — EQUAL: cut off
+    flushEffects();
+    source.value = 30; // still 5 — cut off again
+    flushEffects();
+    expect(seen).toEqual(['v=1', 'v=3', 'v=5']);
+  });
+
+  it('an equal recompute revalidates downstream computeds without recomputing them', () => {
+    const source = signal(10);
+    const clamped = computed(() => Math.min(source.value, 5));
+    const fn = vi.fn(() => `v=${clamped.value}`);
+    const labeled = computed(fn);
+    const seen: string[] = [];
+
+    effect(() => { seen.push(labeled.value); });
+    expect(seen).toEqual(['v=5']);
+    fn.mockClear();
+
+    source.value = 20; // clamped recomputes equal → labeled must not recompute
+    flushEffects();
+    expect(fn).not.toHaveBeenCalled();
+    expect(seen).toEqual(['v=5']);
+  });
+
+  it('error ENTRY re-runs the effect — the throw reaches its containment', () => {
+    const source = signal(0);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const parity = computed(() => {
+      if (source.value === 1) throw new Error('entry');
+      return source.value % 2;
+    });
+    let runs = 0;
+
+    effect(() => {
+      runs++;
+      parity.value;
+    });
+    expect(runs).toBe(1);
+
+    source.value = 1; // parity ENTERS error state — that is a change
+    flushEffects();
+    expect(runs).toBe(2); // re-ran; its own read rethrew into containment
+    expect(errorSpy).toHaveBeenCalledWith('Effect error:', expect.any(Error));
+    errorSpy.mockRestore();
+  });
+
+  it('equal-value error RECOVERY re-runs the effect', () => {
+    const source = signal(0);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const parity = computed(() => {
+      if (source.value === 1) throw new Error('temporary');
+      return source.value % 2; // 0 → 0 and 2 → 0: recovery recomputes EQUAL
+    });
+    const seen: number[] = [];
+
+    effect(() => { seen.push(parity.value); });
+    expect(seen).toEqual([0]);
+
+    source.value = 1; // enter error — effect re-runs into containment
+    flushEffects();
+    expect(seen).toEqual([0]);
+
+    // Recover to the SAME value (0). Object.is says equal, but the
+    // error-state transition (exit) is a change: the effect must re-run
+    // to observe the recovery.
+    source.value = 2;
+    flushEffects();
+    expect(seen).toEqual([0, 0]);
+    errorSpy.mockRestore();
+  });
+
+  it('an error the effect already observed is NOT a change on unrelated notifies', () => {
+    const a = signal(1); // feeds the erroring computed (never changes below)
+    const b = signal(10); // feeds the equal-recompute chain
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const broken = computed((): number => {
+      if (a.value === 1) throw new Error('still broken');
+      return a.value;
+    });
+    const clamped = computed(() => Math.min(b.value, 5));
+    let runs = 0;
+
+    effect(() => {
+      runs++;
+      clamped.value;
+      try { broken.value; } catch { /* observed the error */ }
+    });
+    expect(runs).toBe(1);
+
+    b.value = 20; // clamped recomputes EQUAL; broken's cached error is unchanged
+    flushEffects();
+    expect(runs).toBe(1); // nothing the effect read changed — no run
+
+    b.value = 3; // clamped actually changes
+    flushEffects();
+    expect(runs).toBe(2);
+    errorSpy.mockRestore();
+  });
+});
+
 // ── ADR 0070: Reactive slot reparenting ─────────────────────────────
 
 describe('INVARIANT: reactive slots survive DOM reparenting', () => {
