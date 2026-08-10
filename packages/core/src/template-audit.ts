@@ -40,34 +40,30 @@
  * `setTemplateAuditEnabled(false)` before rendering.
  */
 
-// TODO(diagnostics): replace with the core diagnostics leaf (diagnostics.ts,
-// owned by a parallel worktree) — codes N101–N106 belong to the template
-// layer and register there. This local shim keeps template-audit.ts
-// dependency-free until that leaf lands.
-let devMode = true;
+// Reporting goes through the diagnostics leaf. The audit keeps its own
+// enable override (tests, SSG environments) and otherwise follows the
+// leaf's dev gate — under NODE_ENV=production builds it is silent.
+import { diag as emitDiag, isDev } from './diagnostics.js';
 
-/** Enable/disable the first-parse audit (and its callsite capture). */
-export function setTemplateAuditEnabled(enabled: boolean): void {
-  devMode = enabled;
+let enabledOverride: boolean | null = null;
+
+/**
+ * Enable/disable the first-parse audit (and its callsite capture);
+ * `null` restores the dev-gate default.
+ */
+export function setTemplateAuditEnabled(enabled: boolean | null): void {
+  enabledOverride = enabled;
 }
 
 /** Current audit gate state (exposed for template.ts and tests). */
 export function isTemplateAuditEnabled(): boolean {
-  return devMode;
+  return enabledOverride ?? isDev();
 }
 
-/**
- * Emit a coded dev diagnostic. Console-level for now; the diagnostics leaf
- * will own formatting/registration later.
- * TODO(diagnostics): replace with core diagnostics leaf.
- */
+/** Emit a coded audit diagnostic through the diagnostics leaf (audit-gated). */
 export function diag(code: string, message: string, detail?: unknown): void {
-  if (!devMode) return;
-  if (detail !== undefined) {
-    console.warn(`[nisli] ${code}: ${message}`, detail);
-  } else {
-    console.warn(`[nisli] ${code}: ${message}`);
-  }
+  if (!isTemplateAuditEnabled()) return;
+  emitDiag(code, message, detail === undefined ? undefined : { detail });
 }
 
 // ── Callsite capture ────────────────────────────────────────────────
@@ -82,7 +78,7 @@ const callsites = new WeakMap<TemplateStringsArray, string>();
  * from the stack. No-op when the audit is disabled or already captured.
  */
 export function captureCallsite(strings: TemplateStringsArray): void {
-  if (!devMode || callsites.has(strings)) return;
+  if (!isTemplateAuditEnabled() || callsites.has(strings)) return;
   const stack = new Error().stack ?? '';
   const frame = stack
     .split('\n')
@@ -181,7 +177,7 @@ function checkDashTag(tag: string, site: string): void {
     if (defined) return;
     setTimeout(() => {
       try {
-        if (!devMode || defined || registry!.get(tag)) return;
+        if (!isTemplateAuditEnabled() || defined || registry!.get(tag)) return;
         diag(
           'N101',
           `<${tag}> is used in a template but never defined (customElements.get returned ` +
@@ -238,7 +234,7 @@ function checkComponentAttr(tag: string, name: string, observed: string[], site:
  * template element — mounting state is never touched.
  */
 export function auditTemplate(strings: TemplateStringsArray, template: HTMLTemplateElement): void {
-  if (!devMode || audited.has(strings)) return;
+  if (!isTemplateAuditEnabled() || audited.has(strings)) return;
   audited.add(strings);
 
   const site = callsites.get(strings) ?? '(unknown callsite)';

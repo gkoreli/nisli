@@ -52,6 +52,20 @@ export const codes: Record<string, string> = {
   N401: 'setup failed — scope contained, host stamped data-nisli-error="N401"',
   N402: 'onMount failed — scope contained, host stamped data-nisli-error="N402"',
   N501: 'provide() after the token was already instantiated — resetInjector() first',
+  N101: 'template audit — dash-tag never defined (misspelled or unimported component?)',
+  N102: 'template audit — unknown @event name',
+  N103: 'template audit — unknown event modifier',
+  N104: 'template audit — undeclared attribute on a component with declared attrs',
+  N105: 'template — remounting a live bound TemplateResult (shared-binding corruption)',
+  N106: 'template — html:inner requires raw()-branded trusted HTML',
+  N301: 'reactivity — effect exceeded the consecutive re-schedule cap (loop); disposed',
+  N302: 'reactivity — effect wrote a signal in its own dependency set (attribution)',
+  N303: 'reactivity — flush()/tick() iteration cap reached before quiescence',
+  N310: 'reactivity — effect callback returned a Promise; use resource() for async',
+  N602: 'query — invalid key element (flat primitives only; null is the optional sentinel)',
+  N603: 'settle() — no quiescence within the iteration cap; returning anyway',
+  // N601 (mixed QueryClients) was retired before release: N501 makes that
+  // state unrepresentable at its cause. The number is not reused.
 };
 
 // ── Dev gate ────────────────────────────────────────────────────────

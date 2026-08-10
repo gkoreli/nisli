@@ -56,36 +56,22 @@ import {
 } from './signal.js';
 import { hasContext, getCurrentComponent } from './context.js';
 import { inject } from './injector.js';
-import { __enrollPending, __setSettleDiagSink } from './settle.js';
+import { __enrollPending } from './settle.js';
+import { formatDiag } from './diagnostics.js';
 
-// ── Diagnostics shim ────────────────────────────────────────────────
-// TODO(diagnostics): replace with the core diagnostics leaf owned by the
-// Wave-1 worktree. Codes N602–N603 belong to the query/async cluster
-// (N601 retired before release — see the eliminated-class note below).
-
-let devMode = true;
-
-/** @internal — dev-gate for query/settle console diagnostics (tests). */
-export function __setQueryDevMode(on: boolean): void {
-  devMode = on;
-}
-
-function diag(code: 'N603', message: string): void {
-  if (!devMode) return;
-  console.error(`[nisli:${code}] ${message}`);
-}
-
-// settle.ts must not import query.ts (layering); hand it the shim instead.
-__setSettleDiagSink(diag);
+// Diagnostics go through the core leaf (diagnostics.ts). Codes N602–N603
+// belong to the query/async cluster (N601 retired before release — see
+// the eliminated-class note below).
 
 /** Build the coded error for key-contract violations. Always thrown —
  *  key validity is a contract, not an advisory diagnostic. */
 function keyError(detail: string): Error {
-  return new Error(
-    `[nisli:N602] invalid query key: ${detail}. Keys must be flat `
+  return new Error(formatDiag(
+    'N602',
+    `invalid query key: ${detail}. Keys must be flat `
     + 'readonly (string | number | boolean | null)[] arrays — spread '
     + 'object params into tuple elements; null is the optional sentinel.',
-  );
+  ));
 }
 
 // ── Key contract ────────────────────────────────────────────────────

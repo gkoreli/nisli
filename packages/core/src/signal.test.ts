@@ -15,8 +15,8 @@ import {
   tick,
   untrack,
   SIGNAL_BRAND,
-  __setDevMode,
 } from './signal.js';
+import { setDevMode } from './diagnostics.js';
 
 // ── signal() ────────────────────────────────────────────────────────
 
@@ -764,7 +764,7 @@ describe('clock-free loop guard (N301)', () => {
       // re-runs, regardless of timers or wall-clock (the old guard counted
       // a Date.now window and was nondeterministic under fake timers).
       expect(counter.value).toBe(101);
-      expect(calls.some((a) => String(a[0]).includes('[nisli:N301]'))).toBe(true);
+      expect(calls.some((a) => String(a[0]).includes('[nisli N301]'))).toBe(true);
       expect(calls.some((a) => String(a[0]).includes('maximum re-run limit'))).toBe(true);
 
       const final = counter.value;
@@ -809,7 +809,7 @@ describe('clock-free loop guard (N301)', () => {
 
 describe('write-in-own-sources diagnostic (N302)', () => {
   const n302Calls = (spy: ReturnType<typeof vi.spyOn>) =>
-    spy.mock.calls.filter((a) => String(a[0]).includes('[nisli:N302]')).length;
+    spy.mock.calls.filter((a) => String(a[0]).includes('[nisli N302]')).length;
 
   it('warns at the write when a running effect writes a CHANGED value to a signal it read', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -890,9 +890,9 @@ describe('write-in-own-sources diagnostic (N302)', () => {
     }
   });
 
-  it('__setDevMode(false) silences the diagnostic (loop-guard behavior is unaffected)', () => {
+  it('setDevMode(false) silences the diagnostic (loop-guard behavior is unaffected)', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    __setDevMode(false);
+    setDevMode(false);
     try {
       const s = signal(0);
       effect(() => {
@@ -902,7 +902,7 @@ describe('write-in-own-sources diagnostic (N302)', () => {
       expect(s.value).toBe(2);
       expect(n302Calls(errorSpy)).toBe(0);
     } finally {
-      __setDevMode(true);
+      setDevMode(null);
       errorSpy.mockRestore();
     }
   });
@@ -914,7 +914,7 @@ describe('effect(async) guard (N310)', () => {
   it('diagnoses a Promise-returning effect once, names resource(), and contains the rejection', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const n310Calls = () =>
-      errorSpy.mock.calls.filter((a) => String(a[0]).includes('[nisli:N310]'));
+      errorSpy.mock.calls.filter((a) => String(a[0]).includes('[nisli N310]'));
     try {
       const s = signal(0);
       let runs = 0;
@@ -979,7 +979,7 @@ describe('loud cap breaks (N303)', () => {
       flushEffects(); // drains to the cascade cap, then breaks LOUDLY
 
       expect(
-        errorSpy.mock.calls.some((c) => String(c[0]).includes('[nisli:N303]')),
+        errorSpy.mock.calls.some((c) => String(c[0]).includes('[nisli N303]')),
       ).toBe(true);
       expect(
         errorSpy.mock.calls.some((c) => String(c[0]).includes('flush()')),

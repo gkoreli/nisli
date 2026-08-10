@@ -80,20 +80,14 @@ export function __pendingCount(): number {
   return pending.size;
 }
 
-// ── Diagnostics sink ────────────────────────────────────────────────
-// TODO(diagnostics): replace with the core diagnostics leaf. The dev-gated
-// `diag` shim lives in query.ts (single shim rule); query.ts injects it
-// here at module init so settle.ts does not import query.ts (no cycle).
+// ── Diagnostics + test isolation ────────────────────────────────────
+// Reporting goes through the core diagnostics leaf. The pending registry
+// self-registers with resetInjector() so test teardown clears it without
+// an upside-down import (settle → injector, never the reverse).
+import { diag, isDev } from './diagnostics.js';
+import { registerResetHook } from './injector.js';
 
-type DiagSink = (code: 'N603', message: string) => void;
-let diagSink: DiagSink = (code, message) => {
-  console.error(`[nisli:${code}] ${message}`);
-};
-
-/** @internal — wired by query.ts at module init. */
-export function __setSettleDiagSink(sink: DiagSink): void {
-  diagSink = sink;
-}
+registerResetHook(__resetPending);
 
 // ── settle() ────────────────────────────────────────────────────────
 
@@ -111,7 +105,7 @@ export async function settle(): Promise<void> {
     if (pending.size === 0) return;
     await Promise.allSettled([...pending]);
   }
-  diagSink(
+  if (isDev()) diag(
     'N603',
     'settle() did not reach quiescence within 50 iterations — something '
     + 'keeps scheduling new async work (a self-invalidating query or a '

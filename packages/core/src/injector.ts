@@ -153,6 +153,16 @@ export function createToken<T>(name: string, defaultFactory?: () => T): Injectio
   };
 }
 
+// Hooks run by resetInjector() — module-level caches elsewhere (settle's
+// pending registry) stay test-isolated without upside-down imports: those
+// modules import the injector and self-register, never the reverse.
+const resetHooks = new Set<() => void>();
+
+/** @internal Register a hook run by every resetInjector() call. */
+export function registerResetHook(hook: () => void): void {
+  resetHooks.add(hook);
+}
+
 /**
  * Reset the injector — clears all singletons and factory overrides.
  * Used in tests to ensure isolation between test cases.
@@ -161,4 +171,5 @@ export function resetInjector(): void {
   singletonCache.clear();
   factoryOverrides.clear();
   instantiating.clear();
+  for (const hook of resetHooks) hook();
 }

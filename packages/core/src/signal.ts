@@ -96,32 +96,17 @@ let globalEpoch = 0;
 /** Monotonic effect creation index — pending effects flush in this order. */
 let nextEffectOrder = 0;
 
-// ── Dev diagnostics (minimal local shim) ────────────────────────────
-// TODO(diagnostics): replace with core diagnostics leaf (diagnostics.ts —
-// ADR 0030.2 §7 places codes + payload builder in a leaf importable by every
-// layer; this shim keeps T5's scheduler diagnostics self-contained until it
-// lands). Assigned codes: N301 effect loop, N302 write-in-own-effect,
-// N303 flush/tick cap, N310 effect(async).
+// ── Dev diagnostics ─────────────────────────────────────────────────
+// Reporting goes through the diagnostics leaf (its dev gate governs);
+// guard BEHAVIOR (loop disposal, rejection containment) is never gated —
+// only the reporting. Assigned codes: N301 effect loop, N302
+// write-in-own-effect, N303 flush/tick cap, N310 effect(async).
 
-let devMode = true;
+import { diag as emitDiag, isDev } from './diagnostics.js';
 
-/**
- * Enable/disable dev diagnostics (N3xx console output). Guard behavior
- * (loop disposal, rejection containment) is NOT gated — only the reporting.
- * @internal TODO(diagnostics): replace with core diagnostics leaf.
- */
-export function __setDevMode(on: boolean): void {
-  devMode = on;
-}
-
-// TODO(diagnostics): replace with core diagnostics leaf
 function diag(code: string, message: string, detail?: object): void {
-  if (!devMode) return;
-  if (detail !== undefined) {
-    console.error(`[nisli:${code}] ${message}`, detail);
-  } else {
-    console.error(`[nisli:${code}] ${message}`);
-  }
+  if (!isDev()) return;
+  emitDiag(code, message, detail as Record<string, unknown> | undefined);
 }
 
 // ── Effect scheduling ────────────────────────────────────────────────
@@ -663,7 +648,7 @@ type SyncEffectGuard<R> = [R] extends [Promise<unknown>]
  */
 export function effect<R>(fn: () => R, ..._rejectAsync: SyncEffectGuard<R>): () => void {
   const node = createEffectNode(fn as unknown as () => void | (() => void));
-  if (devMode) {
+  if (isDev()) {
     // Dev-captured effect identity: N301/N302 diagnostics name this site.
     node.createdAt = new Error('effect() created here').stack;
   }
