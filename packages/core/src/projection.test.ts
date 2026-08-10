@@ -3,8 +3,8 @@
  *
  * @vitest-environment happy-dom
  */
-import { describe, it, expect, beforeEach } from 'vitest';
-import { component, html, children, flushEffects, signal, type TemplateResult } from './index.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { component, html, children, onMount, flushEffects, signal, type TemplateResult } from './index.js';
 
 let uid = 0;
 
@@ -116,6 +116,75 @@ describe('children() — factory children prop', () => {
     kids.value = undefined;
     flushEffects();
     expect(root(c).querySelector('i')?.textContent).toBe('fb');
+  });
+});
+
+describe('children() — dedicated pre-onMount sweep phase (ADR 0030.2 §3)', () => {
+  it('projects late parser children when children() is called AFTER onMount registration', async () => {
+    const tag = `x-slot-${uid++}`;
+    const mountRan = vi.fn();
+    component(tag, () => {
+      // Pre-0030.2 this ordering was the documented trap (0025 batch-3B gap a):
+      // the sweep was scheduled from children()'s own onMount, so registering
+      // another onMount FIRST changed classification. The sweep scheduling now
+      // lives in component.ts's dedicated phase — ordering must not matter.
+      onMount(mountRan);
+      const slot = children('DEFAULT');
+      return html`<div data-slot="root">${slot}</div>`;
+    });
+
+    document.body.innerHTML = `<${tag}>Late</${tag}>`;
+    flushEffects();
+    await Promise.resolve();
+
+    expect(mountRan).toHaveBeenCalledTimes(1);
+    expect(root(document.body).textContent).toBe('Late');
+  });
+
+  it('onMount host-appends classify as projected content (the universal late-children rule)', async () => {
+    const tag = `x-slot-${uid++}`;
+    component(tag, (_props, host) => {
+      const slot = children('DEFAULT');
+      onMount(() => {
+        const late = document.createElement('i');
+        late.textContent = 'FROM-MOUNT';
+        host.appendChild(late);
+      });
+      return html`<div data-slot="root">${slot}</div>`;
+    });
+
+    document.body.innerHTML = `<${tag}></${tag}>`;
+    flushEffects();
+    await Promise.resolve();
+
+    // The appended node was swept INTO the slot — the rule is universal now:
+    // anything appearing after the pre-onMount snapshot is projected content
+    // (§8: such components "reclassify under the now-universal rule").
+    const host = document.body.querySelector(tag)!;
+    expect(root(document.body).textContent).toBe('FROM-MOUNT');
+    expect(host.children).toHaveLength(1); // only the rendered root remains direct
+  });
+
+  it('a mount-phase failure does not let the queued sweep eat the error fallback', async () => {
+    const tag = `x-slot-${uid++}`;
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    component(tag, () => {
+      const slot = children('DEFAULT');
+      onMount(() => { throw new Error('mount boom'); });
+      return html`<div data-slot="root">${slot}</div>`;
+    });
+
+    document.body.innerHTML = `<${tag}></${tag}>`;
+    const host = document.body.querySelector(tag)! as HTMLElement;
+    expect(host.getAttribute('data-nisli-error')).toBe('N402');
+    expect(host.innerHTML).toContain('Error in');
+
+    // Let the (already-scheduled) sweep microtask run: the disposal guard must
+    // keep it from misreading the error fallback as late projected content.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(host.innerHTML).toContain('Error in');
+    errorSpy.mockRestore();
   });
 });
 

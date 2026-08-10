@@ -35,7 +35,7 @@
  */
 
 import { getCurrentComponent } from './context.js';
-import { onMount, onCleanup } from './lifecycle.js';
+import { onCleanup } from './lifecycle.js';
 import { signal, computed, flush, type ReadonlySignal, type Signal } from './signal.js';
 import type { TemplateResult } from './template.js';
 
@@ -95,6 +95,7 @@ function asSlot(value: unknown): unknown {
 export function children(fallback?: TemplateResult | string): ReadonlySignal<unknown> {
   const host = getCurrentComponent().element as HTMLElement & {
     __capturedChildren?: Node[];
+    __nisliProjectionSweep?: () => void;
     _propSignal?(key: string): Signal<unknown>;
   };
 
@@ -112,19 +113,38 @@ export function children(fallback?: TemplateResult | string): ReadonlySignal<unk
   // Projected light-DOM nodes; grows when the late-parser sweep finds more.
   const projectedNodes = signal<Node[]>(captured);
 
+  // True once this setup scope has been disposed (true disconnect, HMR
+  // teardown, OR the containment boundary tearing down a failed mount). The
+  // queued sweep below must then no-op: it would otherwise misread the
+  // post-teardown host children (restored light DOM, or the error fallback)
+  // as "late" and relocate them into a dead slot.
+  let disposed = false;
+
   // A true disconnect/HMR teardown clears the component-owned rendered tree
   // before setup runs again. Hand the plain light-DOM nodes back to component.ts
   // so it can restore them as direct host children for the next capture.
   onCleanup(() => {
+    disposed = true;
     const nodes = projectedNodes.value;
     host.__capturedChildren = nodes.length ? nodes : undefined;
   });
 
-  onMount(() => {
-    // The host's direct children right after mount are the rendered template
-    // roots. Anything that appears later is a late parser/innerHTML child.
+  // LATE-CHILDREN SWEEP — scheduled by component.ts's dedicated projection
+  // phase (ADR 0030.2 §3), which runs after the template is committed and
+  // BEFORE any onMount callback. Pre-0030.2 this was registered via
+  // children()'s own onMount, so the rendered-roots snapshot depended on
+  // where children() sat relative to other onMount() registrations (the 0025
+  // batch-3B ordering trap). Hoisting the SCHEDULING makes the rule
+  // universal: the snapshot is exactly the rendered template roots, and
+  // anything appearing after it — late parser/innerHTML children AND onMount
+  // host-appends — classifies as projected content. Only scheduling moved;
+  // the prop READ path (the computed below) is unchanged.
+  host.__nisliProjectionSweep = () => {
+    // The host's direct children at phase time are the rendered template
+    // roots. Anything that appears later is late projected content.
     const renderedRoots = new Set<Node>(Array.from(host.childNodes));
     queueMicrotask(() => {
+      if (disposed) return; // scope torn down before the sweep ran
       const late = Array.from(host.childNodes).filter((n) => !renderedRoots.has(n));
       if (late.length && isMeaningful(late)) {
         for (const node of late) host.removeChild(node);
@@ -135,7 +155,7 @@ export function children(fallback?: TemplateResult | string): ReadonlySignal<unk
         flush();
       }
     });
-  });
+  };
 
   // Stable, RE-MOUNTABLE fallback slot: the same slot object is returned on
   // every empty render, and it can be mounted → unmounted → mounted again
