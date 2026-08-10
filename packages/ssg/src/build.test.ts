@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { children, component, computed, html, signal, ref, onMount } from '@nisli/core';
+import { children, component, computed, html, raw, signal, ref, onMount } from '@nisli/core';
 import { defineRouter, notFound, numberParam, route } from '@nisli/router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildStaticSite, type StaticRouterMetadata } from './index.js';
@@ -70,7 +70,7 @@ describe('buildStaticSite', () => {
             <main class=${'page'} class:active=${active}>
               <h1>${'Hello <Nisli>'}</h1>
               <button @click=${() => {}}>Read</button>
-              <section html:inner=${'<p>trusted</p>'}></section>
+              <section html:inner=${raw('<p>trusted</p>')}></section>
             </main>
           `,
         },

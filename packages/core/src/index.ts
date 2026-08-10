@@ -77,6 +77,8 @@ export {
   el,
   when,
   each,
+  raw,
+  type RawHtml,
   type TemplateResult,
   type TypedEventHandler,
   type ElProps,

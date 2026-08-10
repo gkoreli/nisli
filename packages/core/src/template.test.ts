@@ -5,8 +5,8 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { html, when, type TemplateResult } from './template.js';
-import { signal, computed, effect, flushEffects } from './signal.js';
+import { html, when, raw, __templateParseCount, type TemplateResult } from './template.js';
+import { signal, computed, effect, flushEffects, type Signal } from './signal.js';
 import { component } from './component.js';
 
 beforeEach(() => {
@@ -558,16 +558,43 @@ describe('auto-resolution', () => {
     }
     customElements.define('fake-reactive', FakeReactive);
 
-    const title = signal('Hello');
-    const result = html`<fake-reactive title="${title}"></fake-reactive>`;
+    // NOTE: was `title` pre-0030.2 — title/role/tabindex/name are now on the
+    // auto-resolution exclusion list (plain attributes, never _setProp).
+    const label = signal('Hello');
+    const result = html`<fake-reactive label="${label}"></fake-reactive>`;
     mount(result);
     flushEffects();
 
-    expect(props.get('title')).toBe('Hello');
+    expect(props.get('label')).toBe('Hello');
 
-    title.value = 'Updated';
+    label.value = 'Updated';
     flushEffects();
-    expect(props.get('title')).toBe('Updated');
+    expect(props.get('label')).toBe('Updated');
+  });
+
+  it('routes title/role/tabindex/name to plain attributes on framework components (ADR 0030.2 §8)', () => {
+    const setPropCalls: [string, unknown][] = [];
+    class FakeExcluded extends HTMLElement {
+      _setProp(key: string, value: unknown) {
+        setPropCalls.push([key, value]);
+      }
+    }
+    customElements.define('fake-excluded', FakeExcluded);
+
+    const tabindex = signal(0);
+    const result = html`<fake-excluded title="${'tip'}" role="${'menu'}" name="${'field'}" tabindex="${tabindex}"></fake-excluded>`;
+    const host = mount(result);
+    const el = host.querySelector('fake-excluded')!;
+
+    expect(setPropCalls).toEqual([]);
+    expect(el.getAttribute('title')).toBe('tip');
+    expect(el.getAttribute('role')).toBe('menu');
+    expect(el.getAttribute('name')).toBe('field');
+    expect(el.getAttribute('tabindex')).toBe('0');
+
+    tabindex.value = 3;
+    flushEffects();
+    expect(el.getAttribute('tabindex')).toBe('3');
   });
 
   it('falls back to setAttribute for vanilla elements', () => {
@@ -577,5 +604,287 @@ describe('auto-resolution', () => {
 
     expect(div.getAttribute('data-id')).toBe('42');
     expect(div.getAttribute('title')).toBe('hello');
+  });
+});
+
+// ── ADR 0030.2 T4: parse-once template cache (issue 0015) ───────────
+
+describe('parse-once template cache (ADR 0030.2 T4 / issue 0015)', () => {
+  it('parses a callsite once and clones per mount', () => {
+    const item = (label: string) => html`<span class="pc-item">${label}</span>`;
+
+    const before = __templateParseCount();
+    const results = [item('a'), item('b'), item('c'), item('d'), item('e')];
+    const hosts = results.map(r => mount(r));
+
+    // One parse for five mounts of the same callsite.
+    expect(__templateParseCount() - before).toBe(1);
+
+    // Equivalent DOM per mount, with independent per-mount binding values.
+    expect(hosts.map(h => h.querySelector('.pc-item')?.textContent)).toEqual([
+      'a', 'b', 'c', 'd', 'e',
+    ]);
+  });
+
+  it('cloned mounts keep independent reactive bindings', () => {
+    const card = (title: Signal<string>) =>
+      html`<p class="pc-live">${title}</p>`;
+
+    const t1 = signal('one');
+    const t2 = signal('two');
+    const before = __templateParseCount();
+    const hostA = mount(card(t1));
+    const hostB = mount(card(t2));
+    expect(__templateParseCount() - before).toBe(1);
+
+    t1.value = 'ONE';
+    flushEffects();
+    expect(hostA.querySelector('.pc-live')?.textContent).toBe('ONE');
+    expect(hostB.querySelector('.pc-live')?.textContent).toBe('two');
+  });
+
+  it('dispose → remount reuses the cached parse', () => {
+    const value = signal('x');
+    const result = html`<i class="pc-re">${value}</i>`;
+    mount(result);
+    const before = __templateParseCount();
+    result.dispose();
+    const host2 = mount(result);
+    expect(__templateParseCount() - before).toBe(0);
+    expect(host2.querySelector('.pc-re')?.textContent).toBe('x');
+  });
+});
+
+// ── ADR 0030.2 T4: single-mount guard (N105) ────────────────────────
+
+describe('single-mount guard (N105)', () => {
+  it('throws N105 on a second mount of a live template with value bindings', () => {
+    const result = html`<span>${signal('bound')}</span>`;
+    mount(result);
+    expect(() => mount(result)).toThrowError(/N105/);
+  });
+
+  it('zero-binding templates stay multi-mountable (shared icon pattern)', () => {
+    // Mirrors dropdown-menu.ts's module-level checkIcon: one static template
+    // instance mounted into several places CONCURRENTLY.
+    const icon = html`<svg class="size-4" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"></path></svg>`;
+    const hostA = mount(icon);
+    const hostB = mount(icon);
+    expect(hostA.querySelector('svg')).not.toBeNull();
+    expect(hostB.querySelector('svg')).not.toBeNull();
+    // Each mount clones its own DOM — the two svgs are distinct nodes.
+    expect(hostA.querySelector('svg')).not.toBe(hostB.querySelector('svg'));
+  });
+
+  it('dispose() → mount() stays legal for templates with bindings', () => {
+    const label = signal('first');
+    const result = html`<b>${label}</b>`;
+    const hostA = mount(result);
+    expect(hostA.querySelector('b')?.textContent).toBe('first');
+
+    result.dispose();
+    const hostB = mount(result);
+    expect(hostB.querySelector('b')?.textContent).toBe('first');
+
+    label.value = 'second';
+    flushEffects();
+    expect(hostB.querySelector('b')?.textContent).toBe('second');
+  });
+});
+
+// ── ADR 0030.2 §3: when() boolean gate + else arm ───────────────────
+
+describe('when() boolean gate and else arm (ADR 0030.2 §3)', () => {
+  it('renders the else arm when the condition is falsy (signal)', () => {
+    const on = signal(false);
+    const result = html`<div>${when(
+      on,
+      () => html`<span class="then">yes</span>`,
+      () => html`<span class="else">no</span>`,
+    )}</div>`;
+    const host = mount(result);
+
+    expect(host.querySelector('.else')?.textContent).toBe('no');
+    expect(host.querySelector('.then')).toBeNull();
+
+    on.value = true;
+    flushEffects();
+    expect(host.querySelector('.then')?.textContent).toBe('yes');
+    expect(host.querySelector('.else')).toBeNull();
+
+    on.value = false;
+    flushEffects();
+    expect(host.querySelector('.else')?.textContent).toBe('no');
+  });
+
+  it('supports the else arm for static conditions and non-callback arms', () => {
+    const yes = html`<div>${when(1, html`<i>a</i>`, html`<i>b</i>`)}</div>`;
+    const no = html`<div>${when(0, html`<i>a</i>`, html`<i>b</i>`)}</div>`;
+    expect(mount(yes).querySelector('i')?.textContent).toBe('a');
+    expect(mount(no).querySelector('i')?.textContent).toBe('b');
+  });
+
+  it('truthy→truthy transitions never rebuild the branch (boolean gate)', () => {
+    const count = signal(1);
+    let evals = 0;
+    const result = html`<div>${when(count, () => {
+      evals++;
+      return html`<input class="keep" />`;
+    })}</div>`;
+    const host = mount(result);
+    const input = host.querySelector('.keep');
+    expect(evals).toBe(1);
+    expect(input).not.toBeNull();
+
+    count.value = 2; // truthy → truthy
+    flushEffects();
+    expect(evals).toBe(1); // callback NOT re-run
+    expect(host.querySelector('.keep')).toBe(input); // same DOM node — no rebuild
+
+    count.value = 0; // truthy → falsy
+    flushEffects();
+    expect(host.querySelector('.keep')).toBeNull();
+
+    count.value = 7; // falsy → truthy: branch re-evaluates once
+    flushEffects();
+    expect(evals).toBe(2);
+  });
+
+  it('falsy→falsy transitions never re-evaluate the else arm', () => {
+    const count = signal(0);
+    let elseEvals = 0;
+    const result = html`<div>${when(
+      count,
+      () => html`<span>then</span>`,
+      () => {
+        elseEvals++;
+        return html`<span class="off">off</span>`;
+      },
+    )}</div>`;
+    const host = mount(result);
+    const off = host.querySelector('.off');
+    expect(elseEvals).toBe(1);
+
+    count.value = NaN; // falsy → falsy
+    flushEffects();
+    expect(elseEvals).toBe(1);
+    expect(host.querySelector('.off')).toBe(off);
+  });
+
+  it('evaluates branch callbacks UNTRACKED — construction-time reads cannot rebuild', () => {
+    const on = signal(true);
+    const insideRead = signal('initial');
+    let evals = 0;
+    const result = html`<div>${when(on, () => {
+      evals++;
+      // Raw .value read at construction time — deliberately NOT reactive.
+      return html`<span class="ut">${insideRead.value}</span>`;
+    })}</div>`;
+    const host = mount(result);
+    expect(host.querySelector('.ut')?.textContent).toBe('initial');
+    expect(evals).toBe(1);
+
+    insideRead.value = 'changed';
+    flushEffects();
+    // No rebuild, no re-eval: the read did not subscribe the when() computed.
+    expect(evals).toBe(1);
+    expect(host.querySelector('.ut')?.textContent).toBe('initial');
+  });
+
+  it('does not evaluate the inactive arm (laziness, both directions)', () => {
+    const on = signal(true);
+    let thenEvals = 0;
+    let elseEvals = 0;
+    const result = html`<div>${when(
+      on,
+      () => { thenEvals++; return html`<b>t</b>`; },
+      () => { elseEvals++; return html`<b>e</b>`; },
+    )}</div>`;
+    mount(result);
+    expect(thenEvals).toBe(1);
+    expect(elseEvals).toBe(0);
+
+    on.value = false;
+    flushEffects();
+    expect(thenEvals).toBe(1);
+    expect(elseEvals).toBe(1);
+  });
+});
+
+// ── ADR 0030.2 §3: html:inner takes branded trust only (N106) ───────
+
+describe('html:inner raw() branding (N106)', () => {
+  it('renders raw()-branded static values', () => {
+    const result = html`<section html:inner=${raw('<p class="trusted">ok</p>')}></section>`;
+    const host = mount(result);
+    expect(host.querySelector('section .trusted')?.textContent).toBe('ok');
+  });
+
+  it('throws N106 for bare static strings', () => {
+    const result = html`<section html:inner=${'<p>nope</p>'}></section>`;
+    expect(() => mount(result)).toThrowError(/N106/);
+  });
+
+  it('updates reactively from a signal of raw values', () => {
+    const content = signal(raw('<em>a</em>'));
+    const result = html`<div html:inner=${content}></div>`;
+    const host = mount(result);
+    expect(host.querySelector('div em')?.textContent).toBe('a');
+
+    content.value = raw('<strong>b</strong>');
+    flushEffects();
+    expect(host.querySelector('div strong')?.textContent).toBe('b');
+    expect(host.querySelector('div em')).toBeNull();
+  });
+
+  it('throws N106 at mount for a signal whose initial value is a bare string', () => {
+    const content = signal<unknown>('<p>nope</p>');
+    const result = html`<div html:inner=${content}></div>`;
+    expect(() => mount(result)).toThrowError(/N106/);
+  });
+
+  it('renders nothing for null/undefined', () => {
+    const result = html`<div html:inner=${null}></div>`;
+    const host = mount(result);
+    expect(host.querySelector('div')?.innerHTML).toBe('');
+  });
+});
+
+// ── ADR 0030.2 §8: handler dispatch runs untracked ──────────────────
+
+describe('event handlers run untracked on dispatch', () => {
+  it('synchronous dispatch inside an effect does not widen that effect deps', () => {
+    const trigger = signal(0);
+    const readByHandler = signal('a');
+    let handlerRuns = 0;
+    let effectRuns = 0;
+
+    const result = html`<button @click=${() => {
+      handlerRuns++;
+      void readByHandler.value; // handler reads a signal
+    }}>go</button>`;
+    const host = mount(result);
+    const btn = host.querySelector('button')!;
+
+    const dispose = effect(() => {
+      void trigger.value;
+      effectRuns++;
+      btn.dispatchEvent(new Event('click')); // synchronous dispatch inside the effect
+    });
+    expect(effectRuns).toBe(1);
+    expect(handlerRuns).toBe(1);
+
+    // The handler's signal read must NOT have been tracked by the effect.
+    readByHandler.value = 'b';
+    flushEffects();
+    expect(effectRuns).toBe(1);
+
+    // Sanity: the effect's real dependency still re-runs it.
+    trigger.value = 1;
+    flushEffects();
+    expect(effectRuns).toBe(2);
+    expect(handlerRuns).toBe(2);
+
+    dispose();
   });
 });

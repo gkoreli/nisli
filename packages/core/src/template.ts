@@ -15,10 +15,15 @@ import {
   isSignal,
   effect,
   computed,
+  untrack,
   type Signal,
   type ReadonlySignal,
 } from './signal.js';
 import { isRef, type Ref } from './ref.js';
+// First-parse audit (ADR 0030.2 T4). The import is static — core has no
+// build-time dev/prod define yet (a named Wave-1 deliverable, §8) — but every
+// entry point is a no-op behind template-audit's own dev flag.
+import { auditTemplate, captureCallsite } from './template-audit.js';
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -36,6 +41,56 @@ export type TypedEventHandler<K extends keyof HTMLElementEventMap> = (
   event: HTMLElementEventMap[K],
 ) => void;
 
+/**
+ * Value-returning untrack. signal.ts's `untrack` is `(fn: () => void) => void`
+ * (the value-returning form is a 0030.2 §3 papercut owned elsewhere); this
+ * local wrapper closes over the result until that lands.
+ */
+function untracked<T>(fn: () => T): T {
+  let result!: T;
+  untrack(() => { result = fn(); });
+  return result;
+}
+
+// ── Trusted HTML brand (raw) ────────────────────────────────────────
+
+/**
+ * Branded trusted-HTML value accepted by `html:inner` (and by @nisli/ssg's
+ * static renderer, which re-exports this brand — core owns it, ADR 0030.2 §8).
+ * Structural, not nominal: cross-package/cross-realm values with the same
+ * shape stay valid.
+ */
+export interface RawHtml {
+  value: string;
+  __raw: true;
+}
+
+/**
+ * Mark a string as trusted raw HTML. `html:inner` accepts ONLY branded
+ * values — a bare string throws N106 (the accidental-XSS-sink class closes,
+ * ADR 0030.2 §3). NEVER wrap user-generated input.
+ */
+export function raw(value: string): RawHtml {
+  return { __raw: true as const, value };
+}
+
+function isRawHtml(value: unknown): value is RawHtml {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && '__raw' in value
+    && (value as RawHtml).__raw === true
+    && typeof (value as RawHtml).value === 'string'
+  );
+}
+
+// TODO(diagnostics): replace with the core diagnostics leaf (parallel
+// worktree); template-layer codes N101–N106 register there. N105/N106 are
+// thrown (correctness/security guards), unlike the warn-level audit codes.
+function nisliError(code: string, message: string): Error {
+  return new Error(`[nisli] ${code}: ${message}`);
+}
+
 // ── Template cache ──────────────────────────────────────────────────
 
 /**
@@ -44,6 +99,65 @@ export type TypedEventHandler<K extends keyof HTMLElementEventMap> = (
  * reference per call site, we use WeakMap for efficient caching.
  */
 const templateCache = new WeakMap<TemplateStringsArray, HTMLTemplateElement>();
+
+/** Parses performed since module load — test-only regression hook (issue 0015). */
+let parseCount = 0;
+
+/** @internal Test-only: number of actual `<template>` parses performed. */
+export function __templateParseCount(): number {
+  return parseCount;
+}
+
+/**
+ * Parse-once (ADR 0030.2 T4, issue 0015): build the marker HTML string and
+ * parse it into a `<template>` exactly once per callsite, keyed by
+ * TemplateStringsArray identity. The string depends only on the static
+ * `strings` (marker indices are positional), so every TemplateResult from the
+ * same callsite shares one parsed template and clones per mount.
+ *
+ * The first parse also runs the one-time static audit (template-audit.ts)
+ * over the pristine parsed element — it still carries the raw `@event`/
+ * `class:`/marker attributes that processAttributes later strips from clones.
+ */
+function parseTemplate(strings: TemplateStringsArray, valueCount: number): HTMLTemplateElement {
+  let template = templateCache.get(strings);
+  if (template) return template;
+
+  // Build the HTML string with markers.
+  // Track HTML parsing state to auto-quote markers in unquoted
+  // attribute positions where the > in --> would close the tag.
+  // See ADR 0069.
+  let htmlStr = '';
+  let inTag = false;
+  let quoteChar: string | null = null;
+
+  for (let i = 0; i < strings.length; i++) {
+    const s = strings[i] ?? '';
+    for (let c = 0; c < s.length; c++) {
+      const ch = s.charAt(c);
+      if (quoteChar) { if (ch === quoteChar) quoteChar = null; }
+      else if (inTag) {
+        if (ch === '>') inTag = false;
+        else if (ch === '"' || ch === "'") quoteChar = ch;
+      } else { if (ch === '<') inTag = true; }
+    }
+    htmlStr += s;
+    if (i < valueCount) {
+      const needsQuotes = inTag && !quoteChar && /=\s*$/.test(s);
+      htmlStr += needsQuotes ? `"${createMarker(i)}"` : createMarker(i);
+    }
+  }
+
+  parseCount++;
+  template = document.createElement('template');
+  template.innerHTML = htmlStr;
+  templateCache.set(strings, template);
+
+  // Dev-only first-parse audit (N101–N104); no-op when disabled.
+  auditTemplate(strings, template);
+
+  return template;
+}
 
 // ── Marker for expression slots ─────────────────────────────────────
 
@@ -127,39 +241,35 @@ export function html(
 ): TemplateResult {
   const bindings: Binding[] = [];
   const disposers: (() => void)[] = [];
+  // Dev-only: remember the authoring callsite for first-parse audit
+  // diagnostics — by first-mount time this frame is gone from the stack.
+  captureCallsite(strings);
+  let mounted = false;
 
   return {
     __templateResult: true as const,
 
     mount(host: HTMLElement): void {
-      // Build the HTML string with markers.
-      // Track HTML parsing state to auto-quote markers in unquoted
-      // attribute positions where the > in --> would close the tag.
-      // See ADR 0069.
-      let htmlStr = '';
-      let inTag = false;
-      let quoteChar: string | null = null;
-
-      for (let i = 0; i < strings.length; i++) {
-        const s = strings[i] ?? '';
-        for (let c = 0; c < s.length; c++) {
-          const ch = s.charAt(c);
-          if (quoteChar) { if (ch === quoteChar) quoteChar = null; }
-          else if (inTag) {
-            if (ch === '>') inTag = false;
-            else if (ch === '"' || ch === "'") quoteChar = ch;
-          } else { if (ch === '<') inTag = true; }
-        }
-        htmlStr += s;
-        if (i < values.length) {
-          const needsQuotes = inTag && !quoteChar && /=\s*$/.test(s);
-          htmlStr += needsQuotes ? `"${createMarker(i)}"` : createMarker(i);
-        }
+      // Single-mount guard (ADR 0030.2 T4 + §8): a second mount of a live,
+      // un-disposed result with value bindings would attach a second set of
+      // bindings to the same shared arrays — shared-binding corruption.
+      // Zero-binding templates (the registry's shared static icon pattern)
+      // stay multi-mountable; dispose() → mount() stays legal.
+      if (mounted && values.length > 0) {
+        throw nisliError(
+          'N105',
+          `mount() on an already-mounted TemplateResult with ${values.length} value ` +
+          `binding(s) — dispose() it first or create a fresh template per mount. ` +
+          `Template starts: ${JSON.stringify((strings[0] ?? '').slice(0, 60))}`,
+        );
       }
+      mounted = true;
 
-      // Parse the HTML
-      const template = document.createElement('template');
-      template.innerHTML = htmlStr;
+      // Parse-once: the parsed template is cached per callsite; each mount
+      // only pays the clone + binding walk. The per-mount processNode walk
+      // below REMAINS by design until the ADR 0014-class work — caching
+      // removes the *parse*, not the walk (ADR 0030.2 §8).
+      const template = parseTemplate(strings, values.length);
       const fragment = template.content.cloneNode(true) as DocumentFragment;
 
       // Walk the DOM tree and replace markers with bindings
@@ -180,6 +290,7 @@ export function html(
         }
       }
       bindings.length = 0;
+      mounted = false;
     },
   };
 }
@@ -580,10 +691,14 @@ function bindAttribute(
   }
 
   // Auto-resolution: framework components get _setProp for custom props
-  // (preserves types). Standard HTML attributes (id, style, data-*,
-  // aria-*) always use setAttribute even on framework components.
+  // (preserves types). Standard HTML attributes (id, style, data-*, aria-*,
+  // and — ADR 0030.2 §8 — title/role/tabindex/name) always use setAttribute
+  // even on framework components: routed through _setProp they were silently
+  // dead (no component declares them as props).
   const isHtmlAttr = name === 'id' || name === 'style'
-    || name === 'slot' || name.startsWith('data-') || name.startsWith('aria-');
+    || name === 'slot' || name === 'title' || name === 'role'
+    || name === 'tabindex' || name === 'name'
+    || name.startsWith('data-') || name.startsWith('aria-');
   const hasPropSetter = !isHtmlAttr && typeof (el as any)._setProp === 'function';
 
   if (hasPropSetter) {
@@ -732,14 +847,17 @@ function bindClass(
 /**
  * Bind trusted HTML content to an element's innerHTML.
  *
- * WARNING: This is for trusted content only (e.g., highlighted search results
- * from @orama/highlight, diff2html output). NEVER use with user-generated input.
+ * Accepts ONLY `raw()`-branded values (ADR 0030.2 §3/§8 — core owns the
+ * `__raw` brand; @nisli/ssg re-exports it). A bare string throws N106: the
+ * brand is the author's explicit trust assertion, closing the
+ * accidental-XSS-sink class. NEVER wrap user-generated input in raw().
  *
- * Supports both static strings and reactive Signal<string> values.
+ * Supports both static RawHtml and reactive Signal<RawHtml> values.
  * When the signal changes, innerHTML is updated reactively.
+ * null/undefined (branded or not) clears the content.
  *
  * Usage in templates:
- *   html`<span html:inner="${highlightedHtml}"></span>`
+ *   html`<span html:inner="${raw(highlightedHtml)}"></span>`
  */
 function bindInnerHtml(
   el: Element,
@@ -747,18 +865,33 @@ function bindInnerHtml(
   bindings: Binding[],
   disposers: (() => void)[],
 ): void {
+  const resolveTrusted = (v: unknown): string => {
+    if (v == null) return '';
+    if (isRawHtml(v)) return v.value;
+    throw nisliError(
+      'N106',
+      `html:inner rejects unbranded values (got ${typeof v}). Wrap trusted markup ` +
+      `in raw(html) — and never wrap user-generated input.`,
+    );
+  };
+
   if (isSignal(value)) {
+    // Validate the INITIAL value untracked and eagerly so a bare-string
+    // signal throws synchronously out of mount(); later invalid values throw
+    // inside the effect and land in effect error containment (console.error,
+    // innerHTML untouched).
+    untracked(() => resolveTrusted((value as ReadonlySignal<unknown>).value));
+
     const binding: InnerHtmlBinding = { type: 'innerHtml', element: el };
     bindings.push(binding);
 
     const dispose = effect(() => {
-      const v = (value as ReadonlySignal<unknown>).value;
-      el.innerHTML = v == null ? '' : String(v);
+      el.innerHTML = resolveTrusted((value as ReadonlySignal<unknown>).value);
     });
     binding.dispose = dispose;
     disposers.push(dispose);
   } else {
-    el.innerHTML = value == null ? '' : String(value);
+    el.innerHTML = resolveTrusted(value);
   }
 }
 
@@ -822,9 +955,13 @@ function bindEvent(
   }
 
   // Wrap in try/catch for error containment — THIS is the installed handler.
+  // Handler bodies run UNTRACKED (ADR 0030.2 §8, surfaced by the T5 review):
+  // synchronous dispatchEvent from inside an effect would otherwise run the
+  // handler under that effect's observer — widening the effect's dependency
+  // set with every signal the handler reads and mis-attributing its writes.
   safeHandler = (e: Event) => {
     try {
-      composed(e);
+      untrack(() => composed(e));
     } catch (err) {
       console.error(`Event handler error for '${eventName}':`, err);
     }
@@ -847,17 +984,6 @@ function bindEvent(
   });
 }
 
-/**
- * Conditional rendering helper.
- * Shows the template when condition is truthy.
- *
- * Supports both static and reactive (signal) conditions.
- * For signal conditions, returns a computed that reactively switches
- * between the template and null.
- *
- * The template argument can be a TemplateResult or a lazy callback
- * `() => TemplateResult` to avoid evaluating expensive branches.
- */
 // ── each() reactive list rendering ──────────────────────────────────
 
 /** Brand for each result detection */
@@ -1007,20 +1133,55 @@ export function each<T>(
   }
 }
 
+/**
+ * Conditional rendering helper (ADR 0030.2 §3, boolean-gated with `else`).
+ *
+ * Shows `template` when the condition is truthy, `elseTemplate` (optional)
+ * when falsy. Both arms accept a TemplateResult or a lazy callback
+ * `() => TemplateResult`; callbacks are only evaluated for the active arm.
+ *
+ * Semantics for signal conditions:
+ * - The gate is `!!condition.value` — a truthy→truthy (or falsy→falsy)
+ *   transition returns the memoized previous result, so the live branch is
+ *   NEVER rebuilt (no state/scroll/focus loss) and callbacks never re-run.
+ * - Branch callbacks evaluate UNTRACKED: a signal read during branch
+ *   construction does not subscribe the when() computed, so it cannot
+ *   trigger a rebuild. Reactive parts inside a branch must be interpolated
+ *   as signals/computeds (values), not read raw at construction time.
+ */
 export function when(
   condition: unknown,
   template: TemplateResult | (() => TemplateResult),
+  elseTemplate?: TemplateResult | (() => TemplateResult),
 ): TemplateResult | ReadonlySignal<TemplateResult | null> | null {
-  const resolveTemplate = () =>
-    typeof template === 'function' ? template() : template;
+  const resolveBranch = (
+    branch: TemplateResult | (() => TemplateResult) | undefined,
+  ): TemplateResult | null => {
+    if (branch === undefined) return null;
+    if (typeof branch === 'function') return untracked(branch);
+    return branch;
+  };
 
   if (isSignal(condition)) {
-    // Reactive: return a computed that re-evaluates when the signal changes
-    return computed(() =>
-      (condition as ReadonlySignal<unknown>).value ? resolveTemplate() : null
-    );
+    // Boolean-gated memo: notify() marks observers dirty EAGERLY (before
+    // value-equality is known), so a computed chain alone cannot stop a
+    // truthy→truthy recompute from re-evaluating the branch. The memo pins
+    // branch evaluation to actual boolean FLIPS; equal gates return the
+    // cached result, which the slot then memoizes by identity (ADR 0008.1).
+    let lastGate: boolean | undefined;
+    let lastResult: TemplateResult | null = null;
+    return computed(() => {
+      const gate = !!(condition as ReadonlySignal<unknown>).value;
+      if (gate === lastGate) return lastResult;
+      const next = gate ? resolveBranch(template) : resolveBranch(elseTemplate);
+      // Commit the memo only after a successful resolve so a throwing branch
+      // callback retries on the next read (computed error containment).
+      lastGate = gate;
+      lastResult = next;
+      return next;
+    });
   }
-  return condition ? resolveTemplate() : null;
+  return condition ? resolveBranch(template) : resolveBranch(elseTemplate);
 }
 
 // ── el(): dynamic tag names (ADR 0025 item 11) ──────────────────────

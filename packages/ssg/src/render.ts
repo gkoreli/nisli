@@ -5,15 +5,19 @@
  * strings for build-time/static use cases, not live browser bindings.
  */
 
+import { raw, type RawHtml } from '@nisli/core';
+
 export interface StaticResult {
   toString(): string;
   __staticResult: true;
 }
 
-export interface RawHtml {
-  value: string;
-  __raw: true;
-}
+// Brand unification (ADR 0030.2 §8 T4): core owns the __raw trusted-HTML
+// brand (template.ts `raw()`, consumed by html:inner); this module re-exports
+// it so one brand serves both the static renderer and the live engine.
+// isRawHtml below stays structural, so values from older @nisli/ssg copies
+// remain valid.
+export { raw, type RawHtml };
 
 const ESCAPE_MAP: Record<string, string> = {
   '&': '&amp;',
@@ -63,13 +67,6 @@ export function staticHtml(strings: TemplateStringsArray, ...values: unknown[]):
   return {
     __staticResult: true as const,
     toString: () => output,
-  };
-}
-
-export function raw(value: string): RawHtml {
-  return {
-    __raw: true as const,
-    value,
   };
 }
 

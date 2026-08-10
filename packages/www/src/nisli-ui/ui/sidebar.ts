@@ -226,7 +226,13 @@ export const Sidebar = component<SidebarProps, typeof sidebarAttrs>('ui-sidebar'
 
   const dataState = computed(() => state.state.value);
   const dataCollapsible = computed(() => (state.state.value === 'collapsed' ? collapsible : ''));
-  const notMobile = computed(() => !state.isMobile.value);
+  // Reactive className must be a computed interpolated as a VALUE: when()
+  // branch callbacks evaluate untracked (ADR 0030.2 §3/§8), so a raw
+  // props.className.value read inside desktopSidebar would render once and
+  // go stale.
+  const containerClass = computed(() =>
+    cn(containerClasses(side, variant), props.className.value),
+  );
 
   // The sheet's own dismissal (Escape / overlay click) dispatches a bubbling
   // ui-open-change from the (non-portaled) <ui-sheet> host; sync it back to the
@@ -271,7 +277,7 @@ export const Sidebar = component<SidebarProps, typeof sidebarAttrs>('ui-sidebar'
     data-slot="sidebar"
   >
     <div data-slot="sidebar-gap" class="${gapClasses(variant)}"></div>
-    <div data-slot="sidebar-container" class="${cn(containerClasses(side, variant), props.className.value)}">
+    <div data-slot="sidebar-container" class="${containerClass}">
       <div
         data-sidebar="sidebar"
         data-slot="sidebar-inner"
@@ -280,7 +286,13 @@ export const Sidebar = component<SidebarProps, typeof sidebarAttrs>('ui-sidebar'
     </div>
   </div>`;
 
-  return html`${when(state.isMobile, mobileSidebar)}${when(notMobile, desktopSidebar)}`;
+  // ONE when() slot with the else arm (ADR 0030.2 §3): a single slot disposes
+  // the outgoing tree SYNCHRONOUSLY before mounting the incoming one, so the
+  // shared children() projection follows the documented dispose→remount
+  // contract (ADR 0025 item-1 GAP-NOTE). Two sibling when() slots would mount
+  // the new branch before the old one disposes — a double-live mount of the
+  // factory-children template, now loud as N105.
+  return html`${when(state.isMobile, mobileSidebar, desktopSidebar)}`;
 }, { attrs: sidebarAttrs });
 
 // ── ui-sidebar-trigger / -rail ───────────────────────────────────────
