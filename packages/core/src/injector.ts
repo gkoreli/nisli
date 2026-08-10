@@ -19,6 +19,7 @@
  */
 
 import { hasContext, getCurrentComponent } from './context.js';
+import { formatDiag, isDev } from './diagnostics.js';
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -108,12 +109,27 @@ export function inject<T>(token: Constructor<T> | InjectionToken<T>): T {
  * Register a factory override for a class or token.
  * The factory will be called on the next inject() if no cached instance exists.
  *
- * Call provide() before the first inject() of that token.
- * To override in tests, call resetInjector() first.
+ * Call provide() before the first inject() of that token. Once a token has
+ * been instantiated the injector is FROZEN for it (dev, coded error N501):
+ * everything that already injected holds the old instance while later
+ * inject() calls would get the new one — a silent mixed-instance split
+ * (ADR 0030.2 §3). `resetInjector()` is the escape hatch (tests use it).
+ * Production keeps the historical silent replace so a live page never breaks
+ * over an ordering issue that dev already surfaced.
  */
 export function provide<T>(token: Constructor<T>, factory: () => T): void;
 export function provide<T>(token: InjectionToken<T>, factory: () => T): void;
 export function provide<T>(token: Constructor<T> | InjectionToken<T>, factory: () => T): void {
+  if (isDev() && singletonCache.has(token as Constructor | InjectionToken<unknown>)) {
+    const name = typeof token === 'function' ? token.name : (token as InjectionToken<T>).name;
+    throw new Error(formatDiag(
+      'N501',
+      `provide(${name}) after '${name}' was already instantiated — existing `
+      + `consumers keep the old instance while new inject() calls would get the `
+      + `new one (mixed-instance split). Call resetInjector() first (tests), or `
+      + `provide() before the first inject().`,
+    ));
+  }
   factoryOverrides.set(token as Constructor | InjectionToken<unknown>, factory);
   // Remove cached instance so next inject() uses the new factory
   singletonCache.delete(token as Constructor | InjectionToken<unknown>);

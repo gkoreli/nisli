@@ -11,6 +11,7 @@ import {
   type Constructor,
 } from './injector.js';
 import { runWithContext, type ComponentHost } from './context.js';
+import { setDevMode } from './diagnostics.js';
 
 // Reset between every test to ensure isolation
 beforeEach(() => {
@@ -129,9 +130,30 @@ describe('provide()', () => {
     expect(first.name).toBe('overridden');
   });
 
-  it('provide() after inject() replaces the cached singleton', () => {
+  // ── DI freeze-after-first-inject (ADR 0030.2 §3, N501) ────────────
+
+  it('provide() after inject() is a coded dev error (N501) naming the token', () => {
     const original = inject(ServiceA);
     expect(original.name).toBe('ServiceA');
+
+    expect(() => provide(ServiceA, () => new ServiceA()))
+      .toThrow(/\[nisli N501\].*ServiceA.*resetInjector/s);
+
+    // The freeze left state untouched: the same instance is still injected —
+    // no mixed-instance split.
+    expect(inject(ServiceA)).toBe(original);
+  });
+
+  it('N501 fires for InjectionTokens too, naming the token', () => {
+    const Config = createToken<{ debug: boolean }>('Config', () => ({ debug: true }));
+    inject(Config);
+    expect(() => provide(Config, () => ({ debug: false })))
+      .toThrow(/\[nisli N501\].*Config/s);
+  });
+
+  it('resetInjector() stays the escape: provide() works again after reset', () => {
+    const original = inject(ServiceA);
+    resetInjector();
 
     provide(ServiceA, () => {
       const mock = new ServiceA();
@@ -142,6 +164,32 @@ describe('provide()', () => {
     const replaced = inject(ServiceA);
     expect(replaced.name).toBe('replaced');
     expect(replaced).not.toBe(original);
+  });
+
+  it('prod keeps the historical silent replace-on-provide (dev/prod split)', () => {
+    setDevMode(false);
+    try {
+      const original = inject(ServiceA);
+      provide(ServiceA, () => {
+        const mock = new ServiceA();
+        mock.name = 'replaced';
+        return mock;
+      });
+      const replaced = inject(ServiceA);
+      expect(replaced.name).toBe('replaced');
+      expect(replaced).not.toBe(original);
+    } finally {
+      setDevMode(null);
+    }
+  });
+
+  it('provide() before the first inject() never trips the freeze', () => {
+    provide(ServiceA, () => {
+      const mock = new ServiceA();
+      mock.name = 'early';
+      return mock;
+    });
+    expect(inject(ServiceA).name).toBe('early');
   });
 });
 
