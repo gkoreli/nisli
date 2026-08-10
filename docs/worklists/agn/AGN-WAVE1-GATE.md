@@ -84,6 +84,65 @@ T6 (foundation: dev-gate + diagnostics) → T5 (no API change, invariant
 pins) → T4 (one behavioral migration already proven across suites) →
 T1/T2 (budget ruling required) — one gate at a time per the 0025 process.
 
+## Gate rulings and landing record (2026-08-10)
+
+All four gates were run and landed at the maintainer's direction; merge
+order T6 → T5 → T4 → T1/T2 held. Main:
+`b9b6b76` (T6 + N202 gate fix) → `6623030` (T5) → `dac7ebd` (T4) →
+`2cea443` (T1/T2) → `aa70aa6` (N601 retirement) → `f41a8a2` (diagnostics
+unification). Core 421/421, ssg 36/36 post-unification; ui 1110/1110 and
+router 62/62 at T4's landing point. All pushed.
+
+**Rulings.**
+
+- **T6**: dev-gate probe + loud-when-unsignaled **ratified**; `setDevMode`
+  stays internal pending the devtools entry; dev-throw/prod-silent splits
+  ratified; **N202 exempts declared attrs keys** — the forward-key false
+  positive was found empirically at the gate (core owns the read; fixed +
+  regression-pinned in `b9b6b76`); `composed: true` ratified; byte
+  packaging → F3.
+- **T5**: end-of-run epoch ratified (per-edge deferred to an exotic
+  consumer); inner-frame N302 attribution accepted; subscribe-callback
+  N302 kept; tick-cap boundary accepted; the transition-epoch poll-throw
+  implementation ratified as the tighter correct reading of §8.
+- **T4**: suppression directive ratified as designed and **not stripped**
+  from output (inert, greppable); SSG gating resolved by unification (the
+  audit defaults to the leaf's dev probe — production builds are silent;
+  SSG may additionally call `setTemplateAuditEnabled(false)`); the
+  residual double-live window → F1; N104 surface check folded into F2.
+- **T1/T2**: supersede-on-invalidate blessed; no-carry key-switch
+  blessed; `initialData` idle-seeding blessed; guard layering accepted;
+  fetcher context argument → F4. **Integration finding: N601 retired** —
+  T6's N501 throws at the exact `provide()` that created the mixed-client
+  state, making it unrepresentable at its cause (`aa70aa6`); the
+  symptom-side warning died with its class.
+- **Budget (was blocking) — ruled.** Whole-bundle measured:
+  **12,389 B min+gzip** vs the 8,793 B baseline (+3.6KB; the isolated
+  +1.7KB estimate missed the audit/diagnostics/containment layers). The
+  **10KB ceiling stands as the prod-path target**: ~2.7KB of the delta is
+  the dev/diagnostics layer alone (template-audit 1,642 B + diagnostics
+  leaf 1,105 B gzip), whose extraction behind a build define / devtools
+  subpath is F3. Interim overage is accepted and recorded here;
+  re-measure at F3. The ADR's net-negative sentence is corrected in
+  place.
+
+**Follow-ups (the train's residue, owned):**
+
+- **F1** — projection holder-wrap for factory children: kills the
+  residual double-live window T4 found (`projection.ts`, interacts with
+  T6's phase move — single owner now that both are on main).
+- **F2** — www docs refresh for the new query surface + the N104
+  template-attr sweep (grep found zero `onSuccess`/`onError` teaching in
+  www — the staleness is semantic, not breakage).
+- **F3** — dev-weight packaging: build-define stripping / `devtools`
+  subpath per §7's vite-hmr precedent; recovers ≥2.7KB; re-measure
+  against the 10KB ceiling.
+- **F4** — fetcher context argument (key + signal object), motivated by
+  the prototype's own supersession race test.
+- **F5** — release: everything rides `CHANGELOG.md → Unreleased`; version
+  bump and publish happen at the next checkpoint per ADR 0022 (this train
+  deliberately bumped nothing — pushes do not publish).
+
 ## Evidence quality notes for the reviewer
 
 - The wave validated 0030.2's thesis twice over: N105 caught a real

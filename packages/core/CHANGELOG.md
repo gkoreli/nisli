@@ -6,6 +6,43 @@ checkpoints (ADR 0022); dates are release dates.
 
 ## Unreleased
 
+Agent-native core wave (ADR 0030.2, gate record in
+`docs/worklists/agn/AGN-WAVE1-GATE.md`):
+
+- Scheduler: push-pull reactivity completed — an effect re-runs iff a
+  value it read changed (equal recomputes no longer re-run downstream);
+  deterministic creation-order flush; clock-free loop guard with sited
+  diagnostics; `effect(async …)` is rejected at type level and diagnosed
+  at runtime (use `resource()`); `untrack()` returns its value; new
+  `signal.peek()`.
+- Templates: parse-once per callsite (~2.3× faster mounts) with a
+  first-parse static audit (undefined dash-tags, unknown events/
+  modifiers, undeclared attributes on schema-bearing components);
+  `when()` gains an `else` branch, gates on booleans, and evaluates
+  branches untracked (no more truthy→truthy rebuilds); `html:inner`
+  requires `raw()`-branded trusted HTML; remounting a live bound template
+  throws instead of silently corrupting; `title`/`role`/`tabindex`/`name`
+  now reach component tags as plain attributes.
+- Components: unified setup/onMount error containment — contained
+  failures stamp `data-nisli-error` and dispatch a bubbling `nisli-error`
+  event, cleared on successful re-setup; duplicate
+  `customElements.define` is a coded dev error naming both sites;
+  post-mount writes to props setup never read echo a dev diagnostic;
+  projection sweep ordering no longer depends on `children()` call
+  position.
+- Query: rewritten on a per-key logical-request store — invalidation
+  revalidates active observers, disabled/key-switch can no longer strand
+  `loading`, sync fetcher throws reject, per-run `AbortController` passed
+  to fetchers, flat primitive key contract (objects/`undefined`/non-finite
+  numbers rejected with N602); `onSuccess`/`onError` removed — read the
+  `data`/`error` signals instead.
+- New `settle()`: awaitable async quiescence (queries + resources) for
+  tests and verify loops; iteration-capped, never wedged by
+  abort-ignoring fetchers.
+- New diagnostics layer: stable coded dev messages (`[nisli N…]`) behind
+  a runtime dev gate (`setDevMode`; probes Vite/`NODE_ENV`, loud by
+  default in buildless ESM); silent under production builds.
+
 ## 0.54.1 — 2026-07-16
 
 - Reactive child slots now preserve child semantics across primitive, empty,
