@@ -7,6 +7,7 @@
  */
 
 import { getCurrentComponent, hasContext } from './context.js';
+import { __enrollPending } from './settle.js';
 import { effect, signal, type ReadonlySignal } from './signal.js';
 
 export interface ResourceResult<T> {
@@ -89,26 +90,35 @@ export function resource<S, T>(
       || currentGeneration !== generation
     );
 
+    // settle() enrollment (ADR 0030.2 T2): this generation is a pending
+    // logical request from here until COMMIT (data/error write) or ABORT
+    // (the cleanup below) — never raw loader settlement, so an
+    // abort-ignoring loader cannot wedge settle(). Idempotent.
+    const settled = __enrollPending();
+
     // The microtask boundary is deliberate: loader signal reads are NOT source
     // dependencies, and synchronous loader throws become normal rejections.
     void Promise.resolve().then(async () => {
-      if (isStale()) return;
+      if (isStale()) { settled(); return; }
 
       try {
         const value = await loader(enabledSource, controller.signal);
-        if (isStale()) return;
+        if (isStale()) { settled(); return; }
         data.value = value;
         loading.value = false;
+        settled();
       } catch (cause) {
-        if (isStale()) return;
+        if (isStale()) { settled(); return; }
         error.value = toError(cause);
         loading.value = false;
+        settled();
       }
     });
 
     return () => {
       if (currentGeneration === generation) generation++;
       controller.abort();
+      settled();
     };
   });
 

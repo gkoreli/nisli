@@ -1,308 +1,568 @@
 /**
- * query.ts — Declarative async data loading with cache
+ * query.ts — Keyed logical-request store (ADR 0030.2 T1).
  *
- * `query()` absorbs the loading/error/cache/refetch boilerplate that
- * every data-fetching component would otherwise write manually.
- *
- * Inspired by TanStack Query / React Query, but built on signals.
+ * The cache unit is a per-key RECORD living in `QueryClient`:
+ * `{data, error, status, fetchedAt}` as signals, plus exactly one `run()`
+ * owning the retry loop, a per-run `AbortController` handed to the fetcher,
+ * and the cache commit. `query()` is a thin OBSERVER: an effect keeps it
+ * registered on the record its current key points at, and its outputs are
+ * `computed()` views over that record. Dedup unit = logical request, by
+ * construction (issues 0005–0009 close as a class).
  *
  * ```ts
  * const tasks = query(
  *   () => ['tasks', scopeId.value],
- *   () => api.getTasks(scopeId.value),
+ *   (signal) => api.getTasks(scopeId.value, { signal }),
  * );
- * tasks.data      // Signal<Task[] | undefined>
- * tasks.loading   // Signal<boolean>
- * tasks.error     // Signal<Error | null>
- * tasks.refetch() // manual refetch
+ * tasks.data      // ReadonlySignal<Task[] | undefined>
+ * tasks.loading   // ReadonlySignal<boolean>
+ * tasks.error     // ReadonlySignal<Error | null>
+ * tasks.status    // ReadonlySignal<'idle' | 'loading' | 'success' | 'error'>
+ * tasks.refetch() // force a refetch (joins an in-flight run)
+ * tasks.dispose() // standalone callers; component setup auto-disposes
  * ```
+ *
+ * Ownership rules (ADR 0030.2 §8, binding):
+ * - The most-recently-mounted enabled observer's fetcher/options own the
+ *   next run for a shared key; `staleTime` freshness is per-observer POLICY
+ *   (it decides whether *that* observer triggers a run), while the record
+ *   state is shared truth.
+ * - `invalidate()` marks records stale and reruns only records with ≥1
+ *   enabled observer; disabled observers revalidate on re-enable.
+ * - A zero-observer record's in-flight run completes and commits.
+ * - Records are NEVER garbage-collected: the cache is unbounded for the
+ *   life of the client (restates today's unbounded-cache bound). Bound it
+ *   operationally with `clear()` or a fresh client per app lifetime.
+ *
+ * Key contract: keys are FLAT — `readonly (string|number|boolean|null)[]`.
+ * Objects and `undefined` are rejected with coded error N602 (`null` is
+ * the optional sentinel). Flat keys are order-sensitive: prefer
+ * per-endpoint key-builder helpers — a reordered key is a silent cache
+ * *miss*, benign relative to a collision, but a miss.
+ *
+ * SSG stance (documented, not built): under core-render, records fetch
+ * into the build-lifetime client and must TERMINATE before snapshot —
+ * `await settle()` is the barrier. Otherwise queries must be statically
+ * disabled for the build.
  */
 
-import { signal, effect, computed, type Signal, type ReadonlySignal } from './signal.js';
+import {
+  signal,
+  effect,
+  computed,
+  untrack,
+  type Signal,
+  type ReadonlySignal,
+} from './signal.js';
 import { hasContext, getCurrentComponent } from './context.js';
-import { inject, type Constructor } from './injector.js';
+import { inject } from './injector.js';
+import { __enrollPending, __setSettleDiagSink } from './settle.js';
+
+// ── Diagnostics shim ────────────────────────────────────────────────
+// TODO(diagnostics): replace with the core diagnostics leaf owned by the
+// Wave-1 worktree. Codes N601–N603 belong to the query/async cluster.
+
+let devMode = true;
+
+/** @internal — dev-gate for query/settle console diagnostics (tests). */
+export function __setQueryDevMode(on: boolean): void {
+  devMode = on;
+}
+
+function diag(code: 'N601' | 'N603', message: string): void {
+  if (!devMode) return;
+  console.error(`[nisli:${code}] ${message}`);
+}
+
+// settle.ts must not import query.ts (layering); hand it the shim instead.
+__setSettleDiagSink(diag);
+
+/** Build the coded error for key-contract violations. Always thrown —
+ *  key validity is a contract, not an advisory diagnostic. */
+function keyError(detail: string): Error {
+  return new Error(
+    `[nisli:N602] invalid query key: ${detail}. Keys must be flat `
+    + 'readonly (string | number | boolean | null)[] arrays — spread '
+    + 'object params into tuple elements; null is the optional sentinel.',
+  );
+}
+
+// ── Key contract ────────────────────────────────────────────────────
+
+/** A single query-key element. `null` is the optional sentinel. */
+export type QueryKeyElement = string | number | boolean | null;
+
+/** The supported key contract: a flat, order-sensitive tuple. */
+export type QueryKey = readonly QueryKeyElement[];
+
+/**
+ * Validate a key against the flat contract and return a detached copy
+ * (callers may mutate their array; records must not observe that).
+ * Rejects objects, arrays, functions, undefined, and non-finite numbers
+ * (NaN/Infinity JSON-serialize as null and would collide) with N602.
+ */
+function validateKey(raw: unknown): QueryKey {
+  if (!Array.isArray(raw)) {
+    throw keyError(`expected an array, got ${typeof raw}`);
+  }
+  for (let i = 0; i < raw.length; i++) {
+    const el: unknown = raw[i];
+    if (el === null) continue;
+    const t = typeof el;
+    if (t === 'string' || t === 'boolean') continue;
+    if (t === 'number') {
+      if (Number.isFinite(el)) continue;
+      throw keyError(`non-finite number at index ${i} (would collide with null)`);
+    }
+    if (el === undefined) {
+      throw keyError(`undefined at index ${i}`);
+    }
+    throw keyError(`${t} at index ${i}`);
+  }
+  return raw.slice() as QueryKey;
+}
+
+/** THE one serializer: JSON.stringify of the validated flat array. */
+function serializeKey(key: QueryKey): string {
+  return JSON.stringify(key);
+}
+
+/** Element-wise prefix match over validated keys (=== is sound: elements
+ *  are primitives and NaN is rejected by the contract). */
+function matchesPrefix(key: QueryKey, prefix: QueryKey): boolean {
+  if (prefix.length > key.length) return false;
+  for (let i = 0; i < prefix.length; i++) {
+    if (key[i] !== prefix[i]) return false;
+  }
+  return true;
+}
 
 // ── Types ───────────────────────────────────────────────────────────
 
+export type QueryStatus = 'idle' | 'loading' | 'success' | 'error';
+
+/** Fetcher contract: receives the run's AbortSignal. Zero-arg fetchers
+ *  remain assignable. */
+export type QueryFetcher<T> = (signal: AbortSignal) => Promise<T>;
+
 export interface QueryResult<T> {
-  /** The resolved data, or undefined if not yet loaded */
-  data: Signal<T | undefined>;
-  /** True while fetching */
+  /** The record's data, or `initialData`/undefined before first commit. */
+  data: ReadonlySignal<T | undefined>;
+  /** True while this observer is enabled and its record is fetching. */
   loading: ReadonlySignal<boolean>;
-  /** The error if the fetch failed, null otherwise */
-  error: Signal<Error | null>;
-  /** Manually trigger a refetch. Bypasses staleTime's fresh-cache
-   *  suppression — a manual refetch inside the freshness window is never a
-   *  silent no-op (react-query semantics). It does not bypass in-flight
-   *  deduplication: if a request for the same key is already running, this
-   *  joins it rather than starting a second fetch. */
+  /** The record's terminal error, or null. Cleared when a run starts. */
+  error: ReadonlySignal<Error | null>;
+  /** The record's lifecycle status. */
+  status: ReadonlySignal<QueryStatus>;
+  /** Force a refetch: bypasses staleTime freshness, but JOINS an in-flight
+   *  logical request rather than starting a second one (issue 0005). No-op
+   *  while disabled. */
   refetch(): void;
+  /** Unregister this observer. Component setup calls this automatically at
+   *  teardown; standalone callers (tests, scripts) call it explicitly. The
+   *  record — and any in-flight run — survives: zero-observer runs complete
+   *  and commit (ADR 0030.2 §8). */
+  dispose(): void;
 }
 
 export interface QueryOptions<T> {
-  /** Cache freshness duration in ms. Default: 0 (always refetch) */
+  /** Cache freshness duration in ms for THIS observer. Default: 0 (a
+   *  registration/re-enable always revalidates). */
   staleTime?: number;
-  /** Number of retries on failure. Default: 0 */
+  /** Number of retries the run performs when this observer owns it. Default: 0 */
   retry?: number;
-  /** Skip fetch when returns false. Signal reads are tracked. */
+  /** Skip fetching while this returns false. Signal reads are tracked. */
   enabled?: () => boolean;
-  /** Synchronous initial value before first fetch */
+  /** Synchronous seed committed into an untouched (idle) record. */
   initialData?: T;
-  /** Callback after successful fetch */
-  onSuccess?: (data: T) => void;
-  /** Callback after failed fetch */
-  onError?: (error: Error) => void;
 }
 
-// ── QueryClient — global cache ──────────────────────────────────────
+// ── Record store ────────────────────────────────────────────────────
 
-interface CacheEntry {
-  data: unknown;
-  fetchedAt: number;
-  staleTime: number;
+interface QueryRecord {
+  readonly key: QueryKey;
+  readonly serialized: string;
+  readonly data: Signal<unknown>;
+  readonly error: Signal<Error | null>;
+  readonly status: Signal<QueryStatus>;
+  /** Epoch ms of the last successful commit; 0 = never. */
+  readonly fetchedAt: Signal<number>;
+  /** Marked by invalidate(); cleared when a run starts. */
+  stale: boolean;
+  /** True while a run is in flight (status mirrors it reactively). */
+  running: boolean;
+  /** Increments per run start; a superseded run may never commit. */
+  generation: number;
+  controller: AbortController | null;
+  /** The in-flight run (joinable by prefetch). */
+  runPromise: Promise<void> | null;
+  /** settle() terminator for the in-flight run. */
+  terminate: (() => void) | null;
+  readonly observers: Set<QueryObserver>;
+}
+
+interface QueryObserver {
+  readonly mountIndex: number;
+  readonly fetcher: QueryFetcher<unknown>;
+  readonly staleTime: number;
+  readonly retry: number;
+  enabled: boolean;
+  record: QueryRecord | null;
+}
+
+/** Monotonic mount counter — "most recently mounted" is decided by
+ *  query() construction order, not re-registration order. */
+let nextMountIndex = 0;
+
+/** Read a record signal without tracking it into the ambient observer —
+ *  the observer effect must depend on keys/enabled/version ONLY, never on
+ *  record state (that is what keeps refetch loops unrepresentable). */
+function peek<T>(s: ReadonlySignal<T>): T {
+  let v!: T;
+  untrack(() => { v = s.value; });
+  return v;
+}
+
+function toError(cause: unknown): Error {
+  if (cause instanceof Error) return cause;
+  try {
+    return new Error(String(cause));
+  } catch {
+    return new Error('Unknown error');
+  }
 }
 
 /**
- * Global query cache. Managed as an auto-singleton via inject().
- * Components use query() which accesses the client internally.
+ * Global keyed logical-request store. One per app: resolved via
+ * `inject(QueryClient)` (auto-singleton; override with
+ * `provide(QueryClient, ...)` BEFORE the first query() call).
+ *
+ * Records are never GC'd — see the module doc for the bound.
  */
 export class QueryClient {
-  private cache = new Map<string, CacheEntry>();
-  private inFlight = new Map<string, Promise<unknown>>();
-
-  /** Check if a cache entry is fresh */
-  isFresh(key: string, staleTime: number): boolean {
-    const entry = this.cache.get(key);
-    if (!entry) return false;
-    return Date.now() - entry.fetchedAt < staleTime;
-  }
-
-  /** Get cached data */
-  getCached<T>(key: string): T | undefined {
-    return this.cache.get(key)?.data as T | undefined;
-  }
-
-  /** Store data in cache */
-  set(key: string, data: unknown, staleTime: number): void {
-    this.cache.set(key, { data, fetchedAt: Date.now(), staleTime });
-  }
-
-  /** Get in-flight promise for deduplication */
-  getInFlight(key: string): Promise<unknown> | undefined {
-    return this.inFlight.get(key);
-  }
-
-  /** Register an in-flight request */
-  setInFlight(key: string, promise: Promise<unknown>): void {
-    // Attach a catch handler to prevent unhandled rejection on the stored promise.
-    // Callers who await this promise get the original behavior from their own try/catch.
-    const handled = promise.catch(() => {});
-    this.inFlight.set(key, promise);
-    // Clean up when done
-    handled.finally(() => {
-      if (this.inFlight.get(key) === promise) {
-        this.inFlight.delete(key);
-      }
-    });
-  }
+  /** @internal */ _records = new Map<string, QueryRecord>();
+  /** @internal clear() bumps this; observer effects track it and re-resolve. */
+  _version = signal(0);
+  /** @internal live observer count (N601 mixed-client diagnostic). */
+  _observers = 0;
 
   /**
-   * Invalidate cached entries whose key array starts with the given prefix elements.
-   * Returns the number of entries invalidated.
+   * Mark records matching the key prefix stale and rerun those with ≥1
+   * enabled observer (using the owning observer's fetcher/options).
+   * Disabled observers revalidate on re-enable; a record with only
+   * disabled/no observers stays stale until one arrives. Returns the
+   * number of records invalidated.
    *
-   * invalidate(['tasks']) matches ['tasks'], ['tasks', '1'], ['tasks', '2', 'x']
+   * invalidate(['tasks']) matches ['tasks'], ['tasks', '1'], ['tasks', '2', 'x'].
    */
-  invalidate(keyPrefix: unknown[]): number {
+  invalidate(keyPrefix: QueryKey): number {
+    const prefix = validateKey(keyPrefix);
     let count = 0;
-    for (const [serialized] of this.cache) {
-      try {
-        const key = JSON.parse(serialized) as unknown[];
-        if (Array.isArray(key) && keyPrefix.every((v, i) => JSON.stringify(v) === JSON.stringify(key[i]))) {
-          this.cache.delete(serialized);
-          count++;
-        }
-      } catch {
-        // Skip invalid keys
-      }
+    for (const rec of this._records.values()) {
+      if (!matchesPrefix(rec.key, prefix)) continue;
+      count++;
+      rec.stale = true;
+      const owner = ownerOf(rec, /* requireEnabled */ true);
+      if (owner) startRun(rec, owner.fetcher, owner.retry);
     }
     return count;
   }
 
-  /** Prefetch and cache data */
-  async prefetch(key: unknown[], fetcher: () => Promise<unknown>, staleTime = 0): Promise<void> {
-    const serialized = serializeKey(key);
-    if (this.isFresh(serialized, staleTime)) return;
-    const data = await fetcher();
-    this.set(serialized, data, staleTime);
-  }
-
-  /** Clear all cache */
+  /**
+   * Drop every record. In-flight runs are aborted (a settle() termination).
+   * Live observers re-resolve fresh records on the version bump — enabled
+   * ones revalidate immediately.
+   */
   clear(): void {
-    this.cache.clear();
-    this.inFlight.clear();
+    for (const rec of this._records.values()) {
+      rec.generation++;
+      rec.controller?.abort();
+      rec.terminate?.();
+      rec.controller = null;
+      rec.terminate = null;
+      rec.runPromise = null;
+      rec.running = false;
+      rec.observers.clear();
+    }
+    this._records.clear();
+    this._version.value++;
+  }
+
+  /**
+   * Imperatively warm a record. Joins an in-flight run; a fresh record
+   * (per the given staleTime) is a no-op. Otherwise starts a run with THE
+   * GIVEN fetcher — an explicit imperative is its own owner. The run
+   * commits even with zero observers. Resolves at run termination.
+   */
+  prefetch<T>(key: QueryKey, fetcher: QueryFetcher<T>, staleTime = 0): Promise<void> {
+    const rec = resolveRecord(this, key);
+    if (rec.running) return rec.runPromise ?? Promise.resolve();
+    if (!rec.stale && peek(rec.status) === 'success' && staleTime > 0
+      && Date.now() - peek(rec.fetchedAt) < staleTime) {
+      return Promise.resolve();
+    }
+    return startRun(rec, fetcher as QueryFetcher<unknown>, 0);
   }
 }
 
-// ── Key serialization ───────────────────────────────────────────────
-
-function serializeKey(key: unknown[]): string {
-  return JSON.stringify(key);
+/** Get-or-create the record for a key. Validation throws N602. */
+function resolveRecord(client: QueryClient, rawKey: unknown): QueryRecord {
+  const key = validateKey(rawKey);
+  const serialized = serializeKey(key);
+  let rec = client._records.get(serialized);
+  if (!rec) {
+    rec = {
+      key,
+      serialized,
+      data: signal<unknown>(undefined),
+      error: signal<Error | null>(null),
+      status: signal<QueryStatus>('idle'),
+      fetchedAt: signal(0),
+      stale: false,
+      running: false,
+      generation: 0,
+      controller: null,
+      runPromise: null,
+      terminate: null,
+      observers: new Set(),
+    };
+    client._records.set(serialized, rec); // never deleted — documented bound
+  }
+  return rec;
 }
 
-// ── query() — the main API ──────────────────────────────────────────
+/** The observer whose fetcher/options own the next run: most recently
+ *  mounted, preferring enabled observers (a disabled observer asked not
+ *  to fetch — its fetcher should not fire). */
+function ownerOf(rec: QueryRecord, requireEnabled = false): QueryObserver | undefined {
+  let best: QueryObserver | undefined;
+  let bestDisabled: QueryObserver | undefined;
+  for (const obs of rec.observers) {
+    if (obs.enabled) {
+      if (!best || obs.mountIndex > best.mountIndex) best = obs;
+    } else if (!requireEnabled) {
+      if (!bestDisabled || obs.mountIndex > bestDisabled.mountIndex) bestDisabled = obs;
+    }
+  }
+  return best ?? bestDisabled;
+}
+
+/** Does this record need a run, per THIS observer's freshness policy?
+ *  Called only on real transitions (registration, re-enable, clear());
+ *  record reads are untracked, so commits never re-trigger observers. */
+function needsRun(rec: QueryRecord, observer: QueryObserver): boolean {
+  if (rec.running) return false; // join the in-flight logical request
+  if (rec.stale) return true;
+  const status = peek(rec.status);
+  if (status === 'idle' || status === 'error') return true;
+  if (observer.staleTime <= 0) return true;
+  return Date.now() - peek(rec.fetchedAt) >= observer.staleTime;
+}
 
 /**
- * Declarative async data loading with caching and auto-refetch.
+ * THE run: one logical request owning the retry loop and the commit.
+ * Supersedes (aborts) any in-flight run for the record. Enrolls in the
+ * settle() registry on start and terminates it at commit, terminal error,
+ * or abort — never at raw promise settlement.
+ */
+function startRun(
+  rec: QueryRecord,
+  fetcher: QueryFetcher<unknown>,
+  retry: number,
+): Promise<void> {
+  // Supersede: abort IS the superseded run's termination.
+  rec.controller?.abort();
+  rec.terminate?.();
+
+  const generation = ++rec.generation;
+  const controller = new AbortController();
+  const terminate = __enrollPending();
+  rec.controller = controller;
+  rec.terminate = terminate;
+  rec.running = true;
+  rec.stale = false;
+  rec.status.value = 'loading';
+  rec.error.value = null;
+
+  const run = (async () => {
+    try {
+      let lastError: Error | null = null;
+      for (let attempt = 0; attempt <= retry; attempt++) {
+        if (generation !== rec.generation) return; // superseded
+        try {
+          // The microtask hop makes a synchronous fetcher throw a normal
+          // rejection — it enters the same retry/terminal path (issue 0008).
+          const result = await Promise.resolve().then(() => fetcher(controller.signal));
+          if (generation !== rec.generation) return;
+          rec.data.value = result;
+          rec.error.value = null;
+          rec.fetchedAt.value = Date.now();
+          rec.status.value = 'success';
+          return; // commit
+        } catch (cause) {
+          lastError = toError(cause);
+        }
+      }
+      if (generation !== rec.generation) return;
+      rec.error.value = lastError;
+      rec.status.value = 'error'; // terminal error after retries
+    } finally {
+      if (generation === rec.generation) {
+        rec.running = false;
+        rec.controller = null;
+        rec.runPromise = null;
+        rec.terminate = null;
+      }
+      terminate(); // idempotent — superseded runs already terminated at abort
+    }
+  })();
+  rec.runPromise = run;
+  return run;
+}
+
+// ── Mixed-client diagnostic (N601) ──────────────────────────────────
+// With inject() as the single resolution path there is exactly one client
+// per app — UNLESS provide(QueryClient, ...) lands after queries already
+// bound the auto-created singleton. That split-brain is the one mixing
+// case left; detect it by remembering the first client with live
+// observers.
+
+let boundClient: QueryClient | null = null;
+let warnedMixedClients = false;
+
+/** @internal test hook — resets N601 tracking between test cases. */
+export function __resetQueryDiagnostics(): void {
+  boundClient = null;
+  warnedMixedClients = false;
+}
+
+function trackClient(client: QueryClient): void {
+  if (boundClient && boundClient !== client && boundClient._observers > 0 && !warnedMixedClients) {
+    warnedMixedClients = true;
+    diag(
+      'N601',
+      'two QueryClients are live in one app — queries created before '
+      + 'provide(QueryClient, ...) stay bound to the earlier client and '
+      + 'will not share this cache. provide() the client before the first '
+      + 'query() call (or resetInjector() in tests).',
+    );
+  }
+  if (!boundClient || boundClient._observers === 0) boundClient = client;
+}
+
+// ── query() — the thin observer ─────────────────────────────────────
+
+/**
+ * Observe the record the reactive key points at.
  *
- * @param keyFn - Returns a cache key array. Signal reads are auto-tracked for refetch.
- * @param fetcher - Async function that fetches the data.
- * @param options - Optional configuration (staleTime, retry, enabled, etc.)
+ * @param keyFn - Returns the flat cache key. Signal reads are tracked; a
+ *   key change re-registers the observer on the new record.
+ * @param fetcher - Fetches the data; receives the run's AbortSignal.
+ * @param options - staleTime / retry / enabled / initialData.
+ * @throws N602 synchronously when the initial key violates the contract.
  */
 export function query<T>(
-  keyFn: () => unknown[],
-  fetcher: () => Promise<T>,
+  keyFn: () => QueryKey,
+  fetcher: QueryFetcher<T>,
   options: QueryOptions<T> = {},
 ): QueryResult<T> {
-  const {
-    staleTime = 0,
-    retry = 0,
-    enabled,
-    initialData,
-    onSuccess,
-    onError,
-  } = options;
+  const { staleTime = 0, retry = 0, enabled, initialData } = options;
 
-  const data = signal<T | undefined>(initialData);
-  const loading = signal(false);
-  const error = signal<Error | null>(null);
+  const client = inject(QueryClient);
+  trackClient(client);
 
-  // Get or lazily create the QueryClient
-  let client: QueryClient;
-  try {
-    client = inject(QueryClient);
-  } catch {
-    // If no DI context, create a local client
-    client = new QueryClient();
-  }
+  // Surface key-contract violations at the call site: the observer effect
+  // is error-contained (a later reactive key going invalid is logged with
+  // the same coded message), so the construction-time key must be checked
+  // synchronously. untrack: query() may run under an ambient observer
+  // (component setup) and key signals must not widen its dependencies.
+  untrack(() => { validateKey(keyFn()); });
 
-  // Track the current fetch generation to handle race conditions
-  let fetchGeneration = 0;
-  let disposed = false;
-
-  // `force` is set by the manual refetch() path. An explicit refetch is a
-  // force (react-query semantics): it skips the fresh-cache short-circuit, so a
-  // manual refetch inside the freshness window is never a silent no-op. It does
-  // NOT skip in-flight deduplication — a same-key request already running is
-  // joined, not duplicated — and the generation guards are unchanged. The
-  // automatic (effect-driven) path leaves `force` false and stays cache-first.
-  // (ADR 0025 item 12.)
-  const doFetch = async (force = false) => {
-    if (disposed) return;
-
-    // Check enabled
-    if (enabled && !enabled()) return;
-
-    const key = keyFn();
-    const serialized = serializeKey(key);
-    const generation = ++fetchGeneration;
-
-    // Check cache freshness (automatic path only — an explicit refetch forces).
-    if (!force && staleTime > 0 && client.isFresh(serialized, staleTime)) {
-      const cached = client.getCached<T>(serialized);
-      if (cached !== undefined) {
-        data.value = cached;
-        return;
-      }
-    }
-
-    // Check for in-flight deduplication
-    const existing = client.getInFlight(serialized);
-    if (existing) {
-      loading.value = true;
-      try {
-        const result = await existing as T;
-        if (generation === fetchGeneration && !disposed) {
-          data.value = result;
-          error.value = null;
-        }
-      } catch (e) {
-        if (generation === fetchGeneration && !disposed) {
-          error.value = e instanceof Error ? e : new Error(String(e));
-        }
-      } finally {
-        if (generation === fetchGeneration && !disposed) {
-          loading.value = false;
-        }
-      }
-      return;
-    }
-
-    loading.value = true;
-    error.value = null;
-
-    let lastError: Error | null = null;
-    const attempts = retry + 1;
-
-    for (let attempt = 0; attempt < attempts; attempt++) {
-      if (disposed || generation !== fetchGeneration) return;
-
-      const promise = fetcher();
-      // Prevent unhandled rejection on the shared in-flight reference
-      promise.catch(() => {});
-      client.setInFlight(serialized, promise);
-
-      try {
-        const result = await promise;
-        // Guard against stale responses
-        if (generation === fetchGeneration && !disposed) {
-          data.value = result;
-          error.value = null;
-          loading.value = false;
-          client.set(serialized, result, staleTime);
-          onSuccess?.(result);
-        }
-        return; // success
-      } catch (e) {
-        lastError = e instanceof Error ? e : new Error(String(e));
-        // Continue to next retry attempt
-      }
-    }
-
-    // All retries exhausted
-    if (generation === fetchGeneration && !disposed) {
-      error.value = lastError;
-      loading.value = false;
-      if (lastError) onError?.(lastError);
-    }
+  const observer: QueryObserver = {
+    mountIndex: nextMountIndex++,
+    fetcher: fetcher as QueryFetcher<unknown>,
+    staleTime,
+    retry,
+    enabled: true,
+    record: null,
   };
+  client._observers++;
 
-  // Auto-fetch on mount and when dependencies change
-  const disposeEffect = effect(() => {
-    // Reading keyFn() inside the effect tracks signal dependencies
-    const _key = keyFn();
-    // Also track enabled()
-    if (enabled) enabled();
-    // Schedule the async fetch — catch to prevent unhandled promise rejection
-    doFetch().catch(() => {});
+  const recSig = signal<QueryRecord | null>(null);
+  const enabledSig = signal(true);
+  let disposed = false;
+  let prevEnabled: boolean | null = null;
+  let prevVersion = -1;
+
+  // The registration effect — depends on keyFn signals, enabled() signals,
+  // and the client version. NEVER on record state (all record reads are
+  // untracked), so commits cannot re-trigger it: run starts happen only on
+  // the real transitions listed in needsRun()'s doc.
+  const stopEffect = effect(() => {
+    if (disposed) return;
+    const version = client._version.value;
+    const key = keyFn();
+    const on = enabled ? !!enabled() : true;
+    const rec = resolveRecord(client, key);
+
+    observer.enabled = on;
+    enabledSig.value = on;
+
+    const moved = rec !== observer.record;
+    if (moved) {
+      observer.record?.observers.delete(observer);
+      rec.observers.add(observer);
+      observer.record = rec;
+      if (initialData !== undefined && peek(rec.status) === 'idle'
+        && peek(rec.data) === undefined) {
+        rec.data.value = initialData; // seed; not a fetch — status stays idle
+      }
+      recSig.value = rec;
+    }
+
+    const reEnabled = prevEnabled === false && on;
+    const versionChanged = version !== prevVersion;
+    prevEnabled = on;
+    prevVersion = version;
+
+    if (on && (moved || reEnabled || versionChanged) && needsRun(rec, observer)) {
+      const owner = ownerOf(rec) ?? observer;
+      startRun(rec, owner.fetcher, owner.retry);
+    }
   });
 
-  // Register disposal if in component context
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    observer.record?.observers.delete(observer);
+    observer.record = null;
+    client._observers--;
+    stopEffect();
+    // NOTE: no abort — a zero-observer in-flight run completes and commits.
+  };
+
   if (hasContext()) {
-    getCurrentComponent().addDisposer(() => {
-      disposed = true;
-      disposeEffect();
-    });
+    getCurrentComponent().addDisposer(dispose);
   }
 
   const refetch = () => {
-    fetchGeneration++; // invalidate any in-flight
-    doFetch(true).catch(() => {}); // force: bypass staleTime (ADR 0025 item 12)
+    if (disposed) return;
+    const rec = observer.record;
+    if (!rec || !observer.enabled) return;
+    if (rec.running) return; // join the in-flight logical request (dedup)
+    const owner = ownerOf(rec) ?? observer;
+    startRun(rec, owner.fetcher, owner.retry);
   };
 
   return {
-    data,
-    loading: loading as ReadonlySignal<boolean>,
-    error,
+    data: computed(() => {
+      const rec = recSig.value;
+      return (rec ? rec.data.value : initialData) as T | undefined;
+    }),
+    loading: computed(() => enabledSig.value && recSig.value?.status.value === 'loading'),
+    error: computed(() => recSig.value?.error.value ?? null),
+    status: computed<QueryStatus>(() => recSig.value?.status.value ?? 'idle'),
     refetch,
+    dispose,
   };
 }

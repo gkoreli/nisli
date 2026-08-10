@@ -104,12 +104,16 @@ export {
   children,
 } from './projection.js';
 
-// ── Declarative data loading ────────────────────────────────────────
+// ── Declarative data loading (keyed logical-request store) ──────────
 export {
   query,
   QueryClient,
   type QueryResult,
   type QueryOptions,
+  type QueryKey,
+  type QueryKeyElement,
+  type QueryStatus,
+  type QueryFetcher,
 } from './query.js';
 
 // ── Local async derivations ─────────────────────────────────────────
@@ -117,3 +121,6 @@ export {
   resource,
   type ResourceResult,
 } from './resource.js';
+
+// ── Async quiescence (test/verify + SSG pre-snapshot barrier) ───────
+export { settle } from './settle.js';

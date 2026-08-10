@@ -661,10 +661,12 @@ describe('INVARIANT: query generation guard', () => {
     );
 
     flushEffects();
+    await Promise.resolve(); // run invokes the fetcher a microtask later (0030.2 T1 / issue 0008)
     // First fetch in flight
 
     scopeId.value = 'b';
     flushEffects();
+    await Promise.resolve(); // second fetcher starts
     // Second fetch starts
 
     // Resolve second (fast) before first (slow)
