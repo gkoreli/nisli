@@ -541,6 +541,12 @@ describe('Router browser service and outlet', () => {
     html`${AppRouter({})}`.mount!(second);
     document.body.append(first, second);
     await settle();
-    expect(error).toHaveBeenCalledWith(expect.stringContaining('setup error'), expect.objectContaining({ message: expect.stringContaining('already') }));
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining('[nisli N401]'),
+      expect.objectContaining({
+        phase: 'setup',
+        error: expect.objectContaining({ message: expect.stringContaining('already') }),
+      }),
+    );
   });
 });
