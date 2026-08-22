@@ -3,13 +3,35 @@
  *
  * @vitest-environment happy-dom
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { component, flush, flushEffects, html, ref, signal, type TemplateResult } from '@nisli/core';
 import { portal } from './portal.js';
 
 beforeEach(() => {
   document.body.innerHTML = '';
 });
+
+const originalMoveBefore = Object.getOwnPropertyDescriptor(Element.prototype, 'moveBefore');
+
+afterEach(() => {
+  if (originalMoveBefore) {
+    Object.defineProperty(Element.prototype, 'moveBefore', originalMoveBefore);
+  } else {
+    Reflect.deleteProperty(Element.prototype, 'moveBefore');
+  }
+  vi.restoreAllMocks();
+});
+
+function installMoveBeforeShim() {
+  const moveBefore = vi.fn(function (this: Element, node: Node, child: Node | null): void {
+    this.insertBefore(node, child);
+  });
+  Object.defineProperty(Element.prototype, 'moveBefore', {
+    configurable: true,
+    value: moveBefore,
+  });
+  return moveBefore;
+}
 
 function mount(template: TemplateResult): HTMLElement {
   const container = document.createElement('div');
@@ -58,6 +80,40 @@ const TargetedBox = component<{ label?: string }>('portal-targeted-box', (props)
 const box = (root: ParentNode = document) => root.querySelector<HTMLElement>('[data-slot="box"]')!;
 
 describe('portal — move on mount', () => {
+  it('uses moveBefore for a connected same-document mount and appends last', async () => {
+    const moveBefore = installMoveBeforeShim();
+    const existing = document.createElement('div');
+    existing.dataset.existing = '';
+    document.body.appendChild(existing);
+    const c = mount(html`${PortalBox({ label: 'atomic' })}`);
+    const b = box();
+
+    expect(moveBefore).toHaveBeenCalledWith(b, null);
+    expect(document.body.lastElementChild).toBe(b);
+
+    c.querySelector('portal-box')!.remove();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.body.contains(b)).toBe(false);
+  });
+
+  it('falls back to appendChild for a detached target', async () => {
+    const moveBefore = installMoveBeforeShim();
+    customTarget = document.createElement('section');
+    const appendChild = vi.spyOn(customTarget, 'appendChild');
+    const c = mount(html`${TargetedBox({ label: 'detached' })}`);
+    const moved = customTarget.querySelector<HTMLElement>('[data-slot="targeted"]')!;
+
+    expect(moveBefore).not.toHaveBeenCalled();
+    expect(appendChild).toHaveBeenCalledWith(moved);
+    expect(moved.parentElement).toBe(customTarget);
+
+    c.querySelector('portal-targeted-box')!.remove();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(customTarget.contains(moved)).toBe(false);
+  });
+
   it('moves the referenced subtree to document.body', () => {
     const c = mount(html`${PortalBox({ label: 'hi' })}`);
     const b = box();

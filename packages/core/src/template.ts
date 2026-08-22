@@ -36,6 +36,14 @@ export interface TemplateResult {
   __templateResult: true;
 }
 
+// TypeScript's DOM library does not expose moveBefore() yet.
+interface MoveCapableParent extends ParentNode {
+  moveBefore(node: Node, child: Node | null): void;
+}
+
+const canMoveWithin = (parent: ParentNode): parent is MoveCapableParent =>
+  typeof (parent as Partial<MoveCapableParent>).moveBefore === 'function';
+
 /** A DOM event handler whose event type is inferred from its native event name. */
 export type TypedEventHandler<K extends keyof HTMLElementEventMap> = (
   event: HTMLElementEventMap[K],
@@ -1124,7 +1132,13 @@ export function each<T>(
     for (const entry of newEntries) {
       const nextSibling = cursor.nextSibling;
       if (nextSibling !== entry.wrapper) {
-        parent.insertBefore(entry.wrapper, nextSibling);
+        if (entry.wrapper.parentNode === parent && canMoveWithin(parent)) {
+          // Already attached under this parent: atomic move preconditions hold.
+          parent.moveBefore(entry.wrapper, nextSibling);
+        } else {
+          // Fresh wrapper, or a browser without moveBefore().
+          parent.insertBefore(entry.wrapper, nextSibling);
+        }
       }
       cursor = entry.wrapper;
     }

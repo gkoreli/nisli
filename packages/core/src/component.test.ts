@@ -143,6 +143,25 @@ describe('component props', () => {
 // ── Lifecycle and disposal ──────────────────────────────────────────
 
 describe('component lifecycle', () => {
+  it('defines connectedMoveCallback as a lifecycle no-op', async () => {
+    const tag = uniqueTag('move');
+    const setupFn = vi.fn(() => html`<span>content</span>`);
+    component(tag, setupFn);
+    const el = document.createElement(tag) as HTMLElement & {
+      connectedMoveCallback(): void;
+    };
+    document.body.appendChild(el);
+    const queue = vi.spyOn(globalThis, 'queueMicrotask');
+    const before = el.innerHTML;
+
+    el.connectedMoveCallback();
+    await Promise.resolve();
+
+    expect(queue).not.toHaveBeenCalled();
+    expect(setupFn).toHaveBeenCalledTimes(1);
+    expect(el.innerHTML).toBe(before);
+  });
+
   it('disconnectedCallback disposes all registered disposers', async () => {
     const tag = uniqueTag('dispose');
     const disposer = vi.fn();

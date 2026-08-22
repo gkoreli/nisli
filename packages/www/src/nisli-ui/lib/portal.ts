@@ -8,12 +8,10 @@
  *
  * `portal(ref)` moves the referenced element (with its whole subtree) into a
  * target container (`document.body` by default) after the component mounts,
- * and removes it again on teardown. It leans on the ADR 0023 move-resilient
- * lifecycle: reparenting a *connected* custom element fires
- * disconnected+connected but does NOT re-run its setup (the deferred teardown
- * is skipped when the element is reconnected in the same tick), so template
- * disposal and reactive bindings survive the move intact — bindings track
- * their nodes by reference, not by DOM position.
+ * and removes it again on teardown. Capable engines use moveBefore() to retain
+ * platform state; ADR 0023's deferred teardown remains the correctness layer
+ * for append-based fallback moves. Bindings track their nodes by reference,
+ * not by DOM position.
  *
  * ```ts
  * const contentRef = ref<HTMLElement>();
@@ -36,6 +34,10 @@
  */
 
 import { hasContext, isRef, onCleanup, onMount, type Ref } from '@nisli/core';
+
+interface MoveCapableParent extends ParentNode {
+  moveBefore(node: Node, child: Node | null): void;
+}
 
 /** Where to send the portaled subtree; a function is resolved at mount time. */
 export type PortalTarget = HTMLElement | (() => HTMLElement | null | undefined);
@@ -82,7 +84,17 @@ export function portal(
     // Already in place (no target, or the element is not connected anywhere
     // else): still record it so cleanup removes it if it later leaks.
     if (dest && dest !== el.parentNode) {
-      dest.appendChild(el);
+      const moveBefore = (dest as Partial<MoveCapableParent>).moveBefore;
+      if (
+        typeof moveBefore === 'function'
+        && el.isConnected
+        && dest.isConnected
+        && el.ownerDocument === dest.ownerDocument
+      ) {
+        moveBefore.call(dest, el, null);
+      } else {
+        dest.appendChild(el);
+      }
     }
     moved = el;
   });

@@ -14,6 +14,7 @@
     "proof:message-layout": "node scripts/message-layout-proof.mjs",
     "proof:message-layout:cleanup": "node scripts/message-layout-proof.mjs --self-test-cleanup",
     "proof:animations": "node scripts/animation-proof.mjs",
+    "proof:movebefore": "node scripts/movebefore-proof.mjs",
     "release": "pnpm run build && npx wrangler deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",

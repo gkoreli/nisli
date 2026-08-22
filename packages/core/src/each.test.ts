@@ -4,13 +4,35 @@
  *
  * @vitest-environment happy-dom
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { html, each, type TemplateResult } from './template.js';
 import { signal, computed, flushEffects, type ReadonlySignal } from './signal.js';
 
 beforeEach(() => {
   document.body.innerHTML = '';
 });
+
+const originalMoveBefore = Object.getOwnPropertyDescriptor(Element.prototype, 'moveBefore');
+
+afterEach(() => {
+  if (originalMoveBefore) {
+    Object.defineProperty(Element.prototype, 'moveBefore', originalMoveBefore);
+  } else {
+    Reflect.deleteProperty(Element.prototype, 'moveBefore');
+  }
+  vi.restoreAllMocks();
+});
+
+function installMoveBeforeShim() {
+  const moveBefore = vi.fn(function (this: Element, node: Node, child: Node | null): void {
+    this.insertBefore(node, child);
+  });
+  Object.defineProperty(Element.prototype, 'moveBefore', {
+    configurable: true,
+    value: moveBefore,
+  });
+  return moveBefore;
+}
 
 function mount(result: TemplateResult): HTMLElement {
   const host = document.createElement('div');
@@ -155,6 +177,81 @@ describe('each() reactive updates', () => {
     expect(spans[0].textContent).toContain('Third');
     expect(spans[1].textContent).toContain('Second');
     expect(spans[2].textContent).toContain('First');
+  });
+
+  it('uses moveBefore for attached wrapper reorders when available', () => {
+    const items = signal([{ id: '1' }, { id: '2' }, { id: '3' }]);
+    const result = html`<div>${each(
+      items,
+      (item) => item.id,
+      (item) => html`<span>${computed(() => item.value.id)}</span>`,
+    )}</div>`;
+    const host = mount(result);
+    const moveBefore = installMoveBeforeShim();
+
+    items.value = [{ id: '3' }, { id: '2' }, { id: '1' }];
+    flushEffects();
+
+    expect(moveBefore).toHaveBeenCalled();
+    expect(moveBefore.mock.calls.every(([node]) => node.parentNode !== null)).toBe(true);
+    expect([...host.querySelectorAll('span')].map((node) => node.textContent)).toEqual(['3', '2', '1']);
+  });
+
+  it('uses insertBefore for a fresh wrapper even when moveBefore is available', () => {
+    const moveBefore = installMoveBeforeShim();
+    const items = signal([{ id: '1' }]);
+    const result = html`<div>${each(
+      items,
+      (item) => item.id,
+      (item) => html`<span>${computed(() => item.value.id)}</span>`,
+    )}</div>`;
+    const host = mount(result);
+    expect(moveBefore).not.toHaveBeenCalled();
+
+    const parent = host.querySelector('div')!;
+    const insertBefore = vi.spyOn(parent, 'insertBefore');
+    items.value = [{ id: '1' }, { id: '2' }];
+    flushEffects();
+
+    expect(moveBefore).not.toHaveBeenCalled();
+    expect(insertBefore).toHaveBeenCalledTimes(1);
+    expect((insertBefore.mock.calls[0]![0] as Element).localName).toBe('each-item');
+  });
+
+  it('uses insertBefore for attached reorders when moveBefore is unavailable', () => {
+    const items = signal([{ id: '1' }, { id: '2' }]);
+    const result = html`<div>${each(
+      items,
+      (item) => item.id,
+      (item) => html`<span>${computed(() => item.value.id)}</span>`,
+    )}</div>`;
+    const host = mount(result);
+    const parent = host.querySelector('div')!;
+    const insertBefore = vi.spyOn(parent, 'insertBefore');
+
+    items.value = [{ id: '2' }, { id: '1' }];
+    flushEffects();
+
+    expect(insertBefore).toHaveBeenCalled();
+    expect([...host.querySelectorAll('span')].map((node) => node.textContent)).toEqual(['2', '1']);
+  });
+
+  it('never routes removals through moveBefore', () => {
+    const moveBefore = installMoveBeforeShim();
+    const items = signal([{ id: '1' }, { id: '2' }]);
+    const result = html`<div>${each(
+      items,
+      (item) => item.id,
+      (item) => html`<span>${computed(() => item.value.id)}</span>`,
+    )}</div>`;
+    const host = mount(result);
+    moveBefore.mockClear();
+
+    items.value = [{ id: '2' }];
+    flushEffects();
+
+    expect(moveBefore).not.toHaveBeenCalled();
+    expect(host.querySelectorAll('span')).toHaveLength(1);
   });
 
   it('handles complete array replacement', () => {

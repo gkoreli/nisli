@@ -628,6 +628,13 @@ export function component<
     }
 
     /**
+     * Atomic DOM moves preserve this component's position-independent state,
+     * so the platform-level lifecycle is a no-op. ADR 0023's deferred
+     * disconnect teardown remains the fallback for append-based moves.
+     */
+    connectedMoveCallback(): void {}
+
+    /**
      * Synchronously dispose the current component scope and restore any
      * projected light-DOM children as direct host children. Normal disconnect
      * calls this after the move-detection microtask; HMR calls it directly so
