@@ -23,6 +23,12 @@ const dispose: () => void = effect(() => {
 });
 dispose();
 
+// ERM-aware consumers see effects and signal subscriptions as Disposable.
+const effectDisposable: Disposable = effect(() => {});
+const subscriptionDisposable: Disposable = signal(0).subscribe(() => {});
+effectDisposable[Symbol.dispose]();
+subscriptionDisposable[Symbol.dispose]();
+
 // Conditional cleanup (union with undefined) stays legal.
 effect(() => {
   if (values.length > 0) return () => {};

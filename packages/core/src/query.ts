@@ -55,6 +55,7 @@ import {
   type ReadonlySignal,
 } from './signal.js';
 import { hasContext, getCurrentComponent } from './context.js';
+import { disposable, type DisposableResource } from './disposable.js';
 import { inject } from './injector.js';
 import { __enrollPending } from './settle.js';
 import { formatDiag } from './diagnostics.js';
@@ -132,7 +133,7 @@ export type QueryStatus = 'idle' | 'loading' | 'success' | 'error';
  *  remain assignable. */
 export type QueryFetcher<T> = (signal: AbortSignal) => Promise<T>;
 
-export interface QueryResult<T> {
+export interface QueryResult<T> extends DisposableResource {
   /** The record's data, or `initialData`/undefined before first commit. */
   data: ReadonlySignal<T | undefined>;
   /** True while this observer is enabled and its record is fetching. */
@@ -519,7 +520,7 @@ export function query<T>(
     startRun(rec, owner.fetcher, owner.retry);
   };
 
-  return {
+  const result = {
     data: computed(() => {
       const rec = recSig.value;
       return (rec ? rec.data.value : initialData) as T | undefined;
@@ -530,4 +531,5 @@ export function query<T>(
     refetch,
     dispose,
   };
+  return disposable(result, dispose);
 }

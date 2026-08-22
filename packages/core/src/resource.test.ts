@@ -28,6 +28,18 @@ beforeEach(() => {
 });
 
 describe('resource()', () => {
+  it.runIf(typeof Symbol.dispose === 'symbol')('aliases dispose for ERM without changing dispose()', async () => {
+    const loader = vi.fn(async () => 'unused');
+    const result = resource(() => 'source', loader);
+
+    expect(result[Symbol.dispose]).toBe(result.dispose);
+    result.dispose();
+    result[Symbol.dispose]();
+    await Promise.resolve();
+
+    expect(loader).not.toHaveBeenCalled();
+  });
+
   it('loads the tracked source and exposes data/loading/error signals', async () => {
     const source = signal('markdown');
     const gate = deferred<string>();

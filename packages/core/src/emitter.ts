@@ -20,6 +20,7 @@
 
 import { signal, type Signal } from './signal.js';
 import { hasContext, getCurrentComponent } from './context.js';
+import { disposable, type Disposer } from './disposable.js';
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ export class Emitter<Events extends EventMap> {
    * If called during component setup, the subscription is automatically
    * disposed on disconnectedCallback.
    */
-  on<K extends keyof Events>(event: K, fn: Listener<Events[K]>): () => void {
+  on<K extends keyof Events>(event: K, fn: Listener<Events[K]>): Disposer {
     let set = this.listeners.get(event);
     if (!set) {
       set = new Set();
@@ -75,7 +76,7 @@ export class Emitter<Events extends EventMap> {
       getCurrentComponent().addDisposer(unsubscribe);
     }
 
-    return unsubscribe;
+    return disposable(unsubscribe, unsubscribe);
   }
 
   /**

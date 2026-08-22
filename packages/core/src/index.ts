@@ -27,6 +27,7 @@ export {
   SIGNAL_BRAND,
   type Signal,
   type ReadonlySignal,
+  type Disposer,
 } from './signal.js';
 
 // ── Setup context ───────────────────────────────────────────────────

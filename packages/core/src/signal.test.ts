@@ -82,6 +82,17 @@ describe('signal()', () => {
     expect(values.at(-1)).toBe('world');
   });
 
+  it.runIf(typeof Symbol.dispose === 'symbol')('signal and computed subscriptions expose the disposer alias', () => {
+    const source = signal(1);
+    const signalSubscription = source.subscribe(() => {});
+    const computedSubscription = computed(() => source.value * 2).subscribe(() => {});
+
+    expect(signalSubscription[Symbol.dispose]).toBe(signalSubscription);
+    expect(computedSubscription[Symbol.dispose]).toBe(computedSubscription);
+    signalSubscription();
+    computedSubscription();
+  });
+
   it('subscribe() does not track signals read inside the callback', () => {
     const source = signal('source');
     const unrelated = signal('other');
@@ -311,6 +322,29 @@ describe('computed()', () => {
 // ── effect() ────────────────────────────────────────────────────────
 
 describe('effect()', () => {
+  it.runIf(typeof Symbol.dispose === 'symbol')('supports using-based disposal', () => {
+    const count = signal(0);
+    const fn = vi.fn(() => { count.value; });
+
+    {
+      using disposer = effect(fn);
+      count.value = 1;
+      flushEffects();
+      expect(fn).toHaveBeenCalledTimes(2);
+    }
+
+    count.value = 2;
+    flushEffects();
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it.runIf(typeof Symbol.dispose === 'symbol')('keeps callable disposal as the symbol alias', () => {
+    const dispose = effect(() => {});
+    expect(dispose[Symbol.dispose]).toBe(dispose);
+    expect(() => dispose()).not.toThrow();
+    expect(() => dispose[Symbol.dispose]()).not.toThrow();
+  });
+
   it('runs immediately on creation', () => {
     const fn = vi.fn();
     effect(fn);

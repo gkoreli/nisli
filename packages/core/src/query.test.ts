@@ -54,6 +54,22 @@ afterEach(() => {
 // ── Basic lifecycle ─────────────────────────────────────────────────
 
 describe('query() basic lifecycle', () => {
+  it.runIf(typeof Symbol.dispose === 'symbol')('unsubscribes at using block exit', () => {
+    const client = inject(QueryClient);
+
+    {
+      using result = query(
+        () => ['using'],
+        async () => 'unused',
+        { enabled: () => false },
+      );
+      expect(result[Symbol.dispose]).toBe(result.dispose);
+      expect(client._observers).toBe(1);
+    }
+
+    expect(client._observers).toBe(0);
+  });
+
   it('is loading synchronously after construction, then commits', async () => {
     const d = deferred<string[]>();
     const result = track(query(

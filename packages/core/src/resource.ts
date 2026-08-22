@@ -7,10 +7,11 @@
  */
 
 import { getCurrentComponent, hasContext } from './context.js';
+import { disposable, type DisposableResource } from './disposable.js';
 import { __enrollPending } from './settle.js';
 import { effect, signal, type ReadonlySignal } from './signal.js';
 
-export interface ResourceResult<T> {
+export interface ResourceResult<T> extends DisposableResource {
   /** Latest successful value. Retained while a newer load is pending. */
   readonly data: ReadonlySignal<T | undefined>;
   /** True while the current generation is loading. */
@@ -122,7 +123,7 @@ export function resource<S, T>(
     };
   });
 
-  return {
+  const result = {
     data,
     loading,
     error,
@@ -131,6 +132,7 @@ export function resource<S, T>(
     },
     dispose,
   };
+  return disposable(result, dispose);
 }
 
 function toError(cause: unknown): Error {

@@ -110,6 +110,24 @@ current source; component teardown disposes automatically, while standalone
 callers can use `dispose()`. Returning `undefined` from the source disables the
 resource and clears its current state.
 
+## Explicit resource management
+
+Standalone Nisli disposables support `using` on runtimes with native explicit
+resource management:
+
+```ts
+{
+  using stop = effect(() => console.log(count.value));
+  using tasks = query(() => ['tasks'], fetchTasks);
+}
+```
+
+This applies to `effect()`, signal/computed `subscribe()`, `Emitter.on()`,
+`resource()`, and `query()`. Existing callable disposers and `.dispose()`
+methods are unchanged. Nisli only attaches the guarded `Symbol.dispose` alias;
+it never polyfills the platform. Apps that downlevel `using` for older runtimes
+must provide their own `Symbol.dispose` polyfill.
+
 ## Core capabilities
 
 - Fine-grained reactivity: `signal`, `computed`, `effect`, `untrack`, `flush`,

@@ -24,6 +24,19 @@ function createMockHost(): ComponentHost & { disposers: (() => void)[] } {
 }
 
 describe('Emitter', () => {
+  it.runIf(typeof Symbol.dispose === 'symbol')('detaches a handle at using block exit', () => {
+    const emitter = new TestEvents();
+    const fn = vi.fn();
+
+    {
+      using handle = emitter.on('select', fn);
+      emitter.emit('select', { id: 'inside' });
+    }
+
+    emitter.emit('select', { id: 'outside' });
+    expect(fn).toHaveBeenCalledOnce();
+  });
+
   it('basic emit → on subscriber fires with correct payload', () => {
     const emitter = new TestEvents();
     const fn = vi.fn();

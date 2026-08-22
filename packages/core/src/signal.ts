@@ -53,7 +53,7 @@ export interface ReadonlySignal<T> {
   readonly [SIGNAL_BRAND]: true;
   readonly value: T;
   /** Subscribe to value changes. Returns unsubscribe function. */
-  subscribe(fn: (value: T) => void): () => void;
+  subscribe(fn: (value: T) => void): Disposer;
   /**
    * Read the current value WITHOUT registering a dependency.
    * Equivalent to reading inside `untrack()`. On a computed this still
@@ -103,6 +103,9 @@ let nextEffectOrder = 0;
 // write-in-own-effect, N303 flush/tick cap, N310 effect(async).
 
 import { diag as emitDiag, isDev } from './diagnostics.js';
+import { disposable, type Disposer } from './disposable.js';
+
+export type { Disposer } from './disposable.js';
 
 function diag(code: string, message: string, detail?: object): void {
   if (!isDev()) return;
@@ -213,7 +216,7 @@ class SignalImpl<T> implements Signal<T> {
     return this._node.value;
   }
 
-  subscribe(fn: (value: T) => void): () => void {
+  subscribe(fn: (value: T) => void): Disposer {
     return effect(() => {
       const value = this.value;
       // A subscription depends on THIS signal only. Reads performed by the
@@ -400,7 +403,7 @@ class ComputedImpl<T> implements ReadonlySignal<T> {
     }
   }
 
-  subscribe(fn: (value: T) => void): () => void {
+  subscribe(fn: (value: T) => void): Disposer {
     return effect(() => {
       const value = this.value;
       untrack(() => fn(value));
@@ -646,7 +649,7 @@ type SyncEffectGuard<R> = [R] extends [Promise<unknown>]
  * dispose(); // stop the effect
  * ```
  */
-export function effect<R>(fn: () => R, ..._rejectAsync: SyncEffectGuard<R>): () => void {
+export function effect<R>(fn: () => R, ..._rejectAsync: SyncEffectGuard<R>): Disposer {
   const node = createEffectNode(fn as unknown as () => void | (() => void));
   if (isDev()) {
     // Dev-captured effect identity: N301/N302 diagnostics name this site.
@@ -678,7 +681,7 @@ export function effect<R>(fn: () => R, ..._rejectAsync: SyncEffectGuard<R>): () 
     }
   }
 
-  return dispose;
+  return disposable(dispose, dispose);
 }
 
 /**
