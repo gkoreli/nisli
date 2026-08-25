@@ -6,6 +6,8 @@ checkpoints (ADR 0022); dates are release dates.
 
 ## Unreleased
 
+## 0.55.0 — 2026-08-25
+
 Agent-native core wave (ADR 0030.2, gate record in
 `docs/worklists/agn/AGN-WAVE1-GATE.md`):
 
