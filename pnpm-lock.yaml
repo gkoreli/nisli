@@ -26,9 +26,18 @@ importers:
       '@nisli/core':
         specifier: workspace:*
         version: link:../../packages/core
+      happy-dom:
+        specifier: ^20.5.3
+        version: 20.8.9
+      playwright:
+        specifier: 1.61.1
+        version: 1.61.1
       vite:
         specifier: ^7.1.5
         version: 7.3.6(@types/node@22.19.17)(jiti@2.7.0)(lightningcss@1.32.0)
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@22.19.17)(happy-dom@20.8.9)(lightningcss@1.32.0)
 
   packages/core:
     devDependencies:
