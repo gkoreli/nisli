@@ -1,0 +1,66 @@
+/* view-transitions.css — every view-transition rule this site runs on.
+   Rendered verbatim into /docs/view-transitions (imported ?raw), so the page
+   documents the file instead of a copy of it.
+
+   Both lanes animate the same pseudo-elements: @nisli/router wraps in-app
+   commits (src/app-router.ts) and @nisli/ssg emits the cross-document opt-in
+   into every built page's head (src/shell.ts). Nothing here is required for a
+   transition to happen — the root crossfade is the UA default — so every rule
+   is a tuning, and an engine that understands none of it still navigates. */
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Direction, from the router's `types` callback. Purely additive: an engine
+   without :active-view-transition-type() keeps the plain crossfade above. The
+   keyframes fade as well as translate, because naming an animation replaces the
+   UA's own fade. */
+@keyframes nisli-vt-enter-right { from { translate: 2rem 0; opacity: 0; } }
+@keyframes nisli-vt-exit-left { to { translate: -2rem 0; opacity: 0; } }
+@keyframes nisli-vt-enter-left { from { translate: -2rem 0; opacity: 0; } }
+@keyframes nisli-vt-exit-right { to { translate: 2rem 0; opacity: 0; } }
+
+html:active-view-transition-type(forward) {
+  &::view-transition-old(root) { animation-name: nisli-vt-exit-left; }
+  &::view-transition-new(root) { animation-name: nisli-vt-enter-right; }
+}
+html:active-view-transition-type(back) {
+  &::view-transition-old(root) { animation-name: nisli-vt-exit-right; }
+  &::view-transition-new(root) { animation-name: nisli-vt-enter-left; }
+}
+
+/* The each() list recipe. `match-element` is identity-keyed, so a keyed list
+   needs no generated names. The name sits on the item's PAINTED root — the
+   <li> — never on each()'s <each-item> wrapper, which is `display: contents`:
+   a box-less element generates no snapshot, so a name there does nothing.
+   Scoped to the `reorder` type so rows are lifted out of the root snapshot only
+   for a list mutation, not on every page navigation. */
+html:active-view-transition-type(reorder) [data-vt-list-item] {
+  view-transition-name: match-element;
+  view-transition-class: nisli-list-item;
+}
+
+/* One class styles the whole group — with identity-keyed names there is no name
+   to write a rule against. */
+::view-transition-group(*.nisli-list-item) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+::view-transition-old(*.nisli-list-item),
+::view-transition-new(*.nisli-list-item) {
+  animation-duration: 160ms;
+}
+
+/* Reduced motion is answered here, never by branching in JS: the transition
+   still runs, so the DOM still swaps atomically in one frame and type-scoped
+   styles stay active — only the motion is neutralised. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

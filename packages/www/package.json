@@ -17,6 +17,7 @@
     "proof:movebefore": "node scripts/movebefore-proof.mjs",
     "proof:router-navigation": "node scripts/router-navigation-proof.mjs",
     "proof:router-navigation:vacuity": "node scripts/router-navigation-proof.mjs --self-test-vacuity",
+    "proof:view-transitions": "node scripts/view-transition-proof.mjs",
     "release": "pnpm run build && npx wrangler deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",

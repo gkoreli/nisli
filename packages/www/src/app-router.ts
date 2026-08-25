@@ -19,7 +19,7 @@
  * data (registry, docs metadata) load eagerly.
  */
 import { html, type TemplateResult } from '@nisli/core';
-import { defineRouter, route, notFound } from '@nisli/router';
+import { defineRouter, route, notFound, type NavInfo } from '@nisli/router';
 import { docPages, docPath } from './pages/docs.js';
 import { components, primitives, getItem, itemPath } from './registry.js';
 
@@ -52,6 +52,33 @@ async function chrome() {
  */
 function docArticle(content: TemplateResult): TemplateResult {
   return html`<article class="mx-auto w-full max-w-3xl">${content}</article>`;
+}
+
+// ── View transitions (BET04) ────────────────────────────────────────────────
+// The docs are an ORDERED sequence, and the direction a reader perceives is
+// their position in that sequence — not the browser's history direction. Those
+// two disagree constantly: clicking the sidebar link from `templates` back up
+// to `signals` is a history *push* (`direction: 'forward'`), yet the content
+// moved backwards. So the site derives its own direction from DOC_SECTIONS
+// order and only falls back to the engine's answer off the docs spine. This is
+// why `types` is a callback here rather than the router's `[direction]` default.
+const DOCS_ORDER: readonly string[] = docPages.map((page) => docPath(page.slug));
+
+/**
+ * `:active-view-transition-type()` keys off these (styles/view-transitions.css).
+ * An undecidable direction contributes NO type — `'unknown'` would only make
+ * the stylesheet match on a word that means nothing.
+ */
+function navTypes(nav: NavInfo): string[] {
+  // Static builds serve `/docs/signals/`, the SPA links `/docs/signals`; one
+  // trailing slash apart would silently drop the page off the spine. `/` has no
+  // character before its slash, so the root is left alone.
+  const from = DOCS_ORDER.indexOf(nav.from.pathname.replace(/(.)\/$/, '$1'));
+  const to = DOCS_ORDER.indexOf(nav.to.pathname.replace(/(.)\/$/, '$1'));
+  const direction = from >= 0 && to >= 0 && from !== to
+    ? (to > from ? 'forward' : 'back')
+    : nav.direction;
+  return direction === 'unknown' ? [] : [direction];
 }
 
 export const AppRouter = defineRouter({
@@ -156,4 +183,12 @@ export const AppRouter = defineRouter({
       return SiteShell(notFoundPage(), {});
     },
   }),
+}, {
+  // In-app navigations animate: the router wraps only the COMMIT (rendered
+  // output + managed head + scroll/focus), so a slow lazy route import delays
+  // the animation's start instead of freezing the page inside the capture
+  // window. The initial render, hash-only moves, and a hidden document never
+  // transition, and where `startViewTransition` is missing the commit applies
+  // exactly as it did before this option existed.
+  viewTransitions: { enabled: true, types: navTypes },
 });

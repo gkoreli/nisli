@@ -12,6 +12,43 @@
  * Asset/link paths are absolute (`/assets/...`) so they resolve from nested
  * routes like `/docs/signals/` too.
  */
+import { renderViewTransitionHead } from '@nisli/ssg';
+
+/**
+ * Cross-document view transitions + speculation rules (BET04), emitted by the
+ * SSG's own emitter so the bytes match a `viewTransitions:`-configured build
+ * exactly. It is assembled HERE rather than passed to `buildStaticSite` because
+ * this site's `shell` callback returns a body FRAGMENT: the build option injects
+ * before the first `</head>` of what it is given, and a fragment has none, so
+ * that build now fails closed instead of emitting the block where this function
+ * would wrap it into `<body>`. `@nisli/ssg` exports the emitter for precisely
+ * this shape.
+ *
+ * A cross-document transition needs BOTH documents opted in, which is why this
+ * is unconditional across every built page rather than per-page authoring.
+ *
+ * Speculation rules: PREFETCH only, at the default `moderate` eagerness and the
+ * default `/*` scope — the whole site is static, same-origin GET documents, so
+ * fetching one on hover is free of consequence and removes the round trip that
+ * actually costs a reader time.
+ *
+ * Prerender is declined, and NOT for safety: the prerender audit came back
+ * clean (the two inline scripts below are a paint decision and pure listener
+ * wiring, and the preview runtime only wires and mounts islands — see the
+ * comment at each). It is declined on cost, because of what `moderate` means
+ * on THIS site. Moderate fires on hover, and the docs sidebar is a dense list
+ * of ~50 links a reader's pointer sweeps across while scanning. Prefetch pays
+ * for that sweep with a cached HTTP response; prerender pays for it by running
+ * the whole page — including the preview runtime, which downloads the examples
+ * chunk and mounts every island — for a page the reader never opens. The saving
+ * bought is parse plus hydrate on documents whose visible content is already
+ * painted static HTML. Flipping this to `{ speculationRules: true }` is the
+ * one-line change if that trade ever inverts.
+ */
+const viewTransitionHead = renderViewTransitionHead({
+  speculationRules: { prerender: false },
+});
+
 export interface ShellMeta {
   title: string;
   description: string;
@@ -44,10 +81,17 @@ export function shell(bodyFragment: string, meta: ShellMeta, options: ShellOptio
 <title>${title}</title>
 <meta name="description" content="${description}" />
 <link rel="stylesheet" href="/assets/site.css" />
+${viewTransitionHead}
+<!-- Prerender-safe eagerly: the theme class is a PAINT decision that has to be
+     settled before the activation frame, not an observable side effect. -->
 <script>try{if(localStorage.theme==='dark'||(!('theme' in localStorage)&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark')}catch(e){}</script>
 </head>
 <body class="bg-background text-foreground antialiased">
 ${bodyFragment}
+<!-- Prerender-safe eagerly: pure listener wiring. Neither handler can fire in a
+     prerendering document (there is no user to click in it), and nothing here
+     runs at parse time, so no whenActive() guard is warranted. The same holds
+     for the preview hydration module below: it only wires and mounts islands. -->
 <script>
 document.getElementById('theme-toggle')?.addEventListener('click',()=>{
   const dark=document.documentElement.classList.toggle('dark');
