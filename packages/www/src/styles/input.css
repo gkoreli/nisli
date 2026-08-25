@@ -13,3 +13,9 @@
 
 @source "../../dist/**/*.html";
 @import "../nisli-ui/styles/theme.css";
+
+/* Unlayered on purpose: the view-transition pseudo-elements must never be
+   reordered against Tailwind's utility layers. Kept as its own file because
+   /docs/view-transitions renders it verbatim (?raw) — the page documents the
+   shipped stylesheet rather than a copy that can drift. */
+@import "./view-transitions.css";

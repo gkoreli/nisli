@@ -89,3 +89,16 @@ const mobileNavLoader: ExampleLoader = async () => {
 for (const chrome of document.querySelectorAll('[data-hydrate="mobile-nav"]')) {
   void hydrateFrame(chrome, mobileNavLoader);
 }
+
+// The /docs/view-transitions each() recipe demo — a www-local island, same
+// replace-mount contract: SSG paints the list in its default order and this
+// brings the sort/filter controls (and their viewTransition() calls) alive.
+// Dynamic import for the same reason as every loader in this file: the demo is
+// its own chunk, fetched only on the one page that carries the frame.
+const listTransitionLoader: ExampleLoader = async () => {
+  const { ListTransitionDemo } = await import('../components/list-transition-demo.js');
+  return { default: ListTransitionDemo };
+};
+for (const frame of document.querySelectorAll('[data-hydrate="list-transition"]')) {
+  void hydrateFrame(frame, listTransitionLoader);
+}

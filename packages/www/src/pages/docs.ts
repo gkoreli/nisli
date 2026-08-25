@@ -24,6 +24,13 @@ import querySrc from '../snippets/query.ts?raw';
 import ssgSrc from '../snippets/ssg.ts?raw';
 import acpWireSrc from '../snippets/acp-wire.ts?raw';
 import acpPermissionSrc from '../snippets/acp-permission.ts?raw';
+import vtRouterSrc from '../snippets/view-transitions-router.ts?raw';
+import vtSsgSrc from '../snippets/view-transitions-ssg.ts?raw';
+import vtEachSrc from '../snippets/view-transitions-each.ts?raw';
+// The site's ACTUAL view-transition stylesheet, rendered verbatim — the page
+// documents the shipped file rather than a copy of it that can drift.
+import vtCss from '../styles/view-transitions.css?raw';
+import { ListTransitionDemo } from '../components/list-transition-demo.js';
 
 export interface DocPage {
   /** Route is `/docs` for '' , else `/docs/<slug>`. */
@@ -261,6 +268,48 @@ const acpPage: DocPage = {
   </div>`,
 };
 
+const viewTransitionsPage: DocPage = {
+  slug: 'view-transitions',
+  title: 'View transitions',
+  description:
+    'Animate navigations and keyed lists with the platform View Transition API — the router opt-in, the cross-document build option, and the each() reorder recipe.',
+  render: () => html`<div>
+    <h1 class="text-4xl font-bold tracking-tight">View transitions</h1>
+    ${Lead('nisli does not ship an animation system. It hands the platform’s View Transition API three seams — a core primitive, a router option, and a build option — and gets out of the way. All three are opt-in, and all three degrade to today’s unanimated behavior with no polyfill and no UA sniffing.')}
+    ${P(html`The three seams answer three different questions. ${code('viewTransition()')} from ${code('@nisli/core')} animates a state update inside one page. ${code('defineRouter')}’s ${code('viewTransitions')} option animates client-side navigation. ${code('buildStaticSite')}’s ${code('viewTransitions')} option animates navigation between statically built documents — no runtime JS at all. This site runs all three; the CSS at the bottom of this page is the file its own transitions run on.`)}
+
+    ${H2('A state update: viewTransition()')}
+    ${P(html`${code('viewTransition(update, { types })')} wraps a synchronous state write. The browser captures the old frame, runs your callback, captures the new frame, and animates between them. The reason it needs to be a wrapper at all is nisli’s scheduler: signal writes coalesce onto a microtask, so a bare ${code('items.value = sorted')} inside the callback would mutate the DOM after the capture window closed — the browser would animate a frame to itself. ${code('viewTransition()')} calls ${code('flush()')} inside the callback, so the mutation the browser snapshots is nisli’s own synchronous flush.`)}
+    ${P(html`Keep async work outside. The page is frozen inside the capture window, so wrap the commit and nothing else.`)}
+
+    ${H2('Navigation: the router opt-in')}
+    ${P(html`Off by default. Turning it on wraps only the ${code('commit')} — rendered output, managed head, and the scroll/focus effects — so ${code('document.title')}, ${code('<meta>')}, and the DOM swap atomically inside one snapshot. The awaited route render stays outside: a slow loader delays the animation’s start, it never freezes the page mid-capture.`)}
+    ${CodeBlock(vtRouterSrc.trimEnd(), { file: 'app-router.ts' })}
+    ${P(html`${code('types')} chooses what ${code(':active-view-transition-type()')} matches, and defaults to the navigation direction the engine reports. That default is ${code('history')} direction — which is worth overriding on a docs site, because the direction a reader perceives is their position in the docs sequence. Clicking the sidebar from Templates back up to Signals is a history push (${code('forward')}) even though the content moved backwards, so this site derives the direction from its own page order and only falls back to the engine off the docs spine.`)}
+    ${P(html`Three navigations never transition, whatever the policy says: the initial render (there is no previous frame), a hash-only move (the browser is already performing that jump), and a hidden document. A single navigation can also overrule the policy — ${code('router.navigate(href, { viewTransition: false })')}.`)}
+
+    ${H2('Between built pages: the SSG option')}
+    ${P(html`A cross-document transition runs only when ${code('both')} the outgoing and the incoming document carry ${code('@view-transition { navigation: auto }')}. A page therefore cannot opt its own inbound navigations in — which is exactly why this is a build option: the build is the only layer that sees every page. The object form adds speculation rules, so the next document is already fetched (or fully rendered) when the click lands.`)}
+    ${CodeBlock(vtSsgSrc.trimEnd(), { file: 'build.ts' })}
+    ${P(html`Prerendering runs a page fully in a hidden document: subresources load, scripts execute, fetches fire. Listener wiring and island mounting are fine there, but anything ${code('observable')} — analytics, timers, autofocus, media playback — has to wait for activation. ${code('whenActive()')} from ${code('@nisli/ssg/client')} is that guard, and it runs its callback immediately on engines without prerendering.`)}
+
+    ${H2('A keyed list: the each() recipe')}
+    ${P(html`Lists are where view transitions earn their keep, and where the platform gives you the most for the least. ${code('view-transition-name: match-element')} names an element by its own identity, so a keyed ${code('each()')} needs no generated names and no per-item bookkeeping — the reconciler already keeps the same element for the same key, and that is the whole contract.`)}
+    ${P(html`${code('view-transition-class')} then styles every row as a group. With identity-keyed names there is no name to write a rule against, so the class is not a convenience here — it is the only way to reach the rows at all.`)}
+    ${CodeBlock(vtEachSrc.trimEnd())}
+    ${P(html`The part that bites: ${code('each()')} wraps every item in an ${code('<each-item style="display: contents">')} so inner content can swap DOM nodes without invalidating the reconciler’s node tracking. A ${code('display: contents')} element generates no box, and an element with no box cannot be snapshotted — a ${code('view-transition-name')} on that wrapper is silently ignored. The name belongs on the item’s painted root, the ${code('<li>')} inside.`)}
+    ${P('Live, below. Sort and filter are separate writes through the same wrapped update, because as far as the animation is concerned a filter is a reorder too: rows leave, rows arrive, survivors move.')}
+    ${html`<div data-hydrate="list-transition">${ListTransitionDemo()}</div>`}
+
+    ${H2('Reduced motion')}
+    ${P(html`Answered in CSS, never by branching in JS. The transition still runs — so the DOM still swaps atomically in a single frame, and type-scoped styles stay active — and only the motion is neutralised. Skipping the call instead would give a reduced-motion user a different code path, and a different set of bugs.`)}
+
+    ${H2('The stylesheet')}
+    ${P(html`nisli ships no stylesheet: the root crossfade is the browser default, and everything below is tuning. This is the whole file, rendered verbatim from the source this page is styled by.`)}
+    ${CodeBlock(vtCss.trimEnd(), { file: 'src/styles/view-transitions.css' })}
+  </div>`,
+};
+
 // ── Structure ───────────────────────────────────────────────────────────────
 export const DOC_SECTIONS: readonly DocSection[] = [
   { title: 'Getting started', pages: [introPage, installationPage, quickStartPage] },
@@ -269,7 +318,7 @@ export const DOC_SECTIONS: readonly DocSection[] = [
     pages: [signalsPage, templatesPage, componentsPage, diPage, queryPage],
   },
   { title: 'Tooling', pages: [ssgPage, cliPage] },
-  { title: 'Recipes', pages: [acpPage] },
+  { title: 'Recipes', pages: [viewTransitionsPage, acpPage] },
 ];
 
 export const docPages: readonly DocPage[] = DOC_SECTIONS.flatMap((s) => s.pages);
