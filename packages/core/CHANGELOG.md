@@ -54,6 +54,20 @@ Agent-native core wave (ADR 0030.2, gate record in
   no sanitizer is bundled. Native `TrustedHTML` values now pass through the
   `raw()` sink unwrapped ([ADR 0019](../../docs/adr/0019-minimal-runtime-and-native-platform-alignment.md)
   §124–128). The `raw()` path is unchanged.
+
+  The platform sanitizer is identified by **identity**, not by shape: the
+  method must be `Element.prototype.setHTML`. A callable merely *named*
+  `setHTML` on the element — DOM clobbering, an unsafe polyfill, a library
+  shim — is not trusted and falls through to the registered hook or to N107.
+  A duck-typed check here was a real bypass, letting an element-local
+  `setHTML` preempt the sanitizer an app had explicitly registered.
+
+  **Known limitation, pre-existing and not closed by this work:** the brands
+  are structural, so an object forged from untrusted JSON
+  (`{"__raw": true, "value": "…"}`) still satisfies `raw()`'s check and
+  reaches `innerHTML`. Never pass unvalidated parsed JSON to `html:inner`.
+  Closing this needs an unforgeable brand and is a deliberate change to
+  `raw()`'s trust model.
 - New diagnostics layer: stable coded dev messages (`[nisli N…]`) behind
   a runtime dev gate (`setDevMode`; probes Vite/`NODE_ENV`, loud by
   default in buildless ESM); silent under production builds.

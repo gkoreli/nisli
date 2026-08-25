@@ -29,6 +29,11 @@ checkpoints (ADR 0022); dates are release dates.
   Render untrusted markup on the client, or sanitize it at build time and
   wrap the result in `raw()`.
 
+  Markup branded **both** `raw()` and `sanitized()` is refused before either
+  branch is taken, matching core's N106. Resolving ambiguous trust in favour
+  of the raw path let an attacker-supplied object carrying both brands emit a
+  literal `<script>` into built output while core refused the same value.
+
 ## 0.4.0 — 2026-07-16
 
 - Static application routers that declare client-side redirects now remain
