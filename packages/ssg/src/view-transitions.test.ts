@@ -199,15 +199,16 @@ describe('viewTransitions emission', () => {
     expect(parsed.prerender[0].where.and[1].not.selector_matches).toBe('[data-x="</script>"]');
   });
 
-  it('prepends the block to fragment output, where the parser implies a head', async () => {
-    const outDir = tempDir();
-    await buildStaticSite({
-      outDir,
+  it('fails loudly on fragment output rather than emit the block into a body', async () => {
+    // Measured in the www build: a shell that returns a body fragment gets this
+    // markup embedded in the <body>, where the cross-document opt-in does
+    // nothing. Prepending to a fragment only reaches an implied head when that
+    // fragment IS the whole document, which a shell-composed site never is.
+    await expect(buildStaticSite({
+      outDir: tempDir(),
       viewTransitions: true,
       routes: [{ path: '/', render: () => '<h1>Home</h1>' }],
-    });
-
-    expect(readFileSync(join(outDir, 'index.html'), 'utf8')).toBe(`${STYLE}\n<h1>Home</h1>`);
+    })).rejects.toThrow('viewTransitions requires a closing </head> in rendered output: /');
   });
 
   it('reuses the indentation of the closing head tag', async () => {
