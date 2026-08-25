@@ -193,11 +193,19 @@ the bottom. Mutation/resize observers and queued frames are lifecycle-owned.
 ### 3. Styling and theming: Tailwind v4 + shadcn token layer
 
 - Consumers are expected to use **Tailwind CSS v4** (CSS-first config). The
-  registry's `styles/theme.css` ships the shadcn token layer: `:root` and
-  `.dark` blocks defining `--background`, `--foreground`, `--primary`,
+  registry's `styles/theme.css` ships the shadcn token layer: a single
+  `:root, .dark` block defining `--background`, `--foreground`, `--primary`,
   `--secondary`, `--muted`, `--accent`, `--destructive`, `--border`,
   `--input`, `--ring`, `--radius`, … in oklch, plus an `@theme inline` block
   mapping them to Tailwind color names (`--color-background: var(--background)`).
+  Each colour token carries both modes in one `light-dark()` declaration,
+  selected by `color-scheme` — `:root` sets `light`, `.dark` sets `dark`, and
+  that class remains the single truth for the mode (nothing reads
+  `prefers-color-scheme`). The tokens are `@property`-registered, which makes
+  them compute at the declaring element; `.dark` is therefore in the selector
+  list so a nested dark region re-declares them against its own
+  `color-scheme`. Overriding still works exactly as before: a later
+  `:root { … } .dark { … }` block wins on source order.
 - Upstream `new-york-v4` declares `tw-animate-css` as a **development/build
   dependency** and imports it before the theme layer. Nisli mirrors that
   contract: `init` reports `npm install -D tw-animate-css` and the required CSS

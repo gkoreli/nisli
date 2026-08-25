@@ -42,6 +42,10 @@ html`${Button({ variant: 'outline', children: 'Save' })}`;
 - Tailwind CSS v4 + `tw-animate-css` — import the copied `styles/theme.css`
   after both build-tool imports. Theming and dark mode work exactly like
   shadcn/ui: override the CSS variables; add a `.dark` class.
+- A Baseline browser floor, tracking upstream shadcn. `styles/theme.css` uses
+  `light-dark()` and `@property` (both widely available) with no fallbacks
+  kept, and component class lists already ship Baseline-newly CSS such as
+  `field-sizing`, `@container`, and `:has()`.
 
 The networked smoke test for the currently published package runs as a separate
 CI job and can be invoked locally with `pnpm --filter @nisli/ui e2e:npm`. Set
