@@ -5,9 +5,14 @@
  *      to its dark arm both inside a nested `.dark` region and after a root
  *      `.dark` flip (bet 08 batch 0 — `light-dark()`);
  *   3. a theme flip interpolates rather than snaps, which only the `@property`
- *      registrations make possible (bet 08 batch 0).
+ *      registrations make possible (bet 08 batch 0);
+ *   4. the `field-invalid` / `field-disabled` container style queries actually
+ *      reach the painted control through a `display:contents` host, paint what
+ *      the `aria-invalid` path paints, and leave that attribute path working on
+ *      its own (bet 08 batch 1).
  * Uses www's build-only CLI/browser deps; all generated files live under the OS
- * temp directory and are always removed.
+ * temp directory and are always removed. Nothing here builds www or touches its
+ * dist.
  */
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -114,12 +119,33 @@ const readThemeContract = (source) => {
   if (registrations.size) {
     throw new Error(`theme.css: @property registers tokens absent from the shared block: ${[...registrations.keys()].join(', ')}`);
   }
+
+  // Batch 1: the style-query variants are part of the file's contract — without
+  // the declarations Tailwind drops every `field-invalid:` utility silently.
+  for (const variant of ['field-invalid', 'field-disabled']) {
+    if (!source.includes(`@custom-variant ${variant} (@container style(--${variant}: true));`)) {
+      throw new Error(`theme.css: missing the \`@custom-variant ${variant}\` style-query declaration`);
+    }
+  }
   return tokens;
+};
+
+/**
+ * Pull a component's real class string out of its registry source, so the proof
+ * below styles its probes with exactly what ships (no transcribed copy to rot).
+ */
+const classString = (file, pattern) => {
+  const source = readFileSync(join(uiDir, 'registry/default/ui', file), 'utf8');
+  const match = source.match(pattern);
+  if (!match) throw new Error(`${file}: could not extract a class string with ${pattern}`);
+  if (match[1].includes("'")) throw new Error(`${file}: class string contains a quote the probe cannot inline`);
+  return match[1];
 };
 
 const scratch = mkdtempSync(join(tmpdir(), 'nisli-ui-theme-e2e-'));
 const input = join(scratch, 'input.css');
 const output = join(scratch, 'output.css');
+const probe = join(scratch, 'probe.html');
 const tailwind = join(wwwDir, 'node_modules/.bin/tailwindcss');
 const requireFromWww = createRequire(join(wwwDir, 'package.json'));
 const { chromium } = requireFromWww('playwright');
@@ -128,10 +154,72 @@ let primaryFailure;
 
 try {
   const tokens = readThemeContract(readFileSync(theme, 'utf8'));
+
+  // ── Batch 1 probe markup, built from the shipped class strings ──────
+  // Each control is nested inside a `style="display:contents"` host, which is
+  // exactly what `transparentHost()` writes at runtime — so the probe tests the
+  // real obstacle: a selector cannot cross that host, an inherited custom
+  // property can.
+  const destructiveToken = tokens.find((token) => token.name === '--destructive');
+  const inputToken = tokens.find((token) => token.name === '--input');
+  if (!destructiveToken || !inputToken) throw new Error('theme.css: expected --destructive and --input tokens');
+
+  const fieldClasses = classString('form-field.ts', /export const fieldVariants = cv\(\n {2}'([^']*)',/);
+  const fieldLabelClasses = classString('form-field.ts', /export const fieldLabelClasses =\n {2}'([^']*)';/);
+  const controls = [
+    {
+      key: 'input',
+      host: 'ui-input',
+      classes: classString('input.ts', /export const inputClasses =\n {2}'([^']*)';/),
+      paint: (attrs, classes) => `<input ${attrs} class='${classes}'>`,
+    },
+    {
+      key: 'textarea',
+      host: 'ui-textarea',
+      classes: classString('textarea.ts', /export const textareaClasses =\n {2}'([^']*)';/),
+      paint: (attrs, classes) => `<textarea ${attrs} class='${classes}'></textarea>`,
+    },
+    {
+      key: 'select',
+      host: 'ui-select',
+      classes: classString('select.ts', /export const selectClasses =\n {2}'([^']*)';/),
+      paint: (attrs, classes) => `<select ${attrs} class='${classes}'><option>a</option></select>`,
+    },
+    {
+      key: 'checkbox',
+      host: 'ui-checkbox',
+      classes: classString('checkbox.ts', /export const checkboxClasses =\n {2}'([^']*)';/),
+      paint: (attrs, classes) => `<input type="checkbox" ${attrs} class='${classes}'>`,
+    },
+    {
+      key: 'radio',
+      host: 'ui-radio-group-item',
+      classes: classString('radio-group.ts', /export const radioItemClasses =\n {2}'([^']*)';/),
+      paint: (attrs, classes) => `<input type="radio" ${attrs} class='${classes}'>`,
+    },
+  ];
+  const hosted = (control, id, attrs = '') =>
+    `<${control.host} style="display:contents">${control.paint(`id="${id}" ${attrs}`, control.classes)}</${control.host}>`;
+  const row = (suffix, attrs) => controls.map((control) => hosted(control, `${control.key}-${suffix}`, attrs)).join('');
+
+  const probeMarkup = `<div id="refs">
+  <div data-ref="destructive" style="background-color: ${destructiveToken.light}"></div>
+  <div data-ref="input" style="background-color: ${inputToken.light}"></div>
+</div>
+<div data-slot="field" data-invalid="true" class='${fieldClasses}'>${row('field-invalid')}</div>
+<div data-slot="field" class='${fieldClasses}'>${row('field-valid')}</div>
+<div id="attribute-only">${controls.map((control) => control.paint(`id="${control.key}-aria-invalid" aria-invalid="true"`, control.classes)).join('')}</div>
+<div id="consumer-property" style="--field-invalid: true">${row('consumer')}</div>
+<label id="label-plain" class='${fieldLabelClasses}'>label</label>
+<div style="--field-disabled: true"><label id="label-field-disabled" class='${fieldLabelClasses}'>label</label></div>
+`;
+  writeFileSync(probe, probeMarkup);
+
   writeFileSync(input, `@import "tailwindcss";
 @import "tw-animate-css";
 @import ${JSON.stringify(theme)};
 @source inline("border border-border outline outline-ring/50 text-foreground");
+@source "./probe.html";
 `);
   execFileSync(tailwind, ['-i', input, '-o', output, '--minify'], {
     cwd: wwwDir,
@@ -262,6 +350,63 @@ try {
   if (early.interpolated === late) throw new Error(`--background stalled mid-transition: ${JSON.stringify(flip)}`);
   if (settled !== backgroundDark) throw new Error(`--background did not settle on its dark arm: ${JSON.stringify(flip)}`);
   console.log(`theme transition proof: --background ${backgroundLight} -> ${early.interpolated} -> ${late} -> ${settled} while the untransitioned control snapped to ${early.control}`);
+
+  // 4. Container style queries: the field publishes --field-invalid, every
+  //    painted control reads it THROUGH its display:contents host, and the
+  //    aria-invalid path still paints on its own.
+  await page.setContent(`<style>${compiled}</style>${probeMarkup}`);
+  const fields = await page.evaluate((keys) => {
+    const paint = (id) => {
+      const el = document.getElementById(id);
+      if (!el) throw new Error(`probe element missing: ${id}`);
+      const style = getComputedStyle(el);
+      return {
+        border: style.borderTopColor,
+        ring: style.getPropertyValue('--tw-ring-color').trim(),
+        opacity: style.opacity,
+      };
+    };
+    return {
+      refs: Object.fromEntries(
+        [...document.querySelectorAll('#refs > div')]
+          .map((el) => [el.dataset.ref, getComputedStyle(el).backgroundColor]),
+      ),
+      controls: Object.fromEntries(keys.map((key) => [key, {
+        fieldInvalid: paint(`${key}-field-invalid`),
+        fieldValid: paint(`${key}-field-valid`),
+        ariaInvalid: paint(`${key}-aria-invalid`),
+        consumer: paint(`${key}-consumer`),
+      }])),
+      labels: { plain: paint('label-plain'), disabled: paint('label-field-disabled') },
+    };
+  }, controls.map((control) => control.key));
+
+  const { destructive, input: inputBorder } = fields.refs;
+  if (destructive === inputBorder) {
+    throw new Error('--destructive and --input serialise identically; the style-query proof would be vacuous');
+  }
+  for (const { key } of controls) {
+    const seen = { key, ...fields.controls[key] };
+    if (seen.fieldValid.border !== inputBorder) {
+      throw new Error(`baseline border is not border-input, so the invalid comparison means nothing: ${JSON.stringify(seen)}`);
+    }
+    if (seen.fieldInvalid.border !== destructive) {
+      throw new Error(`the field-invalid style query did not reach the painted control through its display:contents host: ${JSON.stringify(seen)}`);
+    }
+    if (seen.consumer.border !== destructive) {
+      throw new Error(`a consumer-set --field-invalid on a plain wrapper did not paint the control: ${JSON.stringify(seen)}`);
+    }
+    if (seen.ariaInvalid.border !== destructive) {
+      throw new Error(`the retained aria-invalid attribute path stopped painting on its own: ${JSON.stringify(seen)}`);
+    }
+    if (seen.fieldInvalid.ring !== seen.ariaInvalid.ring || seen.fieldInvalid.ring === seen.fieldValid.ring) {
+      throw new Error(`the two paths disagree on the destructive ring colour: ${JSON.stringify(seen)}`);
+    }
+  }
+  if (fields.labels.plain.opacity !== '1' || fields.labels.disabled.opacity !== '0.5') {
+    throw new Error(`--field-disabled did not dim the field label: ${JSON.stringify(fields.labels)}`);
+  }
+  console.log(`theme style-query proof: ${controls.length} control families paint ${destructive} from an inherited --field-invalid (baseline ${inputBorder}), matching the aria-invalid path's ring ${fields.controls.input.ariaInvalid.ring}; --field-disabled dims a label to ${fields.labels.disabled.opacity}`);
 } catch (error) {
   primaryFailure = error;
   throw error;

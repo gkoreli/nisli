@@ -75,6 +75,44 @@ describe('registry integrity', () => {
     }
   });
 
+  // Tailwind drops a utility whose variant was never declared — SILENTLY, with no
+  // build error. A `field-invalid:` token in a copied component is therefore only
+  // real if `styles/theme.css` (a BASE_ITEMS install, so every consumer has it)
+  // declares the matching `@custom-variant`. Checked both ways so the CSS API
+  // cannot drift into typos or into declarations nothing uses.
+  it('field-* custom variants used by copied sources are declared in the base theme', () => {
+    const theme = readFileSync(join(sourceRoot, 'styles/theme.css'), 'utf8');
+    const declared = new Set(
+      [...theme.matchAll(/^@custom-variant\s+([\w-]+)\s*\(/gm)].map(([, name]) => name as string),
+    );
+    expect(declared.size, 'styles/theme.css declares no @custom-variant').toBeGreaterThan(0);
+
+    const used = new Map<string, string>();
+    for (const file of new Set(registry.items.flatMap((item) => item.files))) {
+      if (!file.endsWith('.ts')) continue;
+      const source = readFileSync(join(sourceRoot, file), 'utf8');
+      // The lookbehind keeps container-query tokens (`@md/field-group:`) and the
+      // custom property itself (`[--field-invalid:true]`) out — only a variant at
+      // the start of a class token, or after another variant's `:`, counts.
+      for (const [, variant] of source.matchAll(/(?<![\w/@-])(field-[a-z-]+):/g)) {
+        if (variant && !used.has(variant)) used.set(variant, file);
+      }
+    }
+
+    for (const [variant, file] of used) {
+      expect(
+        declared.has(variant),
+        `${file} uses the "${variant}:" variant, but styles/theme.css does not @custom-variant it — Tailwind would drop the utility silently`,
+      ).toBe(true);
+    }
+    for (const variant of declared) {
+      expect(
+        used.has(variant),
+        `styles/theme.css declares the "${variant}" variant, but no copied source uses it`,
+      ).toBe(true);
+    }
+  });
+
   it.each(registry.items.map((item) => [item.name] as const))(
     '%s: transitive closure covers all relative imports',
     (name) => {

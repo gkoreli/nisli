@@ -138,8 +138,15 @@ export const RadioGroup = component<RadioGroupProps, typeof radioGroupAttrs>('ui
 // radio and a `checked:` radial-gradient dot standing in for Radix's
 // `CircleIcon size-2 fill-primary` indicator (~size-2 in a size-4 box → a
 // solid dot out to ~25% radius, in currentColor = text-primary).
+//
+// STYLE-QUERY INVALID (bet 08 batch 1): the `field-invalid:` trio is ADDED next to
+// the `aria-invalid:` trio, not instead of it. `aria-invalid:` only fires when the
+// attribute sits on this same painted node, so it waits on <ui-form-field> having
+// located the control; `field-invalid:` reads `--field-invalid` inherited from any
+// ancestor (custom properties cross `display:contents`), so a control inside an
+// invalid field paints unwired. Both paths stay — see styles/theme.css.
 export const radioItemClasses =
-  'aspect-square size-4 shrink-0 appearance-none rounded-full border border-input text-primary shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:ring-destructive/40 checked:bg-[radial-gradient(circle,_currentColor_0%,_currentColor_25%,_transparent_29%)]';
+  'aspect-square size-4 shrink-0 appearance-none rounded-full border border-input text-primary shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:ring-destructive/40 checked:bg-[radial-gradient(circle,_currentColor_0%,_currentColor_25%,_transparent_29%)] field-invalid:border-destructive field-invalid:ring-destructive/20 dark:field-invalid:ring-destructive/40';
 
 export type RadioGroupItemProps = {
   /** The value this item selects. Required. */

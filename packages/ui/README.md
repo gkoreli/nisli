@@ -45,7 +45,11 @@ html`${Button({ variant: 'outline', children: 'Save' })}`;
 - A Baseline browser floor, tracking upstream shadcn. `styles/theme.css` uses
   `light-dark()` and `@property` (both widely available) with no fallbacks
   kept, and component class lists already ship Baseline-newly CSS such as
-  `field-sizing`, `@container`, and `:has()`.
+  `field-sizing`, `@container`, and `:has()`. The youngest of them — container
+  **style** queries, behind the `field-invalid:` / `field-disabled:` variants —
+  is dual-path on purpose: every `aria-invalid` / `data-*` rule it duplicates
+  stays until the support floor clears, so a browser without style queries drops
+  those rules whole and paints from the attribute exactly as before.
 
 The networked smoke test for the currently published package runs as a separate
 CI job and can be invoked locally with `pnpm --filter @nisli/ui e2e:npm`. Set

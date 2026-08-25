@@ -181,3 +181,29 @@ describe('Select — aria-invalid forwarding', () => {
     expect(select.getAttribute('aria-invalid')).toBeNull();
   });
 });
+
+describe('Select — field-invalid style query (bet 08 batch 1)', () => {
+  it('adds the field-invalid trio WITHOUT dropping the aria-invalid trio', () => {
+    for (const token of [
+      'field-invalid:border-destructive',
+      'field-invalid:ring-destructive/20',
+      'dark:field-invalid:ring-destructive/40',
+    ]) {
+      expect(selectClasses).toContain(token);
+    }
+    // Dual path: the attribute selectors stay until the support floor clears.
+    for (const token of [
+      'aria-invalid:border-destructive',
+      'aria-invalid:ring-destructive/20',
+      'dark:aria-invalid:ring-destructive/40',
+    ]) {
+      expect(selectClasses).toContain(token);
+    }
+  });
+
+  it('renders both paths on the painted control', () => {
+    const select = getSelect(mount(html`${Select({ children: options })}`));
+    expect(select.className).toContain('field-invalid:border-destructive');
+    expect(select.className).toContain('aria-invalid:border-destructive');
+  });
+});

@@ -213,3 +213,29 @@ describe('RadioGroupItem — aria-invalid forwarding', () => {
     expect(radio.getAttribute('aria-invalid')).toBeNull();
   });
 });
+
+describe('RadioGroupItem — field-invalid style query (bet 08 batch 1)', () => {
+  it('adds the field-invalid trio WITHOUT dropping the aria-invalid trio', () => {
+    for (const token of [
+      'field-invalid:border-destructive',
+      'field-invalid:ring-destructive/20',
+      'dark:field-invalid:ring-destructive/40',
+    ]) {
+      expect(radioItemClasses).toContain(token);
+    }
+    // Dual path: the attribute selectors stay until the support floor clears.
+    for (const token of [
+      'aria-invalid:border-destructive',
+      'aria-invalid:ring-destructive/20',
+      'dark:aria-invalid:ring-destructive/40',
+    ]) {
+      expect(radioItemClasses).toContain(token);
+    }
+  });
+
+  it('renders both paths on the painted control', () => {
+    const radio = radios(group())[0];
+    expect(radio.className).toContain('field-invalid:border-destructive');
+    expect(radio.className).toContain('aria-invalid:border-destructive');
+  });
+});

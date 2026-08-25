@@ -10,6 +10,7 @@ import {
   FieldDescription,
   FieldError,
   fieldErrorClasses,
+  fieldLabelClasses,
   FieldGroup,
   FieldContent,
   FieldSet,
@@ -380,5 +381,35 @@ describe('FieldSeparator', () => {
     const c = mount(html`${FieldSeparator({ children: '' })}`);
     const sep = bySlot('field-separator', c);
     expect(sep.getAttribute('data-content')).toBe('false');
+  });
+});
+
+describe('FormField — style-query state propagation (bet 08 batch 1)', () => {
+  it('publishes --field-invalid from the same data-invalid truth, keeping both paths', async () => {
+    const c = fullField({ invalid: true });
+    await Promise.resolve();
+    const f = field(c);
+
+    // The attribute is still the truth (DOM contract + fallback selector) …
+    expect(f.getAttribute('data-invalid')).toBe('true');
+    expect(f.className).toContain('data-[invalid=true]:text-destructive');
+    // … and it now also publishes the inheritable property the controls query.
+    expect(f.className).toContain('data-[invalid=true]:[--field-invalid:true]');
+  });
+
+  it('leaves the aria-invalid effect wiring untouched (semantics, not styling)', async () => {
+    const c = fullField({ invalid: true });
+    await Promise.resolve();
+    const input = field(c).querySelector('input') as HTMLInputElement;
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('gives label and title a field-disabled twin beside the group-data token', () => {
+    expect(fieldLabelClasses).toContain('group-data-[disabled=true]/field:opacity-50');
+    expect(fieldLabelClasses).toContain('field-disabled:opacity-50');
+
+    const title = bySlot('field-label', mount(html`${FieldTitle({ children: 'Plan' })}`));
+    expect(title.className).toContain('group-data-[disabled=true]/field:opacity-50');
+    expect(title.className).toContain('field-disabled:opacity-50');
   });
 });

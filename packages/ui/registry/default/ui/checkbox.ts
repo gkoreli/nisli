@@ -38,8 +38,14 @@ import {
 } from '@nisli/core';
 import { cn, transparentHost } from '../lib/utils.js';
 
+// STYLE-QUERY INVALID (bet 08 batch 1): the `field-invalid:` trio is ADDED next to
+// the `aria-invalid:` trio, not instead of it. `aria-invalid:` only fires when the
+// attribute sits on this same painted node, so it waits on <ui-form-field> having
+// located the control; `field-invalid:` reads `--field-invalid` inherited from any
+// ancestor (custom properties cross `display:contents`), so a control inside an
+// invalid field paints unwired. Both paths stay — see styles/theme.css.
 export const checkboxClasses =
-  'peer size-4 shrink-0 appearance-none rounded-[4px] border border-input shadow-xs transition-shadow outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 checked:border-primary checked:bg-primary checked:text-primary-foreground dark:bg-input/30 dark:aria-invalid:ring-destructive/40 dark:checked:bg-primary checked:bg-[length:0.875rem] checked:bg-center checked:bg-no-repeat checked:bg-[url("data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2024%2024%27%20fill=%27none%27%20stroke=%27white%27%20stroke-width=%272%27%20stroke-linecap=%27round%27%20stroke-linejoin=%27round%27%3E%3Cpath%20d=%27M20%206%209%2017l-5-5%27/%3E%3C/svg%3E")]';
+  'peer size-4 shrink-0 appearance-none rounded-[4px] border border-input shadow-xs transition-shadow outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 checked:border-primary checked:bg-primary checked:text-primary-foreground dark:bg-input/30 dark:aria-invalid:ring-destructive/40 dark:checked:bg-primary checked:bg-[length:0.875rem] checked:bg-center checked:bg-no-repeat checked:bg-[url("data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2024%2024%27%20fill=%27none%27%20stroke=%27white%27%20stroke-width=%272%27%20stroke-linecap=%27round%27%20stroke-linejoin=%27round%27%3E%3Cpath%20d=%27M20%206%209%2017l-5-5%27/%3E%3C/svg%3E")] field-invalid:border-destructive field-invalid:ring-destructive/20 dark:field-invalid:ring-destructive/40';
 
 export type CheckboxProps = {
   checked?: boolean;
