@@ -34,12 +34,12 @@ agent-legibility.
 |---|-----|--------|
 | 01 | `moveBefore()` at move sites | **Landed + proven in three real browsers** |
 | 02 | Overlay stack on popover / anchor / dialog | Not started — net-deletion of ~985 LOC |
-| 03 | Navigation API router | **Phase 1 landed** — engine seam extracted, zero behaviour change. Phase 2 (`navigation.intercept()`) not started; URLPattern **rejected**, hand matcher kept |
-| 04 | View transitions, both lanes | Not started |
+| 03 | Navigation API router | **Phases 1–2 landed** — engine seam plus `NavigationApiEngine` on `navigation.intercept()`, `engine: 'auto' \| 'history' \| 'navigation'`, `router.state()`. URLPattern **rejected**, hand matcher kept. Real-browser proof outstanding (see below) |
+| 04 | View transitions, both lanes | **Phase 1 core half landed** — `viewTransition(update, { types })` in core, progressively enhanced. The phase-1 router opt-in, the phase-2 `each()` recipe, and the phase-3 SSG zero-JS lane are not landed |
 | 05 | `adopt()` islands | **Blocked** — review verdict UNSOUND as written; needs a serialization/replay contract |
 | 06 | Agent-native surface | Not started |
 | 07 | `@nisli/server` server functions | **Blocked** — review verdict UNSOUND as written; needs a fail-closed bundle-split gate |
-| 08 | Modern-CSS pass | **Batch 0 landed** — `light-dark()` + `@property`, `.dark` block collapsed. Batches 1–5 not started |
+| 08 | Modern-CSS pass | **Batches 0–1 landed** — `light-dark()` + `@property` tokens with the `.dark` block collapsed; `field-invalid`/`field-disabled` as container style queries across the forms family. Batches 2–5 not started |
 | 09a | `Symbol.dispose` on disposables | **Landed** |
 | 09c | `sanitized()` → `setHTML` | **Landed** — fail-closed N107; ssg throws rather than emit escaped `[object Object]` |
 | 09d | Soft-nav metrics guard | Not started |
@@ -130,6 +130,11 @@ Not yet filed with Mozilla — worth reporting.
 - **Bet 09c's native path is stub-proven.** happy-dom has no `Element.setHTML`, so that the
   platform's default sanitizer actually strips `<script>`/`onerror` is taken from spec, not
   measured. TrustedHTML pass-through is unverified under a real CSP.
-- **Bet 03 is happy-dom only.** ADR 0026's RTR-6 real-browser scroll/focus/hash gap is
-  exactly as open as it was before the extraction. `ownsScrollRestoration: false` is dead
-  code today, verified by inspection only.
+- **Bet 03 is happy-dom only, and phase 2 raised the stakes.** ADR 0026's RTR-6
+  real-browser scroll/focus/hash gap is exactly as open as it was before the extraction —
+  but `ownsScrollRestoration: false` is no longer dead code. `NavigationApiEngine`
+  (`packages/router/src/navigation-engine.ts:133`) declares it, so `router.ts:364` now
+  *skips* nisli's own scroll work and trusts the browser, on the default `engine: 'auto'`
+  path, for every Chromium and Firefox visitor. Verified by inspection and happy-dom only.
+  A three-engine proof forcing both engines is in flight
+  (`proof:router-navigation`).
