@@ -18,7 +18,8 @@
     "release": "pnpm run build && npx wrangler deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "measure:projection": "node scripts/projection-cost.mjs"
   },
   "devDependencies": {
     "@nisli/core": "workspace:*",
