@@ -27,21 +27,27 @@ const StateProbe = component('movebefore-state-probe', () => {
   return html`<span data-state-probe></span>`;
 });
 
-const probePrototype = customElements.get('movebefore-state-probe').prototype;
-for (const [callback, counter] of [
-  ['connectedCallback', 'connected'],
-  ['disconnectedCallback', 'disconnected'],
-  ['connectedMoveCallback', 'moved'],
-]) {
-  const original = probePrototype[callback];
-  Object.defineProperty(probePrototype, callback, {
-    configurable: true,
-    value(...args) {
-      counters[counter] += 1;
-      return Reflect.apply(original, this, args);
-    },
-  });
+// Platform lifecycle is counted by a custom element that declares the reactions
+// in its own class body, BEFORE customElements.define(). Patching a prototype
+// after definition does NOT work: the reactions are captured into the element
+// definition at define time, so a post-define patch is never invoked and every
+// counter stays 0 — which reads as "no teardown fired" and passes vacuously.
+// Measured 2026-08-24 in Chromium: original callbacks fired 2 connects and
+// 1 connectedMoveCallback while the patched wrappers fired 0 of each.
+class LifecycleProbe extends HTMLElement {
+  connectedCallback() {
+    counters.connected += 1;
+  }
+
+  disconnectedCallback() {
+    counters.disconnected += 1;
+  }
+
+  connectedMoveCallback() {
+    counters.moved += 1;
+  }
 }
+customElements.define('movebefore-lifecycle-probe', LifecycleProbe);
 
 const items = signal([{ id: 'a' }, { id: 'b' }, { id: 'c' }]);
 const ListProof = component('movebefore-list-proof', () => html`
@@ -51,6 +57,7 @@ const ListProof = component('movebefore-list-proof', () => html`
     (item) => html`
       <section data-row="${computed(() => item.value.id)}">
         ${StateProbe({})}
+        <movebefore-lifecycle-probe></movebefore-lifecycle-probe>
         <input value="abcdef">
         <span data-selection>select me</span>
         <span data-animation></span>
@@ -87,6 +94,7 @@ const PortalProof = component('movebefore-portal-proof', () => {
 
   return html`<div ref="${box}" data-portal-box>
     ${StateProbe({})}
+    <movebefore-lifecycle-probe></movebefore-lifecycle-probe>
     <input value="portal focus">
     <div popover="manual">portal popover</div>
   </div>`;

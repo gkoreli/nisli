@@ -64,7 +64,13 @@ for (const [name, browserType] of [
       assert.equal(result.focusPreserved, true, `${name}: focus was not preserved`);
       assert.equal(result.blurs, 0, `${name}: move fired blur`);
       assert.equal(result.inputSelectionPreserved, true, `${name}: input selection changed`);
-      assert.equal(result.selectionPreserved, true, `${name}: document selection changed`);
+      // NOT asserted: document Selection. Measured 2026-08-24 against a bare
+      // <div><span>text</span></div> with no nisli involved, moveBefore()
+      // collapses the selection to offset 0 in both Chromium and Firefox —
+      // and insertBefore() does exactly the same. It is not a property
+      // moveBefore preserves, and not a regression against the old path.
+      // Still reported in the PASS line so a future engine that starts
+      // preserving it is visible rather than silently absorbed.
       assert.equal(result.iframeLoadsAfter, result.iframeLoadsBefore, `${name}: iframe reloaded`);
       assert.equal(result.animationPreserved, true, `${name}: animation object changed`);
       assert.equal(result.animationTimePreserved, true, `${name}: animation time reset`);
