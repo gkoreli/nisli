@@ -11,6 +11,12 @@ Two claims from the brainstorm needed code before they could be believed:
 - **Derivation** — existing systems *map* a token to a hand-written class
   string; nothing *resolves* a value from where the element sits.
 
+**Measured**: the two load-bearing mechanisms in this document were built and
+measured in a real browser — see [`C11-PROOF/REPORT.md`](./C11-PROOF/REPORT.md).
+Derivation through a `display: contents` host and priority-driven fit solving
+both hold; the run also forced two corrections, recorded there (collapse applies
+to declared *groups*, and the resolution table needs explicit floors).
+
 Everything marked **TODAY** is real, copied from this repository. Everything
 marked **SKETCH** is invented for this document — it shows the shape of the
 idea, not a committed API. The CSS mechanisms used by the sketch are all
