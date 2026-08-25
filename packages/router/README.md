@@ -95,12 +95,20 @@ Navigation effects run after the new route has rendered:
 | `router.replace(href)` | Preserves by default; `{ scroll: 'top' }` opts into scrolling to the top. | Preserves focus. |
 | Back/forward (`popstate`) | Restores the remembered scroll position of the target history entry (the router sets `history.scrollRestoration = 'manual'`). | Preserves focus. |
 | Any routed URL with a hash | After rendering, finds the decoded fragment ID and calls `scrollIntoView()`. | Preserves focus. |
+| Same-document fragment (including a skip link) | The browser's own jump; the router only advances `url`. | The browser's — a `tabindex="-1"` target is focused natively, which is what makes a skip link work. |
 
-That last row is the cross-page hash contract: a client-side navigation such
+The fourth row is the cross-page hash contract: a client-side navigation such
 as `/docs#install` must wait for `/docs` to render, so the router emulates the
-fragment jump with `scrollIntoView()`. A same-document hash link is not
-intercepted at all when its pathname and query already match; the browser keeps
-its native fragment navigation and history behavior.
+fragment jump with `scrollIntoView()`.
+
+The fifth is not a transition at all. A fragment link whose pathname and query
+already match is never intercepted — the browser performs its native jump and
+creates its own history entry — but the router still tracks the URL that
+results, so `url`, `isActive` and `aria-current` stay correct. That sync is
+everything it does: no re-render, no metadata reapplication, no focus move, no
+view transition. It covers adding, changing and removing a fragment, and
+traversals across such an entry: back lands on the pre-fragment position,
+forward re-scrolls the anchor. Both engines behave identically here.
 
 Initial direct loads render in place. If the initial URL has a hash, the same
 post-render fragment lookup is used; otherwise the router does not alter scroll
@@ -109,7 +117,10 @@ or focus. Under the History engine `navigate()` writes with
 `popstate` renders without creating another history entry. Under the Navigation
 API engine the **browser** performs every scroll row above — restoring the
 traversed-to offset, scrolling to the top, jumping to the fragment — and the
-router applies none of them by hand. Focus is the router's under both engines.
+router applies none of them by hand. Focus is the router's under both engines:
+it moves focus to the outlet host on a push without a hash, and on every other
+navigation it makes sure the host is *not* left holding focus, so the main
+landmark is never announced as if that reset had run.
 
 `NavigateOptions.state` round-trips through the history entry; read it back with
 `router.state()`:
@@ -151,7 +162,8 @@ browser owns scroll restoration, fragment jumps, and traversal semantics.
 The same navigations stay native under both engines: cross-origin links,
 downloads, modifier and middle clicks, `target` other than `_self`,
 `data-router-ignore`, same-document fragment links, and same-origin URLs the
-matcher does not own.
+matcher does not own. A fragment link is the one of those the router still
+observes: the navigation stays the browser's, and only `url` follows it.
 
 ## View Transitions
 
@@ -244,10 +256,14 @@ with the option off. No polyfill, no UA sniffing, nothing to remove later.
 
 ## Accessibility: the main landmark
 
-The outlet is the application's `<main>` landmark (`role="main"`,
-`tabindex="-1"`, focused on push navigation). Give it a stable `id` and/or
-`aria-*` via `defineRouter`'s `outletAttrs` — for a skip link or a labelled main
-region:
+The outlet is the application's `<main>` landmark: the host element carries
+`role="main"`, `tabindex="-1"`, and `display: block`. It is one element doing
+three jobs — the landmark, the focus target of a push navigation, and the
+skip-link target — and it has to generate a box to do any of them, because a
+box-less element can neither hold focus nor be scrolled to.
+
+Give it a stable `id` and/or `aria-*` via `defineRouter`'s `outletAttrs` — for a
+skip link or a labelled main region:
 
 ```ts
 const AppRouter = defineRouter(catalog, {
@@ -257,8 +273,16 @@ const AppRouter = defineRouter(catalog, {
 // html`<a href="#main-content" class="skip-link">Skip to content</a>`
 ```
 
+The skip link needs nothing else: the fragment jump scrolls the host into view
+and focuses it (that is what `tabindex="-1"` is for), and the router treats the
+jump as a fragment-only change — `url` advances, the page does not re-render.
+
 Only `id` and `aria-*` are accepted (a type error otherwise); the managed
-`role`/`tabindex` are applied last and cannot be overridden.
+`role`/`tabindex`/`display` are applied last and cannot be overridden.
+
+Because the host is a box, **it** is the flex/grid item inside your shell, not
+the route content. Lay the route out inside the route, or style the host through
+the `id` you gave it.
 
 ## SEO metadata
 

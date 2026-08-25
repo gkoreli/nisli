@@ -1,11 +1,12 @@
 import { signal, viewTransition, type ReadonlySignal, type Signal, type TemplateResult } from '@nisli/core';
-import type {
-  EngineNavigation,
-  EngineNavigationKind,
-  EngineSink,
-  NavigationDirection,
-  NavigationEngine,
-  ViewTransitionIntent,
+import {
+  isFragmentOnly,
+  type EngineNavigation,
+  type EngineNavigationKind,
+  type EngineSink,
+  type NavigationDirection,
+  type NavigationEngine,
+  type ViewTransitionIntent,
 } from './engine.js';
 import { HistoryEngine } from './history-engine.js';
 import { NavigationApiEngine, supportsNavigationApi } from './navigation-engine.js';
@@ -178,14 +179,6 @@ function navInfo(
   return { from, to, kind: kind === 'traverse' ? 'pop' : kind, direction };
 }
 
-/** Only the fragment changed — the browser's own jump, never a transition. */
-function isHashOnly(from: URL, to: URL): boolean {
-  return from.hash !== to.hash
-    && from.origin === to.origin
-    && from.pathname === to.pathname
-    && from.search === to.search;
-}
-
 /**
  * The transition types for this navigation, or `null` to commit without a
  * transition at all.
@@ -201,7 +194,7 @@ function transitionTypes(
   nav: NavInfo,
   override: ViewTransitionIntent | undefined,
 ): string[] | null {
-  if (isHashOnly(nav.from, nav.to)) return null;
+  if (isFragmentOnly(nav.from, nav.to)) return null;
   if (typeof document === 'undefined' || document.hidden) return null;
   const enabled = override !== undefined
     ? override !== false
@@ -269,6 +262,7 @@ export class Router {
     this.sink = {
       match: (url) => this.connection?.match(url) ?? null,
       transition: (navigation) => this.transition(navigation),
+      fragment: (url) => this.syncFragment(url),
     };
   }
 
@@ -349,6 +343,31 @@ export class Router {
     const currentPath = normalizePathname(current.pathname);
     if (options.exact || targetPath === '/') return currentPath === targetPath;
     return currentPath === targetPath || currentPath.startsWith(`${targetPath}/`);
+  }
+
+  /**
+   * A same-document fragment-only change, reported by the engine after the
+   * browser already performed it: `url` advances and nothing else. The matched
+   * route, the rendered output, the head and the focused element are all still
+   * correct — only the hash moved — so re-running the transition pipeline would
+   * buy a needless re-render, a metadata reapplication and a stolen focus.
+   * `isActive()` compares pathnames only, so carrying the hash here is safe.
+   *
+   * Scroll is the engine's to claim, as it is for a transition: an engine whose
+   * browser owns fragment jumps and scroll restoration has already scrolled.
+   */
+  private syncFragment(url: URL): void {
+    this.urlState.value = url;
+    if (!this.engine.ownsScrollRestoration) return;
+    if (url.hash) {
+      this.scrollToFragment(url);
+      return;
+    }
+    // Leaving a fragment behind: the entry being restored keeps whatever offset
+    // was remembered for it, and the top is the honest default when the browser
+    // created that entry without the router ever parking a position on it.
+    const saved = this.engine.rememberedScroll();
+    window.scrollTo(saved?.x ?? 0, saved?.y ?? 0);
   }
 
   private async transition(navigation: EngineNavigation): Promise<void> {
@@ -494,14 +513,26 @@ export class Router {
       // Scroll is the engine's to claim: an engine whose browser restores and
       // resets scroll itself takes none of the manual effects below.
       if (this.engine.ownsScrollRestoration) this.applyScrollEffects(url, kind, scroll);
-      // A hash carries its own destination, so focus stays where it was.
-      if (kind === 'push' && !url.hash) outlet.focus({ preventScroll: true });
+      // The a11y focus reset, and its one exception: a hash carries its own
+      // destination, so focus stays where the user left it.
+      if (kind === 'push' && !url.hash) {
+        outlet.focus({ preventScroll: true });
+        return;
+      }
+      // Otherwise the host must not be holding focus. Now that it generates a
+      // box it is focusable, which makes it the nearest focusable ancestor of
+      // every route element — and WebKit's focus fixup, unlike Chromium's and
+      // Firefox's, walks up to that ancestor when the focused element is the
+      // one this render just replaced. Left alone it announces the main
+      // landmark as if the reset above had run, on exactly the navigations that
+      // deliberately skip it. The body is what the other two engines leave.
+      if (document.activeElement === outlet) outlet.blur();
     });
   }
 
   private applyScrollEffects(url: URL, kind: EngineNavigationKind, scroll?: NavigateOptions['scroll']): void {
     if (url.hash) {
-      document.getElementById(decodeURIComponent(url.hash.slice(1)))?.scrollIntoView();
+      this.scrollToFragment(url);
       return;
     }
     if (kind === 'push' && (scroll ?? 'top') === 'top') {
@@ -512,5 +543,10 @@ export class Router {
       const saved = this.engine.rememberedScroll();
       if (saved) window.scrollTo(saved.x, saved.y);
     }
+  }
+
+  /** Park the viewport on `url`'s fragment target, when the document has one. */
+  private scrollToFragment(url: URL): void {
+    document.getElementById(decodeURIComponent(url.hash.slice(1)))?.scrollIntoView();
   }
 }

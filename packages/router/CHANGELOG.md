@@ -6,6 +6,47 @@ checkpoints (ADR 0022); dates are release dates.
 
 ## Unreleased
 
+- **Fixed — the outlet host now generates a box.** The managed `role="main"` /
+  `tabindex="-1"` landmark host was also `display: contents`, and a box-less
+  element is not focusable and is not a viable fragment target. So the
+  documented push→outlet focus reset was a silent no-op in Chromium, Firefox and
+  WebKit alike, and the README's own skip-link recipe (`href="#main-content"`)
+  could neither focus nor scroll. The host is now `display: block`. **Breaking
+  for layout**: consumers whose CSS assumed a `display: contents` outlet will
+  see the host itself become the flex/grid item, where the route content used to
+  be — a grid or flex parent now lays out one child, and route-level
+  `grid-column` / `flex` / `gap` rules that reached through the transparent host
+  no longer apply. Style the host (give it a stable `id` via `outletAttrs`) or
+  move the layout inside the route.
+- **Fixed — a same-document fragment no longer re-renders, and no longer
+  diverges between engines.** A native fragment link click fires
+  `navigate(hashChange)` → `popstate` → `hashchange`, so the History engine
+  adopted it as a full `traverse` — a needless re-render — while the Navigation
+  engine declined it and left `router.url` (and therefore
+  `isActive`/`aria-current`) not tracking the fragment at all. Both engines now
+  route it to one URL-only sync: `router.url` advances and nothing else — no
+  re-render, no metadata reapplication, no focus move, no view transition.
+  Fragment-only means same origin, pathname and search with a different (or
+  newly absent) hash; anything else stays a normal transition.
+- **Fixed — the History engine no longer clobbers the pre-fragment scroll
+  offset.** That spurious traverse also ran the engine's `rememberScroll()`
+  while the page was already parked at the anchor, overwriting the offset the
+  previous entry had recorded — browser-dependently, so the same code restored
+  0 in Chromium and ~1736 in Firefox and WebKit. The fragment path no longer
+  remembers scroll: back across a fragment entry lands at the pre-fragment
+  position, and forward re-scrolls the anchor, matching what the Navigation
+  engine's browser-owned restoration already measured.
+- Focus is now engine-independent on the navigations that deliberately skip the
+  a11y reset (a hash push, a replace, a traversal): the outlet host is released
+  if it is holding focus. Making it focusable also made it the nearest focusable
+  ancestor of every route element, and WebKit's focus fixup walks up to that
+  ancestor when the focused element is the one the render replaced — announcing
+  the main landmark as if the reset had run. Chromium and Firefox leave the
+  body; now so does WebKit.
+- All three fixes are proven in real browsers by
+  `pnpm --filter @nisli/www proof:router-navigation` (Chromium, Firefox and
+  WebKit × History, Navigation, and Navigation-without-the-API). They escaped
+  the unit suite because happy-dom has no layout and no `window.navigation`.
 - **View Transitions**: `defineRouter(catalog, { viewTransitions })` animates
   navigations through the platform's View Transition API. Opt-in and off by
   default — `enabled` takes `true` or a `(nav) => boolean` predicate, and

@@ -49,6 +49,20 @@ export interface EngineNavigateOptions {
   readonly viewTransition?: ViewTransitionIntent;
 }
 
+/**
+ * Whether moving from `from` to `to` is a same-document fragment-only change:
+ * same origin, same pathname and same search, with a different (or newly
+ * absent) hash. That is the whole classification rule behind
+ * `EngineSink.fragment` — anything else is a normal transition. Lives here
+ * because both engines and the router core have to agree on it exactly.
+ */
+export function isFragmentOnly(from: URL, to: URL): boolean {
+  return from.hash !== to.hash
+    && from.origin === to.origin
+    && from.pathname === to.pathname
+    && from.search === to.search;
+}
+
 /** What an engine may ask of the router core. */
 export interface EngineSink {
   /** Resolve a URL through the connected matcher (anchor eligibility). */
@@ -58,6 +72,14 @@ export interface EngineSink {
    * engine ties the returned promise to its own lifecycle.
    */
   transition(navigation: EngineNavigation): Promise<void>;
+  /**
+   * A same-document fragment-only change the browser already performed
+   * (`isFragmentOnly` against the router's current URL). Advances `router.url`
+   * and nothing else: no re-render, no metadata reapplication, no focus move,
+   * no view transition. Synchronous, because there is nothing to await — the
+   * document is already correct, only the hash moved.
+   */
+  fragment(url: URL): void;
 }
 
 /**

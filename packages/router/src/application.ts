@@ -78,10 +78,14 @@ export function defineRouter<const Input extends Record<string, unknown>>(
       const router = inject(Router);
       const rendered = signal<TemplateResult | null>(null);
       applyOutletAttrs(host, options.outletAttrs);
-      // Managed landmark contract, applied last so it cannot be overridden.
+      // Managed landmark contract, applied last so it cannot be overridden. The
+      // host is the `<main>` landmark, the skip-link target and the focus
+      // target, and one element cannot be all three without generating a box:
+      // `display: contents` makes it unfocusable and makes a fragment jump to
+      // its `id` land nowhere.
       host.setAttribute('role', 'main');
       host.setAttribute('tabindex', '-1');
-      host.style.display = 'contents';
+      host.style.display = 'block';
       const disconnect = router.connect(definition, host, rendered, {
         engine: options.engine,
         viewTransitions: options.viewTransitions,

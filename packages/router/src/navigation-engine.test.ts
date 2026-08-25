@@ -416,6 +416,52 @@ describe('engine parity', () => {
         flushEffects();
       }
 
+      /**
+       * A native same-document fragment navigation, as each engine's browser
+       * delivers it. Both engines decline the click and let the browser jump;
+       * the browser then reports the entry it created — a `navigate(push,
+       * hashChange: true)` on the Navigation API, a `popstate` on the History
+       * API, whose new entry carries no state of its own (measured in Chromium:
+       * `history.state` is `null` after a fragment navigation).
+       */
+      async function goToFragment(href: string): Promise<void> {
+        if (double) await double.page(href).finished;
+        else {
+          history.pushState(null, '', new URL(href, location.href).href);
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }
+        await settle();
+        flushEffects();
+      }
+
+      /** A page-initiated navigation — a link click — as each engine sees it. */
+      async function pageNavigate(href: string): Promise<void> {
+        if (double) await double.page(href).finished;
+        else {
+          const anchor = document.createElement('a');
+          anchor.href = href;
+          document.body.appendChild(anchor);
+          anchor.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+          anchor.remove();
+        }
+        await settle();
+        flushEffects();
+      }
+
+      /** An app whose renderer and metadata function count their invocations. */
+      async function connectCounted() {
+        const render = vi.fn(() => html`<p>a</p><div id="anchor"></div>`);
+        const metadata = vi.fn(() => ({ title: 'A' }));
+        const shell = mount(defineRouter({
+          home: route('/', { render: () => html`<p>home</p>` }),
+          a: route('/a', { render, metadata }),
+          b: route('/b', { render: () => html`<p>b</p>` }),
+        }, { engine }));
+        await settle();
+        flushEffects();
+        return { shell, router: inject(Router), render, metadata };
+      }
+
       it('renders the initial entry', async () => {
         const { shell, router } = await connectApp();
         expect(shell.textContent).toContain('home');
@@ -478,6 +524,83 @@ describe('engine parity', () => {
         expect(router.state()).toEqual({ source: 'user-menu' });
         await router.navigate('/b');
         expect(router.state()).toBeNull();
+      });
+
+      it('syncs a same-document fragment into url without re-rendering or reapplying metadata', async () => {
+        const { shell, router, render, metadata } = await connectCounted();
+        await router.navigate('/a');
+        flushEffects();
+        expect(render).toHaveBeenCalledTimes(1);
+        expect(metadata).toHaveBeenCalledTimes(1);
+        expect(document.title).toBe('A');
+        const match = router.current.value;
+        const host = shell.querySelector('[role="main"]') as HTMLElement;
+        const focus = vi.spyOn(host, 'focus');
+        // A tell-tale the head reconciler would wipe if it ran again.
+        document.title = 'untouched';
+
+        await goToFragment('#anchor');
+
+        // Both engines land on the same URL: `isActive`/`aria-current` cannot be
+        // allowed to depend on which one happens to be connected.
+        expect(router.url.value.pathname).toBe('/a');
+        expect(router.url.value.hash).toBe('#anchor');
+        expect(location.hash).toBe('#anchor');
+        // …and on nothing else. The document was already correct; only the hash
+        // moved, so re-running the pipeline would buy a wasted render, a head
+        // reconciliation and a stolen focus.
+        expect(render).toHaveBeenCalledTimes(1);
+        expect(metadata).toHaveBeenCalledTimes(1);
+        expect(document.title).toBe('untouched');
+        expect(router.current.value).toBe(match);
+        expect(focus).not.toHaveBeenCalled();
+        expect(router.pending.value).toBe(false);
+        expect(router.error.value).toBeNull();
+        expect(shell.textContent).toContain('a');
+      });
+
+      it('keeps a differing pathname or search a full transition, not a fragment sync', async () => {
+        const { shell, router, render } = await connectCounted();
+        await router.navigate('/a');
+        flushEffects();
+        expect(render).toHaveBeenCalledTimes(1);
+
+        // Same hash change, different search: not the same document position, so
+        // the route has to resolve and render again.
+        await pageNavigate('/a?q=1#anchor');
+        expect(router.url.value.search).toBe('?q=1');
+        expect(router.url.value.hash).toBe('#anchor');
+        expect(render).toHaveBeenCalledTimes(2);
+
+        // Different pathname: a different route entirely.
+        await pageNavigate('/b#anchor');
+        expect(router.url.value.pathname).toBe('/b');
+        expect(router.url.value.hash).toBe('#anchor');
+        expect(shell.textContent).toContain('b');
+        expect(render).toHaveBeenCalledTimes(2);
+      });
+
+      it('focuses the outlet host on a push, and never leaves it holding focus otherwise', async () => {
+        const { shell, router } = await connectCounted();
+        const host = shell.querySelector('[role="main"]') as HTMLElement;
+
+        await router.navigate('/a');
+        await settle();
+        flushEffects();
+        expect(document.activeElement).toBe(host);
+
+        // A hash carries its own destination, so the reset is skipped — and the
+        // host must not be left holding focus by the browser's own focus fixup
+        // either. That fixup is why this is asserted at all: now that the host
+        // generates a box it is the nearest focusable ancestor of every route
+        // element, and WebKit (unlike Chromium and Firefox) walks up to it when
+        // the focused element is the one the render replaced.
+        host.focus({ preventScroll: true });
+        await router.navigate('/b#anchor');
+        await settle();
+        flushEffects();
+        expect(router.url.value.hash).toBe('#anchor');
+        expect(document.activeElement).toBe(document.body);
       });
     });
   }

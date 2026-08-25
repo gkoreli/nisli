@@ -275,11 +275,17 @@ export class NavigationApiEngine implements NavigationEngine {
       const optedOut = this.consumeOptOut(event);
       if (event.downloadRequest !== null) return;                             // download → native
       if (event.formData !== null && event.formData !== undefined) return;    // form submission → native (v1)
-      // Same-document fragment: the browser keeps its native jump, exactly as
-      // the delegated click listener declined it (§6 parity). A *traversal*
-      // across such an entry is still intercepted, so `url`/`isActive` stay in
-      // step with what `popstate` gives the History engine.
-      if (event.hashChange && event.navigationType !== 'traverse') return;
+      // Same-document fragment: the browser keeps its native jump — it scrolls,
+      // and nothing about the document changes — but `router.url` still has to
+      // track it, or `isActive`/`aria-current` would depend on which engine is
+      // connected. So it is declined to the browser and reported through the
+      // fragment seam, which is exactly what the History engine's popstate does
+      // with the very same navigation. A *traversal* across such an entry is
+      // still intercepted: the router owns the transition it created.
+      if (event.hashChange && event.navigationType !== 'traverse') {
+        sink.fragment(url);
+        return;
+      }
       if (optedOut) return;                                                   // data-router-ignore → native
       if (event.navigationType !== 'traverse') {
         // Only intercept what the connected matcher owns (0.5.1): an unmatched

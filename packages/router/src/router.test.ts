@@ -515,6 +515,54 @@ describe('Router browser service and outlet', () => {
     }
   });
 
+  it('never remembers scroll on a native fragment navigation, so back leaves the anchor behind', async () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    let scrollY = 0;
+    Object.defineProperty(window, 'scrollY', { configurable: true, get: () => scrollY });
+    Object.defineProperty(window, 'scrollX', { configurable: true, get: () => 0 });
+    try {
+      const AppRouter = defineRouter({
+        a: route('/a', { render: () => html`<p>a</p><div id="anchor"></div>` }),
+      });
+      const shell = document.createElement('div');
+      html`${AppRouter({})}`.mount!(shell);
+      document.body.appendChild(shell);
+      await settle();
+      const router = inject(Router);
+
+      await router.navigate('/a');
+      const stateA = history.state;        // the pre-fragment entry's key
+
+      // The browser's own fragment navigation: a new entry carrying no state,
+      // then popstate — with the page already parked at the anchor, which is
+      // what Firefox and WebKit measure here (Chromium reports 0 and then
+      // scrolls). That offset belongs to neither entry.
+      scrollY = 1736;
+      history.pushState(null, '', '/a#anchor');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      await settle();
+      flushEffects();
+      expect(router.url.value.hash).toBe('#anchor');
+
+      // Back onto the pre-fragment entry.
+      scrollTo.mockClear();
+      history.replaceState(stateA, '', '/a');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      await settle();
+      flushEffects();
+
+      // The top, not the anchor: nothing recorded 1736 against either entry, so
+      // there is no remembered offset to restore.
+      expect(scrollTo).toHaveBeenCalledWith(0, 0);
+      expect(scrollTo).not.toHaveBeenCalledWith(0, 1736);
+      expect(router.url.value.hash).toBe('');
+    } finally {
+      scrollTo.mockRestore();
+      delete (window as unknown as Record<string, unknown>).scrollY;
+      delete (window as unknown as Record<string, unknown>).scrollX;
+    }
+  });
+
   it('reads back the navigation state of the current entry', async () => {
     const AppRouter = defineRouter({
       home: route('/', { render: () => html`` }),
@@ -548,6 +596,29 @@ describe('Router browser service and outlet', () => {
     // Managed landmark/focus contract stays intact and un-overridable.
     expect(host?.getAttribute('role')).toBe('main');
     expect(host?.getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('gives the main landmark host a box, so it can hold focus and anchor a skip link', async () => {
+    const AppRouter = defineRouter(
+      { home: route('/', { render: () => html`<p>home</p>` }) },
+      { outletAttrs: { id: 'main-content' } },
+    );
+    const shell = document.createElement('div');
+    html`${AppRouter({})}`.mount!(shell);
+    document.body.appendChild(shell);
+    await settle();
+    const host = shell.querySelector('#main-content') as HTMLElement;
+
+    // NOT `display: contents`. A box-less element can neither take focus nor be
+    // the target of an `href="#main-content"` fragment jump, so the documented
+    // skip-link recipe and the push→outlet focus reset both need a box here.
+    // happy-dom has no layout, which is why this escaped: the declaration is
+    // the contract in this suite, and
+    // packages/www/scripts/router-navigation-proof.mjs measures the computed
+    // value and the delivered focus in Chromium, Firefox and WebKit.
+    expect(host.style.display).toBe('block');
+    host.focus({ preventScroll: true });
+    expect(document.activeElement).toBe(host);
   });
 
   it('rejects a second root outlet on one Router singleton', async () => {

@@ -1,4 +1,4 @@
-import type { EngineNavigateOptions, EngineSink, NavigationDirection, NavigationEngine } from './engine.js';
+import { isFragmentOnly, type EngineNavigateOptions, type EngineSink, type NavigationDirection, type NavigationEngine } from './engine.js';
 import type { RouteMatch } from './matcher.js';
 
 /** Reserved key under which the engine stamps its per-entry scroll key. */
@@ -54,10 +54,28 @@ export class HistoryEngine implements NavigationEngine {
   private currentKey = '0';
   private keySeq = 0;
   private previousScrollRestoration: ScrollRestoration | null = null;
+  /**
+   * The URL this engine last reported. Fragment classification needs the URL
+   * being left, and by `popstate` time `window.location` is already the
+   * destination — what the engine itself last committed or adopted is the only
+   * record of where the router still thinks it is.
+   */
+  private currentUrl = this.browserURL();
 
   connect(sink: EngineSink): () => void {
     this.sink = sink;
     const onPopState = () => {
+      const url = this.browserURL();
+      // A native fragment navigation is a same-document navigation, so the
+      // browser runs "apply the history step" and this listener sees it — but
+      // nothing about the document changed, and (critically) the page is
+      // already on its way to the anchor. Remembering scroll here is what used
+      // to overwrite the pre-fragment entry's offset with the anchor's.
+      if (isFragmentOnly(this.currentUrl, url)) {
+        this.adoptFragmentEntry(url);
+        sink.fragment(url);
+        return;
+      }
       // Record the scroll of the entry being left (manual restoration keeps it
       // intact at popstate time), then adopt the target entry's key. The
       // comparison has to happen before that adoption — the key being left is
@@ -66,8 +84,9 @@ export class HistoryEngine implements NavigationEngine {
       const leavingKey = this.currentKey;
       const incomingKey = readHistoryKey(history.state);
       this.currentKey = incomingKey ?? this.nextKey();
+      this.currentUrl = url;
       void sink.transition({
-        url: this.browserURL(),
+        url,
         kind: 'traverse',
         direction: traversalDirection(leavingKey, incomingKey),
       });
@@ -76,7 +95,8 @@ export class HistoryEngine implements NavigationEngine {
     window.addEventListener('popstate', onPopState);
     document.addEventListener('click', onClick);
     this.enableManualScrollRestoration();
-    void sink.transition({ url: this.browserURL(), kind: 'initial', direction: 'unknown' });
+    this.currentUrl = this.browserURL();
+    void sink.transition({ url: this.currentUrl, kind: 'initial', direction: 'unknown' });
     return () => {
       window.removeEventListener('popstate', onPopState);
       document.removeEventListener('click', onClick);
@@ -117,6 +137,7 @@ export class HistoryEngine implements NavigationEngine {
     if (replace) history.replaceState(wrapped, '', url);
     else history.pushState(wrapped, '', url);
     this.currentKey = key;
+    this.currentUrl = url;
     // Mirrors the core's own guard: navigating before an outlet is connected is
     // the same misuse whether it is caught here or one call deeper.
     if (!this.sink) throw new Error('Router cannot navigate before an AppRouter outlet is connected');
@@ -148,6 +169,23 @@ export class HistoryEngine implements NavigationEngine {
     }
   }
 
+  /**
+   * Take over the history entry the browser just navigated to on its own —
+   * either the one a native fragment navigation created, or one traversed back
+   * onto — without touching scroll memory. A browser-created entry carries no
+   * state of its own (measured: `history.state` is `null` after a fragment
+   * navigation), so it gets a fresh key stamped in; a traversal re-adopts the
+   * key already on the entry.
+   */
+  private adoptFragmentEntry(url: URL): void {
+    const existing = readHistoryKey(history.state);
+    this.currentKey = existing ?? this.nextKey();
+    if (existing === null) {
+      history.replaceState(this.wrapHistoryState(this.currentKey, history.state), '', url.href);
+    }
+    this.currentUrl = url;
+  }
+
   private restoreScrollRestoration(): void {
     if (this.previousScrollRestoration !== null && typeof history !== 'undefined' && 'scrollRestoration' in history) {
       history.scrollRestoration = this.previousScrollRestoration;
@@ -177,7 +215,11 @@ export class HistoryEngine implements NavigationEngine {
     const current = this.browserURL();
     const url = new URL(target.href, current);
     if (url.origin !== current.origin) return;
-    if (url.pathname === current.pathname && url.search === current.search && url.hash) return;
+    // A same-document fragment stays the browser's: it jumps and scrolls
+    // natively, and the `popstate` that follows reaches `sink.fragment`. Adding,
+    // changing and removing a fragment are all that same navigation, which is
+    // why the current hash counts as much as the destination's.
+    if (url.pathname === current.pathname && url.search === current.search && (url.hash !== '' || current.hash !== '')) return;
     const match = this.sink?.match(url);
     if (!match) return;
     event.preventDefault();
