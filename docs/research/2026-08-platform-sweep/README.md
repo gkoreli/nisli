@@ -68,6 +68,16 @@ was an artifact of probing with the moved node at index 0. Re-measured with it a
 `anchorNode` becomes the old parent and `anchorOffset` becomes **2** in both Chromium and
 Firefox — the spec's rule exactly. Commit `3e7f5a1`'s message carries the original wording.
 
+*Correction (2026-08-24):* commit `e1fc523` claims the parented-but-disconnected reorder
+was "probed in all three engines". It was not. WebKit has no `moveBefore()`, so its row
+exercised the `insertBefore()` fallback — the probe's own output recorded
+`moveBeforeAvailable: false` for it. That finding is a **two-engine** result about
+`moveBefore()`. The conclusion is unchanged and is now backed by the spec rather than by
+our probe: the precondition is shadow-including **root identity**, not connectedness, so a
+reorder within one detached tree is legal. Separately verified, and the sharper half of
+the rule: moving between two *different* detached trees throws `HierarchyRequestError` in
+both engines, because root identity is strictly stronger than "both disconnected".
+
 With a working instrument, on Chromium and Firefox: `connectedMoveCallback` fires 10×,
 connect/disconnect 0, focus and input selection preserved, no iframe reload (3 → 3),
 animation object and `currentTime` intact, popover still open, portal move likewise.
