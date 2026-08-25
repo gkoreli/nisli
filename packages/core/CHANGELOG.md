@@ -6,6 +6,12 @@ checkpoints (ADR 0022); dates are release dates.
 
 ## Unreleased
 
+- `setDevMode()` is exported. The diagnostics gate has always been probed
+  automatically, and its own documentation named tests and buildless
+  production pages as the cases the probe cannot get right — but the override
+  was unreachable from the package's public surface. One barrel export, no
+  behaviour change.
+
 ## 0.55.0 — 2026-08-25
 
 Agent-native core wave (ADR 0030.2, gate record in
