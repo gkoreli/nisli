@@ -223,7 +223,8 @@ per-key DOM identity does the rest, with no generated names:
   `class:*`, branded `html:inner` (trusted or sanitizer-routed), refs, and
   dynamic HTML tags through `el()`.
 - Stable control flow: lazy `when()` branches and keyed `each()` lists that
-  preserve focus, scroll position, and component state.
+  preserve focus, scroll position, and component state, moved atomically with
+  `moveBefore()` where the engine has it.
 - Two scopes of dependency injection: app-wide singleton services with
   `inject`/`provide`, and portal-safe subtree state with `createContext`.
 - Lifecycle and resilience: `onMount`, `onCleanup`, `useHostEvent`, automatic
