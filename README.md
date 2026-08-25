@@ -140,6 +140,37 @@ methods are unchanged. Nisli only attaches the guarded `Symbol.dispose` alias;
 it never polyfills the platform. Apps that downlevel `using` for older runtimes
 must provide their own `Symbol.dispose` polyfill.
 
+## View transitions
+
+`viewTransition()` wraps a state update in a native View Transition, calling
+`flush()` inside the browser's update callback so the frame it captures is
+Nisli's flushed DOM rather than the next microtask:
+
+```ts
+import { viewTransition } from '@nisli/core';
+
+viewTransition(() => { items.value = sorted; }, { types: ['reorder'] });
+```
+
+The router opts in per application or per navigation, and wraps only the
+commit — an awaited loader never blocks paint:
+
+```ts
+defineRouter(catalog, { viewTransitions: { enabled: true } });
+router.navigate('/blog', { viewTransition: false });
+```
+
+Static builds get the cross-document lane with no runtime JS at all:
+`buildStaticSite({ viewTransitions: true })` emits the
+`@view-transition { navigation: auto }` opt-in both pages need, plus optional
+speculation rules, and `whenActive()` from `@nisli/ssg/client` holds observable
+work until a prerendered page is actually shown.
+
+Everything degrades: no `startViewTransition` and the update still applies,
+flushed and unanimated, returning `null`. Nisli ships no stylesheet, and
+`prefers-reduced-motion` is answered in CSS so the swap stays atomic while the
+motion is cut.
+
 ## Core capabilities
 
 - Fine-grained reactivity: `signal`, `computed`, `effect`, `untrack`, `flush`,
@@ -147,9 +178,11 @@ must provide their own `Symbol.dispose` polyfill.
 - Typed web components: composition-style synchronous setup, signal-backed
   props, typed factories, and live attribute declarations.
 - Safe light-DOM templates: signal bindings, typed events and modifiers,
-  `class:*`, trusted `html:inner`, refs, and dynamic HTML tags through `el()`.
+  `class:*`, branded `html:inner` (trusted `raw()` or sanitizer-routed
+  `sanitized()`), refs, and dynamic HTML tags through `el()`.
 - Stable control flow: lazy `when()` branches and keyed `each()` lists that
-  preserve focus, scroll position, and component state.
+  preserve focus, scroll position, and component state, moved atomically with
+  `moveBefore()` where the engine has it.
 - Two scopes of dependency injection: app-wide singleton services with
   `inject`/`provide`, and portal-safe subtree state with `createContext`.
 - Lifecycle and resilience: `onMount`, `onCleanup`, `useHostEvent`, automatic

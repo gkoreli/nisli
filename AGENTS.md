@@ -16,6 +16,13 @@
 - Package-specific usage belongs in each package README. Architecture decisions
   belong in `docs/adr`; temporary or evidentiary worklists belong under
   `docs/worklists/<area>`, never at the repository root or among package source.
+- Research programs live in `docs/research/<program>/`: the report, one brief
+  per bet, adversarial reviews, and a `README.md` whose status table is the
+  program's ledger — keep it true, it is the first thing the next session
+  reads. Throwaway falsification experiments belong in
+  `docs/research/<program>/experiments/<name>/` with a `RESULT.md` carrying the
+  command, its full output, and the verdict. A negative result is a deliverable;
+  never soften an experiment's assertions to make it pass.
 - Deep framework authoring rules live in `.agents/skills/nisli-framework`.
 
 ## Commands
@@ -56,6 +63,11 @@
   - `el()` only when the native HTML tag name is selected at runtime
   - `each()` for reactive keyed lists
   - `resource()` for local async derivations without query-cache policy
+  - `viewTransition()` to animate a state update; it flushes inside the
+    browser's update callback, and reduced motion is answered in CSS, never by
+    branching in JS
+  - `sanitized()` for untrusted `html:inner` markup, `raw()` only for markup
+    you produced
 - App services use global `inject` / `provide`; parent-descendant state uses
   `createContext`. Do not conflate the two scopes.
 - Tests live beside source in `packages/core/src` and run under happy-dom.
@@ -74,10 +86,20 @@
   - `@nisli/router/vite` supplies direct-route fallback;
   - `@nisli/router/catalog` is the environment-neutral, side-effect-free
     catalog/matcher surface for shared packages and Workers;
-  - render-less route identity may be completed with typed `bindRenders()`.
+  - render-less route identity may be completed with typed `bindRenders()`;
+  - browser mechanics sit behind the `NavigationEngine` seam
+    (`HistoryEngine`, `NavigationApiEngine`), selected by
+    `defineRouter(catalog, { engine })` with `'auto'` the default. Matching,
+    signals, redirects, head reconciliation, and rendering stay
+    engine-independent, and any behavioural change must be proven on both
+    engines in three real browsers — `pnpm --filter @nisli/www
+    proof:router-navigation`. happy-dom has no layout and no native fragment
+    navigation, so the unit suite cannot see focus, scroll, or fragment bugs.
 - `@nisli/ssg` owns static rendering, route expansion, output helpers, and SSG
   build policy. Prefer passing the same application router used by browser and
-  Vite rather than maintaining a second route table.
+  Vite rather than maintaining a second route table. `@nisli/ssg/client` is the
+  browser-side subpath (`whenActive()` for prerender-deferred work) and must
+  stay dependency-free and DOM-optional.
 - `@nisli/ui` is a registry plus the `nisli-ui` CLI, not an importable runtime
   component library. Components ship as copyable source under `registry/`; only
   the CLI is compiled to `dist` (ADR 0022 and `packages/ui/NORTH-STAR.md`).
