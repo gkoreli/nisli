@@ -104,9 +104,12 @@ its native fragment navigation and history behavior.
 
 Initial direct loads render in place. If the initial URL has a hash, the same
 post-render fragment lookup is used; otherwise the router does not alter scroll
-or focus. `navigate()` writes with `history.pushState()`, `replace()` writes
-with `history.replaceState()`, and `popstate` renders without creating another
-history entry.
+or focus. Under the History engine `navigate()` writes with
+`history.pushState()`, `replace()` writes with `history.replaceState()`, and
+`popstate` renders without creating another history entry. Under the Navigation
+API engine the **browser** performs every scroll row above — restoring the
+traversed-to offset, scrolling to the top, jumping to the fragment — and the
+router applies none of them by hand. Focus is the router's under both engines.
 
 `NavigateOptions.state` round-trips through the history entry; read it back with
 `router.state()`:
@@ -116,10 +119,39 @@ await router.navigate('/users/42', { state: { source: 'user-menu' } });
 router.state(); // { source: 'user-menu' }
 ```
 
-Reading `history.state.state` directly is deprecated. The router wraps
-`history.state` to carry its per-entry scroll key, and that wrapper is a detail
-of the browser mechanics rather than part of the contract; `router.state()` is
-the accessor that stays correct.
+Reading `history.state.state` directly is deprecated. The History engine wraps
+`history.state` to carry its per-entry scroll key and the Navigation API engine
+keeps state on the history entry instead; both are details of the browser
+mechanics rather than part of the contract, and `router.state()` is the accessor
+that stays correct under either.
+
+## Navigation engine
+
+The browser mechanics sit behind one internal seam with two implementations,
+selected when the outlet connects:
+
+```ts
+const AppRouter = defineRouter(catalog, { engine: 'auto' }); // the default
+```
+
+| `engine` | Behavior |
+| --- | --- |
+| `'auto'` (default) | The Navigation API where the browser has it, the History API everywhere else. |
+| `'history'` | Forces the History API engine (`popstate`, delegated clicks, `pushState`/`replaceState`) — the kill switch. |
+| `'navigation'` | Forces the Navigation API engine, still falling back to History where the API is missing rather than leaving the app unrouted. |
+
+The routing contract is identical either way: same matching, redirects, metadata,
+`url`/`current`/`pending`/`error` signals, and outlet focus on push. What differs
+is who performs the mechanics. With the Navigation API, `navigation.intercept()`
+turns every same-origin navigation the matcher owns into a same-document
+transition — including `location.href = '/somewhere'` from application or
+third-party code, which is a full page load under the History engine — and the
+browser owns scroll restoration, fragment jumps, and traversal semantics.
+
+The same navigations stay native under both engines: cross-origin links,
+downloads, modifier and middle clicks, `target` other than `_self`,
+`data-router-ignore`, same-document fragment links, and same-origin URLs the
+matcher does not own.
 
 ## Accessibility: the main landmark
 

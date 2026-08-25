@@ -1,6 +1,7 @@
 import { signal, type ReadonlySignal, type Signal, type TemplateResult } from '@nisli/core';
 import type { EngineNavigation, EngineNavigationKind, EngineSink, NavigationEngine } from './engine.js';
 import { HistoryEngine } from './history-engine.js';
+import { NavigationApiEngine, supportsNavigationApi } from './navigation-engine.js';
 import { createMatcher, normalizePathname, type MatcherDefinition, type RouteMatch } from './matcher.js';
 import type { NotFoundDefinition, RedirectDefinition, RouteDefinition, RouteMetadata } from './route.js';
 
@@ -8,6 +9,29 @@ export interface NavigateOptions {
   replace?: boolean;
   state?: unknown;
   scroll?: 'top' | 'preserve';
+}
+
+/**
+ * Which browser engine drives navigation. `'auto'` (the default) uses the
+ * Navigation API where the browser has it and the History API everywhere else;
+ * the explicit values are the kill switch, and `'navigation'` still falls back
+ * rather than leaving a browser without the API unrouted.
+ */
+export type EngineOption = 'auto' | 'history' | 'navigation';
+
+/** Options a root outlet passes when it connects its definition. */
+export interface RouterConnectOptions {
+  readonly engine?: EngineOption;
+}
+
+/**
+ * Pick a navigation engine. Both engines ship in the bundle because the choice
+ * is a runtime one; the History engine stays maintained, not deprecated, while
+ * pre-Navigation-API browsers are still in the field.
+ */
+export function createEngine(option: EngineOption = 'auto'): NavigationEngine {
+  if (option === 'history') return new HistoryEngine();
+  return supportsNavigationApi() ? new NavigationApiEngine() : new HistoryEngine();
 }
 
 export interface IsActiveOptions {
@@ -113,7 +137,9 @@ interface Connection {
 }
 
 export class Router {
-  private readonly engine: NavigationEngine;
+  private engine: NavigationEngine;
+  /** An engine handed in explicitly wins over any `defineRouter` preference. */
+  private readonly engineInjected: boolean;
   private readonly sink: EngineSink;
   private readonly urlState: Signal<URL>;
   private readonly currentState = signal<RouteMatch | null>(null);
@@ -134,9 +160,10 @@ export class Router {
   readonly pending: ReadonlySignal<boolean> = this.pendingState;
   readonly error: ReadonlySignal<unknown | null> = this.errorState;
 
-  constructor(engine: NavigationEngine = new HistoryEngine()) {
-    this.engine = engine;
-    this.urlState = signal(engine.browserURL());
+  constructor(engine?: NavigationEngine) {
+    this.engineInjected = engine !== undefined;
+    this.engine = engine ?? createEngine();
+    this.urlState = signal(this.engine.browserURL());
     this.url = this.urlState;
     this.sink = {
       match: (url) => this.connection?.match(url) ?? null,
@@ -144,8 +171,17 @@ export class Router {
     };
   }
 
-  connect(definition: RouterApplicationDefinition, outlet: HTMLElement, rendered: Signal<TemplateResult | null>): () => void {
+  connect(
+    definition: RouterApplicationDefinition,
+    outlet: HTMLElement,
+    rendered: Signal<TemplateResult | null>,
+    options: RouterConnectOptions = {},
+  ): () => void {
     if (this.connection) throw new Error('Router already has a root application definition connected');
+    // The engine preference travels with the application being connected, since
+    // that is where `defineRouter` declared it. An injected engine is left
+    // alone: an explicit engine is the more specific instruction.
+    if (!this.engineInjected && options.engine !== undefined) this.engine = createEngine(options.engine);
     if (typeof document !== 'undefined') {
       this.defaultTitle = document.title;
       this.defaultLang = document.documentElement.getAttribute('lang') ?? '';

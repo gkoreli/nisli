@@ -6,6 +6,18 @@ checkpoints (ADR 0022); dates are release dates.
 
 ## Unreleased
 
+- **Navigation API engine**: where the browser has `window.navigation`, routing
+  now runs on `navigation.intercept()` — the browser owns scroll restoration,
+  fragment jumps, and traversal semantics, and every same-origin navigation the
+  matcher owns becomes a same-document transition, including
+  `location.href = '/x'` from application or third-party code. The routing
+  contract is unchanged; navigation state moves from the `history.state` wrapper
+  onto the history entry, which `router.state()` already abstracts.
+- **`defineRouter(catalog, { engine })`**: `'auto'` (default) detects the
+  Navigation API and falls back to the History engine; `'history'` and
+  `'navigation'` are the operator kill switch. `'navigation'` still falls back
+  where the API is absent. The History engine stays maintained, not deprecated,
+  and both engines are covered by the same behavioural tests.
 - **`router.state()`**: accessor for the navigation state of the current history
   entry — the value last passed as `NavigateOptions.state`. Reading
   `history.state.state` directly is deprecated: the wrapper the router stamps
