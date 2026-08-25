@@ -1,0 +1,326 @@
+/**
+ * overflow-menu.ts — the destination for collapsed actions.
+ *
+ * DECLARES: that a fit container has exactly one overflow affordance, and that
+ * every action group the solver moved into it is still reachable — by pointer,
+ * by keyboard, and to assistive technology.
+ *
+ * DOES NOT DECIDE: which groups collapse (the solver decides that from declared
+ * priority), when the trigger appears (the solver reveals it with `data-shown`),
+ * or where the panel sits and how it is painted (the theme owns that, from
+ * `data-overflow-anchor` and `data-overflow-menu`).
+ *
+ * THIS FILE IS THE F6 FIX. The prototype shipped a bare `⋯` button with no
+ * panel, no keyboard handling and no ARIA, and the README's own "what this does
+ * NOT prove" section records the consequence: "the collapsed actions become
+ * unreachable, which in a real implementation is a blocker". It is worse than a
+ * missing feature — the fit engine reported `settled` while it was deleting
+ * functionality, so the measurement said success and the user had lost Star and
+ * Archive. A degradation strategy is only honest if the thing it degrades is
+ * still available afterwards; `menu` is the one strategy that promises that, and
+ * this is where the promise is kept.
+ *
+ * Two elements co-operate, which is why the action scope exists. The action
+ * GROUPS are laid out by the fit container and marked by the solver; the MENU is
+ * a sibling that has to know what those groups contain. Rather than have the
+ * menu guess by walking the DOM, each group registers itself with the nearest
+ * scope (provided by the pattern on its own host) and the menu reads the scope
+ * back. The scope is the seam: the menu never reaches into a group's markup, and
+ * a group never knows a menu exists.
+ */
+
+import {
+  component,
+  type ComponentAttrs,
+  computed,
+  createContext,
+  each,
+  flush,
+  html,
+  onMount,
+  ref,
+  signal,
+  useHostEvent,
+  when,
+} from '@nisli/core';
+import type { Emphasis, Priority } from '../../appearance/contracts.js';
+
+/* ── The action scope: how a group and a menu find each other ────────────── */
+
+/** One invocable action. The same record renders the button and the menu item. */
+export interface MenuAction {
+  readonly id: string;
+  readonly label: string;
+  readonly emphasis?: Emphasis;
+  readonly onSelect?: () => void;
+}
+
+/** A group of actions that collapses as ONE unit. */
+export interface ActionGroupSpec {
+  readonly id: string;
+  /** 1 survives longest, 5 collapses first. */
+  readonly priority: Priority;
+  readonly actions: readonly MenuAction[];
+}
+
+/**
+ * A registered group. `actions` is a getter, not a snapshot: a group's contents
+ * are reactive, and the menu reads them at the moment it opens.
+ */
+export interface RegisteredGroup {
+  readonly element: HTMLElement;
+  actions(): readonly MenuAction[];
+}
+
+export interface ActionScope {
+  /** Register a group. Returns its unregister function. */
+  register(group: RegisteredGroup): () => void;
+  /** The actions of every group the solver has currently moved into the menu. */
+  collapsed(): MenuAction[];
+}
+
+/** Document order, so the menu reads top-to-bottom the way the row does. */
+function compareDocumentOrder(a: RegisteredGroup, b: RegisteredGroup): number {
+  const relation = a.element.compareDocumentPosition(b.element);
+  if (relation & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+  if (relation & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+  return 0;
+}
+
+export function actionScope(): ActionScope {
+  const groups = new Set<RegisteredGroup>();
+
+  return {
+    register(group) {
+      groups.add(group);
+      return () => {
+        groups.delete(group);
+      };
+    },
+
+    collapsed() {
+      const listed: MenuAction[] = [];
+      for (const group of [...groups].sort(compareDocumentOrder)) {
+        // `data-collapsed` is the fit mutator's mark for the `menu` strategy.
+        // Reading it here is what makes the menu's contents a consequence of the
+        // solve rather than a second, drifting guess at it.
+        if (group.element.hasAttribute('data-collapsed')) listed.push(...group.actions());
+      }
+      return listed;
+    },
+  };
+}
+
+/**
+ * Provided by each pattern on its own host, injected by the groups and the menu
+ * inside it. Subtree-scoped rather than global because two toolbars on one page
+ * are two independent overflow problems.
+ */
+export const ActionScopeContext = createContext<ActionScope>('ActionScope');
+
+/* ── The group: one candidate, never a row of loose siblings ─────────────── */
+
+export interface ActionGroupProps {
+  priority?: Priority;
+  actions?: readonly MenuAction[];
+}
+
+const actionGroupAttrs = { priority: 'number' } satisfies ComponentAttrs<ActionGroupProps>;
+
+export const ActionGroup = component<ActionGroupProps, typeof actionGroupAttrs>(
+  'app-action-group',
+  (props) => {
+    const scope = ActionScopeContext.inject();
+    const group = ref<HTMLElement>();
+    const actions = computed(() => [...(props.actions.value ?? [])]);
+
+    onMount(() => {
+      const element = group.current;
+      if (!element) return;
+      // ONE data-collapse for the whole group, and one registration to match.
+      // Declaring each button separately would let the solver collapse Star and
+      // leave Archive stranded beside it — a row that degrades into nonsense
+      // while every individual decision was locally correct.
+      return scope.register({ element, actions: () => actions.value });
+    });
+
+    return html`<div
+      ref=${group}
+      data-component="app-action-group"
+      data-layout="row"
+      data-priority=${props.priority}
+      data-collapse="menu"
+    >${each(
+      actions,
+      (action) => action.id,
+      (action) =>
+        html`<button
+          data-appearance="action"
+          data-role=${computed(() => action.value.emphasis ?? 'quiet')}
+          type="button"
+          @click=${() => action.value.onSelect?.()}
+        >${computed(() => action.value.label)}</button>`,
+    )}</div>`;
+  },
+  { attrs: actionGroupAttrs },
+);
+
+/* ── The menu ────────────────────────────────────────────────────────────── */
+
+export interface OverflowMenuProps {
+  /** Accessible name for the trigger and the panel. */
+  label?: string;
+}
+
+const overflowMenuAttrs = { label: 'string' } satisfies ComponentAttrs<OverflowMenuProps>;
+
+/** Per-instance id source, so `aria-controls` names one panel and not all of them. */
+let panelSeq = 0;
+
+export const OverflowMenu = component<OverflowMenuProps, typeof overflowMenuAttrs>(
+  'app-overflow-menu',
+  (props, host) => {
+    const scope = ActionScopeContext.inject();
+    const open = signal(false);
+    const items = signal<MenuAction[]>([]);
+    const panelId = `app-overflow-panel-${++panelSeq}`;
+    const trigger = ref<HTMLElement>();
+    const panel = ref<HTMLElement>();
+    const name = computed(() => props.label.value ?? 'More actions');
+
+    const menuItems = (): HTMLElement[] =>
+      panel.current ? [...panel.current.querySelectorAll<HTMLElement>('[role="menuitem"]')] : [];
+
+    function close(returnFocus: boolean): void {
+      if (!open.value) return;
+      open.value = false;
+      // The panel is torn down by this flush, so focus has to be placed after
+      // it: a closed menu that leaves focus on a removed node drops the user
+      // back at the top of the document.
+      flush();
+      if (returnFocus) trigger.current?.focus();
+    }
+
+    function show(): void {
+      const collapsed = scope.collapsed();
+      // Nothing was collapsed, so there is nothing to reveal. An empty
+      // `role="menu"` is a dead end for a screen reader, and the trigger is not
+      // painted in this state anyway.
+      if (collapsed.length === 0) return;
+      items.value = collapsed;
+      open.value = true;
+      // Render the panel now so focus can move into it in the same gesture,
+      // rather than a microtask later with focus still on the trigger.
+      flush();
+      menuItems()[0]?.focus();
+    }
+
+    function moveFocus(step: number): void {
+      const list = menuItems();
+      if (list.length === 0) return;
+      const from = list.findIndex((item) => item === document.activeElement);
+      // Entering from the trigger, Down lands on the first item and Up on the
+      // last; inside the panel the ends wrap.
+      const next =
+        from < 0 ? (step > 0 ? 0 : list.length - 1) : (from + step + list.length) % list.length;
+      list[next]?.focus();
+    }
+
+    // Every listener below is registered during setup and disposed with the
+    // component. A menu that leaks a document listener re-opens ghosts on the
+    // next page, and one that registers on mount instead has a window in which
+    // Escape does nothing.
+    useHostEvent<PointerEvent>(document, 'pointerdown', (event) => {
+      const target = event.target;
+      if (target instanceof Node && host.contains(target)) return;
+      close(false);
+    });
+
+    // A resize re-solves the container, which changes WHICH groups are
+    // collapsed — so an open panel is showing a stale answer. Closing also
+    // keeps an absolutely-positioned panel out of the geometry the solver and
+    // the diagnostics are about to measure.
+    useHostEvent(window, 'resize', () => close(false));
+
+    useHostEvent<KeyboardEvent>(host, 'keydown', (event) => {
+      if (!open.value) return;
+      switch (event.key) {
+        case 'Escape':
+          event.preventDefault();
+          close(true);
+          return;
+        case 'ArrowDown':
+          event.preventDefault();
+          moveFocus(1);
+          return;
+        case 'ArrowUp':
+          event.preventDefault();
+          moveFocus(-1);
+          return;
+        case 'Home':
+          event.preventDefault();
+          menuItems()[0]?.focus();
+          return;
+        case 'End': {
+          event.preventDefault();
+          const list = menuItems();
+          list[list.length - 1]?.focus();
+          return;
+        }
+        case 'Tab':
+          // Focus is leaving the menu: it must not stay open behind the user.
+          close(false);
+          return;
+        default:
+          return;
+      }
+    });
+
+    return html`<span data-component="app-overflow-menu" data-overflow-anchor>
+      <button
+        ref=${trigger}
+        data-appearance="action"
+        data-role="quiet"
+        data-overflow
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded=${computed(() => (open.value ? 'true' : 'false'))}
+        aria-controls=${computed(() => (open.value ? panelId : undefined))}
+        aria-label=${name}
+        @click=${() => (open.value ? close(true) : show())}
+      >⋯</button>
+
+      ${when(
+        open,
+        () => html`<div
+          ref=${panel}
+          id=${panelId}
+          role="menu"
+          data-overflow-menu
+          data-shown
+          data-layout="stack"
+          aria-label=${name}
+        >${each(
+          items,
+          (action) => action.id,
+          (action) =>
+            html`<button
+              role="menuitem"
+              data-appearance="action"
+              data-role="quiet"
+              type="button"
+              @click=${() => {
+                const chosen = action.value;
+                // Close first: the action may re-render the subtree this menu
+                // item lives in, and running it with the panel still mounted
+                // leaves focus on a node that is about to be removed.
+                close(true);
+                chosen.onSelect?.();
+              }}
+            >${computed(() => action.value.label)}</button>`,
+        )}</div>`,
+      )}
+    </span>`;
+  },
+  { attrs: overflowMenuAttrs },
+);
