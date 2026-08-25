@@ -454,7 +454,14 @@ describe('N660 — element crushed', () => {
 });
 
 describe('N670 — sibling boxes overlap', () => {
-  it('fails a row whose children already need more space than the row got', () => {
+  it('says nothing about a row that merely overflows — that is not a collision', () => {
+    // The container-level inference this rule used to carry was removed on
+    // matrix evidence: it fired when children extend PAST an overflowing row,
+    // where nothing collides and the content simply escapes, and it was silent
+    // at 318/318 where the children had been crushed to fit — which is the
+    // actual F8 collision. Anti-correlated with the defect it existed to
+    // catch. What remains is one inference, and this fixture is the case the
+    // old spelling got wrong.
     const findings = run('N670', {
       nodes: [
         {
@@ -469,8 +476,7 @@ describe('N670 — sibling boxes overlap', () => {
       ],
     });
 
-    expect(findings.map((f) => f.code)).toEqual(['N670']);
-    expect(findings[0]?.severity).toBe('fail');
+    expect(findings).toEqual([]);
   });
 
   it('fails a crushed child that necessarily paints into the next sibling', () => {
@@ -509,6 +515,70 @@ describe('N670 — sibling boxes overlap', () => {
     });
 
     expect(findings).toEqual([]);
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Admitted failures — a container that already said it could not fit
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * A container carrying `data-fit="unsatisfiable"` has declared its failure,
+ * and N620 says it better than N660 or N670 can: it names the shortfall and
+ * the degradations already spent. Reporting the same pixels three times adds
+ * no fact and trains people to mute the codes. Exactly that node is exempt —
+ * and only that node, because the whole point of the crush class is the child
+ * nobody would otherwise notice.
+ */
+const ADMITTED: InspectWorldSpec = {
+  nodes: [
+    {
+      id: 'outer',
+      attrs: { 'data-layout': 'row' },
+      box: { inline: 200, block: 60, contentInline: 200 },
+      children: [
+        {
+          id: 'admitted-row',
+          attrs: {
+            'data-fit': 'unsatisfiable',
+            'data-collapsed-count': '2',
+            'data-layout': 'row',
+          },
+          box: { inline: 200, block: 40, contentInline: 260 },
+          children: [
+            {
+              id: 'crushed-title',
+              attrs: { 'data-text': 'title' },
+              text: 'Comfortable',
+              box: { inline: 75, block: 18, contentInline: 96 },
+            },
+            { id: 'tail', box: { inline: 60, block: 18, contentInline: 60 } },
+          ],
+        },
+        { id: 'neighbour', box: { inline: 60, block: 40, contentInline: 60 } },
+      ],
+    },
+  ],
+};
+
+describe('an admitted failure', () => {
+  it('admitted-container-reports-once: N620 and nothing else about the container', () => {
+    const about = (code: string) =>
+      run(code, ADMITTED)
+        .filter((f) => f.subject === 'admitted-row')
+        .map((f) => f.code);
+
+    expect(about('N620')).toEqual(['N620']);
+    expect(about('N660')).toEqual([]);
+    expect(about('N670')).toEqual([]);
+  });
+
+  it('crushed-child-inside-admitted-container-still-fires: the child is not exempt', () => {
+    // 96 of content in a 75 box, the "Comfortable" measurement. The parent
+    // admitting defeat says nothing about whether this child paints over its
+    // neighbour, and this is exactly the shape F8 hid behind.
+    expect(run('N660', ADMITTED).map((f) => f.subject)).toContain('crushed-title');
+    expect(run('N670', ADMITTED).map((f) => f.subject)).toContain('crushed-title');
   });
 });
 

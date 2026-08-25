@@ -11,8 +11,28 @@
  * how important each group is; the width decides the rest, at runtime, per
  * container, with no breakpoint anywhere.
  *
- *   5  title    truncate  a title ellipsises legibly, so it pays first
+ *   5  title    HIDE      **F5, a second time, on a second element.** This was
+ *                         `truncate`, on the reasoning that "a title ellipsises
+ *                         legibly". It does not: the derived checker measured
+ *                         "Inbox" — five characters wanting 39 — clamped to a
+ *                         ONE-pixel box, which is "1…"/"Y…"/"M" again on new
+ *                         markup. A page title is an ATOMIC value, and
+ *                         truncating one can never repay a real deficit: the
+ *                         whole element is worth about 39, so the solver spends
+ *                         it, gains nothing, and moves on having destroyed the
+ *                         label. `hide` is also the honest reading of the
+ *                         contract — it is "correct for values repeated
+ *                         elsewhere", and this value is repeated by the
+ *                         `aria-current` nav item two boxes away. Giving up a
+ *                         redundant label before giving up functionality is the
+ *                         right trade; that is why it is still rung 5.
  *   4..1 groups menu      caller-declared; 1 survives longest
+ *
+ * Worth recording HOW this was found: nobody looked at a screenshot. The rule
+ * that reports it (N621) exists because F5 happened once, and it caught the
+ * same authoring mistake on an element written after it — which is the F5
+ * finding's actual claim ("the checker can derive a warning — authoring
+ * feedback no framework currently gives") being cashed in.
  *
  * The spacer is an empty `data-grow` box rather than a margin: it declares
  * "the slack belongs here", which is a relationship, whereas a margin would be
@@ -47,7 +67,7 @@ export const Toolbar = component<ToolbarProps, typeof toolbarAttrs>(
       data-layout="row"
       data-align="center"
     >
-      ${Text({ as: 'title', collapse: 'truncate', priority: 5, children: props.title })}
+      ${Text({ as: 'title', collapse: 'hide', priority: 5, children: props.title })}
 
       <span data-grow></span>
 

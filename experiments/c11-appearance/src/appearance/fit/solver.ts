@@ -68,16 +68,24 @@ export function solveFit<TNode>(
   // is bounded by `ordered.length` by construction: a strategy that fails to
   // change the geometry (hiding an already-collapsed node, truncating a value
   // with nothing to clamp) costs one pass and is dropped, never retried.
+  //
+  // The affordance is revealed the moment the first `menu` degradation lands,
+  // not after the loop, because the trigger occupies inline space and every
+  // later pass must measure the geometry the reader will actually get.
+  // Revealing afterwards let the loop stop while the container fit WITHOUT the
+  // trigger, then hand back `unsatisfiable` once the trigger was painted — with
+  // candidates still unspent, which is the solver giving up on a container it
+  // could still have degraded.
   let next = 0;
   while (next < ordered.length && unfit(container, metrics)) {
     const candidate = ordered[next++]!;
     mutator.apply(candidate.node, candidate.strategy);
     applied.push({ node: candidate.node, strategy: candidate.strategy });
-    if (needsAffordance(candidate.strategy)) affordance = true;
     passes += 1;
+    if (affordance || !needsAffordance(candidate.strategy)) continue;
+    affordance = true;
+    mutator.revealOverflow(container, true);
   }
-
-  mutator.revealOverflow(container, affordance);
 
   const state: FitState = unfit(container, metrics) ? 'unsatisfiable' : 'settled';
   // Only degradations that removed the node from the flow are "collapsed"; a

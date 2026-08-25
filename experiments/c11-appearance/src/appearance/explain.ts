@@ -55,7 +55,7 @@ export interface Explanation {
 export function explain(el: HTMLElement): Explanation {
   // Ask this of the element that carries the declarations, not of its component
   // host: hosts are layout-transparent (`display: contents`), so their rect is
-  // 0×0 and the resolved sizes below would all read `0px`.
+  // 0×0 and the resolved sizes below would all read zero.
   const style = getComputedStyle(el);
   const rect = el.getBoundingClientRect();
   const unit = style.getPropertyValue('--unit').trim();

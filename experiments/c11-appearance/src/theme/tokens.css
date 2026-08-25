@@ -44,13 +44,30 @@
      the avatar rule `--unit * 8` resolves to a 16px circle holding two
      initials — arithmetically correct, visually a smudge. Likewise metadata
      text derives below 11px, and a pointer-sized hit target is fine for a
-     mouse and useless for a thumb. These three floors are the only values in
-     the system that are asserted rather than derived, and each one is a place
+     mouse and useless for a thumb. These floors are the only values in the
+     system that are asserted rather than derived, and each one is a place
      where taste had to overrule the function. Consistency is derivable;
      beauty is not. */
   --min-target: 0px;
   --min-avatar: 20px;
   --min-text: 11px;
+
+  /* --min-track is a floor of a different kind, and the reason it exists is a
+     measured contradiction rather than a matter of taste. A CONTAINER bound
+     derived from --unit shrinks with density, while the content floors above
+     do not — so a unit-proportional grid track ended up demanding a 76px
+     control inside 62px of usable space at dense, and dense was the only
+     context that overflowed. Deriving everything from one unit is not
+     automatically self-consistent: a floor has to propagate through every
+     derivation that BOUNDS it, not just to the leaf that declares it.
+
+     176px is the comfortable track (4px x 44) and is deliberately NOT
+     unit-proportional: the column count is a function of available space,
+     density is a function of context. Density still tightens everything
+     inside a cell; it no longer claims the cell can be narrower than its own
+     contents. Any future container bound derived from --unit belongs here,
+     floored the same way. */
+  --min-track: 176px;
 
   /* Contrast floor for the derived checker (N640). Declared here so the
      threshold is part of the theme, not hard-coded in the rule. */

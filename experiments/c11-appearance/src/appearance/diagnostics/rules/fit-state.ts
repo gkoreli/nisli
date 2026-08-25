@@ -22,8 +22,8 @@ export function fitStateRule<TNode>(): Rule<TNode> {
       const findings: Finding[] = [];
       for (const node of inspector.all('[data-fit]')) {
         if (inspector.attr(node, 'data-fit') !== 'unsatisfiable') continue;
-        // F4: a collapsed container measures 0×0, and reporting "needs 0px in
-        // 0px" is worse than saying nothing.
+        // F4: a collapsed container measures 0×0, and reporting "needs zero
+        // inline space in a zero-wide box" is worse than saying nothing.
         if (!inspector.rendered(node)) continue;
         const box = inspector.box(node);
         const collapsed = inspector.attr(node, 'data-collapsed-count') ?? '0';

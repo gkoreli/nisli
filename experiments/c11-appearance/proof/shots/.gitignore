@@ -1,6 +1,0 @@
-# Run artifacts: geometry-proof.mjs writes one screenshot per matrix
-# combination here, 240 of them, ~13MB. They are evidence for the run that
-# produced them and stale the moment anything changes, so they are not the
-# repository's visual record — the hand-picked images in proof/ are.
-*
-!.gitignore

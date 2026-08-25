@@ -79,12 +79,45 @@ app-action-group {
   flex-flow: row wrap;
 }
 
-/* The breakpoint-free grid: auto-fit against a unit-derived minimum column
-   means the column count is a consequence of the available space and the
-   current density, so no media query ever has to name a width. */
+/* The breakpoint-free grid: auto-fit against a minimum column means the column
+   count is a consequence of the available space, so no media query ever has to
+   name a width.
+
+   ══════════════════════════════════════════════════════════════════════════
+   THE CONTRADICTION THIS RULE USED TO STATE — and the invariant that fixes it.
+   ══════════════════════════════════════════════════════════════════════════
+   The minimum used to be `calc(var(--unit) * 44)`, i.e. unit-proportional like
+   everything else. That is wrong in a way F8 was not. F8 was the browser
+   resolving an impossible constraint badly; this was the resolution table
+   STATING an impossible constraint.
+
+   The track shrank as density increased, while everything that has to fit
+   inside it did not — because the same table gives those things FLOORS that do
+   not scale: `--min-target` for a control, `max(var(--text-meta),
+   var(--min-text))` for type. Measured at marketing / pointer / light / 320:
+
+     comfortable  --unit 4px  -> min track 176px -> ONE column of 320px, clean
+     dense        --unit 2px  -> min track  88px -> THREE columns of 104px,
+                                 five crushes, the worst being a control whose
+                                 content needs 76px in a track the same table
+                                 sized at 62px of usable space.
+
+   Dense — the context whose whole job is fitting more in less — was the only
+   context that overflowed. Two derivations from one unit disagreed, and
+   "derive everything from one unit" turns out not to be automatically
+   self-consistent.
+
+   THE INVARIANT: a floor must propagate through every derivation that BOUNDS
+   it, not only to the leaf that declares it. So the track minimum is floored
+   by the widest floor the table will insist on inside it. --min-track is that
+   floor, declared in tokens.css and deliberately not unit-proportional: the
+   number of columns is a function of available space, density is a function of
+   context, and conflating the two is what produced the contradiction. Density
+   still does its job inside each cell — tighter padding, smaller type — it
+   simply no longer claims a cell can be narrower than its own contents. */
 [data-layout='grid'] {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(calc(var(--unit) * 44), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(max(calc(var(--unit) * 44), var(--min-track)), 1fr));
   align-items: start;
 }
 

@@ -1,31 +1,50 @@
 /**
  * N670 — sibling boxes overlap.
  *
- * The visible half of F8: at 320px two buttons painted on top of each other
+ * The visible half of F8: at width 320 two buttons painted on top of each other
  * while the row reported itself settled. Overlap is what a user SEES; a crush
  * (N660) is what causes it. Both are reported, because a reader who is told
  * "these two controls collide" does not have to infer it from a width.
  *
  * WHAT THIS RULE CAN SEE, precisely — the port is frozen and `Box` has no
  * origin, so there are no rectangles to intersect and no traversal to a
- * sibling. Two inferences are available, and both are exact:
+ * sibling. ONE inference is available, and it is exact:
  *
- *   1. Row sum. A single-line row's own `contentInline` IS the sum of its
- *      children's boxes plus the gaps between them. When that exceeds the row's
- *      `inline`, the children's boxes cannot all be laid out inside the row:
- *      whatever the browser does next (crush them, or push them out), painted
- *      content collides or escapes.
- *   2. Crushed non-final child. In a single-line row the next sibling's box
- *      begins where this one's box ends, so a child whose content exceeds its
- *      own box paints into the following sibling. `:last-child` is exempt:
- *      its overflow lands on the row's padding, not on a neighbour.
+ *   Crushed non-final child. In a single-line row the next sibling's box begins
+ *   where this one's box ends, so a child whose content exceeds its own box
+ *   paints into the following sibling. `:last-child` is exempt: its overflow
+ *   lands on the row's padding, not on a neighbour.
+ *
+ * A SECOND inference was implemented here and then REMOVED on evidence, which
+ * is worth recording so nobody adds it back. It compared a row's own
+ * `contentInline` (the sum of its children's boxes plus gaps) against its
+ * `inline`. That test turns out to be anti-correlated with the thing this code
+ * exists to catch:
+ *   - when children refuse to shrink, as the post-F8 theme requires, they
+ *     extend PAST the row and it fires — but nothing collides, the content
+ *     escapes, and N620 or N660 already describe that with better numbers;
+ *   - when children are crushed to fit, which is the actual collision, the row
+ *     measures 318 against 318 and it stays SILENT. That is the recorded F8
+ *     row, the exact case it was supposed to catch;
+ *   - when some children shrink and the sum still exceeds, it fires with a
+ *     vaguer duplicate of what the child pass below reports precisely.
+ * The 240-cell matrix corroborated it: real box intersection in Chromium was
+ * clean in every cell while this pass produced fourteen findings. A container
+ * measurement cannot see a collision between its children; only the children
+ * can.
  *
  * WHAT IT CANNOT SEE, and deliberately does not guess at:
  *   - overlap in `wrap`, `grid` and `stack` containers: the sibling that
  *     follows in the DOM may be on another line or another axis, and the port
  *     exposes no line box;
- *   - block-axis collisions, negative margins, absolute positioning,
- *     transforms and z-stacked surfaces: all of those need an origin;
+ *   - block-axis collisions, negative margins, transforms and z-stacked
+ *     surfaces: all of those need an origin the port does not expose;
+ *   - anything about an OUT-OF-FLOW child, which the sibling pass therefore
+ *     skips outright: the overflow menu panel is `position: absolute` inside
+ *     the row, so the flow premise above ("the next sibling's box begins where
+ *     this one's ends") is simply false for it. A clipped panel is still a real
+ *     defect and is still reported, as a crush (N660), which is the accurate
+ *     description of it;
  *   - the row's `gap` when judging a child, since gap is a property of the
  *     parent and the port offers no way to reach it from the child. A crush
  *     smaller than the gap may therefore be reported as overlap; the box was
@@ -35,6 +54,7 @@
  */
 
 import type { Finding, Inspector, Rule } from '../../contracts.js';
+import { admittedFailures } from '../admitted.js';
 import { codeEntry } from '../codes.js';
 
 const CODE = codeEntry('N670');
@@ -46,28 +66,28 @@ export function overlapRule<TNode>(): Rule<TNode> {
     run(inspector: Inspector<TNode>): readonly Finding[] {
       const findings: Finding[] = [];
       const escaped = new Set<TNode>(inspector.all('[data-escaped], [data-escaped] *'));
-
-      for (const container of inspector.all('[data-layout="row"]')) {
-        if (escaped.has(container) || !inspector.rendered(container)) continue;
-        const box = inspector.box(container);
-        if (box.contentInline <= box.inline + 1) continue;
-        findings.push({
-          code: CODE.code,
-          severity: CODE.severity,
-          subject: inspector.describe(container),
-          detail: `children need ${Math.round(box.contentInline)}px of inline space (boxes plus gaps) in a ${Math.round(box.inline)}px row — the boxes cannot all fit, so their content collides`,
-          hint: CODE.hint,
-        });
-      }
+      const admitted = admittedFailures(inspector);
 
       const final = new Set<TNode>(inspector.all('[data-layout="row"] > *:last-child'));
       for (const child of inspector.all('[data-layout="row"] > *')) {
         if (final.has(child) || escaped.has(child)) continue;
-        // A declared truncation clips its own overflow; it lands on nobody.
+        // One root cause, one primary finding: a row that already reported N620
+        // does not also get told it collides with its neighbour.
+        if (admitted.has(child)) continue;
+        // A declared truncation clips its own overflow; it lands on nobody. So
+        // does a field, which scrolls its own value rather than painting it on
+        // the neighbour (see the exemption note in crushed.ts).
         if (inspector.attr(child, 'data-truncate') !== null) continue;
+        if (inspector.attr(child, 'data-appearance') === 'field') continue;
         if (!inspector.rendered(child)) continue;
         const box = inspector.box(child);
         if (box.contentInline <= box.inline + 1) continue;
+        // An out-of-flow child has no following sibling in the flow sense: the
+        // overflow menu panel is absolutely positioned inside the row, so it
+        // cannot displace anything. Its clipping is N660's finding, not this
+        // rule's.
+        const position = inspector.style(child, 'position');
+        if (position === 'absolute' || position === 'fixed') continue;
         findings.push({
           code: CODE.code,
           severity: CODE.severity,

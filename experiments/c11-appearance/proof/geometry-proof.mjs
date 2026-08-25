@@ -42,7 +42,7 @@ const INPUTS = ['pointer', 'touch'];
 const THEMES = ['light', 'dark'];
 const WIDTHS = [1080, 720, 480, 360, 320];
 
-const CHECKS = ['declared', 'fit', 'crush', 'overlap', 'document', 'check'];
+const CHECKS = ['declared', 'fit', 'afford', 'crush', 'overlap', 'document', 'check'];
 
 /* ══════════════════════════════════════════════════════════════════════════
    Arguments
@@ -167,6 +167,46 @@ function auditInPage() {
     }
   }
 
+  /* ── afford ────────────────────────────────────────────────────────── */
+  // A solver must measure the world it CREATES, including its own affordances.
+  // The early-stop defect was exactly this: the overflow trigger was revealed
+  // after the loop, so every pass measured a geometry with no trigger in it,
+  // the loop stopped the instant the container fit, and the trigger then ate
+  // the 2-3px that made it fit. Both directions are asserted, because both are
+  // the same mistake: a collapsed group with no painted trigger means the
+  // actions are unreachable (F6), and a painted trigger with nothing collapsed
+  // means inline space spent on an affordance for nothing.
+  const afford = [];
+  for (const container of canvas.querySelectorAll('[data-fit]')) {
+    // Own candidates only: a nested fit container answers for its own.
+    const mine = (el) => el.closest('[data-fit]') === container;
+    const collapsed = [...container.querySelectorAll('[data-collapsed]')].filter(mine).length;
+    const trigger = [...container.querySelectorAll('[data-overflow]')].find(mine) ?? null;
+    const shown = trigger !== null && trigger.hasAttribute('data-shown');
+
+    if (collapsed > 0 && trigger === null) {
+      afford.push({
+        subject: describe(container),
+        detail: `${collapsed} group(s) moved into a menu but the container has no [data-overflow] trigger — those actions are unreachable`,
+      });
+    } else if (collapsed > 0 && !shown) {
+      afford.push({
+        subject: describe(container),
+        detail: `${collapsed} group(s) moved into a menu but the trigger is not marked data-shown`,
+      });
+    } else if (collapsed > 0 && !boxed(trigger)) {
+      afford.push({
+        subject: describe(container),
+        detail: 'the trigger is marked data-shown but owns no box, so it is neither in the geometry the solver measured nor clickable',
+      });
+    } else if (collapsed === 0 && shown && boxed(trigger)) {
+      afford.push({
+        subject: describe(container),
+        detail: 'the overflow trigger is painted while nothing is collapsed — inline space spent on an affordance that leads nowhere',
+      });
+    }
+  }
+
   /* ── crush ─────────────────────────────────────────────────────────── */
   // This mirrors N660, not domMetrics.crushed(). The two differ on one point:
   // the solver exempts `overflow: hidden`/`clip` because a clipped box is not
@@ -175,11 +215,20 @@ function auditInPage() {
   // unreadable", so the checker's spelling is the right one. Shared with both:
   // declared truncation, the overflow menu, a text field (an input scrolls its
   // own value), and real scrollers. Boxless nodes need no rule; they report 0/0.
+  //
+  // One more exemption, matching the ruling on N660/N670: a container that has
+  // already stamped `data-fit="unsatisfiable"` has DECLARED its failure, and
+  // the `fit` assertion above reports it with the shortfall and the
+  // degradations spent. Reporting the same pixels again as a crush adds no
+  // fact and trains people to mute the code. Exactly that node is exempt —
+  // its descendants are not, because a crushed CHILD inside an unsatisfiable
+  // row is still F8 and is exactly what nobody would otherwise notice.
   const crush = [];
   for (const el of canvas.querySelectorAll('*')) {
     if (el.closest('[data-escaped]')) continue;
     if (el.hasAttribute('data-truncate')) continue;
     if (el.getAttribute('data-appearance') === 'field') continue;
+    if (el.getAttribute('data-fit') === 'unsatisfiable') continue;
     if (el.closest('[data-overflow-menu]')) continue;
     if (el.clientWidth === 0 && el.scrollWidth === 0) continue;
     if (!boxed(el)) continue;
@@ -267,6 +316,7 @@ function auditInPage() {
 
   return {
     declared,
+    afford,
     fit,
     crush,
     overlap,
@@ -316,6 +366,7 @@ function classifyFindings(audit) {
 function classify(audit) {
   return {
     declared: audit.declared,
+    afford: audit.afford,
     fit: audit.fit,
     crush: audit.crush,
     overlap: audit.overlap,
@@ -338,7 +389,7 @@ function printRow(cells, widths) {
 }
 
 const HEADERS = ['context', ...CHECKS, 'incompl', 'result'];
-const COLUMN_WIDTHS = [40, 8, 4, 5, 7, 8, 5, 7, 6];
+const COLUMN_WIDTHS = [40, 8, 4, 6, 5, 7, 8, 5, 7, 6];
 
 /* ══════════════════════════════════════════════════════════════════════════
    The matrix run
@@ -641,6 +692,25 @@ const INJECTIONS = [
     },
   },
   {
+    name: 'afford',
+    what: 'collapses a group without painting its trigger',
+    apply: () => {
+      const canvas = window.__c11.canvas ?? document.getElementById('canvas');
+      const container = canvas?.querySelector('[data-fit]');
+      if (!container) return 'no [data-fit] container on this page';
+      const victim = [...container.querySelectorAll('*')].find(
+        (el) =>
+          el.closest('[data-fit]') === container &&
+          !el.hasAttribute('data-collapsed') &&
+          !el.hasAttribute('data-overflow'),
+      );
+      if (!victim) return 'nothing inside the container to mark collapsed';
+      victim.setAttribute('data-proof-was-collapsed', '');
+      victim.setAttribute('data-collapsed', '');
+      return true;
+    },
+  },
+  {
     name: 'crush',
     what: 'adds an element whose content is ten times its box',
     apply: () => {
@@ -708,6 +778,10 @@ function undoInjections() {
   for (const el of document.querySelectorAll('[data-proof-was-layout]')) {
     el.setAttribute('data-layout', el.getAttribute('data-proof-was-layout') ?? '');
     el.removeAttribute('data-proof-was-layout');
+  }
+  for (const el of document.querySelectorAll('[data-proof-was-collapsed]')) {
+    el.removeAttribute('data-collapsed');
+    el.removeAttribute('data-proof-was-collapsed');
   }
   for (const el of document.querySelectorAll('[data-proof-was-style]')) {
     const original = el.getAttribute('data-proof-was-style') ?? '';
@@ -786,6 +860,12 @@ async function runSelfTest(options) {
         if (applied !== true) return { applied };
         const dirty = classify(await page.evaluate(auditInPage));
         await page.evaluate(undoInjections);
+        // Removing the attribute is not the same as undoing its consequences:
+        // a broken layout makes the solver spend degradations, and those
+        // outlive the attribute. Let it re-solve, then measure — otherwise
+        // every row after the first reads STICKY and the self-test blames the
+        // proof for damage the injection did to the page.
+        await page.evaluate(() => window.__c11.settled());
         return { applied, dirty, restored: classify(await page.evaluate(auditInPage)) };
       });
       if (attempt.applied !== true) {

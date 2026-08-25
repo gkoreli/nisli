@@ -6,10 +6,41 @@
    element declares WHAT IT IS (`data-appearance` + `data-role`, `data-text`)
    and this layer resolves that into values.
 
-   Floors are applied with max(), never by branching: `max(unit*9,
+   THE FLOOR INVARIANT — a floor must propagate through every derivation that
+   bounds it, not only to the leaf that declares it. `max(unit*9,
    var(--min-target))` is one expression that is simultaneously the derived
-   size and the asserted minimum, so no context can accidentally miss it.
+   size and the asserted minimum, so no context can miss it. But that is only
+   half the rule: anywhere the table derives a CONTAINER bound from --unit,
+   that bound must itself be floored by the content floors it will be asked to
+   hold, or the table states a constraint it also forbids. See the grid track
+   in structure.css for the measured counter-example.
+
+   And a floor a parent can shrink is not a floor: it must appear as a
+   min-* property, not only as a preferred size. Twice in this experiment a
+   value looked right in computed style and was wrong in the rect (F4's
+   collapsed 0x0 measurements, and a control computing block-size: 45px that
+   measured 43px). That is the argument for the checker measuring rects rather
+   than trusting declarations — a declaration is an intent, a rect is a fact.
    ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── The box model must be known before a floor can mean anything ─────────
+   UA styles are inconsistent about box-sizing: <button> is border-box, while
+   <a>, <input>, <div> and <span> are content-box. So ONE expression,
+   `max(calc(var(--unit) * 9), var(--min-target))`, resolved to three different
+   boxes: measured in the touch context, action 45px, field 49px, nav-item
+   64px — and the comment on the field role claiming a field and a button in
+   one row line up was simply false. A resolution table cannot assert a
+   44px target while leaving the meaning of "44px" to the user agent.
+
+   Scoped to the vocabulary this table resolves rather than declared on `*`,
+   because this is a resolution table, not a CSS reset. */
+[data-appearance],
+[data-text],
+[data-layout],
+[data-overflow-menu],
+[data-appearance='table'] :is(th, td) {
+  box-sizing: border-box;
+}
 
 /* ── action ──────────────────────────────────────────────────────────────── */
 
@@ -19,8 +50,26 @@
   justify-content: center;
   gap: calc(var(--unit) * 2);
   /* 9 units is the derived control height; --min-target is the touch floor
-     that the input axis raises to 44px. */
+     that the input axis raises to 44px.
+
+     The floor is declared TWICE on purpose, and the second one is the one that
+     is actually a floor. `block-size` is a preferred size: any cross-axis
+     sizing decision above it can still hand the box a different used size, and
+     that is what happened — computed block-size 45px, computed min-block-size
+     0px, measured rect 43px, which failed the 44px target by 1px in every
+     touch cell of the matrix (718 N650 findings from this one omission). A
+     floor a parent can shrink is not a floor. Note the row case needs nothing
+     further: [data-layout] sets align-items: center, so a control in a row is
+     never stretched — and `align-self: center` is deliberately NOT declared
+     here, because in a stack the cross axis is inline and it would collapse
+     every full-width stacked control to its label width. */
   block-size: max(calc(var(--unit) * 9), var(--min-target));
+  min-block-size: max(calc(var(--unit) * 9), var(--min-target));
+  /* The inline axis needs the floor too, for icon-only controls: the overflow
+     trigger at dense + touch derives 2.5px units, so its padding-inline plus a
+     single glyph resolves to about 30px against a 44px target. Text labels are
+     wider than the floor and are unaffected. */
+  min-inline-size: var(--min-target);
   padding-inline: calc(var(--unit) * 4);
   /* `font: inherit` first resets the UA's button font wholesale, then the
      declared size is applied — otherwise the browser's 13px system font wins
@@ -93,6 +142,11 @@
   place-items: center;
   inline-size: max(calc(var(--unit) * 8), var(--min-avatar));
   block-size: max(calc(var(--unit) * 8), var(--min-avatar));
+  /* Same reason as the action role: the sizes above are preferred, these are
+     the floor. A square role needs both axes, or a squeeze on one turns the
+     circle into an ellipse. */
+  min-inline-size: max(calc(var(--unit) * 8), var(--min-avatar));
+  min-block-size: max(calc(var(--unit) * 8), var(--min-avatar));
   border-radius: 999px;
   background: var(--s3);
   color: var(--fg-muted);
@@ -109,8 +163,11 @@
   display: flex;
   align-items: center;
   /* Same height expression as an action, so a field and a button placed in
-     one row line up without either side being told about the other. */
+     one row line up without either side being told about the other — which is
+     only true now that box-sizing is normalised above. Before that this
+     comment was false: the button measured 45px and this field 49px. */
   block-size: max(calc(var(--unit) * 9), var(--min-target));
+  min-block-size: max(calc(var(--unit) * 9), var(--min-target));
   padding-inline: calc(var(--unit) * 3);
   font: inherit;
   font-size: var(--text);
@@ -226,7 +283,45 @@
 
 /* ── text roles ──────────────────────────────────────────────────────────
    Five levels, because the four pages needed five and no more. Each is a
-   meaning ("this is metadata"), never a size. */
+   meaning ("this is metadata"), never a size.
+
+   PROSE REFLOWS. This is the generalisation of the rule already written for
+   the overflow panel: bounding a box whose content cannot reflow is how F8
+   happens. A text role sits in a stack or a grid cell whose width is decided
+   above it, so if a single token is wider than the box the only alternatives
+   are reflow or paint outside — and painting outside is the F8 defect class
+   arriving through typography instead of through flex. Measured before this
+   rule: `[data-text="title"]` containing the word "Comfortable" wanted 96px in
+   a 75px box and put 21px over its neighbour, on settings and marketing cards
+   at 320 and 360 in every density (30 crush failures across the matrix).
+
+   The two spellings of "may break" are NOT interchangeable, and which one
+   applies depends on who chose the bound:
+
+   `break-word` breaks an over-long token at paint time but leaves the
+   element's min-content contribution at that token, so the box still TELLS its
+   ancestors how wide it wants to be. That is what must happen by default,
+   because the F8 fix depends on it: a `data-grow` region stops absorbing at
+   its own min-content and the row then overflows honestly, which is the signal
+   the solver degrades on. `anywhere` also lowers min-content, and applied
+   globally it would let a grow region absorb without limit by reflowing a
+   sentence into a one-character column — a row that measures as settled and is
+   unreadable, which is F5's degeneracy wearing F8's clothes. */
+[data-text] {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+/* `anywhere` is correct in exactly one place: inside a grid cell, where the
+   track minimum is a bound THIS TABLE chose (see structure.css). When the
+   table has already decided how wide the box may be, the content must agree to
+   it rather than declare a minimum the same table forbids — so here, and only
+   here, the text lowers its own minimum and the automatic content-based flex
+   minimum is released with it. */
+[data-layout='grid'] [data-text] {
+  overflow-wrap: anywhere;
+  min-inline-size: 0;
+}
 
 [data-text='display'] {
   font-size: var(--text-display);

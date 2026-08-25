@@ -354,7 +354,7 @@ export class FakeInspector implements Inspector<string> {
         if (current === null || !this.matchesCompound(current, previous.compound)) return false;
         continue;
       }
-      let ancestor = this.parents.get(current as string) ?? null;
+      let ancestor: string | null = this.parents.get(current as string) ?? null;
       while (ancestor !== null && !this.matchesCompound(ancestor, previous.compound)) {
         ancestor = this.parents.get(ancestor) ?? null;
       }

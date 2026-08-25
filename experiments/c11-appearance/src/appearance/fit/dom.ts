@@ -24,6 +24,20 @@ const STRATEGY_ATTRIBUTES: readonly string[] = Object.values(STRATEGY_ATTRIBUTE)
 
 const DEFAULT_PRIORITY: Priority = 3;
 
+/**
+ * Overflow values whose content cannot paint outside the box: it either scrolls
+ * or is cut off. Enumerated rather than tested as `!== 'visible'` so that an
+ * unresolved computed value fails safe — a node whose overflow cannot be read
+ * is treated as able to paint outside, which is also the browser default.
+ */
+const CONTAINED_OVERFLOW: Readonly<Record<string, true>> = {
+  hidden: true,
+  clip: true,
+  auto: true,
+  scroll: true,
+  overlay: true,
+};
+
 export const domMetrics: Metrics<HTMLElement> = {
   box(node: HTMLElement): Box {
     return {
@@ -42,7 +56,7 @@ export const domMetrics: Metrics<HTMLElement> = {
    * painting over its neighbour, even when the container itself measures as
    * fitting.
    *
-   * Three exemptions:
+   * Four exemptions:
    *   - an element the solver has actually truncated: `[data-truncate]` clips
    *     with an ellipsis, so `scrollWidth > clientWidth` is the feature
    *     working. Declaring `data-collapse="truncate"` is not enough; the
@@ -52,13 +66,22 @@ export const domMetrics: Metrics<HTMLElement> = {
    *     flow, so it has no neighbour to paint over and cannot crush anything;
    *     the theme bounds its inline size, and a clipped panel would otherwise
    *     report as a crush for the whole container;
-   *   - a real scroller. Content wider than the box is what a scroller is for.
-   *     This is the one exemption that needs a computed value, so it is
-   *     resolved lazily, only for a descendant that has already failed the
-   *     geometric test: a settled subtree costs zero style resolutions, and a
-   *     broken one costs at most one before this returns. The diagnostics
-   *     N660 rule exempts the same three overflow values, so the runtime and
-   *     the checker cannot disagree about what a crush is.
+   *   - a field. A text control scrolls its own value, so content wider than
+   *     its box is the control working, exactly like a scroller;
+   *   - a box that does not overflow visibly. Only `overflow-x: visible` lets
+   *     content escape and paint over a neighbour; `auto` and `scroll` mean it
+   *     scrolls, `hidden` and `clip` mean it is cut off. This is the one
+   *     exemption that needs a computed value, so it is resolved lazily, for a
+   *     descendant that already failed the geometric test: a settled subtree
+   *     costs zero style resolutions and a broken one costs at most one before
+   *     this returns.
+   *
+   * That last exemption is deliberately wider than the checker's N660, which
+   * also fails clipped content. Both are right for their question. The
+   * checker asks "is anything unreadable", and clipped content is; the solver
+   * asks "can this container settle", and clipping is not something it can
+   * relieve by degrading siblings — chasing it would collapse every action in
+   * a row because a table two levels down is cut off by a flush surface.
    *
    * Boxless nodes need no exemption. A collapsed or hidden node is
    * `display: none` and a layout-transparent component host is
@@ -72,8 +95,8 @@ export const domMetrics: Metrics<HTMLElement> = {
       if (descendant.hasAttribute('data-truncate')) continue;
       if (descendant.hasAttribute('data-overflow-menu')) continue;
       if (descendant.scrollWidth <= descendant.clientWidth + TOLERANCE) continue;
-      const overflow = getComputedStyle(descendant).overflowX;
-      if (overflow === 'auto' || overflow === 'scroll' || overflow === 'overlay') continue;
+      if (descendant.getAttribute('data-appearance') === 'field') continue;
+      if (CONTAINED_OVERFLOW[getComputedStyle(descendant).overflowX]) continue;
       return true;
     }
     return false;

@@ -94,12 +94,20 @@
      edge: in the inline direction it can never extend past the container's
      end, so it can never enlarge the scrollWidth the solver measures. Bounded
      as well, because an unbounded max-content panel inside a narrow fit
-     container would reach past the start edge and off-screen. */
+     container would reach past the start edge and off-screen.
+
+     max-inline-size is the second unit-proportional CONTAINER BOUND in the
+     table, so it takes the same floor as the grid track: a bound derived from
+     --unit must not shrink below the floors its content obeys. At dense the
+     raw `--unit * 60` is 120px, holding menu items that floor at --min-target
+     wide plus padding — it happens to fit today, which is exactly the kind of
+     accident the grid track proved is not worth relying on. `100cqi` still
+     clamps it to the container, so the floor can never push it off-screen. */
   inset-inline-end: 0;
   inset-block-start: calc(100% + var(--unit));
   inline-size: max-content;
   min-inline-size: calc(var(--unit) * 36);
-  max-inline-size: min(calc(var(--unit) * 60), 100cqi);
+  max-inline-size: min(max(calc(var(--unit) * 60), var(--min-track)), 100cqi);
   padding: var(--unit);
   background: var(--s1);
   color: var(--fg);

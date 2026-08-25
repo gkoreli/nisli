@@ -4,7 +4,7 @@
  * The one ABSOLUTE assertion in the set, and it earns its exception. Every
  * other rule is relational (this box against its content, this colour against
  * its backdrop), and the recorded corpus shows why relational alone is not
- * enough: a 704px page inside a 704px viewport passed every relative check
+ * enough: a 704-wide page inside a 704-wide viewport passed every relative check
  * while scrolling sideways. Some geometry only means something against the
  * one number the author does not control.
  */

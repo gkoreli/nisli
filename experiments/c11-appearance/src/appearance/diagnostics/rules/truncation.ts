@@ -1,7 +1,7 @@
 /**
  * N621 — a truncation that survived the box and lost the value.
  *
- * This is finding F5 turned into a check. At 320px the prototype's timestamps
+ * This is finding F5 turned into a check. At width 320 the prototype's timestamps
  * truncated to "1…", "Y…", "M": the engine did exactly what it was told and the
  * result was useless, because the author picked `truncate` for a short atomic
  * value. No framework gives that feedback today, and it is derivable — the

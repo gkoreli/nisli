@@ -80,7 +80,7 @@ const REGISTRY = {
     severity: 'fail',
     summary:
       'An interactive element is smaller than the minimum target this context declared for itself.',
-    hint: 'The floor comes from the context (`--min-target`), not from the component. Either the element opted out of the control metrics or the context set a floor its scale cannot reach.',
+    hint: 'The floor comes from the context (`--min-target`), not from the component. Read the axis: one axis short while the other is comfortable means the floor was expressed as a SIZE and a parent then squeezed it, so express it as a minimum (or refuse to stretch) — a floor any parent can shrink is not a floor. Both axes short means the control never reached the floor at all.',
   },
   N660: {
     code: 'N660',
