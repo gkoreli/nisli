@@ -162,6 +162,43 @@ methods are unchanged. Nisli only attaches the guarded `Symbol.dispose` alias;
 it never polyfills the platform. Apps that downlevel `using` for older runtimes
 must provide their own `Symbol.dispose` polyfill.
 
+## View transitions
+
+`viewTransition()` wraps a state update in a native View Transition. It calls
+`flush()` inside the browser's update callback, so the DOM mutation captured
+between the old and new frames is Nisli's own synchronous flush rather than the
+next microtask:
+
+```ts
+viewTransition(() => { items.value = sorted; }, { types: ['reorder'] });
+```
+
+It is opt-in and progressively enhanced. Without
+`document.startViewTransition` the update still applies — synchronously,
+flushed, unanimated — and the call returns `null` instead of a `ViewTransition`
+handle. Engines that predate transition types get the plain callback form, so
+the transition still runs and only type-scoped CSS goes unmatched. No polyfill,
+no UA sniffing, and nothing in your bundle unless you import it.
+
+Nisli ships no stylesheet. The root crossfade is the browser default; tune it,
+and answer `prefers-reduced-motion` in CSS so the swap stays atomic and typed
+styles stay active while the motion is cut:
+
+```css
+::view-transition-old(root),
+::view-transition-new(root) { animation-duration: 200ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
+}
+```
+
+Keep async work outside the callback — the page is frozen during capture — and
+use the returned handle (`finished`, `ready`, `skipTransition()`) for hard
+opt-outs and for superseding an in-flight transition.
+
 ## Core capabilities
 
 - Fine-grained reactivity: `signal`, `computed`, `effect`, `untrack`, `flush`,

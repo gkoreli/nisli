@@ -39,6 +39,14 @@ Agent-native core wave (ADR 0030.2, gate record in
 - New `settle()`: awaitable async quiescence (queries + resources) for
   tests and verify loops; iteration-capped, never wedged by
   abort-ignoring fetchers.
+- New `viewTransition(update, { types })`: opt-in native View Transitions
+  built on the synchronous flush — `flush()` runs inside the browser's
+  update callback, so the frame it captures is the flushed DOM instead of
+  the next microtask. `flush()` itself is unchanged and still synchronous.
+  Progressive enhancement all the way down: no `startViewTransition` and
+  the update applies directly (flushed, unanimated, returns `null`); no
+  transition-types support and the plain callback form is used. Core ships
+  no stylesheet — the reduced-motion cut is CSS, documented in the README.
 - `html:inner` gains a second brand: `sanitized(markup)` routes untrusted
   HTML through the platform sanitizer (`Element.setHTML()`) where the engine
   has one, else through an app-registered `setSanitizerFallback()` hook, and

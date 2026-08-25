@@ -129,3 +129,9 @@ export {
 
 // ── Async quiescence (test/verify + SSG pre-snapshot barrier) ───────
 export { settle } from './settle.js';
+
+// ── View Transitions (opt-in wrapper over the synchronous flush) ────
+export {
+  viewTransition,
+  type ViewTransitionOptions,
+} from './view-transition.js';
