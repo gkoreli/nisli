@@ -47,7 +47,7 @@ Reference these guidelines when:
 - `comp-factory-composition` - ALL custom elements MUST use factory composition; HTML tag syntax is ONLY for native elements (div, span, button)
 - `comp-html-for-vanilla` - HTML tag syntax (`<tag>`) is ONLY for native HTML elements; never for custom elements
 - `comp-no-this` - No `this` in components; use pure functions with props and host
-- `comp-no-innerhtml` - Do not assign `innerHTML` imperatively; use templates, or `html:inner` only for trusted HTML
+- `comp-no-innerhtml` - Do not assign `innerHTML` imperatively; use templates. `html:inner` is the only sanctioned sink and it takes a BRAND, never a bare string — `raw()` for trusted markup, `sanitized()` for untrusted (see `tmpl-inner-brands`)
 - `comp-host-escape-hatch` - `host` is the second param; use it only for imperative DOM access
 - `comp-no-class-authoring` - Never extend HTMLElement directly for new components; use `component()`
 - `comp-host-attrs` - Use second factory arg `{ class: '...' }` for host-level CSS classes (ADR 0009)
@@ -70,6 +70,9 @@ Reference these guidelines when:
 
 - `comp-transparent-host-hazards` - `display: contents` hosts are real DOM nodes but generate NO box, which breaks two distinct upstream-port categories. (1) BOX-MODEL: box utilities (`ring`, margins/`space-*`, borders, backgrounds) and direct-child/positional selectors (`>`, `*:`, `first:`, `last:`, `divide-x/y`) aimed at what upstream renders as a direct painted child are dead through the host. At port time, mechanically audit every such upstream selector against the rendered DOM and translate it to the boxed DESCENDANT (`**:` / explicit host depth, the command/avatar/field/ButtonGroup precedent); verbatim utility-token equality is not parity when the selector cannot reach the painted node. Never declare `@container` on the host (a boxless element cannot be a container). (2) NATIVE-RELATIONSHIP: platform contracts requiring structural parent→child (`fieldset`→`legend` naming, `select`→`option`, table row/cell) break when the host interposes — restore the semantics explicitly (e.g. `aria-labelledby` wiring, the FormField/FieldSet precedent) and test the restored relationship, not just the markup. Check BOTH categories at port design time; document each translation in the file and the parity worklist
 
+- `comp-move-resilient-setup` - Component setup NEVER re-runs on a DOM move, on any engine. Keyed `each()` reorders and `portal()` use `moveBefore()` where the engine has it (Chromium/Firefox: `connectedMoveCallback` fires with no connect/disconnect pair, and focus, input selection, iframes, running animations and open popovers survive); WebKit has no `moveBefore()` yet and takes the `insertBefore()` path, where those are lost — but ADR 0023's deferred teardown (disconnect waits one microtask and skips if the node reconnected) still keeps setup from re-running there. Components define an empty `connectedMoveCallback` so the platform treats an atomic move as a move. So never write re-init guards, `_alreadySetUp` flags, or "restore state on reconnect" code for moves; and never assume document `Selection` survives — neither path preserves it
+- `comp-host-box-for-focus` - The layout-transparent host is a convention, NOT a law: a host that must hold focus, be scrolled to, or serve as a fragment/skip-link target MUST generate a box, because a box-less element is neither focusable nor a viable fragment target. The `@nisli/router` outlet is exactly that host and is `display: block` BY DESIGN (managed `role="main"` + `tabindex="-1"` + `display: block`, applied after `outletAttrs` and not overridable), so the outlet host — not the route content — is the flex/grid item in your shell: give it a stable `id` via `outletAttrs` and style it, or lay the route out inside the route. NEVER "fix" a focusable host back to `display: contents`; the push-navigation focus reset and every `href="#main-content"` skip link silently become no-ops
+
 ### 2. Signals & Reactivity (CRITICAL)
 
 - `signal-value-read` - Always use `.value` in JS code; signals are implicit in `html` templates
@@ -77,6 +80,8 @@ Reference these guidelines when:
 - `signal-computed-derived` - Use `computed()` for derived state, not manual sync in effects
 - `signal-effect-side-effects` - Effects are for side effects only (DOM, network, localStorage)
 - `signal-coalesced-writes` - Multiple synchronous writes coalesce automatically; use `flush()` only when synchronous effects are needed
+- `signal-view-transition` - Animate a state change with `viewTransition(update, { types })`: it calls `flush()` INSIDE the browser's update callback, so the frame the browser captures is nisli's own synchronous flush and not the next microtask — a bare signal write in that callback mutates after the capture window and animates a frame to itself. `update` MUST be synchronous (the page is frozen during capture): keep loaders and fetches outside and wrap only the commit. With no `document.startViewTransition` the update still applies — synchronously, flushed, unanimated — and the return is `null`, so null-check before touching `finished`/`ready`/`skipTransition()`. Answer `prefers-reduced-motion` in CSS, NEVER by branching in JS: the call still runs, so the swap stays atomic and typed styles stay live while the motion is cut. For route navigations use the router's wrapper instead — `defineRouter(catalog, { viewTransitions: { enabled, types } })` plus per-navigation `NavigateOptions.viewTransition` — which wraps only the COMMIT and leaves the awaited render outside the callback
+- `signal-disposer-using` - Disposables carry a guarded `Symbol.dispose` alias, so `using stop = effect(…)` releases at scope exit — likewise for `subscribe()`, `Emitter` handles, `resource()` and `query()`. Nisli attaches the alias only where the runtime already has `Symbol.dispose` and NEVER polyfills; the callable disposer and `.dispose()` are unchanged. Inside component setup disposal is still automatic — reach for `using` in services, standalone code, and tests
 - `signal-no-async-in-setup-context` - `inject()`, `effect()`, `emitter.on()` must be called synchronously in setup
 - `signal-untrack` - Use `untrack()` to read signals without tracking them as dependencies (ADR 0009)
 - `signal-conditional-deps` - Dependencies are re-tracked on every run; conditional reads track correctly
@@ -91,9 +96,11 @@ Reference these guidelines when:
 - `tmpl-class-directive` - Use `class:name=${signal}` for conditional classes, not ternary soup
 - `tmpl-class-attribute-safe` - Reactive class attributes use classList, safe alongside class:name directives (ADR 0007)
 - `tmpl-no-bare-array-slot` - NEVER use `computed(() => arr.map(...))` for reactive lists — causes full teardown; use `each()` instead
+- `tmpl-each-view-transition-name` - Put `view-transition-name` on the item's PAINTED child, never on the `<each-item>` wrapper: the wrapper is `display: contents` and a box-less element cannot be captured. With the name on the painted child, `each()`'s stable per-key DOM identity carries the rest — `view-transition-name: match-element` needs no generated per-item names, and `view-transition-class` styles the whole group. `match-element` is same-document only; cross-document names must be spelled out explicitly on both pages
 - `tmpl-computed-views` - Use `computed()` for multi-branch conditional rendering
-- `tmpl-when-simple` - Use `when()` only for simple single-branch toggles
+- `tmpl-when-simple` - `when(cond, then, else?)` is the boolean-gated one-or-two-branch toggle; use `computed()` for 3+ branches. The gate is `!!cond` and a truthy→truthy transition returns the memoized result, so the live branch is never rebuilt. Pass lazy `() => html\`…\`` arms so only the active branch is constructed, and interpolate reactive parts as signals — branch callbacks evaluate UNTRACKED
 - `tmpl-xss-safe` - Text bindings use `textNode.data`; never parse user input as HTML
+- `tmpl-inner-brands` - `html:inner` never takes a bare string; the brand IS the trust decision and it picks the sink. `raw(markup)` = author-asserted trust → `innerHTML` (a native `TrustedHTML` rides the same sink, passed through unwrapped). `sanitized(markup)` = untrusted → the platform's `Element.setHTML()`, else an app-registered `setSanitizerFallback()` hook, else it THROWS N107. `sanitized()` NEVER falls back to `innerHTML` and nisli bundles no sanitizer, so an app that must run on engines without native `setHTML()` registers a fallback once at startup. Never wrap user input in `raw()`, and — the brands being structural — never pass unvalidated parsed JSON to `html:inner`
 - `tmpl-comment-markers` - Framework uses `<!--bk-N-->` markers; avoid this pattern in content
 - `tmpl-el-dynamic-tag` - For a tag chosen at RUNTIME (the one thing `html` can't express), use `el(tag, props?, children?)` — a factory returning a `TemplateResult` that composes in an `html` slot (`html`${el(tag, { class }, kids)}``). Prefer `html` for static tags. `el()` sets **attributes** (`setAttribute`, never `_setProp`) — a component tag reached via `el()` resolves values through its `attr()`/`boolAttr()` fallbacks, so use typed **factories** for typed composition. Props: `class` (string|signal), other keys → attribute, `ref`, `on: { event: handler }`; children take the full text-slot range. HTML-only in v1 (no SVG/namespaced tags)
 
@@ -114,7 +121,7 @@ They do not overlap: services are singletons; component-family state is subtree-
 **App-global (`injector`):**
 - `di-class-as-token` - Use the class itself as the injection token; no `createToken()` for services
 - `di-auto-singleton` - `inject(Class)` auto-creates a singleton; no registration needed
-- `di-provide-for-overrides` - `provide()` is for testing and subtree overrides only
+- `di-provide-for-overrides` - `provide()` is for tests and deliberate overrides only, and it MUST come before the first `inject()` of that token: once the token is instantiated the injector is frozen for it and `provide()` throws N501 (overriding later would leave old consumers on the old instance — a silent mixed-instance split). `resetInjector()` is the escape hatch
 - `di-sync-only` - `inject()` must be called synchronously during setup
 - `di-bootstrap-eager` - Long-lived services with startup side effects must be eagerly created by the app
 - `di-no-failed-cache` - Failed construction is never cached; next `inject()` retries
@@ -137,36 +144,40 @@ They do not overlap: services are singletons; component-family state is subtree-
 
 ### 6. Declarative Data Loading (MEDIUM-HIGH)
 
-- `query-key-function` - First arg is a key function returning an array; signals inside are tracked
-- `query-cache-key` - Same cache key = same cached result; design keys for proper deduplication
-- `query-generation-guard` - Stale responses are discarded via generation counter; no race conditions
-- `query-enabled-guard` - Use `enabled` option to conditionally skip fetches
-- `query-invalidate-prefix` - `invalidate(['tasks'])` matches all keys starting with `['tasks']`
-- `query-disposed-check` - All async writes check `!disposed` before updating signals
+- `query-key-function` - First arg is a key function whose signal reads are tracked; keys are FLAT `readonly (string|number|boolean|null)[]` with `null` as the optional sentinel. Objects, nested arrays, `undefined` and non-finite numbers throw N602 (synchronously at the call site for the construction-time key) — spread object params into tuple elements. Flat keys are order-sensitive, so a reordered key is a cache MISS: use per-endpoint key-builder helpers
+- `query-cache-key` - Same key = one per-key RECORD in the `QueryClient` (`data`/`error`/`status`/`fetchedAt` signals + at most one run in flight); `query()` is a thin observer over it, so dedup is structural. The most-recently-mounted ENABLED observer's fetcher/`retry` owns the next run, `staleTime` is per-observer policy, and records are never GC'd (bound it with `client.clear()` or a per-lifetime client)
+- `query-read-signals` - Read `data`/`loading`/`error`/`status` — there are NO `onSuccess`/`onError` options (removed); the signals ARE the notification. Options are `staleTime`, `retry`, `enabled`, `initialData` (a seed into an idle record, not a fetch). `refetch()` bypasses freshness but JOINS an in-flight run
+- `query-generation-guard` - Runs are superseded, not raced: starting a run aborts the previous `AbortController`, bumps the record's generation, and hands the new controller's `signal` to the fetcher — take it and pass it to `fetch`. Every commit point re-checks the generation, so a superseded run cannot write even if it ignored the abort; a synchronous fetcher throw becomes a normal rejection on the same retry/terminal path
+- `query-enabled-guard` - Use `enabled` to skip fetches; its signal reads are tracked and flipping back to `true` revalidates. `loading` is `false` while disabled, so neither a disabled query nor a key switch can strand it
+- `query-invalidate-prefix` - `invalidate(['tasks'])` matches element-by-element over validated keys (no string-prefix, no deserialization), marks matches stale, reruns only records with ≥1 enabled observer, and returns the count; disabled observers revalidate on re-enable. `clear()` drops every record and aborts in-flight runs
+- `query-dispose-unregisters` - `dispose()` unregisters THIS observer; the record and any in-flight run survive, and a zero-observer run still completes and commits. Component setup disposes automatically — there is no detached-signal write to guard against, because the record's signals belong to the client
 - `resource-source-tracked` - For local async derivations, `resource(source, loader)` tracks ONLY synchronous signal reads in `source`; loader reads are never dependencies; `undefined` disables and clears
 - `resource-stale-safe` - Source changes, refresh, and disposal abort/invalidate older loader generations so stale results cannot commit
 - `resource-vs-query` - Use `resource()` for local derived async work (markdown, transforms); use `query()` only when shared cache keys/invalidation are required
 
 ### 7. Error Handling & Resilience (MEDIUM)
 
-- `error-setup-boundary` - Setup errors render a fallback; sibling components unaffected
-- `error-effect-survives` - Effect errors are logged, not thrown; the effect stays alive
-- `error-effect-loop-guard` - Effects that re-run >100 times in 2s are auto-disposed (ADR 0009)
+- `error-setup-boundary` - A setup or `onMount` throw is contained: the partial scope is torn down, the host is stamped `data-nisli-error="N401"`/`"N402"`, a fallback renders (`onError` or a default red div), and a bubbling composed `nisli-error` event fires LAST with `{ code, tag, phase, message }`. The stamp is the durable channel (`querySelectorAll('[data-nisli-error]')`) and is cleared by a successful re-setup; siblings are unaffected
+- `error-effect-survives` - Effect errors are logged, not thrown, and the effect stays alive to retry on the next change — the only exception is the N301 loop guard, which disposes
+- `error-effect-loop-guard` - The effect loop guard is clock-free: an effect that re-schedules ITSELF on 100 consecutive runs is diagnosed (N301) and disposed. Converging writers pass, because an equal write stops the cascade at the `Object.is` cutoff
 - `error-handler-wrapped` - `@event` handlers are try/caught; broken handlers don't crash the UI
 - `error-cleanup-swallowed` - Cleanup/disposer errors are swallowed; disposal always completes
 - `error-circular-detection` - Both computed and DI have circular dependency detection
+- `error-coded-diagnostics` - Framework failures speak stable `[nisli N…]` codes — assert on the CODE, not the prose (`N1xx` template, `N2xx` define/props, `N3xx` reactivity, `N4xx` component containment, `N501` DI freeze, `N6xx` query/async). Reporting sits behind a dev gate probed once from Vite flags then `NODE_ENV`, loud by default in buildless ESM and silent in production builds; guarded BEHAVIOUR is never gated, so thrown codes (N107, N501, N602) throw in production too
 
 ### 8. Migration & Interop (MEDIUM)
 
 - `migration-preserve-contract` - Preserve existing tag names and public APIs intentionally during migration
 - `migration-prefer-services` - Prefer DI services, signals, and emitters over DOM querying or document events
 - `migration-auto-resolve` - Template auto-resolves `_setProp` vs `setAttribute`; `class` uses classList (ADR 0007)
+- `migration-prerender-gate` - Speculation-rules prerendering runs a page FULLY in a hidden document, so DOM wiring (listeners, custom-element upgrades, island mounts) may legitimately run while prerendering — but anything OBSERVABLE (analytics, timers, autofocus, media playback) must be wrapped in `whenActive()` from `@nisli/ssg/client`, which defers to `prerenderingchange` and runs the callback immediately where `document.prerendering`, or the document itself, is absent
+- `migration-ssg-view-transitions` - Cross-document view transitions are a BUILD option, not an authoring one: both the outgoing and incoming document must carry `@view-transition { navigation: auto }`, and only the build sees every page. Opt in with `buildStaticSite({ viewTransitions: true })` (object form adds speculation rules); absent or `false` leaves output byte-identical
 
 ### 9. Testing (LOW-MEDIUM)
 
-- `test-flush-effects` - Call `flushEffects()` after signal changes to run pending effects
-- `test-cascading-flush` - Cascading effects need multiple `flushEffects()` calls
-- `test-provide-mock` - Use `provide(Class, () => mock)` before `inject()` in tests
+- `test-flush-effects` - Call `flush()` after signal changes to run pending effects synchronously (`flushEffects` is a back-compat alias for the same function)
+- `test-one-flush-drains-the-cascade` - ONE `flush()` settles the whole synchronous cascade — the double-`flushEffects()` idiom is obsolete. If a second flush changes the result the work is not synchronous: use `await tick()` for microtask-scheduled work and `await settle()` for query/resource async, instead of polling helpers
+- `test-provide-mock` - `provide(Class, () => mock)` must precede the first `inject()` or it throws N501 — in practice `resetInjector()` then `provide()` in `beforeEach`
 - `test-reset-injector` - Call `resetInjector()` between tests to clear singleton cache
 - `test-query-client-isolated` - Provide a fresh `QueryClient` in tests for cache isolation
 

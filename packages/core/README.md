@@ -144,6 +144,16 @@ With no native `setHTML()` and no registered hook, the binding throws `N107`.
 It fails closed by design: nisli never silently downgrades untrusted markup to
 `innerHTML`, and never bundles a sanitizer of its own.
 
+## Diagnostics
+
+Development-only problems are reported as stable coded lines — `[nisli N107] …`
+— and the gate that enables them is probed once at load (Vite's `import.meta.env`,
+`NODE_ENV`, and loud by default in buildless ESM). Production builds are silent.
+
+Override the probe when the probe cannot know: `setDevMode(true)` in a test that
+asserts a diagnostic, `setDevMode(false)` on a buildless page you deploy to
+production, `setDevMode(null)` to restore it.
+
 ## Explicit resource management
 
 Standalone Nisli disposables support `using` on runtimes with native explicit

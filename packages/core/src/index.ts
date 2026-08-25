@@ -135,3 +135,7 @@ export {
   viewTransition,
   type ViewTransitionOptions,
 } from './view-transition.js';
+
+// ── Diagnostics gate (probed automatically; override for tests and for
+//    buildless pages deployed to production) ─────────────────────────
+export { setDevMode } from './diagnostics.js';
