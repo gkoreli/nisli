@@ -199,6 +199,20 @@ Keep async work outside the callback — the page is frozen during capture — a
 use the returned handle (`finished`, `ready`, `skipTransition()`) for hard
 opt-outs and for superseding an in-flight transition.
 
+Animating a keyed `each()` list needs one thing spelled out: the
+`<each-item>` wrapper is `display: contents`, and a box-less element cannot be
+captured, so `view-transition-name` must sit on the item's painted child — the
+element your item template actually renders. Put it there and `each()`'s stable
+per-key DOM identity does the rest, with no generated names:
+
+```css
+.card {
+  view-transition-name: match-element;  /* identity-keyed, nothing to bookkeep */
+  view-transition-class: card;          /* styles every card as one group */
+}
+::view-transition-group(.card) { animation-duration: 200ms; }
+```
+
 ## Core capabilities
 
 - Fine-grained reactivity: `signal`, `computed`, `effect`, `untrack`, `flush`,
