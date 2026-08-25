@@ -1,0 +1,457 @@
+<title>The Platform Caught Up</title>
+<style>
+  :root {
+    --paper: #fbfaf7;
+    --mist: #f1f2ed;
+    --line: #dfe2da;
+    --ink: #212721;
+    --muted: #5f6a5f;
+    --accent: #2e6b4f;
+    --accent-ink: #24543f;
+    --chip-wide-bg: #ddeee1; --chip-wide-fg: #1e5c38;
+    --chip-new-bg: #dcebee;  --chip-new-fg: #1c5a68;
+    --chip-part-bg: #f3e8d3; --chip-part-fg: #7a5a17;
+    --chip-gap-bg: #e8e8e4;  --chip-gap-fg: #5d6159;
+    --code-bg: #eef0ea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #181c19;
+      --mist: #1f2420;
+      --line: #333a33;
+      --ink: #e4e8e1;
+      --muted: #97a396;
+      --accent: #82bd9c;
+      --accent-ink: #9ccdb1;
+      --chip-wide-bg: #23392b; --chip-wide-fg: #9bd4ae;
+      --chip-new-bg: #1f353b;  --chip-new-fg: #8ec9d6;
+      --chip-part-bg: #3c3321; --chip-part-fg: #dbb96a;
+      --chip-gap-bg: #2a2e2a;  --chip-gap-fg: #a0a69c;
+      --code-bg: #232823;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #181c19;
+    --mist: #1f2420;
+    --line: #333a33;
+    --ink: #e4e8e1;
+    --muted: #97a396;
+    --accent: #82bd9c;
+    --accent-ink: #9ccdb1;
+    --chip-wide-bg: #23392b; --chip-wide-fg: #9bd4ae;
+    --chip-new-bg: #1f353b;  --chip-new-fg: #8ec9d6;
+    --chip-part-bg: #3c3321; --chip-part-fg: #dbb96a;
+    --chip-gap-bg: #2a2e2a;  --chip-gap-fg: #a0a69c;
+    --code-bg: #232823;
+  }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    font-size: 16px;
+  }
+  .wrap { max-width: 46rem; margin: 0 auto; padding: 3.5rem 1.25rem 5rem; }
+  .eyebrow {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 1rem;
+  }
+  h1 {
+    font-family: Charter, Georgia, "Times New Roman", serif;
+    font-size: clamp(2.1rem, 6vw, 3rem); line-height: 1.12;
+    font-weight: 700; margin: 0 0 1.25rem; text-wrap: balance;
+  }
+  .standfirst { font-size: 1.08rem; color: var(--ink); max-width: 40rem; }
+  .standfirst em { color: var(--accent-ink); font-style: normal; font-weight: 600; }
+  h2 {
+    font-family: Charter, Georgia, serif;
+    font-size: 1.45rem; line-height: 1.25; font-weight: 700;
+    margin: 3rem 0 0.75rem; text-wrap: balance;
+  }
+  h2 .rank {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.95rem; color: var(--accent); font-weight: 600;
+    margin-right: 0.5rem; vertical-align: 0.12em;
+  }
+  h3 { font-size: 1rem; font-weight: 650; margin: 1.5rem 0 0.5rem; }
+  p { margin: 0.75rem 0; max-width: 42rem; }
+  ul { max-width: 42rem; padding-left: 1.2rem; }
+  li { margin: 0.4rem 0; }
+  a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.86em; background: var(--code-bg);
+    padding: 0.1em 0.35em; border-radius: 4px;
+  }
+  .facts {
+    display: grid; gap: 1px; background: var(--line);
+    border: 1px solid var(--line); border-radius: 8px;
+    overflow: hidden; margin: 2.25rem 0;
+  }
+  @media (min-width: 640px) { .facts { grid-template-columns: 1fr 1fr 1fr; } }
+  .fact { background: var(--mist); padding: 1rem 1.1rem; }
+  .fact b { display: block; font-size: 0.95rem; margin-bottom: 0.3rem; }
+  .fact p { font-size: 0.85rem; color: var(--muted); margin: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.35rem 0 1rem; }
+  .chip {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.68rem; letter-spacing: 0.02em;
+    padding: 0.18rem 0.55rem; border-radius: 99px; white-space: nowrap;
+  }
+  .chip.wide { background: var(--chip-wide-bg); color: var(--chip-wide-fg); }
+  .chip.new  { background: var(--chip-new-bg);  color: var(--chip-new-fg); }
+  .chip.part { background: var(--chip-part-bg); color: var(--chip-part-fg); }
+  .chip.gap  { background: var(--chip-gap-bg);  color: var(--chip-gap-fg); }
+  .meta {
+    font-size: 0.85rem; color: var(--muted);
+    border-left: 2px solid var(--accent); padding-left: 0.8rem;
+    margin: 1rem 0; max-width: 40rem;
+  }
+  .meta b { color: var(--ink); font-weight: 600; }
+  .tablebox { overflow-x: auto; margin: 2rem 0; border: 1px solid var(--line); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 0.85rem; }
+  th {
+    text-align: left; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600;
+    padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--line); background: var(--mist);
+  }
+  td { padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td.n { font-family: ui-monospace, Menlo, monospace; color: var(--accent); font-variant-numeric: tabular-nums; }
+  td.size { font-family: ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  .divider { border: none; border-top: 1px solid var(--line); margin: 3rem 0; }
+  .footnote { font-size: 0.82rem; color: var(--muted); max-width: 40rem; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">nisli · research sweep · august 2026</p>
+  <h1>The Platform Caught Up</h1>
+  <p class="standfirst">
+    Five parallel research threads — a deep map of nisli's internals plus verified sweeps of
+    web standards, framework internals, agent-native UI, and adoption drivers — converge on one
+    thesis: <em>late 2025 through early 2026 was the inflection where the browser shipped the
+    primitives nisli currently hand-rolls</em>, while the ecosystem settled on nisli's exact
+    architecture (fine-grained signals, no VDOM, real DOM) and moved the frontier to async,
+    islands, and agent legibility. The bets below are ranked by leverage; each names the
+    nisli code or ADR it upgrades.
+  </p>
+
+  <div class="facts">
+    <div class="fact">
+      <b>The Baseline inflection</b>
+      <p>Safari 26.x + Firefox 144–149 pushed Navigation API, URLPattern, Invoker Commands, anchor positioning, <code>@scope</code>, and same-document View Transitions into Baseline between Sep 2025 and Jun 2026.</p>
+    </div>
+    <div class="fact">
+      <b>Signals won; the frontier moved</b>
+      <p>Vue Vapor shipped, Angular went zoneless-by-default, Solid 2.0 is in beta. Signals-without-VDOM is consensus. The new table stakes: first-class async, streaming, and islands — not resumability.</p>
+    </div>
+    <div class="fact">
+      <b>The AI Matthew effect is measured</b>
+      <p>29% of shipped code was AI-generated by end of 2025, and LLMs measurably amplify mainstream frameworks. Svelte's AI-docs suite (llms.txt bundles + analyzing MCP server) is the documented counter-playbook.</p>
+    </div>
+  </div>
+
+  <div class="tablebox">
+    <table>
+      <thead>
+        <tr><th>#</th><th>Bet</th><th>Platform status</th><th>What it closes in nisli</th><th>Size</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="n">1</td><td>moveBefore() in each()/portal</td><td>Chrome + Firefox; Safari pending</td><td>ADR 0030.2 §3, completes ADR 0023</td><td class="size">S</td></tr>
+        <tr><td class="n">2</td><td>Platform overlay stack in @nisli/ui</td><td>Popover widely avail Oct 2026; anchor + invokers Baseline</td><td>floating.ts, portal.ts, dismissable-layer.ts</td><td class="size">M</td></tr>
+        <tr><td class="n">3</td><td>Navigation API + URLPattern router</td><td>Both Baseline (Jan / Sep 2025)</td><td>ADR 0026's deferral condition has flipped</td><td class="size">M</td></tr>
+        <tr><td class="n">4</td><td>View Transitions, both lanes</td><td>Same-doc Baseline; cross-doc Interop 2026</td><td>No-JS SSG transitions; keyed-list animation</td><td class="size">S–M</td></tr>
+        <tr><td class="n">5</td><td>Islands adoption — core adopt()</td><td>—</td><td>ADR 0025 §17, ADR 0018, WWW-14 double-render</td><td class="size">L</td></tr>
+        <tr><td class="n">6</td><td>Agent-native: ship the ADRs</td><td>MCP Apps official; WebMCP in origin trial</td><td>ADR 0029 / 0030.x from Proposed to shipped</td><td class="size">M–L</td></tr>
+        <tr><td class="n">7</td><td>Typed server functions + Standard Schema</td><td>ECMA-429 published Dec 2025</td><td>The 2026 adoption gate the router lacks</td><td class="size">L</td></tr>
+        <tr><td class="n">8</td><td>Modern-CSS pass in @nisli/ui</td><td>@scope, style queries, field-sizing Baseline</td><td>UI-36B selector debt; autogrow JS; theming</td><td class="size">M</td></tr>
+        <tr><td class="n">9</td><td>Small runtime wins</td><td>using Stage 4; scheduler.yield, setHTML partial</td><td>ADR 0019 follow-ups; soft-nav metrics</td><td class="size">S</td></tr>
+        <tr><td class="n">10</td><td>TC39 Signals: hold, add interop edge</td><td>Still Stage 1</td><td>Confirms ADR 0015; optional adapter</td><td class="size">S</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2><span class="rank">01</span>Adopt <code>Node.moveBefore()</code> — the one-line win</h2>
+  <div class="chips">
+    <span class="chip new">Chrome 133 · Feb 2025</span>
+    <span class="chip new">Firefox 144 · Oct 2025</span>
+    <span class="chip gap">Safari: positive, not shipped</span>
+  </div>
+  <p>
+    Atomic, state-preserving DOM moves: iframe state, focus, selection, CSS animations, and
+    popover state all survive a reparent — impossible with <code>insertBefore</code>. React holds
+    it behind an experimental flag and htmx already ships it; a no-VDOM framework gets it in one
+    feature-detected line because there is no reconciler abstraction in the way.
+  </p>
+  <p class="meta">
+    <b>In nisli:</b> keyed <code>each()</code> and <code>portal</code> currently reorder with
+    <code>insertBefore</code> (template.ts:1120). ADR 0030.2 §3 already specifies this exact
+    adoption (~10 lines, plus an empty <code>connectedMoveCallback</code> on the base class) and
+    notes it completes ADR 0023's move-resilient lifecycle "on the platform's terms." It was
+    simply not in Wave 1. Promote it to the front of Wave 2; keep deferred teardown as the fallback.
+  </p>
+
+  <h2><span class="rank">02</span>Rebuild @nisli/ui overlays on the platform stack</h2>
+  <div class="chips">
+    <span class="chip wide">Popover: widely available Oct 2026</span>
+    <span class="chip new">Invoker Commands: Baseline Dec 2025</span>
+    <span class="chip new">Anchor positioning: all engines since Firefox 147</span>
+    <span class="chip part">dialog closedby: Safari gap · Interop 2026</span>
+  </div>
+  <p>
+    The top layer plus CSS anchor positioning makes the entire hand-rolled overlay stack —
+    <code>floating.ts</code> (a mini Floating-UI), <code>portal.ts</code>,
+    <code>dismissable-layer.ts</code>, and much of <code>focus.ts</code> — progressively
+    deletable. <code>popover</code> gives light-dismiss, stacking, and top-layer rendering with
+    no portal machinery and no z-index management; <code>anchor-name</code> +
+    <code>@position-try</code> gives flip/shift positioning with zero JS; <code>closedby</code>
+    collapses Escape/outside-click policy to an attribute where supported.
+  </p>
+  <p>
+    The sleeper is Invoker Commands: custom <code>command="--open-menu"</code> buttons fire a
+    <code>CommandEvent</code> at their target — a built-in declarative wiring channel that fits
+    nisli's attribute-as-truth components perfectly. Teaching the component base class to listen
+    for <code>CommandEvent</code> gives every nisli component a declarative API surface that
+    plain-HTML consumers and agents can drive without any framework event binding.
+  </p>
+  <p class="meta">
+    <b>In nisli:</b> ADR 0019 already ruled "use native popover for simple overlays before adding
+    a framework abstraction" — the UI package predates the ruling in practice. This is executing
+    nisli's own philosophy now that the support matrix allows it. Per-component migration
+    (tooltip → dropdown → dialog), feature-detected, keeping the JS fallback for the Safari-shaped
+    holes (<code>closedby</code>, <code>popover=hint</code>) that Interop 2026 explicitly targets.
+    Interest Invokers (<code>interestfor</code>, Chromium-only) are the progressive-enhancement
+    future for tooltips — watch, don't depend.
+  </p>
+
+  <h2><span class="rank">03</span>Move the router to Navigation API + URLPattern</h2>
+  <div class="chips">
+    <span class="chip new">Navigation API: Baseline Jan 13, 2026</span>
+    <span class="chip new">URLPattern: Baseline Sep 15, 2025</span>
+    <span class="chip new">Interop 2026 focus area</span>
+  </div>
+  <p>
+    ADR 0026 deferred URLPattern "until browser support and semantics fit" — that condition has
+    now flipped: both APIs went Baseline within the last year (Safari 26.2 and Firefox 147
+    closed the set). A single <code>navigation.intercept()</code> handler replaces the
+    popstate-plus-click-delegation pair and gets correct back/forward, traversal promises, scroll
+    restoration, and focus semantics from the browser instead of reimplementing them.
+  </p>
+  <p class="meta">
+    <b>In nisli:</b> router.ts's delegated click listener, manual
+    <code>history.scrollRestoration</code> management, and the hand-compiled matcher all shrink.
+    Nisli's typed catalog, codecs, and managed-head layers stay — they're the differentiation;
+    only the engine underneath swaps. Feature-detect and keep the History-API path for the
+    roughly-two-year browser tail. This also unlocks bet 04 cleanly.
+  </p>
+
+  <h2><span class="rank">04</span>View Transitions in both lanes — SPA flush and SSG navigation</h2>
+  <div class="chips">
+    <span class="chip new">Same-document: Baseline Oct 14, 2025</span>
+    <span class="chip new">match-element + vt-class: cross-browser</span>
+    <span class="chip part">Cross-document: no Firefox yet · Interop 2026</span>
+    <span class="chip gap">Speculation Rules: Chromium-only</span>
+  </div>
+  <p>
+    Same-document View Transitions are Baseline, and the 2025 extras remove the old ergonomic
+    blockers: <code>view-transition-name: match-element</code> auto-names elements by identity,
+    so keyed <code>each()</code> reorders can animate without nisli generating unique names, and
+    <code>view-transition-class</code> styles groups of items at once. The framework move is an
+    opt-in scheduler mode — wrap the batched flush (or a router navigation) in
+    <code>document.startViewTransition()</code> — plus a documented recipe for list transitions.
+  </p>
+  <p class="meta">
+    <b>In nisli:</b> zero occurrences today; ADR 0019 named the API but never ruled on it. The
+    SSG lane is the quiet win: cross-document View Transitions plus router-injected Speculation
+    Rules give statically-generated nisli sites app-like instant navigation with <em>zero
+    runtime JS</em> — declarative CSS and a JSON script tag, exactly nisli's brand. Runtime
+    caveat to handle once: prerendered pages must defer effects until
+    <code>document.prerendering</code> flips.
+  </p>
+
+  <h2><span class="rank">05</span>Close the hydration gap with islands-style <code>adopt()</code></h2>
+  <div class="chips">
+    <span class="chip part">Field verdict: remount is below table stakes</span>
+    <span class="chip wide">Resumability: proven unnecessary</span>
+  </div>
+  <p>
+    The framework-trends sweep is unambiguous: nobody credible ships "client remounts the page"
+    as the only story anymore, but full resumability (Qwik) also failed to become required.
+    The settled minimum is Astro's shape — static HTML plus independently-mounting islands with
+    state continuity (no flicker, no lost input, no double render). That is precisely the open
+    question nisli has already framed as ADR 0025 §17, and its named enablers (T4 stable binding
+    positions, T3 attribute-as-truth schema) are landed or queued.
+  </p>
+  <p class="meta">
+    <b>In nisli:</b> promote www's hand-rolled replace-frame (hydrate.ts, with its WWW-14
+    double-render scars) into a core <code>adopt()</code> primitive: bind a component to
+    prerendered DOM in place, reading initial state from attributes instead of rebuilding
+    children. This kills the double-render bug class, makes the SSG lane a first-class product
+    ("Astro-but-one-runtime"), and is the largest single internals investment on this list —
+    sequence it after the quick wins, likely as its own ADR graduating 0018's useful parts
+    without adopting its full hydration-marker machinery.
+  </p>
+
+  <h2><span class="rank">06</span>Agent-native: the ADRs bet right — now ship while the window is open</h2>
+  <div class="chips">
+    <span class="chip wide">MCP Apps: official spec Jan 26, 2026</span>
+    <span class="chip new">WebMCP: Chrome 149 origin trial · Edge 147 native</span>
+    <span class="chip wide">A11y-tree evidence: CHI 2026</span>
+    <span class="chip part">A2UI: v1.0 candidate, still churning</span>
+  </div>
+  <p>
+    The research validates ADR 0029/0030.x's direction with new force, and sharpens the order.
+    MCP Apps is now an official MCP extension with ChatGPT and Claude both hosting — a
+    sandboxed-iframe HTML resource with a postMessage JSON-RPC bridge, which is almost a
+    description of what <code>buildAppResource()</code> (single-file emit, size budget) would
+    produce. That is the highest-confidence deliverable in the whole agent-native program.
+    WebMCP graduated from speculation to Chrome 149 origin trial and native Edge 147, with
+    Shopify/Expedia/Target-scale pilots; the gated <code>lib/model-context.ts</code> experiment
+    is correctly scoped — abstract the API churn (<code>navigator</code> →
+    <code>document.modelContext</code>, Aug 2026) behind nisli's own seam.
+  </p>
+  <p>
+    Two findings upgrade existing positions. First, CHI 2026 measured agent task success falling
+    from 78% to 42% when the accessibility tree degrades — nisli's ARIA rigor and real-DOM
+    semantics are now an <em>empirically measurable performance feature</em> for the agent
+    audience, worth stating exactly that way in nisli's marketing. Second, the adoption research
+    confirms the Matthew-effect headwind is real and measured, and that the working counter-playbook
+    is Svelte's: sized llms.txt bundles <em>plus an MCP docs server that statically analyzes
+    generated code and suggests fixes</em> — which maps one-to-one onto nisli's planned B3/B5
+    (context artifacts, @nisli/mcp) and A4/A5 (template static analysis, drift linter). Crawl-time
+    llms.txt keeps earning its "cheap build artifact, not architecture" status: AI crawlers
+    barely fetch it. The agent-time channel is where the leverage is.
+  </p>
+  <p class="meta">
+    <b>In nisli:</b> ship order — registry <code>manifest.json</code> + diagnostics-to-NDJSON
+    (already specced as B1/B2), then <code>buildAppResource()</code> for MCP Apps, then
+    <code>@nisli/mcp</code> with the Svelte-style analyze-and-fix loop, with WebMCP kept
+    feature-detected and never auto-registered. A2UI stays "watch, then spike" — real Google
+    code, but v0.9 was a breaking rework; let the schema stop moving first.
+  </p>
+
+  <h2><span class="rank">07</span>Typed server functions + Standard Schema — the missing adoption gate</h2>
+  <div class="chips">
+    <span class="chip wide">Standard Schema: Zod/Valibot/ArkType interop</span>
+    <span class="chip new">WinterTC ECMA-429: published Dec 2025</span>
+    <span class="chip gap">Edge rendering as a pitch: dead</span>
+  </div>
+  <p>
+    The adoption research's clearest structural finding: TanStack Start's breakout year ran on
+    typed server functions and end-to-end type safety — and "typed routes alone" now reads as
+    2023-era. The gates for a credible 2026 default are typed routes <em>plus</em> typed server
+    functions accepting Standard Schema validators (never a hard Zod dependency), deploy adapters
+    for Cloudflare + Node first (aligned to the now-published ECMA-429 minimum common API), and a
+    named auth answer — auth's absence is the explicitly-cited SolidStart blocker. Meanwhile
+    Vercel deprecated Edge Functions and Next removed the edge runtime option: "runs at the edge"
+    is dead as a rendering pitch, but "runs on Workers" still matters as a platform.
+  </p>
+  <p class="meta">
+    <b>In nisli:</b> the environment-neutral <code>@nisli/router/catalog</code> with edge/Worker
+    matching is the right foundation — what's missing is the RPC layer on top: a
+    <code>serverFn()</code>-style primitive with Standard Schema input validation, wired through
+    the Vite plugin, plus a documented Better-Auth recipe and a Workers adapter. This is the
+    largest ecosystem-facing bet here, and the one that moves nisli from "framework" to
+    "thing you can start a product on Monday."
+  </p>
+
+  <h2><span class="rank">08</span>A modern-CSS pass through @nisli/ui</h2>
+  <div class="chips">
+    <span class="chip new">@scope: Baseline Dec 2025</span>
+    <span class="chip new">Style queries: Baseline mid-2026</span>
+    <span class="chip new">field-sizing: Baseline Jun 2026</span>
+    <span class="chip wide">light-dark(): widely available</span>
+    <span class="chip gap">Customizable select: Chromium-only</span>
+  </div>
+  <p>
+    Four newly-Baseline features slot straight into a light-DOM component kit.
+    <code>@scope</code> with donut scoping is the style-isolation story light DOM has been
+    waiting for — and a direct tool against the <code>display:contents</code> selector-translation
+    debt catalogued in UI-36B. Container <em>style</em> queries
+    (<code>@container style(--variant: ...)</code>) enable CSS-only variant propagation through
+    transparent hosts. <code>field-sizing: content</code> deletes autogrow-textarea JS.
+    <code>light-dark()</code> plus <code>@property</code> modernizes theme.css into
+    single-declaration dual-theme tokens — the pattern the Tailwind-v4 ecosystem is converging on.
+    Customizable <code>&lt;select&gt;</code> stays progressive enhancement: layer
+    <code>appearance: base-select</code> styling on the native element now, keep the ARIA listbox
+    until Safari/Firefox ship, then delete it.
+  </p>
+
+  <h2><span class="rank">09</span>Small runtime wins with outsized polish</h2>
+  <div class="chips">
+    <span class="chip wide">using / DisposableStack: Stage 4, ES2026</span>
+    <span class="chip part">scheduler.yield: Safari missing</span>
+    <span class="chip part">setHTML / Sanitizer: Safari missing</span>
+    <span class="chip new">Soft-nav metrics: Chrome 151 + web-vitals v6</span>
+  </div>
+  <ul>
+    <li><b>Explicit resource management.</b> <code>using e = effect(...)</code> — Safari landed it
+      in STP this month, closing the matrix. Add <code>[Symbol.dispose]</code> to effect, resource,
+      query subscriptions, and Emitter handles; near-zero bytes, real ergonomic and agent-legibility
+      payoff (disposal becomes syntactically checkable).</li>
+    <li><b>Time-sliced flushing, opt-in.</b> ADR 0019's rejection of scheduler-as-core stands, but
+      <code>scheduler.yield()</code> is now Chrome + Firefox: a feature-detected yield point inside
+      long <code>flush()</code> cascades protects INP without touching microtask semantics.</li>
+    <li><b>Narrow <code>html:inner</code>.</b> The planned TrustedHTML/Sanitizer follow-up is now
+      actionable: <code>setHTML()</code> shipped in Firefox 148 + Chrome 146. Feature-detect,
+      keep <code>raw()</code> as the seam.</li>
+    <li><b>Instrument for soft navigations.</b> Chrome 151 ships per-route LCP/INP for SPAs and
+      web-vitals v6 supports it natively. Fine-grained updates are exactly what the new per-route
+      lens rewards — wire the router to it and nisli gets favorable, measurable field data
+      essentially for free.</li>
+  </ul>
+
+  <h2><span class="rank">10</span>TC39 Signals: hold the line, add an interop edge</h2>
+  <div class="chips">
+    <span class="chip gap">Still Stage 1 · no engine implementation</span>
+    <span class="chip new">Polyfill interop: Lit, Angular-adjacent</span>
+  </div>
+  <p>
+    The proposal has not advanced since ADR 0015 judged it "right direction, wrong timing" — that
+    call remains correct, and nisli's watcher-compatible <code>flush()</code> design keeps the
+    forward path open. The one cheap addition: a small optional adapter (the
+    <code>@lit-labs/signals</code> pattern) that lets nisli signals interoperate with
+    polyfill-based components, which buys cross-library credibility without betting the core on a
+    Stage 1 API.
+  </p>
+
+  <hr class="divider" />
+
+  <h2>Confirmed non-goals</h2>
+  <ul>
+    <li><b>DOM Parts:</b> effectively dormant (no spec advancement, no implementation). Keep
+      internal bindings part-shaped as ADR 0014 plans, but build the compiled-template work on
+      today's platform.</li>
+    <li><b>Resumability:</b> Qwik stayed niche; islands won. Bet 05 is the whole answer.</li>
+    <li><b>In-chat checkout protocols:</b> OpenAI killed Instant Checkout in March; UCP is alive
+      but platform-side. Emit clean structured data and WebMCP tools; build no commerce protocol.</li>
+    <li><b>Scoped custom element registries:</b> shadow-root-only, as ADR 0030.2 already noted —
+      still useless for light DOM; re-check only if the light-DOM inheritance question reopens.</li>
+    <li><b>Shadow DOM:</b> open-stylable shadow roots remain a WICG issue with no spec. The
+      light-DOM stance is validated through at least 2027 — and the "HTML web components"
+      sentiment shift means it's now fashionable, not contrarian.</li>
+  </ul>
+
+  <h2>Sequencing</h2>
+  <p>
+    Quick wins first: <b>01</b> and the runtime items in <b>09</b> are days, not weeks, and several
+    are already specced in ADR 0030.2. The UI platform pass (<b>02</b>, <b>08</b>) runs as
+    per-component migrations on the existing UI worklist cadence. The router pair (<b>03</b>,
+    <b>04</b>) is one coherent ADR. <b>06</b> should overlap everything — the MCP Apps window is
+    open now and the manifest/diagnostics groundwork is already prioritized. <b>05</b> and
+    <b>07</b> are the two genuinely large bets; 05 makes existing users' products better, 07 makes
+    new users possible. Both deserve their own ADRs before code.
+  </p>
+
+  <p class="footnote">
+    Method: one repo-mapping agent over nisli's source and all 34 ADRs, plus four web-research
+    agents with findings verified against primary sources (web.dev, MDN, web-features explorer,
+    Interop 2026, vendor blogs, State of JS 2025, npm registry API) during August 2026. Support
+    chips reflect verified status as of August 20, 2026; "Interop 2026" marks gaps the vendors
+    have formally committed to closing this year.
+  </p>
+</div>
