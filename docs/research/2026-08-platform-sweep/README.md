@@ -17,6 +17,7 @@ review should be renumbered into `docs/adr/` and executed through arch.
 | `briefs/bet-NN-*.md` | One investment brief per bet, in rank order |
 | `reviews/*.review.md` | Adversarial cross-lab reviews (codex `gpt-5.6-sol`, xhigh) |
 | `codex/*.prompt.md` / `*.report.md` | Worker prompts and returned reports, for provenance |
+| `experiments/bet-NN-*/` | Throwaway falsification experiments, with a `RESULT.md` each |
 
 Published copies: [the report](https://claude.ai/code/artifact/563573aa-c238-4f81-b7f4-5a1cced2dc2a)
 · [the briefs](https://claude.ai/code/artifact/ad7ff06c-6921-4ac4-aec2-dd550daf3bfb)
@@ -34,11 +35,11 @@ agent-legibility.
 |---|-----|--------|
 | 01 | `moveBefore()` at move sites | **Landed + proven in three real browsers** |
 | 02 | Overlay stack on popover / anchor / dialog | Not started — net-deletion of ~985 LOC |
-| 03 | Navigation API router | **Phases 1–2 landed** — engine seam plus `NavigationApiEngine` on `navigation.intercept()`, `engine: 'auto' \| 'history' \| 'navigation'`, `router.state()`. URLPattern **rejected**, hand matcher kept. Real-browser proof outstanding (see below) |
-| 04 | View transitions, both lanes | **Phase 1 core half landed** — `viewTransition(update, { types })` in core, progressively enhanced. The phase-1 router opt-in, the phase-2 `each()` recipe, and the phase-3 SSG zero-JS lane are not landed |
-| 05 | `adopt()` islands | **Blocked** — review verdict UNSOUND as written; needs a serialization/replay contract |
+| 03 | Navigation API router | **Phases 1–2 landed and proven in three real browsers** — engine seam plus `NavigationApiEngine` on `navigation.intercept()`, `engine: 'auto' \| 'history' \| 'navigation'`, `router.state()`. URLPattern **rejected**, hand matcher kept. The proof found three defects, all fixed (see below) |
+| 04 | View transitions, both lanes | **Phases 1 and 3 landed** — core `viewTransition(update, { types })`, the router opt-in on the commit, and the SSG cross-document emission with `whenActive()`. Phase 2 (the `each()` recipe) and www dogfooding are in flight |
+| 05 | `adopt()` islands | **Blocked, and now experimentally falsified** — the review's probe fires: 16 of 24 assertions fail (`experiments/bet-05-adopt-probe/RESULT.md`). Needs a serialization contract AND an adoption lifecycle |
 | 06 | Agent-native surface | Not started |
-| 07 | `@nisli/server` server functions | **Blocked** — review verdict UNSOUND as written; needs a fail-closed bundle-split gate |
+| 07 | `@nisli/server` server functions | **Unblocked, with a corrected verification shape** — the fail-closed fixture passes 35/35 on the Vite the repo actually has (`experiments/bet-07-server-split/RESULT.md`); the brief's audit method, not its authoring shape, was what failed |
 | 08 | Modern-CSS pass | **Batches 0–1 landed** — `light-dark()` + `@property` tokens with the `.dark` block collapsed; `field-invalid`/`field-disabled` as container style queries across the forms family. Batches 2–5 not started |
 | 09a | `Symbol.dispose` on disposables | **Landed** |
 | 09c | `sanitized()` → `setHTML` | **Landed** — fail-closed N107; ssg throws rather than emit escaped `[object Object]` |
@@ -130,11 +131,19 @@ Not yet filed with Mozilla — worth reporting.
 - **Bet 09c's native path is stub-proven.** happy-dom has no `Element.setHTML`, so that the
   platform's default sanitizer actually strips `<script>`/`onerror` is taken from spec, not
   measured. TrustedHTML pass-through is unverified under a real CSP.
-- **Bet 03 is happy-dom only, and phase 2 raised the stakes.** ADR 0026's RTR-6
-  real-browser scroll/focus/hash gap is exactly as open as it was before the extraction —
-  but `ownsScrollRestoration: false` is no longer dead code. `NavigationApiEngine`
-  (`packages/router/src/navigation-engine.ts:133`) declares it, so `router.ts:364` now
-  *skips* nisli's own scroll work and trusts the browser, on the default `engine: 'auto'`
-  path, for every Chromium and Firefox visitor. Verified by inspection and happy-dom only.
-  A three-engine proof forcing both engines is in flight
-  (`proof:router-navigation`).
+- **Bet 03's proof debt is closed, and it was not a formality.**
+  `pnpm --filter @nisli/www proof:router-navigation` now exits zero across nine variants
+  (chromium/firefox/webkit × `engine:'history'`, `engine:'navigation'`, and `'navigation'`
+  with the API hidden to exercise the fallback), ~30 measured properties each, with a
+  `…:vacuity` self-test proving the scroll assertions can fail. BET03 itself is sound:
+  every browser-owned scroll property the History engine hand-emulated is delivered under
+  `ownsScrollRestoration: false`, and on traversal across a fragment entry the Navigation
+  engine is strictly better than the code it replaced.
+  The proof found three defects on the way, all now fixed in `packages/router`:
+  the outlet host was `display: contents`, so the documented focus reset and the
+  skip-link recipe were silent no-ops in every real browser; fragment tracking diverged
+  per engine, making `router.url`/`isActive()` engine-dependent; and `HistoryEngine`
+  overwrote the pre-fragment scroll offset, restoring 0 on Chromium and ~1736 on Firefox
+  and WebKit from identical code. All three were invisible to happy-dom, which has no
+  layout and no native fragment navigation — the reason the unit suite was green
+  throughout.
