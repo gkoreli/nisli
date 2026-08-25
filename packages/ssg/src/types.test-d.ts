@@ -2,8 +2,10 @@ import { html } from '@nisli/core';
 import { defineRouter, notFound, route } from '@nisli/router';
 import {
   buildStaticSite,
+  whenActive,
   type StaticApplicationRouter,
   type StaticRouterMetadata,
+  type StaticSiteViewTransitions,
 } from './index.js';
 
 const fullMetadata: StaticRouterMetadata = {
@@ -53,3 +55,18 @@ void buildStaticSite({ outDir: 'dist', router: AppRouter });
 
 // @ts-expect-error precise route params remain required through the catalog
 AppRouter.routes.component.href({ params: {} });
+
+// The option is a boolean *or* a speculation-rule object, never a loose record.
+const viewTransitionForms: StaticSiteViewTransitions[] = [
+  true,
+  false,
+  { speculationRules: true },
+  { speculationRules: { hrefMatches: ['/docs/*'], prefetch: 'conservative', excludeSelector: false } },
+];
+void viewTransitionForms;
+void buildStaticSite({ outDir: 'dist', router: AppRouter, viewTransitions: viewTransitionForms[0] });
+
+// @ts-expect-error eagerness is a closed set of hints
+void buildStaticSite({ outDir: 'dist', router: AppRouter, viewTransitions: { speculationRules: { prefetch: 'soon' } } });
+
+whenActive(() => {});

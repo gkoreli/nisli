@@ -6,6 +6,21 @@ checkpoints (ADR 0022); dates are release dates.
 
 ## Unreleased
 
+- Opt-in `viewTransitions` on the static-site config emits the cross-document
+  view-transition contract into every page's head: the
+  `@view-transition { navigation: auto }` style both sides of a navigation need,
+  and optional prefetch/prerender speculation rules (`href_matches` scope,
+  eagerness, and a `[data-no-prerender]` exclusion, all tunable). The payload is
+  minified with a fixed key order so committed output is byte-stable, and a
+  build without the option is byte-identical to before.
+- `renderViewTransitionHead()` is exported for sites that render body fragments
+  through SSG and assemble the document in their own shell: they place the same
+  markup in their head instead of enabling injection.
+- New `@nisli/ssg/client` entry point exports `whenActive(fn)`, the prerender
+  guard for anything observable (analytics, timers, autofocus, media) in a page
+  a browser may render in a hidden prerendered document. It is dependency-free,
+  side-effect-free, and runs its callback immediately — never throwing — where
+  `document.prerendering` or the DOM itself is absent.
 - `renderToString()` now throws on `@nisli/core`'s `sanitized()` markup
   instead of silently emitting an escaped `[object Object]`. This module is
   DOM-free by design, so there is no `Element.setHTML()` and no registered

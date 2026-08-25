@@ -1,6 +1,11 @@
 import { mkdirSync } from 'node:fs';
 import { renderToHtml, type Renderable } from './core-render.js';
 import { cleanOutDir, copyPublicAssets, writeRoute } from './output.js';
+import {
+  injectViewTransitionHead,
+  renderViewTransitionHead,
+  type StaticSiteViewTransitions,
+} from './view-transitions.js';
 
 export type { Renderable } from './core-render.js';
 
@@ -101,6 +106,12 @@ interface StaticSiteConfigBase<Context extends Record<string, unknown>> {
   beforeBuild?: (context: Context) => void | Promise<void>;
   afterBuild?: (result: StaticSiteBuildResult) => void | Promise<void>;
   onPage?: (page: StaticPageResult) => void | Promise<void>;
+  /**
+   * Emit the cross-document view-transition opt-in (and, optionally,
+   * speculation rules) into every page's head. Off by default; enabling it is
+   * the only way both sides of a navigation can carry the opt-in.
+   */
+  viewTransitions?: StaticSiteViewTransitions;
 }
 
 export interface StaticRoutesSiteConfig<Context extends Record<string, unknown> = Record<string, never>>
@@ -161,11 +172,16 @@ export async function buildStaticSite<Context extends Record<string, unknown> = 
   await config.beforeBuild?.(context);
 
   const pages: StaticPageResult[] = [];
+  const viewTransitionHead = renderViewTransitionHead(config.viewTransitions);
   if ('router' in config && config.router) {
     const renderedPages = await renderRouterPages(config);
     for (const rendered of renderedPages) {
       const html = await renderToHtml(rendered.content);
-      const page = writeRoute(config.outDir, rendered.path, html);
+      const page = writeRoute(
+        config.outDir,
+        rendered.path,
+        injectViewTransitionHead(html, viewTransitionHead, rendered.path),
+      );
       pages.push(page);
       await config.onPage?.(page);
     }
@@ -173,7 +189,11 @@ export async function buildStaticSite<Context extends Record<string, unknown> = 
     // Preserve the existing route-by-route render/write/hook ordering.
     for (const route of config.routes) {
       const html = await renderToHtml(await route.render(context));
-      const page = writeRoute(config.outDir, route.path, html);
+      const page = writeRoute(
+        config.outDir,
+        route.path,
+        injectViewTransitionHead(html, viewTransitionHead, route.path),
+      );
       pages.push(page);
       await config.onPage?.(page);
     }

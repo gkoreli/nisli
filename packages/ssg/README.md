@@ -75,6 +75,103 @@ router metadata contract: `title`, named `meta`, property/OpenGraph metadata,
 canonical and alternate links, `lang`/`dir`, and keyed JSON-LD. SSG keeps this
 contract structural, so `@nisli/router` remains optional at runtime.
 
+## Cross-document view transitions
+
+A cross-document view transition only runs when **both** the outgoing and the
+incoming document carry `@view-transition { navigation: auto }`. A page cannot
+opt its own inbound navigations in, so this is a build option rather than an
+authoring one — the build is the only layer that sees every page.
+
+```typescript
+await buildStaticSite({
+  outDir: 'dist',
+  router: AppRouter,
+  viewTransitions: true,
+});
+```
+
+`true` emits the plain crossfade opt-in into every page's head:
+
+```html
+<style>@view-transition { navigation: auto; }</style>
+```
+
+The object form adds speculation rules on top of it. `speculationRules: true`
+uses the defaults; an object tunes them:
+
+```typescript
+viewTransitions: {
+  speculationRules: {
+    hrefMatches: '/*',                     // URL Pattern scope, string or array
+    prefetch: 'moderate',                  // eagerness hint, or false to omit
+    prerender: 'moderate',
+    excludeSelector: '[data-no-prerender]', // prerender opt-out, or false
+  },
+}
+```
+
+which emits, after the style element:
+
+```html
+<script type="speculationrules">{"prefetch":[{"where":{"href_matches":"/*"},"eagerness":"moderate"}],"prerender":[{"where":{"and":[{"href_matches":"/*"},{"not":{"selector_matches":"[data-no-prerender]"}}]},"eagerness":"moderate"}]}</script>
+```
+
+The payload is minified with a fixed key order, so a rebuild produces identical
+bytes — this output is committed. `excludeSelector` filters prerendering only:
+opting a link out of a hidden pre-rendered document does not mean opting it out
+of a plain response download. Marking a link is authoring-side:
+`<a href="/checkout" data-no-prerender>`.
+
+Omitting the option, or passing `false`, leaves output byte-identical to a build
+without the feature. Everything emitted degrades cleanly: an engine without
+`@view-transition` ignores the unknown at-rule and navigates normally, and an
+engine without the Speculation Rules API treats the script element as inert.
+
+The build injects before the first `</head>` in each rendered page, reusing that
+tag's indentation. A page rendered as a bare fragment gets the block prepended
+instead — the HTML parser routes a leading `<style>`/`<script>` into the implied
+head. If a page renders a *document* with no `</head>` at all, the build fails
+rather than emit content ahead of `<!doctype html>` and trigger quirks mode.
+
+Sites that render body fragments through SSG and assemble the document in their
+own shell should place the markup themselves instead, using the same emitter:
+
+```typescript
+import { renderViewTransitionHead } from '@nisli/ssg';
+
+const head = renderViewTransitionHead({ speculationRules: true });
+const page = `<!doctype html>\n<html><head>${head}</head><body>${fragment}</body></html>`;
+```
+
+Per-page `view-transition-name`s stay authoring-side CSS. `match-element` is
+same-document-only — element identity cannot cross a document boundary — so
+cross-document names must be spelled out explicitly on both pages:
+
+```css
+.article-hero { view-transition-name: hero; }
+```
+
+### Prerendering: `whenActive`
+
+Speculation-rules prerendering runs a page **fully** in a hidden document:
+subresources load, scripts execute, fetches fire. DOM wiring (event listeners,
+custom-element upgrades, island mounts) may run there. Anything *observable* —
+analytics, timers, autofocus, media playback, ad impressions — must wait for
+activation:
+
+```typescript
+import { whenActive } from '@nisli/ssg/client';
+
+document.querySelectorAll('[data-copy]').forEach(wireCopyButton); // fine eagerly
+whenActive(() => { analytics.pageview(location.pathname); });     // deferred
+```
+
+`@nisli/ssg/client` is dependency-free and side-effect-free, so importing it
+from a browser bundle pulls in none of the build-only code behind the package
+root. It touches no DOM globals at module scope: without `document.prerendering`
+(every non-Chromium engine) and without a document at all, `whenActive` runs its
+callback immediately instead of throwing.
+
 ## Output Helpers
 
 Use the output helpers when adopting `@nisli/ssg` incrementally inside an
