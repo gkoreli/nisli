@@ -1,4 +1,6 @@
 import { signal, type ReadonlySignal, type Signal, type TemplateResult } from '@nisli/core';
+import type { EngineNavigation, EngineNavigationKind, EngineSink, NavigationEngine } from './engine.js';
+import { HistoryEngine } from './history-engine.js';
 import { createMatcher, normalizePathname, type MatcherDefinition, type RouteMatch } from './matcher.js';
 import type { NotFoundDefinition, RedirectDefinition, RouteDefinition, RouteMetadata } from './route.js';
 
@@ -11,20 +13,6 @@ export interface NavigateOptions {
 export interface IsActiveOptions {
   /** Require an exact pathname match instead of a path-prefix match. */
   exact?: boolean;
-}
-
-/** Reserved key under which the router stamps its per-entry scroll key. */
-const HISTORY_KEY = '__nisli_router';
-
-interface RouterHistoryState {
-  readonly [HISTORY_KEY]?: string;
-  readonly state?: unknown;
-}
-
-function readHistoryKey(state: unknown): string | null {
-  if (typeof state !== 'object' || state === null) return null;
-  const key = (state as RouterHistoryState)[HISTORY_KEY];
-  return typeof key === 'string' ? key : null;
 }
 
 /** Upper bound on consecutive client-side redirect hops before bailing. */
@@ -125,17 +113,14 @@ interface Connection {
 }
 
 export class Router {
+  private readonly engine: NavigationEngine;
+  private readonly sink: EngineSink;
   private readonly urlState: Signal<URL>;
   private readonly currentState = signal<RouteMatch | null>(null);
   private readonly pendingState = signal(false);
   private readonly errorState = signal<unknown | null>(null);
   private connection: Connection | null = null;
 
-  // Scroll restoration: per-history-entry remembered scroll positions.
-  private readonly scrollPositions = new Map<string, { x: number; y: number }>();
-  private currentKey = '0';
-  private keySeq = 0;
-  private previousScrollRestoration: ScrollRestoration | null = null;
   // Document title / html lang / html dir to fall back to when a route omits
   // them (captured at connect).
   private defaultTitle = '';
@@ -149,112 +134,65 @@ export class Router {
   readonly pending: ReadonlySignal<boolean> = this.pendingState;
   readonly error: ReadonlySignal<unknown | null> = this.errorState;
 
-  constructor() {
-    this.urlState = signal(this.browserURL());
+  constructor(engine: NavigationEngine = new HistoryEngine()) {
+    this.engine = engine;
+    this.urlState = signal(engine.browserURL());
     this.url = this.urlState;
+    this.sink = {
+      match: (url) => this.connection?.match(url) ?? null,
+      transition: (navigation) => this.transition(navigation),
+    };
   }
 
   connect(definition: RouterApplicationDefinition, outlet: HTMLElement, rendered: Signal<TemplateResult | null>): () => void {
     if (this.connection) throw new Error('Router already has a root application definition connected');
-    const onPopState = () => {
-      // Record the scroll of the entry being left (manual restoration keeps it
-      // intact at popstate time), then adopt the target entry's key.
-      this.rememberScroll();
-      this.currentKey = readHistoryKey(history.state) ?? this.nextKey();
-      void this.transition(this.browserURL(), 'pop');
-    };
-    const onClick = (event: MouseEvent) => this.onDocumentClick(event);
-    window.addEventListener('popstate', onPopState);
-    document.addEventListener('click', onClick);
     if (typeof document !== 'undefined') {
       this.defaultTitle = document.title;
       this.defaultLang = document.documentElement.getAttribute('lang') ?? '';
       this.defaultDir = document.documentElement.getAttribute('dir') ?? '';
     }
-    this.enableManualScrollRestoration();
+    let disconnectEngine: (() => void) | null = null;
     const connection: Connection = {
       match: createMatcher(definition),
       outlet,
       rendered,
       generation: 0,
       dispose: () => {
-        window.removeEventListener('popstate', onPopState);
-        document.removeEventListener('click', onClick);
-        this.restoreScrollRestoration();
+        disconnectEngine?.();
         if (this.connection === connection) this.connection = null;
       },
     };
+    // Connect the engine last: it drives the initial transition, which needs
+    // the connection in place to match and render against.
     this.connection = connection;
-    void this.transition(this.browserURL(), 'initial');
+    disconnectEngine = this.engine.connect(this.sink);
     return connection.dispose;
-  }
-
-  /** Take over scroll restoration and stamp the current entry with a key. */
-  private enableManualScrollRestoration(): void {
-    if (typeof history === 'undefined') return;
-    if ('scrollRestoration' in history) {
-      this.previousScrollRestoration = history.scrollRestoration;
-      history.scrollRestoration = 'manual';
-    }
-    const existing = readHistoryKey(history.state);
-    // Seed the sequence past any key persisted across a reload so freshly
-    // pushed entries never collide with keys still live in the back stack.
-    if (existing !== null) this.keySeq = Math.max(this.keySeq, Number(existing) || 0);
-    this.currentKey = existing ?? this.nextKey();
-    if (existing === null) {
-      history.replaceState(this.wrapHistoryState(this.currentKey, history.state), '', this.browserURL().href);
-    }
-  }
-
-  private restoreScrollRestoration(): void {
-    if (this.previousScrollRestoration !== null && typeof history !== 'undefined' && 'scrollRestoration' in history) {
-      history.scrollRestoration = this.previousScrollRestoration;
-    }
-    this.previousScrollRestoration = null;
-    this.scrollPositions.clear();
-  }
-
-  private nextKey(): string {
-    return String(++this.keySeq);
-  }
-
-  private wrapHistoryState(key: string, userState: unknown): RouterHistoryState {
-    const unwrapped = readHistoryKey(userState) !== null ? (userState as RouterHistoryState).state : userState;
-    return { [HISTORY_KEY]: key, state: unwrapped ?? null };
-  }
-
-  private rememberScroll(): void {
-    if (typeof window === 'undefined') return;
-    this.scrollPositions.set(this.currentKey, { x: window.scrollX, y: window.scrollY });
   }
 
   async navigate(href: string, options: NavigateOptions = {}): Promise<void> {
     const url = new URL(href, this.urlState.value);
-    if (url.origin !== this.urlState.value.origin) {
-      window.location.assign(url.href);
-      return;
-    }
-    await this.navigateSameOrigin(url, options);
-  }
-
-  private async navigateSameOrigin(url: URL, options: NavigateOptions, match?: RouteMatch): Promise<void> {
-    const replace = options.replace === true;
-    // Remember where we are before leaving so back/forward can restore it.
-    this.rememberScroll();
-    const key = replace ? this.currentKey : this.nextKey();
-    const state = this.wrapHistoryState(key, options.state ?? null);
-    if (replace) history.replaceState(state, '', url);
-    else history.pushState(state, '', url);
-    this.currentKey = key;
-    await this.transition(url, replace ? 'replace' : 'push', options.scroll, match);
+    await this.engine.navigate(url, {
+      replace: options.replace === true,
+      state: options.state,
+      scroll: options.scroll,
+    });
   }
 
   replace(href: string, options: Omit<NavigateOptions, 'replace'> = {}): Promise<void> {
     return this.navigate(href, { ...options, replace: true });
   }
 
-  back(): void { history.back(); }
-  forward(): void { history.forward(); }
+  back(): void { this.engine.back(); }
+  forward(): void { this.engine.forward(); }
+
+  /**
+   * The navigation state of the current history entry — the value last passed
+   * as `NavigateOptions.state`. Read this rather than `history.state.state`:
+   * the wrapper shape is a History-engine detail, not part of the contract.
+   */
+  state(): unknown {
+    return this.engine.state();
+  }
 
   /**
    * Whether `href` corresponds to the current location, for `aria-current` on
@@ -273,15 +211,11 @@ export class Router {
     return currentPath === targetPath || currentPath.startsWith(`${targetPath}/`);
   }
 
-  private async transition(
-    url: URL,
-    kind: 'initial' | 'push' | 'replace' | 'pop',
-    scroll?: NavigateOptions['scroll'],
-    matched?: RouteMatch,
-  ): Promise<void> {
+  private async transition(navigation: EngineNavigation): Promise<void> {
+    const { url, kind, scroll } = navigation;
     const connection = this.connection;
     if (!connection) throw new Error('Router cannot navigate before an AppRouter outlet is connected');
-    const match = matched ?? connection.match(url);
+    const match = navigation.match ?? connection.match(url);
     if (match?.redirect !== undefined) {
       const target = new URL(match.redirect, url);
       // Bail on a self-loop or an over-long chain/cycle across several redirects.
@@ -387,39 +321,28 @@ export class Router {
     }
   }
 
-  private applyNavigationEffects(outlet: HTMLElement, url: URL, kind: 'initial' | 'push' | 'replace' | 'pop', scroll?: NavigateOptions['scroll']): void {
+  private applyNavigationEffects(outlet: HTMLElement, url: URL, kind: EngineNavigationKind, scroll?: NavigateOptions['scroll']): void {
     queueMicrotask(() => {
-      if (url.hash) {
-        document.getElementById(decodeURIComponent(url.hash.slice(1)))?.scrollIntoView();
-        return;
-      }
-      if (kind === 'push') {
-        if ((scroll ?? 'top') === 'top') window.scrollTo(0, 0);
-        outlet.focus({ preventScroll: true });
-      } else if (kind === 'replace' && scroll === 'top') {
-        window.scrollTo(0, 0);
-      } else if (kind === 'pop') {
-        const saved = this.scrollPositions.get(this.currentKey);
-        if (saved) window.scrollTo(saved.x, saved.y);
-      }
+      // Scroll is the engine's to claim: an engine whose browser restores and
+      // resets scroll itself takes none of the manual effects below.
+      if (this.engine.ownsScrollRestoration) this.applyScrollEffects(url, kind, scroll);
+      // A hash carries its own destination, so focus stays where it was.
+      if (kind === 'push' && !url.hash) outlet.focus({ preventScroll: true });
     });
   }
 
-  private onDocumentClick(event: MouseEvent): void {
-    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    const target = event.target instanceof Element ? event.target.closest('a[href]') : null;
-    if (!(target instanceof HTMLAnchorElement)) return;
-    if ((target.target && target.target !== '_self') || target.hasAttribute('download') || target.hasAttribute('data-router-ignore')) return;
-    const url = new URL(target.href, this.urlState.value);
-    if (url.origin !== this.urlState.value.origin) return;
-    if (url.pathname === this.urlState.value.pathname && url.search === this.urlState.value.search && url.hash) return;
-    const match = this.connection?.match(url);
-    if (!match) return;
-    event.preventDefault();
-    void this.navigateSameOrigin(url, {}, match);
-  }
-
-  private browserURL(): URL {
-    return new URL(typeof window === 'undefined' ? 'http://localhost/' : window.location.href);
+  private applyScrollEffects(url: URL, kind: EngineNavigationKind, scroll?: NavigateOptions['scroll']): void {
+    if (url.hash) {
+      document.getElementById(decodeURIComponent(url.hash.slice(1)))?.scrollIntoView();
+      return;
+    }
+    if (kind === 'push' && (scroll ?? 'top') === 'top') {
+      window.scrollTo(0, 0);
+    } else if (kind === 'replace' && scroll === 'top') {
+      window.scrollTo(0, 0);
+    } else if (kind === 'traverse') {
+      const saved = this.engine.rememberedScroll();
+      if (saved) window.scrollTo(saved.x, saved.y);
+    }
   }
 }

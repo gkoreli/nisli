@@ -515,6 +515,24 @@ describe('Router browser service and outlet', () => {
     }
   });
 
+  it('reads back the navigation state of the current entry', async () => {
+    const AppRouter = defineRouter({
+      home: route('/', { render: () => html`` }),
+      next: route('/next', { render: () => html`` }),
+    });
+    const shell = document.createElement('div');
+    html`${AppRouter({})}`.mount!(shell);
+    document.body.appendChild(shell);
+    await settle();
+    const router = inject(Router);
+
+    expect(router.state()).toBeNull();
+    await router.navigate('/next', { state: { source: 'user-menu' } });
+    expect(router.state()).toEqual({ source: 'user-menu' });
+    await router.navigate('/');
+    expect(router.state()).toBeNull();
+  });
+
   it('applies typed outlet attrs (id + aria-*) to the main landmark host', async () => {
     const AppRouter = defineRouter(
       { home: route('/', { render: () => html`<p>home</p>` }) },

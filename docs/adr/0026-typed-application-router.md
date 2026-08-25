@@ -787,6 +787,26 @@ a stable key that survives `popstate`. The previous README row "Back/forward →
 leaves restoration to the browser" is superseded by explicit manual
 restoration.
 
+**Amendment (BET03 Phase 1): the browser mechanics sit behind an engine seam.**
+Everything that touches `window`, `history`, or document clicks now lives in a
+`NavigationEngine` implementation (`src/engine.ts` defines the seam,
+`src/history-engine.ts` holds today's behaviour); `Router` keeps signals, the
+matcher, the redirect loop, head management, rendering, and navigation effects,
+and takes an engine via constructor injection. This is a pure extraction — the
+pre-existing suite passes unmodified — undertaken so a `navigation.intercept()`
+engine can be substituted without a rewrite. The seam is internal and is not
+re-exported.
+
+Because `history.state` shape is engine-owned and the Navigation API keeps state
+on `NavigationHistoryEntry.getState()` instead, reading `history.state.state`
+directly is **deprecated**. Use the engine-neutral `router.state()` accessor,
+which is the only new public surface from this phase.
+
+§12's `URLPattern` deferral is re-litigated and **stands**: the hand matcher is
+kept. `URLPattern` yields stringly-typed groups, offers no specificity ordering,
+and is absent on Node 20/22, so it cannot serve the typed-route contract this
+ADR exists to provide.
+
 ### 5. Active-link helper (P5)
 
 `Router.isActive(href, { exact? })` reads the reactive `url` signal so

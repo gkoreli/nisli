@@ -6,6 +6,18 @@ checkpoints (ADR 0022); dates are release dates.
 
 ## Unreleased
 
+- **`router.state()`**: accessor for the navigation state of the current history
+  entry — the value last passed as `NavigateOptions.state`. Reading
+  `history.state.state` directly is deprecated: the wrapper the router stamps
+  its per-entry scroll key into is a detail of the browser mechanics, not part
+  of the contract.
+- Internal: the browser mechanics (the `popstate` and delegated click
+  listeners, history commits, cross-origin escape, and per-entry scroll memory)
+  now sit behind a `NavigationEngine` seam, with `HistoryEngine` as the only
+  implementation. Matching, signals, redirects, head reconciliation, and the
+  render pipeline are unchanged and engine-independent. No behavior change: the
+  browser suite passes unmodified.
+
 ## 0.5.1 — 2026-07-16
 
 - Eligible same-origin anchors are intercepted only when the connected matcher

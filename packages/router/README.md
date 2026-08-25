@@ -108,6 +108,19 @@ or focus. `navigate()` writes with `history.pushState()`, `replace()` writes
 with `history.replaceState()`, and `popstate` renders without creating another
 history entry.
 
+`NavigateOptions.state` round-trips through the history entry; read it back with
+`router.state()`:
+
+```ts
+await router.navigate('/users/42', { state: { source: 'user-menu' } });
+router.state(); // { source: 'user-menu' }
+```
+
+Reading `history.state.state` directly is deprecated. The router wraps
+`history.state` to carry its per-entry scroll key, and that wrapper is a detail
+of the browser mechanics rather than part of the contract; `router.state()` is
+the accessor that stays correct.
+
 ## Accessibility: the main landmark
 
 The outlet is the application's `<main>` landmark (`role="main"`,
