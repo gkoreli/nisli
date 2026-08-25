@@ -31,8 +31,14 @@ import {
 } from '@nisli/core';
 import { cn, transparentHost } from '../lib/utils.js';
 
+// STYLE-QUERY INVALID (bet 08 batch 1): the `field-invalid:` trio is ADDED next to
+// the `aria-invalid:` trio, not instead of it. `aria-invalid:` only fires when the
+// attribute sits on this same painted node, so it waits on <ui-form-field> having
+// located the control; `field-invalid:` reads `--field-invalid` inherited from any
+// ancestor (custom properties cross `display:contents`), so a control inside an
+// invalid field paints unwired. Both paths stay — see styles/theme.css.
 export const inputClasses =
-  'h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40';
+  'h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 field-invalid:border-destructive field-invalid:ring-destructive/20 dark:field-invalid:ring-destructive/40';
 
 export type InputProps = {
   type?: string;

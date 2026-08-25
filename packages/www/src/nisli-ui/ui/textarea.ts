@@ -31,8 +31,14 @@ import {
   transparentHost,
 } from '../lib/utils.js';
 
+// STYLE-QUERY INVALID (bet 08 batch 1): the `field-invalid:` trio is ADDED next to
+// the `aria-invalid:` trio, not instead of it. `aria-invalid:` only fires when the
+// attribute sits on this same painted node, so it waits on <ui-form-field> having
+// located the control; `field-invalid:` reads `--field-invalid` inherited from any
+// ancestor (custom properties cross `display:contents`), so a control inside an
+// invalid field paints unwired. Both paths stay — see styles/theme.css.
 export const textareaClasses =
-  'flex field-sizing-content min-h-16 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:aria-invalid:ring-destructive/40';
+  'flex field-sizing-content min-h-16 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:aria-invalid:ring-destructive/40 field-invalid:border-destructive field-invalid:ring-destructive/20 dark:field-invalid:ring-destructive/40';
 
 export type TextareaProps = {
   placeholder?: string;

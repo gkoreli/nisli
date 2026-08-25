@@ -92,8 +92,16 @@ let uid = 0;
 //     so the horizontal alignment token (deferred feature #B) is aimed at our native
 //     controls' data-slots instead. Container-query tokens (`@md/field-group:`) are
 //     unchanged — they resolve against the FieldGroup container, not a direct child.
+//
+// STYLE-QUERY SOURCE (bet 08 batch 1): `data-[invalid=true]:[--field-invalid:true]`
+// republishes the same invalid state as an inheritable custom property. Custom
+// properties cross `display:contents`, so every control nested under this field —
+// at any depth, through any number of transparent hosts — can style itself with
+// theme.css's `field-invalid:` variant without the field having to FIND it. The
+// data attribute is the truth and stays; this is one extra derivation of it, not
+// a replacement, and the `aria-invalid` effect below is untouched.
 export const fieldVariants = cv(
-  'group/field flex w-full gap-3 data-[invalid=true]:text-destructive',
+  'group/field flex w-full gap-3 data-[invalid=true]:text-destructive data-[invalid=true]:[--field-invalid:true]',
   {
     variants: {
       orientation: {
@@ -441,8 +449,15 @@ export const FieldLegend = component<FieldLegendProps, typeof fieldLegendAttrs>(
 // → descendant `has-[[data-slot=field]]`, and `[&>*]:data-[slot=field]:p-4`
 // (direct-child field) → `[&>*>[data-slot=field]]:p-4` — both because a nested Field
 // is host-wrapped. `has-data-[state=checked]` is already a descendant :has (verbatim).
+//
+// STYLE-QUERY TWIN (bet 08 batch 1): `field-disabled:opacity-50` sits ALONGSIDE the
+// upstream `group-data-[disabled=true]/field:opacity-50`, which stays. The two differ
+// in reach, which is the point: the group token needs `data-disabled` on the field's
+// own inner div (nothing sets it — dormant upstream parity, and a consumer cannot
+// reach that div), while the style query answers `--field-disabled` inherited from
+// ANY ancestor, including the `<ui-form-field>` host a consumer can actually style.
 export const fieldLabelClasses =
-  'group/field-label peer/field-label flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50 has-[[data-slot=field]]:w-full has-[[data-slot=field]]:flex-col has-[[data-slot=field]]:rounded-md has-[[data-slot=field]]:border [&>*>[data-slot=field]]:p-4 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5 dark:has-data-[state=checked]:bg-primary/10';
+  'group/field-label peer/field-label flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50 field-disabled:opacity-50 has-[[data-slot=field]]:w-full has-[[data-slot=field]]:flex-col has-[[data-slot=field]]:rounded-md has-[[data-slot=field]]:border [&>*>[data-slot=field]]:p-4 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5 dark:has-data-[state=checked]:bg-primary/10';
 
 export type FieldLabelProps = {
   /** The id of the control this label is bound to (renders the native `for`). */
@@ -485,9 +500,11 @@ export const FieldTitle = component<FieldTextProps, typeof fieldTitleAttrs>(
   (props, host) => {
     transparentHost(host);
     const className = props.className;
+    // Same style-query twin as fieldLabelClasses: the `group-data-` token stays,
+    // `field-disabled:` adds the ancestor-property path next to it.
     const classes = computed(() =>
       cn(
-        'flex w-fit items-center gap-2 text-sm leading-snug font-medium group-data-[disabled=true]/field:opacity-50',
+        'flex w-fit items-center gap-2 text-sm leading-snug font-medium group-data-[disabled=true]/field:opacity-50 field-disabled:opacity-50',
         className.value,
       ),
     );

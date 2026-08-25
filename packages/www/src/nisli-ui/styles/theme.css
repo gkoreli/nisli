@@ -129,6 +129,38 @@
 @property --sidebar-ring { syntax: "<color>"; inherits: true; initial-value: oklch(0.708 0 0); }
 /* --- end @property registrations ----------------------------------------- */
 
+/* ---------------------------------------------------------------------------
+ * Style-query variants — field state, propagated by CSS alone.
+ *
+ * Custom properties inherit straight through the `display: contents` hosts every
+ * @nisli/ui component renders, and every element answers a style query without
+ * opting into `container-type`. So a field's painted root sets the property once
+ * and any painted descendant — however many transparent hosts sit in between —
+ * reacts to it by NAME: no DOM path, no `querySelector` wiring, no per-control
+ * attribute.
+ *
+ *   <div style="--field-invalid: true">   any wrapper you own, the host included
+ *     <ui-input></ui-input>               the inner <input> paints destructive
+ *   </div>
+ *
+ * DUAL PATH, ON PURPOSE. These variants are used ALONGSIDE the existing
+ * `aria-invalid:` and `data-[invalid=true]:` rules, never instead of them.
+ * `aria-invalid` is a11y truth and `data-invalid` is the DOM contract consumer
+ * CSS keys on, so both stay whatever happens to the styling. Only the attribute
+ * *selectors* in the control class lists are a deletion candidate, and only once
+ * container style queries clear the project's support floor (Firefox shipped
+ * them in 151, ~May 2026; review ~Q1 2027). Until then a browser without style
+ * queries drops these rules whole and the attribute path paints the same pixels.
+ *
+ * The registry sets `--field-invalid` today, from `ui-form-field`'s
+ * `data-[invalid=true]:[--field-invalid:true]`. `--field-disabled` is the
+ * declared name for the disabled half; nothing in the registry sets it yet (the
+ * field root's `data-disabled` twin is dormant upstream parity), so it is yours
+ * to set on any wrapper.
+ * ------------------------------------------------------------------------- */
+@custom-variant field-invalid (@container style(--field-invalid: true));
+@custom-variant field-disabled (@container style(--field-disabled: true));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
