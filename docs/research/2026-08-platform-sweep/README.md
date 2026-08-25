@@ -86,6 +86,40 @@ reloads 3 → 6, focus and popover lost. That contrast is what makes the passing
 meaningful. nisli `setup` re-runs stay 0 on *every* engine, so ADR 0023's deferred
 teardown holds up the fallback path.
 
+## Bet 01: a Firefox interop bug we found, not yet reported upstream
+
+Measured 2026-08-24. `moveBefore()` does **not** reliably preserve an animation whose
+initiating style depends on the element's *position*, and the two engines disagree about
+what should happen.
+
+Setup: `#host > div:nth-child(1) .anim { animation: … }`, then move the first row to the
+end so it stops matching.
+
+| | `moveBefore()` | `insertBefore()` (control) |
+|---|---|---|
+| Chromium | animation cancelled | animation cancelled |
+| Firefox | **animation survives, same object, still running** | animation cancelled |
+
+The control is what makes this a finding rather than ordinary CSS re-matching: under
+`insertBefore()` both engines cancel, so Firefox's divergence is specific to `moveBefore()`.
+
+Chromium is the correct one. The rule was proposed by rniwa and confirmed by the spec
+editor in [whatwg/dom#1255](https://github.com/whatwg/dom/issues/1255): animation state
+"should only be preserved if the element that got atomically moved continues to have the
+same style which initiated animation applied." Firefox keeps an animation whose initiating
+style no longer matches. The mechanism is visible in each engine's source — Gecko's move
+path skips `ClearAllAnimationCollections()`, while Blink compensates by invalidating with
+`kSubtreeStyleChange` rather than `kLocalStyleChange`.
+
+**Consequence for nisli.** `each()`'s proof asserts animation preservation using an
+animation driven by a static attribute — the easy case, which both engines preserve. Any
+list styling that drives animation from `:nth-child`, `:first-child`, a sibling combinator,
+or a class the reconciler swaps is *not* covered by that assertion and behaves differently
+per engine. Treat position-dependent animation as unpreserved, and prefer keyed classes
+over positional selectors in animated lists.
+
+Not yet filed with Mozilla — worth reporting.
+
 ## Outstanding proof
 
 - **Bet 08's colours are Chromium-only.** `theme-e2e.mjs` verifies all 32 tokens in light,
