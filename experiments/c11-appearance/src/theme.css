@@ -76,6 +76,18 @@
 [data-align='start']  { align-items: flex-start; }
 [data-align='between'] { justify-content: space-between; }
 
+/* Content-sized things MUST NOT be crushed. Without this, flex satisfies an
+   overflowing container by shrinking children below their content width: the
+   container measures as fitting while the content paints over its neighbour.
+   That is exactly how buttons ended up overlapping at 320px (finding F8), and
+   why the solver's container-only overflow test reported `settled` on a broken
+   row. Only two kinds of element may shrink: a declared `data-grow` region, and
+   a candidate the solver has actually truncated. */
+[data-layout] > *          { flex: none; }
+[data-layout] > [data-grow] { flex: 1 1 auto; min-inline-size: 0; }
+[data-layout] > [data-truncate],
+[data-layout] > [data-collapse][data-truncate] { flex: 0 1 auto; min-inline-size: 0; }
+
 /* ── 3. Roles consume the inherited unit ─────────────────────────────────── */
 
 [data-appearance='action'] {

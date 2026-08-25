@@ -3,11 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>C11 — derived appearance, real nisli components</title>
-    <link rel="stylesheet" href="./src/theme.css" />
+    <title>C11 — appearance derived from meaning and context</title>
     <style>
-      /* Harness chrome only. Not part of the mechanism under test:
-         the mechanism is src/theme.css, and the components use only that. */
+      /* HARNESS CHROME ONLY.
+         Everything inside #viewport is styled exclusively by src/theme/**, and
+         nothing in this block may reach into it: the whole claim is that the
+         canvas needs no values from its host page. Selectors here are therefore
+         limited to the harness's own ids. */
       body {
         margin: 0;
         padding: 24px;
@@ -15,13 +17,16 @@
         font: 14px/1.45 ui-sans-serif, system-ui, sans-serif;
         color: #111114;
       }
-      #harness > #controls {
+      #shell-controls {
+        display: flex;
         flex-wrap: wrap;
         gap: 12px;
+        align-items: center;
+        justify-content: space-between;
         padding-block-end: 12px;
         border-block-end: 1px solid #dedee0;
       }
-      #controls select {
+      #shell-controls select {
         font: inherit;
         font-size: 12px;
         margin-inline-start: 4px;
@@ -32,25 +37,26 @@
         border: 1px dashed #b6b6bb;
         padding: 12px;
         background: #fff;
-        transition: inline-size .15s;
         overflow: hidden;
+        transition: inline-size 0.15s;
       }
-      #findings {
+      #shell-findings {
+        display: flex;
+        flex-direction: column;
         gap: 4px;
         font: 11px/1.5 ui-monospace, SFMono-Regular, monospace;
-        color: #444;
+        white-space: pre-wrap;
+        color: #3a3a40;
       }
-      #findings code {
-        display: block;
+      #shell-findings > * {
         padding: 4px 8px;
         background: #fff;
         border-inline-start: 3px solid #b6b6bb;
       }
-      #harness { gap: 8px; }
     </style>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="./src/app.ts"></script>
+    <script type="module" src="./src/app/main.ts"></script>
   </body>
 </html>

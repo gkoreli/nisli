@@ -2,13 +2,19 @@
   "name": "@nisli/experiment-c11-appearance",
   "version": "0.0.0",
   "private": true,
-  "description": "Throwaway prototype: can appearance be derived from declared meaning and context, with zero pixel values in component source? Nothing here ships.",
+  "description": "Prototype: appearance derived from declared meaning and context. Ports-and-adapters so the domain can graduate if the bet survives.",
   "type": "module",
   "scripts": {
-    "dev": "vite"
+    "dev": "vite",
+    "verify": "vitest run",
+    "proof": "node proof/geometry-proof.mjs",
+    "lint:values": "node proof/no-values-guard.mjs"
   },
   "devDependencies": {
     "@nisli/core": "workspace:*",
-    "vite": "^7.1.5"
+    "happy-dom": "^20.5.3",
+    "playwright": "1.61.1",
+    "vite": "^7.1.5",
+    "vitest": "^2.1.9"
   }
 }
