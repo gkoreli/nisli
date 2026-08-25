@@ -75,3 +75,14 @@ describe('static html renderer', () => {
     expect(renderToString({ toString: () => '<strong>escaped</strong>' })).toBe('&lt;strong&gt;escaped&lt;/strong&gt;');
   });
 });
+
+describe('sanitized() in static rendering', () => {
+  it('fails closed rather than emitting escaped [object Object]', () => {
+    const value = { __sanitize: true as const, value: '<b>hi</b>' };
+    expect(() => renderToString(value)).toThrow(/cannot be rendered statically/);
+  });
+
+  it('still renders raw() trusted markup untouched', () => {
+    expect(renderToString(raw('<b>hi</b>'))).toBe('<b>hi</b>');
+  });
+});

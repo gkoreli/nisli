@@ -93,12 +93,13 @@ query caching or invalidation policy. Only the synchronous source function is
 tracked; stale work is aborted and cannot overwrite a newer result.
 
 ```ts
-import { component, html, resource } from '@nisli/core';
+import { component, html, resource, sanitized } from '@nisli/core';
 
 const Markdown = component<{ content: string }>('x-markdown', (props) => {
   const rendered = resource(
     () => props.content.value || undefined,
-    (content, signal) => renderMarkdown(content, { signal }),
+    // Rendered markdown is untrusted markup — brand it for the sanitizer.
+    async (content, signal) => sanitized(await renderMarkdown(content, { signal })),
   );
 
   return html`<article html:inner=${rendered.data}></article>`;
@@ -109,6 +110,39 @@ const Markdown = component<{ content: string }>('x-markdown', (props) => {
 current source; component teardown disposes automatically, while standalone
 callers can use `dispose()`. Returning `undefined` from the source disables the
 resource and clears its current state.
+
+## Trusted and untrusted HTML
+
+`html:inner` never takes a bare string. The brand is where the trust decision
+is made, and it picks the sink:
+
+```ts
+import { html, raw, sanitized, setSanitizerFallback } from '@nisli/core';
+
+html`<article html:inner=${raw(ownMarkup)}></article>`;      // → innerHTML
+html`<article html:inner=${sanitized(userMarkup)}></article>`; // → sanitizer
+```
+
+`raw()` is the author asserting the markup is already trustworthy; it is
+written straight to `innerHTML`. Never wrap user-generated input in it. A
+native `TrustedHTML` object (from a Trusted Types policy) is accepted on the
+same path and passed through unwrapped, so apps under
+`require-trusted-types-for 'script'` can assign policy output directly.
+
+`sanitized()` is the opposite assertion — untrusted markup — and is written
+with the platform's `Element.setHTML()` and its XSS-safe default sanitizer
+where the engine has one (Chrome 146+, Firefox 148+). Where it does not
+(Safari today), register a sanitizer once at startup:
+
+```ts
+setSanitizerFallback((el, markup) => {
+  el.innerHTML = DOMPurify.sanitize(markup);
+});
+```
+
+With no native `setHTML()` and no registered hook, the binding throws `N107`.
+It fails closed by design: nisli never silently downgrades untrusted markup to
+`innerHTML`, and never bundles a sanitizer of its own.
 
 ## Explicit resource management
 
@@ -135,7 +169,8 @@ must provide their own `Symbol.dispose` polyfill.
 - Typed web components: composition-style synchronous setup, signal-backed
   props, typed factories, and live attribute declarations.
 - Safe light-DOM templates: signal bindings, typed events and modifiers,
-  `class:*`, trusted `html:inner`, refs, and dynamic HTML tags through `el()`.
+  `class:*`, branded `html:inner` (trusted or sanitizer-routed), refs, and
+  dynamic HTML tags through `el()`.
 - Stable control flow: lazy `when()` branches and keyed `each()` lists that
   preserve focus, scroll position, and component state.
 - Two scopes of dependency injection: app-wide singleton services with

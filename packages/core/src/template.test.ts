@@ -4,8 +4,16 @@
  *
  * @vitest-environment happy-dom
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { html, when, raw, __templateParseCount, type TemplateResult } from './template.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  html,
+  when,
+  raw,
+  sanitized,
+  setSanitizerFallback,
+  __templateParseCount,
+  type TemplateResult,
+} from './template.js';
 import { signal, computed, effect, flushEffects, type Signal } from './signal.js';
 import { component } from './component.js';
 
@@ -847,6 +855,264 @@ describe('html:inner raw() branding (N106)', () => {
     const result = html`<div html:inner=${null}></div>`;
     const host = mount(result);
     expect(host.querySelector('div')?.innerHTML).toBe('');
+  });
+});
+
+// ── bet-09(c) / ADR 0019:124–128: sanitized() + setHTML (N107) ──────
+
+interface HtmlWrite {
+  target: unknown;
+  /** The value AS ASSIGNED — kept unstringified so pass-through is provable. */
+  value: unknown;
+}
+
+/**
+ * Record every `innerHTML` assignment (target + value as assigned) while still
+ * performing it. Prototype-level, so it also sees the template engine's own
+ * parse-time writes — assertions filter by target.
+ */
+function watchInnerHtml(): { writes: HtmlWrite[]; restore: () => void } {
+  let owner: object | null = HTMLElement.prototype;
+  let desc: PropertyDescriptor | undefined;
+  while (owner !== null) {
+    desc = Object.getOwnPropertyDescriptor(owner, 'innerHTML');
+    if (desc?.set) break;
+    owner = Object.getPrototypeOf(owner) as object | null;
+  }
+  if (owner === null || desc?.set === undefined) {
+    throw new Error('no innerHTML setter on the prototype chain');
+  }
+  const target = owner;
+  const original = desc;
+  const originalSet = desc.set;
+  const writes: HtmlWrite[] = [];
+  Object.defineProperty(target, 'innerHTML', {
+    ...original,
+    set(this: unknown, value: unknown) {
+      writes.push({ target: this, value });
+      originalSet.call(this, value);
+    },
+  });
+  return { writes, restore: () => Object.defineProperty(target, 'innerHTML', original) };
+}
+
+interface SetHtmlCall { target: unknown; html: unknown }
+
+/**
+ * happy-dom implements no `Element.prototype.setHTML`, which is exactly what
+ * makes both branches testable: install the platform stub to exercise the
+ * native path, remove it to exercise the hook and fail-closed paths.
+ */
+function stubSetHTML(): { calls: SetHtmlCall[]; remove: () => void } {
+  const calls: SetHtmlCall[] = [];
+  const proto = Element.prototype as unknown as { setHTML?: unknown };
+  proto.setHTML = function (this: unknown, html: unknown): void {
+    calls.push({ target: this, html });
+  };
+  return { calls, remove: () => { delete proto.setHTML; } };
+}
+
+describe('html:inner sanitized() branding (N107)', () => {
+  let stub: ReturnType<typeof stubSetHTML> | null = null;
+  let watcher: ReturnType<typeof watchInnerHtml> | null = null;
+
+  afterEach(() => {
+    stub?.remove();
+    stub = null;
+    watcher?.restore();
+    watcher = null;
+    setSanitizerFallback(null);
+  });
+
+  it('has no native setHTML in this environment (guards the stub below)', () => {
+    expect('setHTML' in Element.prototype).toBe(false);
+  });
+
+  it('writes through native setHTML with the unwrapped string, never innerHTML', () => {
+    stub = stubSetHTML();
+    watcher = watchInnerHtml();
+    const dirty = '<p>hi</p><script>alert(1)</script>';
+    const host = mount(html`<section html:inner=${sanitized(dirty)}></section>`);
+    const section = host.querySelector('section');
+
+    expect(stub.calls).toHaveLength(1);
+    expect(stub.calls[0]?.target).toBe(section);
+    expect(stub.calls[0]?.html).toBe(dirty);
+    expect(watcher.writes.some((w) => w.target === section)).toBe(false);
+  });
+
+  it('rewrites through setHTML when a signal of sanitized values changes', () => {
+    stub = stubSetHTML();
+    const content = signal(sanitized('<em>a</em>'));
+    mount(html`<div html:inner=${content}></div>`);
+
+    content.value = sanitized('<strong>b</strong>');
+    flushEffects();
+    expect(stub.calls.map((c) => c.html)).toEqual(['<em>a</em>', '<strong>b</strong>']);
+  });
+
+  it('uses the registered fallback hook when the engine has no setHTML', () => {
+    const seen: SetHtmlCall[] = [];
+    setSanitizerFallback((el, markup) => {
+      seen.push({ target: el, html: markup });
+      el.innerHTML = '<p class="clean">hi</p>';
+    });
+
+    const dirty = '<p>hi</p><img src="x" onerror="alert(1)">';
+    const host = mount(html`<section html:inner=${sanitized(dirty)}></section>`);
+    const section = host.querySelector('section');
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.target).toBe(section);
+    expect(seen[0]?.html).toBe(dirty);
+    expect(section?.querySelector('.clean')?.textContent).toBe('hi');
+  });
+
+  it('prefers native setHTML over a registered hook', () => {
+    stub = stubSetHTML();
+    let hookCalls = 0;
+    setSanitizerFallback(() => { hookCalls += 1; });
+
+    mount(html`<section html:inner=${sanitized('<p>hi</p>')}></section>`);
+    expect(stub.calls).toHaveLength(1);
+    expect(hookCalls).toBe(0);
+  });
+
+  it('throws N107 with no native setHTML and no hook — fails closed', () => {
+    const result = html`<section html:inner=${sanitized('<p>x</p>')}></section>`;
+    expect(() => mount(result)).toThrowError(/N107/);
+  });
+
+  it('never downgrades to innerHTML on the fail-closed path', () => {
+    watcher = watchInnerHtml();
+    const attack = '<img src="x" onerror="alert(1)">';
+    const result = html`<section html:inner=${sanitized(attack)}></section>`;
+
+    expect(() => result.mount(document.createElement('div'))).toThrowError(/N107/);
+    // The engine's own parse-time writes target <template>; the bound <section>
+    // must have received nothing at all.
+    const sectionWrites = watcher.writes.filter(
+      (w) => (w.target as Element | null)?.tagName === 'SECTION',
+    );
+    expect(sectionWrites).toEqual([]);
+  });
+
+  it('throws N107 at mount for a signal whose initial value cannot be sanitized', () => {
+    const content = signal(sanitized('<p>x</p>'));
+    const result = html`<div html:inner=${content}></div>`;
+    expect(() => mount(result)).toThrowError(/N107/);
+  });
+
+  it('unregisters the hook with null, restoring the fail-closed throw', () => {
+    setSanitizerFallback(() => { /* registered, then withdrawn */ });
+    setSanitizerFallback(null);
+    const result = html`<section html:inner=${sanitized('<p>x</p>')}></section>`;
+    expect(() => mount(result)).toThrowError(/N107/);
+  });
+
+  it('contains a later invalid signal value in the effect, leaving content intact', () => {
+    stub = stubSetHTML();
+    const content = signal<unknown>(sanitized('<p>ok</p>'));
+    mount(html`<div html:inner=${content}></div>`);
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    content.value = '<p>bare</p>';
+    flushEffects();
+
+    expect(errors).toHaveBeenCalled();
+    expect(String(errors.mock.calls[0])).toMatch(/N106/);
+    expect(stub.calls).toHaveLength(1); // no second write
+    errors.mockRestore();
+  });
+
+  it('rejects a value branded both raw() and sanitized()', () => {
+    stub = stubSetHTML();
+    watcher = watchInnerHtml();
+    const mixed = { __raw: true as const, __sanitize: true as const, value: '<p>ambiguous</p>' };
+    const result = html`<section html:inner=${mixed}></section>`;
+
+    expect(() => mount(result)).toThrowError(/N106/);
+    expect(stub.calls).toEqual([]);
+    expect(
+      watcher.writes.some((w) => (w.target as Element | null)?.tagName === 'SECTION'),
+    ).toBe(false);
+  });
+
+  it('leaves the raw() path on innerHTML even when setHTML exists', () => {
+    stub = stubSetHTML();
+    const host = mount(html`<section html:inner=${raw('<p class="trusted">ok</p>')}></section>`);
+
+    expect(host.querySelector('section .trusted')?.textContent).toBe('ok');
+    expect(stub.calls).toEqual([]);
+  });
+
+  it('keeps N106 for bare strings while a sanitizer is available', () => {
+    stub = stubSetHTML();
+    const result = html`<section html:inner=${'<p>nope</p>'}></section>`;
+    expect(() => mount(result)).toThrowError(/N106/);
+  });
+});
+
+// ── bet-09(c) companion: TrustedHTML pass-through on the raw sink ───
+
+describe('html:inner TrustedHTML pass-through', () => {
+  const globalWithTT = globalThis as { trustedTypes?: { isHTML(value: unknown): boolean } };
+
+  afterEach(() => {
+    delete globalWithTT.trustedTypes;
+  });
+
+  /** Stand-in for a policy-created TrustedHTML: recognized only by identity. */
+  function trustedHtml(markup: string): object {
+    const value = { toString: () => markup, toJSON: () => markup };
+    globalWithTT.trustedTypes = { isHTML: (v) => v === value };
+    return value;
+  }
+
+  it('assigns the TrustedHTML object to innerHTML unwrapped', () => {
+    const trusted = trustedHtml('<p class="tt">ok</p>');
+    const watcher = watchInnerHtml();
+    try {
+      const host = mount(html`<section html:inner=${trusted}></section>`);
+      const section = host.querySelector('section');
+      const write = watcher.writes.find((w) => w.target === section);
+
+      // Identity, not text: stringifying before the assignment is exactly what
+      // a Trusted-Types CSP would reject.
+      expect(write?.value).toBe(trusted);
+      expect(section?.querySelector('.tt')?.textContent).toBe('ok');
+    } finally {
+      watcher.restore();
+    }
+  });
+
+  it('updates reactively from a signal of TrustedHTML values', () => {
+    const first = trustedHtml('<em>a</em>');
+    const known = new Set<unknown>([first]);
+    globalWithTT.trustedTypes = { isHTML: (v) => known.has(v) };
+    const second = { toString: () => '<strong>b</strong>', toJSON: () => '<strong>b</strong>' };
+    known.add(second);
+
+    const content = signal<unknown>(first);
+    const host = mount(html`<div html:inner=${content}></div>`);
+    expect(host.querySelector('div em')?.textContent).toBe('a');
+
+    content.value = second;
+    flushEffects();
+    expect(host.querySelector('div strong')?.textContent).toBe('b');
+  });
+
+  it('still throws N106 for bare strings while Trusted Types is present', () => {
+    trustedHtml('<p>unused</p>');
+    const result = html`<section html:inner=${'<p>nope</p>'}></section>`;
+    expect(() => mount(result)).toThrowError(/N106/);
+  });
+
+  it('still throws N106 for a plain object Trusted Types does not vouch for', () => {
+    trustedHtml('<p>unused</p>');
+    const impostor = { toString: () => '<p>nope</p>' };
+    const result = html`<section html:inner=${impostor}></section>`;
+    expect(() => mount(result)).toThrowError(/N106/);
   });
 });
 

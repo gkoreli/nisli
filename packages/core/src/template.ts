@@ -92,8 +92,112 @@ function isRawHtml(value: unknown): value is RawHtml {
   );
 }
 
+// ── Sanitized HTML brand (untrusted markup) ─────────────────────────
+
+/**
+ * Branded UNTRUSTED-HTML value accepted by `html:inner`. The mirror image of
+ * {@link RawHtml}: where `raw()` is the author asserting markup is already
+ * trustworthy, this brand asserts the opposite — the string is untrusted and
+ * MUST pass a sanitizer before it reaches the DOM (ADR 0019:124–128, executed
+ * by bet-09(c)). Structural, not nominal, on the same rule as RawHtml.
+ */
+export interface SanitizedHtml {
+  value: string;
+  __sanitize: true;
+}
+
+/**
+ * Mark a string as untrusted markup to be sanitized at the sink — the brand
+ * for user-generated HTML, which must NEVER go through `raw()`.
+ *
+ * `html:inner` writes it with the platform's `Element.setHTML()` (the spec's
+ * XSS-safe default sanitizer) when the engine has one, otherwise with the hook
+ * registered by {@link setSanitizerFallback}. With NEITHER available the
+ * binding throws N107: it never falls back to `innerHTML`. nisli bundles no
+ * sanitizer — the trust decision, and its bytes, stay in the app.
+ */
+export function sanitized(value: string): SanitizedHtml {
+  return { __sanitize: true as const, value };
+}
+
+function isSanitizedHtml(value: unknown): value is SanitizedHtml {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && '__sanitize' in value
+    && (value as SanitizedHtml).__sanitize === true
+    && typeof (value as SanitizedHtml).value === 'string'
+  );
+}
+
+// ── Sanitizer sinks ─────────────────────────────────────────────────
+
+/** A sanitizing writer: sanitize `html`, then put the result inside `el`. */
+export type SanitizerFallback = (el: Element, html: string) => void;
+
+let sanitizerFallback: SanitizerFallback | null = null;
+
+/**
+ * Register the sanitizing writer used for `sanitized()` values on engines
+ * WITHOUT native `Element.setHTML()` (Safari today, older Chromium/Firefox),
+ * or `null` to unregister. Native `setHTML()` always wins where it exists, so
+ * modern engines never pay the hook. nisli ships no sanitizer; wire one:
+ *
+ *   setSanitizerFallback((el, html) => {
+ *     el.innerHTML = DOMPurify.sanitize(html);
+ *   });
+ */
+export function setSanitizerFallback(fn: SanitizerFallback | null): void {
+  sanitizerFallback = fn;
+}
+
+// TypeScript's DOM library does not expose Element.setHTML() yet.
+interface SanitizeCapableElement extends Element {
+  setHTML(html: string): void;
+}
+
+const nativeSetHtml: SanitizerFallback = (el, html) => {
+  (el as SanitizeCapableElement).setHTML(html);
+};
+
+/**
+ * The sanitizing writer for this element, or `null` when the engine has none
+ * and the app registered none — the fail-closed signal N107 is thrown on.
+ * Asked per write, not cached at load: the check is one prototype-chain
+ * lookup, and caching would freeze the answer before a late registration (or
+ * a test's stub) lands. Like `canMoveWithin` above, the INSTANCE is asked, so
+ * a cross-realm element answers for its own realm.
+ */
+function sanitizerFor(el: Element): SanitizerFallback | null {
+  return typeof (el as Partial<SanitizeCapableElement>).setHTML === 'function'
+    ? nativeSetHtml
+    : sanitizerFallback;
+}
+
+// ── Trusted Types pass-through ──────────────────────────────────────
+
+/**
+ * The native `TrustedHTML` shape — also missing from TypeScript's DOM library.
+ * Only `isHTML()` recognition is needed: under CSP
+ * `require-trusted-types-for 'script'` the raw sink's plain-string `innerHTML`
+ * assignment throws, so policy-created values pass through `html:inner`
+ * unwrapped instead of being re-wrapped in `raw()`.
+ */
+interface TrustedHtml {
+  toJSON(): string;
+}
+
+interface TrustedTypeChecker {
+  isHTML(value: unknown): boolean;
+}
+
+function isTrustedHtml(value: unknown): value is TrustedHtml {
+  const tt = (globalThis as { trustedTypes?: TrustedTypeChecker }).trustedTypes;
+  return tt !== undefined && tt.isHTML(value);
+}
+
 // TODO(diagnostics): replace with the core diagnostics leaf (parallel
-// worktree); template-layer codes N101–N106 register there. N105/N106 are
+// worktree); template-layer codes N101–N107 register there. N105–N107 are
 // thrown (correctness/security guards), unlike the warn-level audit codes.
 function nisliError(code: string, message: string): Error {
   return new Error(`[nisli] ${code}: ${message}`);
@@ -853,19 +957,29 @@ function bindClass(
 }
 
 /**
- * Bind trusted HTML content to an element's innerHTML.
+ * Bind branded HTML content to an element's inner markup.
  *
- * Accepts ONLY `raw()`-branded values (ADR 0030.2 §3/§8 — core owns the
- * `__raw` brand; @nisli/ssg re-exports it). A bare string throws N106: the
- * brand is the author's explicit trust assertion, closing the
- * accidental-XSS-sink class. NEVER wrap user-generated input in raw().
+ * Never a bare string — a brand is the author's explicit decision about where
+ * the markup came from, which is what closes the accidental-XSS-sink class
+ * (ADR 0030.2 §3/§8). Three shapes resolve, in the order they are checked:
  *
- * Supports both static RawHtml and reactive Signal<RawHtml> values.
- * When the signal changes, innerHTML is updated reactively.
- * null/undefined (branded or not) clears the content.
+ * - `raw()` (core owns the `__raw` brand; @nisli/ssg re-exports it):
+ *   author-asserted trust → today's `innerHTML` sink, unchanged.
+ *   NEVER wrap user-generated input in raw().
+ * - `sanitized()` → the sanitizer sink: native `Element.setHTML()`, else the
+ *   `setSanitizerFallback()` hook, else N107. It NEVER reaches `innerHTML`
+ *   (ADR 0019:124–128, bet-09(c)).
+ * - A native `TrustedHTML` object → the same `innerHTML` sink as `raw()`,
+ *   passed through unwrapped so Trusted-Types-enforcing apps can assign
+ *   policy output directly.
+ *
+ * Anything else throws N106. Supports both static values and reactive
+ * `Signal`s of them; when the signal changes the content is rewritten through
+ * the same branch. null/undefined (branded or not) clears the content.
  *
  * Usage in templates:
  *   html`<span html:inner="${raw(highlightedHtml)}"></span>`
+ *   html`<span html:inner="${sanitized(userComment)}"></span>`
  */
 function bindInnerHtml(
   el: Element,
@@ -873,33 +987,80 @@ function bindInnerHtml(
   bindings: Binding[],
   disposers: (() => void)[],
 ): void {
-  const resolveTrusted = (v: unknown): string => {
+  // PURE — validates the brand and proves a sink exists without writing
+  // anything, so the eager signal check below can run it for its throw alone.
+  // A SanitizedHtml resolves to ITSELF (the writer routes it to the
+  // sanitizer); everything else resolves to the innerHTML payload.
+  const resolveHtml = (v: unknown): string | SanitizedHtml | TrustedHtml => {
     if (v == null) return '';
-    if (isRawHtml(v)) return v.value;
+    if (isRawHtml(v)) {
+      // Both brands at once: trust is not resolvable in favour of the raw
+      // sink, so reject rather than guess which one the author meant.
+      if (isSanitizedHtml(v)) {
+        throw nisliError(
+          'N106',
+          `html:inner rejects a value branded both raw() and sanitized() — the ` +
+          `trust decision is ambiguous. Pick one brand.`,
+        );
+      }
+      return v.value;
+    }
+    if (isSanitizedHtml(v)) {
+      // FAIL CLOSED. Untrusted markup is only ever eligible to be written once
+      // a sanitizing sink is proven to exist; no native setHTML() and no
+      // registered hook is a hard error, because silently downgrading to
+      // innerHTML would reopen the exact XSS hole this brand closes.
+      if (sanitizerFor(el) === null) {
+        throw nisliError(
+          'N107',
+          `html:inner cannot render sanitized() markup: this engine has no native ` +
+          `Element.setHTML() and no fallback is registered. Wire one at startup — ` +
+          `setSanitizerFallback((el, html) => { el.innerHTML = DOMPurify.sanitize(html) }) ` +
+          `— nisli ships no sanitizer and will not fall back to innerHTML.`,
+        );
+      }
+      return v;
+    }
+    if (isTrustedHtml(v)) return v;
     throw nisliError(
       'N106',
       `html:inner rejects unbranded values (got ${typeof v}). Wrap trusted markup ` +
-      `in raw(html) — and never wrap user-generated input.`,
+      `in raw(html), untrusted markup in sanitized(html) — and never wrap ` +
+      `user-generated input in raw().`,
     );
   };
 
+  const writeHtml = (v: unknown): void => {
+    const resolved = resolveHtml(v);
+    if (isSanitizedHtml(resolved)) {
+      // The sanitizer sink. resolveHtml has already proven a writer exists,
+      // and `el.innerHTML` is unreachable from this branch by construction.
+      sanitizerFor(el)?.(el, resolved.value);
+      return;
+    }
+    // The raw sink, unchanged: a plain string, or a TrustedHTML object handed
+    // over WITHOUT stringifying it (stringifying would defeat the CSP check).
+    // The cast only satisfies the DOM library's `string` typing.
+    el.innerHTML = resolved as string;
+  };
+
   if (isSignal(value)) {
-    // Validate the INITIAL value untracked and eagerly so a bare-string
-    // signal throws synchronously out of mount(); later invalid values throw
-    // inside the effect and land in effect error containment (console.error,
-    // innerHTML untouched).
-    untracked(() => resolveTrusted((value as ReadonlySignal<unknown>).value));
+    // Validate the INITIAL value untracked and eagerly so an unbranded or
+    // unsanitizable signal throws synchronously out of mount(); later invalid
+    // values throw inside the effect and land in effect error containment
+    // (console.error, element content untouched).
+    untracked(() => resolveHtml((value as ReadonlySignal<unknown>).value));
 
     const binding: InnerHtmlBinding = { type: 'innerHtml', element: el };
     bindings.push(binding);
 
     const dispose = effect(() => {
-      el.innerHTML = resolveTrusted((value as ReadonlySignal<unknown>).value);
+      writeHtml((value as ReadonlySignal<unknown>).value);
     });
     binding.dispose = dispose;
     disposers.push(dispose);
   } else {
-    el.innerHTML = resolveTrusted(value);
+    writeHtml(value);
   }
 }
 

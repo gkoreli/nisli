@@ -39,6 +39,13 @@ Agent-native core wave (ADR 0030.2, gate record in
 - New `settle()`: awaitable async quiescence (queries + resources) for
   tests and verify loops; iteration-capped, never wedged by
   abort-ignoring fetchers.
+- `html:inner` gains a second brand: `sanitized(markup)` routes untrusted
+  HTML through the platform sanitizer (`Element.setHTML()`) where the engine
+  has one, else through an app-registered `setSanitizerFallback()` hook, and
+  throws N107 when neither exists — never a silent `innerHTML` downgrade, and
+  no sanitizer is bundled. Native `TrustedHTML` values now pass through the
+  `raw()` sink unwrapped ([ADR 0019](../../docs/adr/0019-minimal-runtime-and-native-platform-alignment.md)
+  §124–128). The `raw()` path is unchanged.
 - New diagnostics layer: stable coded dev messages (`[nisli N…]`) behind
   a runtime dev gate (`setDevMode`; probes Vite/`NODE_ENV`, loud by
   default in buildless ESM); silent under production builds.

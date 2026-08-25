@@ -51,6 +51,19 @@ function isRawHtml(value: unknown): value is RawHtml {
   );
 }
 
+// Structural, for the same reason isRawHtml is. Core's sanitized() brand only
+// has a sink in the browser (Element.setHTML or the registered fallback), and
+// this module is DOM-free — so there is nothing here that can sanitize.
+function isSanitizedHtml(value: unknown): value is { value: string } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    '__sanitize' in value &&
+    (value as { __sanitize?: unknown }).__sanitize === true &&
+    typeof (value as { value?: unknown }).value === 'string'
+  );
+}
+
 export function staticHtml(strings: TemplateStringsArray, ...values: unknown[]): StaticResult {
   const result: string[] = [];
 
@@ -81,6 +94,18 @@ export function renderToString(value: unknown): string {
 
   if (isRawHtml(value)) {
     return value.value;
+  }
+
+  // Fail closed, matching html:inner's N107. Without this branch a sanitized()
+  // value would fall through to escapeHtml(String(value)) and emit an escaped
+  // `[object Object]` — safe, but silently wrong output in a built page.
+  if (isSanitizedHtml(value)) {
+    throw new Error(
+      'sanitized() markup cannot be rendered statically: @nisli/ssg is DOM-free, ' +
+      'so there is no Element.setHTML() or registered sanitizer to run it through. ' +
+      'Render untrusted markup on the client, or sanitize it at build time and ' +
+      'wrap the result in raw().',
+    );
   }
 
   if (Array.isArray(value)) {
