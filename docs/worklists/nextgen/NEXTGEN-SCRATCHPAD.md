@@ -977,3 +977,17 @@ proof-of-concept regime.
   never seen?* Not-GSS argument recorded (bounded discrete fit decisions, three
   tiers, browser keeps doing continuous layout). New decisive question: §7.17,
   the bespoke message-row fixture.
+- **2026-08-25 · round 5 proof** — Built and measured the §7.17 fixture:
+  [`C11-PROOF/`](./C11-PROOF/) (`REPORT.md` for numbers, `proof.webp` for the
+  visual). One component, zero pixel values, zero breakpoints, correct in four
+  contexts. **Confirmed:** context-derived values reach through a
+  `display: contents` host with zero JS (one inherited unit produced 36/27/18/45
+  px controls); priority-driven fit solving settles at every width in ~25 lines
+  with no breakpoint (`scrollWidth === clientWidth` in all four contexts);
+  touch context raises hit targets automatically; elevation derives from nesting
+  depth. **Two design corrections forced by the run:** `collapse` must apply to
+  a declared *group* (ties broke by DOM order and hid the wrong action), and the
+  resolution table needs explicit floors (`max()`) because pure derivation
+  produced a 16px avatar at dense — consistency is derivable, beauty is not.
+  Still unproven: runtime integration, byte budget, flash-of-unfit, and whether
+  an authored resolution table can be made genuinely beautiful.

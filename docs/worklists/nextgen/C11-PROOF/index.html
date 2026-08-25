@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>C11 proof — derived appearance + solved fit</title>
+<style>
+  /* ══════════════════════════════════════════════════════════════════
+     THE RESOLUTION TABLE — the only place any number exists.
+     Every component below contains zero values and zero breakpoints.
+     ══════════════════════════════════════════════════════════════════ */
+  :root {
+    --ui-unit: 4px;
+    --ui-text: 14px;
+    --ui-text-meta: 12px;
+    --ui-radius: 6px;
+    --ui-s1: #ffffff;
+    --ui-s2: #f4f4f5;
+    --ui-s3: #e9e9ec;
+    --ui-fg: #18181b;
+    --ui-fg-muted: #71717a;
+    --ui-line: #d4d4d8;
+  }
+  [data-density="comfortable"] { --ui-unit: 4px; --ui-text: 14px; --ui-text-meta: 12px; }
+  [data-density="compact"]     { --ui-unit: 3px; --ui-text: 13px; --ui-text-meta: 11px; }
+  [data-density="dense"]       { --ui-unit: 2px; --ui-text: 12px; --ui-text-meta: 10px; }
+  [data-input="touch"]         { --ui-unit: 5px; }
+
+  /* structure: rhythm is a function of the container, never of each child */
+  [data-layout]           { display: flex; align-items: center; gap: calc(var(--ui-unit) * 2); min-inline-size: 0; }
+  [data-layout="stack"]   { flex-direction: column; align-items: stretch; gap: calc(var(--ui-unit) * 1); }
+  [grow]                  { flex: 1 1 auto; min-inline-size: 0; }
+
+  /* roles: consume the inherited unit */
+  [data-appearance="action"] {
+    display: inline-flex; align-items: center; justify-content: center;
+    block-size: calc(var(--ui-unit) * 9);
+    padding-inline: calc(var(--ui-unit) * 4);
+    gap: calc(var(--ui-unit) * 2);
+    font-size: var(--ui-text);
+    border-radius: var(--ui-radius);
+    border: 1px solid var(--ui-line);
+    background: var(--ui-s1);
+    color: var(--ui-fg);
+    white-space: nowrap;
+    cursor: default;
+  }
+  [data-appearance="action"][data-role="primary"] { background: #18181b; color: #fff; border-color: #18181b; }
+  [data-appearance="action"][data-role="quiet"]   { background: transparent; border-color: transparent; }
+  [data-appearance="action"][data-role="quiet"]:hover { background: var(--ui-s2); }
+
+  [data-text="title"] { font-size: var(--ui-text); font-weight: 600; color: var(--ui-fg); }
+  [data-text="meta"]  { font-size: var(--ui-text-meta); color: var(--ui-fg-muted); }
+  [data-truncate]     { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-inline-size: 0; }
+
+  /* avatar sized from the same unit, with a floor so the dense end stays legible */
+  [data-appearance="avatar"] {
+    inline-size: max(calc(var(--ui-unit) * 8), 20px);
+    block-size: max(calc(var(--ui-unit) * 8), 20px);
+    border-radius: 999px; background: var(--ui-s3); flex: none;
+    display: grid; place-items: center; font-size: var(--ui-text-meta); color: var(--ui-fg-muted);
+  }
+
+  /* elevation derived from nesting depth — nobody picks a shade */
+  [data-surface] { background: var(--ui-s1); padding: calc(var(--ui-unit) * 3); border-radius: var(--ui-radius); border: 1px solid var(--ui-line); }
+  [data-surface] [data-surface] { background: var(--ui-s2); }
+  [data-surface] [data-surface] [data-surface] { background: var(--ui-s3); }
+
+  /* layout-transparent component host — exactly nisli's transparentHost() */
+  .host { display: contents; }
+
+  /* context legible by name: a dense bar strips control borders */
+  [data-fit-container] { container-type: inline-size; container-name: bar; }
+  @container bar style(--ui-density: dense) {
+    [data-appearance="action"] { border-color: transparent; }
+  }
+
+  [data-collapsed] { display: none !important; }
+  [data-overflow-trigger] { display: none; }
+  [data-overflow-trigger][data-shown] { display: inline-flex; }
+
+  /* harness chrome only — not part of the mechanism */
+  body { font: 14px/1.4 system-ui, sans-serif; margin: 24px; color: #18181b; background: #fafafa; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: #71717a; margin: 28px 0 8px; }
+  .frame { border: 1px dashed #a1a1aa; padding: 8px; background: #fff; margin-bottom: 8px; resize: horizontal; overflow: auto; }
+  .label { font: 11px ui-monospace, monospace; color: #71717a; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<h2>1 · one component, four contexts, zero values in the component</h2>
+
+<div class="label">page &mdash; density: comfortable</div>
+<div class="frame" style="inline-size: 900px" data-density="comfortable">
+  <div data-surface><div id="row-page"></div></div>
+</div>
+
+<div class="label">sidebar &mdash; 320px, density: comfortable</div>
+<div class="frame" style="inline-size: 320px" data-density="comfortable">
+  <div data-surface><div id="row-sidebar"></div></div>
+</div>
+
+<div class="label">phone &mdash; 380px, input: touch</div>
+<div class="frame" style="inline-size: 380px" data-density="comfortable" data-input="touch">
+  <div data-surface><div id="row-phone"></div></div>
+</div>
+
+<div class="label">dense list &mdash; 640px, density: dense, nested two surfaces deep</div>
+<div class="frame" style="inline-size: 640px" data-density="dense">
+  <div data-surface><div data-surface><div id="row-dense"></div></div></div>
+</div>
+
+<h2>2 · same button, three densities, through a display:contents host</h2>
+<div class="frame" style="inline-size: 700px">
+  <div data-layout="row">
+    <span data-density="comfortable"><span class="host"><button data-appearance="action" data-role="primary" id="b-comfortable">Save</button></span></span>
+    <span data-density="compact"><span class="host"><button data-appearance="action" data-role="primary" id="b-compact">Save</button></span></span>
+    <span data-density="dense"><span class="host"><button data-appearance="action" data-role="primary" id="b-dense">Save</button></span></span>
+    <span data-input="touch"><span class="host"><button data-appearance="action" data-role="primary" id="b-touch">Save</button></span></span>
+  </div>
+</div>
+
+<script type="module">
+// ══════════════════════════════════════════════════════════════════════
+// THE COMPONENT — user code the framework has never seen.
+// No pixel value. No breakpoint. No media query. Only: what things are,
+// and which ones matter least.
+// ══════════════════════════════════════════════════════════════════════
+function MessageRow({ author, time, initials }) {
+  return `
+    <div data-layout="row" data-fit-container>
+      <span data-appearance="avatar">${initials}</span>
+
+      <div data-layout="stack" grow>
+        <span data-text="title">${author}</span>
+        <span data-text="meta" data-priority="4" data-collapse="truncate">${time}</span>
+      </div>
+
+      <div data-layout="row" data-priority="3" data-collapse="menu">
+        <button data-appearance="action" data-role="quiet">Star</button>
+        <button data-appearance="action" data-role="quiet">Archive</button>
+      </div>
+      <div data-layout="row" data-priority="2" data-collapse="menu">
+        <button data-appearance="action" data-role="quiet">Reply</button>
+      </div>
+      <button data-appearance="action" data-role="quiet" data-overflow-trigger>&#8943;</button>
+    </div>`;
+}
+
+const rows = {
+  'row-page':    { author: 'Ada Lovelace',  time: '2026-08-25 14:32:07 UTC', initials: 'AL' },
+  'row-sidebar': { author: 'Ada Lovelace',  time: '2026-08-25 14:32:07 UTC', initials: 'AL' },
+  'row-phone':   { author: 'Ada Lovelace',  time: '2026-08-25 14:32:07 UTC', initials: 'AL' },
+  'row-dense':   { author: 'Ada Lovelace',  time: '2026-08-25 14:32:07 UTC', initials: 'AL' },
+};
+for (const [id, props] of Object.entries(rows)) {
+  document.getElementById(id).outerHTML = MessageRow(props);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// TIER 3 — the entire fit solver. An ordered loop over declared
+// degradations. Not a constraint solver, not a layout engine.
+// ══════════════════════════════════════════════════════════════════════
+const overflows = (c) => c.scrollWidth > c.clientWidth + 1;
+
+function candidates(c) {
+  return [...c.querySelectorAll(':scope [data-collapse]')]
+    .sort((a, b) => Number(b.dataset.priority) - Number(a.dataset.priority)); // least important first
+}
+
+function degrade(el) {
+  if (el.dataset.collapse === 'truncate') { el.dataset.truncate = ''; return; }
+  el.dataset.collapsed = '';
+  el.closest('[data-fit-container]').querySelector('[data-overflow-trigger]').dataset.shown = '';
+}
+
+function reset(c) {
+  for (const el of candidates(c)) { delete el.dataset.collapsed; delete el.dataset.truncate; }
+  delete c.querySelector('[data-overflow-trigger]').dataset.shown;
+}
+
+function solveFit(c) {
+  reset(c);
+  const items = candidates(c);
+  let i = 0;
+  while (overflows(c) && i < items.length) degrade(items[i++]);
+  c.dataset.fit = overflows(c) ? 'unsatisfiable' : 'settled';
+}
+
+const containers = [...document.querySelectorAll('[data-fit-container]')];
+const ro = new ResizeObserver((entries) => {
+  for (const e of entries) solveFit(e.target);
+});
+for (const c of containers) { solveFit(c); ro.observe(c); }
+
+// harness: report what was derived and what was solved
+window.__report = () => ({
+  derived: ['b-comfortable', 'b-compact', 'b-dense', 'b-touch'].map((id) => {
+    const el = document.getElementById(id);
+    const cs = getComputedStyle(el);
+    return {
+      id,
+      unit: cs.getPropertyValue('--ui-unit').trim(),
+      height: el.getBoundingClientRect().height,
+      paddingInline: cs.paddingInline || cs.paddingLeft,
+      fontSize: cs.fontSize,
+      throughDisplayContents: el.parentElement.className === 'host'
+        && getComputedStyle(el.parentElement).display === 'contents',
+    };
+  }),
+  solved: containers.map((c) => {
+    const frame = c.closest('.frame');
+    const visibleActions = [...c.querySelectorAll('[data-collapse="menu"]')].filter((e) => !('collapsed' in e.dataset)).length;
+    return {
+      frame: Math.round(frame.getBoundingClientRect().width),
+      containerWidth: Math.round(c.getBoundingClientRect().width),
+      fit: c.dataset.fit,
+      visibleActions,
+      overflowMenuShown: 'shown' in c.querySelector('[data-overflow-trigger]').dataset,
+      timeTruncated: 'truncate' in c.querySelector('[data-collapse="truncate"]').dataset,
+      rowScrollWidth: c.scrollWidth,
+      rowClientWidth: c.clientWidth,
+      titleFontSize: getComputedStyle(c.querySelector('[data-text="title"]')).fontSize,
+      avatarSize: Math.round(c.querySelector('[data-appearance="avatar"]').getBoundingClientRect().width),
+      surfaceBg: getComputedStyle(c.closest('[data-surface]')).backgroundColor,
+    };
+  }),
+});
+</script>
+</body>
+</html>
