@@ -1,0 +1,185 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   LAYER 2 — STRUCTURE: how declared composition becomes geometry.
+   ══════════════════════════════════════════════════════════════════════════
+   `data-layout` says how children relate; `data-grow` says which child eats
+   the slack; `data-align` says how they line up. Nothing here paints, and
+   every distance is a multiple of the inherited --unit, so rhythm is a
+   property of the container's context rather than of the author's memory.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 0. Host transparency ────────────────────────────────────────────────
+   nisli renders a component's template INSIDE its host element, so
+   `Text({...})` produces `<app-text><span data-text="meta">…</span></app-text>`
+   and in `<div data-layout="row">${Text(...)}</div>` the flex CHILD is the
+   host, not the span carrying the declaration. Without this rule
+   `[data-layout] > [data-truncate]` and `> [data-grow]` can never match the
+   element that declared itself, the host absorbs `flex: none` instead, and the
+   whole no-crush block below becomes cosmetic — the F8 hole reopened one level
+   up. A boxless host restores the invariant that the element the flex
+   algorithm sizes is the element that declared how it may be sized.
+
+   Tradeoff, accepted: a `display: contents` host has no box, so it cannot be
+   measured or painted. That is exactly right here — every declaration lives on
+   the inner element and the derivation channel is inherited custom properties,
+   which pass straight through a boxless host. Measurement code must skip these
+   nodes: `checkVisibility()` returns true for them while their rect is 0×0.
+   (states.css re-materialises a host that nisli stamped with data-nisli-error,
+   because a framework error must remain visible.)
+
+   CSS cannot wildcard a tag name, so the list is enumerated on purpose; it is
+   the same list @nisli/ui's transparentHost() maintains, and ADR 0030.2's
+   pre-upgrade-transparency item makes it generatable from a manifest. */
+app-region,
+app-surface,
+app-text,
+app-button,
+app-avatar,
+app-field,
+app-nav-item,
+app-escaped,
+app-message-row,
+app-toolbar,
+app-data-table,
+app-hero,
+app-overflow-menu,
+/* app-action-group is the collapsible action group whose inner div carries
+   data-collapse="menu" — i.e. it is itself a fit candidate. It was the "Reply
+   wrapper" the F8 crush was originally measured on, so a boxed host here would
+   reopen the defect at exactly the node that produced it. */
+app-action-group {
+  display: contents;
+}
+
+/* ── 1. Layout kinds ─────────────────────────────────────────────────────── */
+
+[data-layout] {
+  display: flex;
+  /* Gap is the only spacing primitive: margins would let a child assert its
+     own rhythm, which is exactly the decision the author must not make. */
+  gap: calc(var(--unit) * 2);
+  align-items: center;
+}
+
+/* Declared explicitly rather than left implicit in the flex default, so that
+   reading `data-layout="row"` in a component matches a rule you can find. */
+[data-layout='row'] {
+  flex-flow: row nowrap;
+}
+
+/* A stack is not a rotated row: vertical rhythm is tighter than horizontal
+   (1.5 vs 2 units) because block spacing reads larger at the same distance,
+   and children stretch because a column has one obvious width. */
+[data-layout='stack'] {
+  flex-direction: column;
+  align-items: stretch;
+  gap: calc(var(--unit) * 1.5);
+}
+
+[data-layout='wrap'] {
+  flex-flow: row wrap;
+}
+
+/* The breakpoint-free grid: auto-fit against a unit-derived minimum column
+   means the column count is a consequence of the available space and the
+   current density, so no media query ever has to name a width. */
+[data-layout='grid'] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--unit) * 44), 1fr));
+  align-items: start;
+}
+
+[data-align='start'] {
+  align-items: flex-start;
+}
+[data-align='center'] {
+  align-items: center;
+}
+[data-align='end'] {
+  align-items: flex-end;
+}
+[data-align='between'] {
+  justify-content: space-between;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   2. F8 — THE NO-CRUSH BLOCK. Content-sized children must not be crushable.
+   ══════════════════════════════════════════════════════════════════════════
+   Flex children default to `flex-shrink: 1`, which means the browser is
+   allowed to satisfy an overflowing container by shrinking children BELOW
+   their content width. The container then measures as fitting while the
+   content paints outside its own box, over its neighbour.
+
+   Measured at 320px before this block existed: the message row reported
+   scrollWidth 318 === clientWidth 318 — so a container-only overflow test
+   reported `settled` — while the Reply wrapper inside it had clientWidth 32
+   against scrollWidth 71. Two buttons were visibly painted on top of each
+   other in a row the solver believed was fine.
+
+   Exactly two kinds of element may shrink, and both have declared that they
+   can survive it: a `data-grow` region (its whole job is to absorb slack) and
+   a candidate the solver has ACTUALLY truncated (`data-truncate` is written by
+   the mutator, so an ellipsis exists to absorb the loss). Anything else that
+   shrinks is the defect; this block is what makes it impossible, and
+   `domMetrics.crushed()` is what reports it if it happens anyway.
+
+   NOTE THE COMBINATOR. These are descendant selectors, not `>` child
+   selectors, and that is forced by host transparency above: `display: contents`
+   removes a host's BOX but not its position in the tree that selectors match
+   against, so `[data-layout] > [data-grow]` still tries to match the host —
+   which never carries a declaration — and silently matches nothing. Every
+   `>` spelling of this block is inert for component children, i.e. for every
+   element in the real app. Descendant selectors match the element that
+   declared itself, whatever number of boxless hosts sit in between; the extra
+   reach costs nothing because flex properties are ignored on anything that is
+   not a flex item. */
+[data-layout] * {
+  flex: none;
+}
+
+/* Declared after the rule above so that equal specificity resolves in favour
+   of the element that asked to be flexible. */
+[data-grow] {
+  flex: 1 1 auto;
+}
+[data-truncate] {
+  flex: 0 1 auto;
+}
+
+/* ── The shrink licence, and why min-inline-size is NOT granted to data-grow
+   ────────────────────────────────────────────────────────────────────────
+   `min-inline-size: 0` is the switch that disables flexbox's automatic
+   content-based minimum, so it — not `flex-shrink` — is what actually permits
+   a crush. Granting it to the container and to `[data-grow]`, the obvious
+   reading of "the grow region absorbs the slack", moves the F8 defect one
+   level down instead of fixing it. Measured on the message row at 320px with
+   that spelling: the row reported 320/320, still `settled`, still a lie, while
+   the grow region had been squeezed to clientWidth 14 against scrollWidth 47
+   and its title and excerpt painted straight out of it.
+
+   So the licence is granted per node, to the only node that can absorb the
+   loss. A grow region keeps the automatic minimum, which means it stops
+   absorbing at its own min-content and the container then overflows HONESTLY —
+   353/320 measured on the same row — and an honest overflow is exactly the
+   signal the solver needs in order to degrade something else. */
+[data-truncate] {
+  min-inline-size: 0;
+}
+
+/* Second half of the licence, for the stretched case. A truncating node that
+   its parent stretches (a stack child, a grid item) is not sized by
+   flex-basis, so its nowrap content still sets its parent's min-content and
+   the parent then refuses to shrink at all: measured 538/320 on the same row,
+   worse than no truncation. Size containment states the intent directly — a
+   truncating node's inline size is imposed on it, never derived from it — and
+   brings the row back to 353/320 with nothing crushed.
+
+   Deliberately NOT applied to row items: there `flex-basis: auto` is what
+   gives them the full width they shrink FROM, and containment would collapse
+   them to zero. Hence a spelling that has to name the one host that can wrap a
+   truncating node: only text truncates (F5 — an atomic value has nothing to
+   shorten, so it hides instead), so app-text is the only intervening host
+   possible here. */
+:is([data-layout='stack'], [data-layout='grid']) > [data-truncate],
+:is([data-layout='stack'], [data-layout='grid']) > app-text > [data-truncate] {
+  contain: inline-size;
+}

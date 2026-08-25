@@ -1,0 +1,277 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   LAYER 3 — ROLES: what a declared meaning looks like in the current context.
+   ══════════════════════════════════════════════════════════════════════════
+   Every rule below reads the inherited --unit and the inherited colour table
+   and paints. No rule reads a viewport, a class, or an author's opinion — an
+   element declares WHAT IT IS (`data-appearance` + `data-role`, `data-text`)
+   and this layer resolves that into values.
+
+   Floors are applied with max(), never by branching: `max(unit*9,
+   var(--min-target))` is one expression that is simultaneously the derived
+   size and the asserted minimum, so no context can accidentally miss it.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── action ──────────────────────────────────────────────────────────────── */
+
+[data-appearance='action'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--unit) * 2);
+  /* 9 units is the derived control height; --min-target is the touch floor
+     that the input axis raises to 44px. */
+  block-size: max(calc(var(--unit) * 9), var(--min-target));
+  padding-inline: calc(var(--unit) * 4);
+  /* `font: inherit` first resets the UA's button font wholesale, then the
+     declared size is applied — otherwise the browser's 13px system font wins
+     in whichever context forgot to override it. */
+  font: inherit;
+  font-size: var(--text);
+  font-weight: 500;
+  line-height: 1;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--s1);
+  color: var(--fg);
+  /* A control is an atom: wrapping its label would make its width a function
+     of its own content twice over and defeat the fit solver's measurement. */
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--motion),
+    border-color var(--motion),
+    color var(--motion);
+}
+
+[data-appearance='action'][data-role='primary'] {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+
+[data-appearance='action'][data-role='danger'] {
+  background: var(--danger);
+  /* --danger-fg, not white: dark mode's danger is a light red on which white
+     measures 2.79:1. The readable pairing is part of the theme table. */
+  color: var(--danger-fg);
+  border-color: var(--danger);
+}
+
+[data-appearance='action'][data-role='quiet'] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--fg-muted);
+}
+[data-appearance='action'][data-role='quiet']:hover {
+  background: var(--s3);
+  color: var(--fg);
+}
+
+/* A link-emphasis action keeps the hit target (a thumb does not care that it
+   looks like text) and loses only the box. */
+[data-appearance='action'][data-role='link'] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--link);
+  padding-inline: 0;
+  text-decoration: underline;
+  text-underline-offset: calc(var(--unit) * 0.5);
+}
+
+[data-appearance='action'][aria-disabled='true'] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* ── avatar ──────────────────────────────────────────────────────────────── */
+
+[data-appearance='avatar'] {
+  /* Never shrinks and never grows: an ellipse crushed on one axis stops being
+     a circle, which is a distortion no other role suffers. */
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: max(calc(var(--unit) * 8), var(--min-avatar));
+  block-size: max(calc(var(--unit) * 8), var(--min-avatar));
+  border-radius: 999px;
+  background: var(--s3);
+  color: var(--fg-muted);
+  font-size: max(var(--text-meta), var(--min-text));
+  font-weight: 600;
+  /* Initials are a graphic, not text: the box is fixed, so overflow would
+     leak outside the circle rather than reflow. */
+  overflow: hidden;
+}
+
+/* ── field ───────────────────────────────────────────────────────────────── */
+
+[data-appearance='field'] {
+  display: flex;
+  align-items: center;
+  /* Same height expression as an action, so a field and a button placed in
+     one row line up without either side being told about the other. */
+  block-size: max(calc(var(--unit) * 9), var(--min-target));
+  padding-inline: calc(var(--unit) * 3);
+  font: inherit;
+  font-size: var(--text);
+  color: var(--fg);
+  background: var(--s1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  /* A text input's intrinsic width is its `size` attribute, which is a number
+     no author here is allowed to pick; zero lets the layout decide instead.
+
+     This is the one exception to the F8 rule that a node must never be
+     narrower than its content, and it is a real exception rather than a
+     leak: a text input SCROLLS its own value, so content wider than the box
+     is the field working, not a crush. Measurement code must exempt
+     [data-appearance='field'] from crush detection for the same reason it
+     exempts [data-truncate] — both are declared licences to clip. */
+  min-inline-size: 0;
+}
+[data-appearance='field'][aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+/* ── nav-item ────────────────────────────────────────────────────────────── */
+
+[data-appearance='nav-item'] {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--unit) * 2);
+  padding: calc(var(--unit) * 2) calc(var(--unit) * 3);
+  /* min- rather than fixed: a nav label is allowed to wrap in a narrow rail,
+     and the floor still guarantees the target. */
+  min-block-size: max(calc(var(--unit) * 8), var(--min-target));
+  border-radius: var(--radius);
+  font-size: var(--text);
+  color: var(--fg-muted);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--motion),
+    color var(--motion);
+}
+[data-appearance='nav-item']:hover {
+  background: var(--s3);
+  color: var(--fg);
+}
+/* Current-ness is already declared in ARIA; re-declaring it as a style hook
+   would be a second source of truth for the same fact. */
+[data-appearance='nav-item'][aria-current='page'] {
+  background: var(--s3);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* ── surface ─────────────────────────────────────────────────────────────── */
+
+[data-appearance='surface'] {
+  background: var(--s1);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: calc(var(--unit) * 4);
+}
+
+/* Elevation is derived from nesting depth, so nobody picks a shade. Three
+   steps is the whole ramp: a fourth level of nesting is a structural problem,
+   and flattening it back to --s3 makes that visible instead of inventing a
+   colour to hide it. */
+[data-appearance='surface'] [data-appearance='surface'] {
+  background: var(--s2);
+}
+[data-appearance='surface'] [data-appearance='surface'] [data-appearance='surface'] {
+  background: var(--s3);
+}
+
+/* A flush surface holds edge-to-edge content (a table, a list): its own
+   padding would double the child's, and the clip is what keeps the child's
+   square corners inside the rounded frame. */
+[data-appearance='surface'][data-flush] {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ── table ───────────────────────────────────────────────────────────────
+   A table is a context, not a set of cell classes: one declaration on the
+   table resolves every cell that will ever be put in it. */
+
+[data-appearance='table'] {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text);
+  color: var(--fg);
+}
+[data-appearance='table'] :is(th, td) {
+  padding: calc(var(--unit) * 2) calc(var(--unit) * 3);
+  /* Logical `start`, so the table follows writing direction without an axis
+     of its own. */
+  text-align: start;
+  border-block-end: 1px solid var(--line);
+  white-space: nowrap;
+}
+[data-appearance='table'] th {
+  font-size: max(var(--text-meta), var(--min-text));
+  color: var(--fg-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+/* The frame already draws the bottom edge; a last rule under it reads as a
+   double line. */
+[data-appearance='table'] tr:last-child :is(th, td) {
+  border-block-end: 0;
+}
+
+/* ── text roles ──────────────────────────────────────────────────────────
+   Five levels, because the four pages needed five and no more. Each is a
+   meaning ("this is metadata"), never a size. */
+
+[data-text='display'] {
+  font-size: var(--text-display);
+  font-weight: 700;
+  /* Large type needs negative tracking and tighter leading to stop reading as
+     a scaled-up paragraph. */
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--fg);
+}
+[data-text='title'] {
+  font-size: var(--text-title);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--fg);
+}
+[data-text='body'] {
+  font-size: var(--text);
+  line-height: 1.5;
+  color: var(--fg);
+}
+/* Metadata is where the --min-text floor earns its place: at dense the ramp
+   derives below legibility. */
+[data-text='meta'] {
+  font-size: max(var(--text-meta), var(--min-text));
+  color: var(--fg-muted);
+}
+[data-text='label'] {
+  font-size: max(var(--text-meta), var(--min-text));
+  color: var(--fg-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── focus ───────────────────────────────────────────────────────────────
+   Declared once for every interactive role, including roles not written yet:
+   focus visibility is not a per-component decision. `:focus-visible` rather
+   than `:focus` so a pointer click does not paint a ring. The offset is
+   derived so the ring keeps its gap when the unit shrinks. */
+
+[data-appearance='action']:focus-visible,
+[data-appearance='field']:focus-visible,
+[data-appearance='nav-item']:focus-visible,
+[data-appearance='table'] :is(th, td):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: max(calc(var(--unit) * 0.5), 1px);
+}

@@ -1,0 +1,191 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   LAYER 4 — STATES: what the ENGINE writes, never an author.
+   ══════════════════════════════════════════════════════════════════════════
+   Every attribute in this file is produced by machinery, not by a component:
+   the fit solver's mutator writes data-truncate / data-hidden / data-collapsed
+   / data-fit / data-shown, nisli writes data-nisli-error, and the escape
+   hatch writes data-escaped about itself. An author declaring one of these by
+   hand is a bug, and the diagnostics layer is what says so.
+
+   This is the only layer permitted to use `!important`, and only for the two
+   rules that remove a node from flow: a role legitimately declares
+   `display: inline-flex`, an engine decision that the node is not to be
+   rendered at all must beat it unconditionally, and "unconditionally" cannot
+   be expressed by specificity when a future role may be more specific.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Removal from flow: two different facts, deliberately two rules ─────── */
+
+/* strategy `menu` — the node did not fit and its content was MOVED into the
+   overflow affordance. Reachable: an affordance exists (see data-overflow
+   below), and the solver counts it in data-collapsed-count. Removing it from
+   flow rather than hiding it visually is what makes the row measure honestly
+   on the next pass. */
+[data-collapsed] {
+  display: none !important;
+}
+
+/* strategy `hide` — F5. The node did not fit and there is NO affordance: the
+   author declared this information genuinely optional. This exists because
+   `truncate` was the only non-menu strategy in the first run, and applying it
+   to short atomic values degraded timestamps to `1…`, `Y…`, `M` — technically
+   fitting, informationally worthless. An atomic value cannot be shortened, so
+   the honest degradation is absence.
+
+   It is a separate rule from data-collapsed and not an alias for it: collapsed
+   promises the content is still reachable, hidden promises the opposite. The
+   diagnostics layer relies on that distinction (a collapsed node with no
+   affordance is a defect; a hidden node with no affordance is correct). */
+[data-hidden] {
+  display: none !important;
+}
+
+/* ── Truncation ──────────────────────────────────────────────────────────
+   strategy `truncate`. Written by the mutator, which makes it the shrink
+   licence structure.css keys on (F8): the ellipsis is the visible receipt
+   that the loss was intended, so this is one of only two elements allowed to
+   flex below its content width. N621 warns when the surviving text is too
+   short for the truncation to have been worth it. */
+[data-truncate] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-inline-size: 0;
+}
+
+/* ── The overflow affordance ─────────────────────────────────────────────
+   Hidden by default and revealed only when the solver actually collapsed
+   something, so the trigger can never be an empty promise. */
+
+[data-overflow] {
+  display: none;
+}
+[data-overflow][data-shown] {
+  display: inline-flex;
+}
+
+/* F6 — collapsed actions must be REACHABLE. The first run shipped the trigger
+   as a stub with no menu, no keyboard and no ARIA, which made every collapsed
+   action unreachable. The markup for the real thing lives in the UI layer;
+   the geometry lives here, because a popover needs an offset and a z-index
+   and those are numbers.
+
+   `position: absolute` keeps the menu out of flow, so it can never take part
+   in the flex distribution that the fit solver is measuring — and can never
+   be crushed. `inline-size: max-content` with a unit-derived minimum means
+   the menu is sized by its longest item rather than by a chosen width. */
+[data-overflow-anchor] {
+  position: relative;
+}
+
+/* An anchor whose trigger is not shown is still a zero-width flex child, and a
+   zero-width flex child still costs the row one `gap` — which the solver would
+   have to degrade something real in order to pay for. Collapse it entirely so
+   an unused affordance costs nothing. */
+[data-overflow-anchor]:not(:has([data-overflow][data-shown])) {
+  display: none;
+}
+
+[data-overflow-menu] {
+  display: none;
+  position: absolute;
+  z-index: 1;
+  /* Anchored at the inline-end edge so the panel grows AWAY from the container
+     edge: in the inline direction it can never extend past the container's
+     end, so it can never enlarge the scrollWidth the solver measures. Bounded
+     as well, because an unbounded max-content panel inside a narrow fit
+     container would reach past the start edge and off-screen. */
+  inset-inline-end: 0;
+  inset-block-start: calc(100% + var(--unit));
+  inline-size: max-content;
+  min-inline-size: calc(var(--unit) * 36);
+  max-inline-size: min(calc(var(--unit) * 60), 100cqi);
+  padding: var(--unit);
+  background: var(--s1);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  /* The only shadow in the system: it is not decoration, it is the signal
+     that this layer floats above the one the solver measured. */
+  box-shadow: 0 calc(var(--unit) * 0.5) calc(var(--unit) * 3) rgb(0 0 0 / 0.14);
+}
+[data-overflow-menu][data-shown] {
+  display: block;
+}
+
+/* Menu items are a list, not a row: full width so the whole strip is the hit
+   target, start-aligned so labels scan vertically. Declared here rather than
+   in the UI so the menu's children need no appearance decision of their own.
+
+   A menu item is also the one action that may WRAP. That is what lets the
+   panel above stay bounded without either clipping a label or crushing the
+   item: bounding a box whose content cannot reflow is precisely how F8
+   happened, so a bound is only honest where reflow is available.
+   `overflow-wrap: anywhere` closes the last hole — a single unbreakable token
+   longer than the panel would otherwise still paint outside its box. */
+[data-overflow-menu] [data-appearance='action'] {
+  inline-size: 100%;
+  min-inline-size: 0;
+  justify-content: flex-start;
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  block-size: auto;
+  min-block-size: max(calc(var(--unit) * 9), var(--min-target));
+  padding-block: calc(var(--unit) * 1.5);
+  line-height: 1.3;
+}
+
+/* ── Solver verdict ──────────────────────────────────────────────────────
+   `unsatisfiable` means the solver exhausted every declared degradation and
+   the content still does not fit. That is an authoring defect, so it is
+   marked in the UI rather than silently tolerated: the same philosophy as
+   data-escaped — possible, explicit, and visibly unverified. */
+[data-fit='unsatisfiable'] {
+  outline: 2px dashed var(--danger);
+  outline-offset: calc(var(--unit) * 0.75);
+}
+
+/* ── Unverified regions ──────────────────────────────────────────────────
+   F7. The escape hatch is allowed to exist, but a subtree that styles itself
+   raw is outside every guarantee this theme makes, so it is drawn as such and
+   reported once as N601. */
+[data-escaped] {
+  outline: 1px dashed var(--danger);
+  outline-offset: calc(var(--unit) * 0.5);
+}
+
+/* nisli stamps this on a HOST whose lifecycle threw (ADR 0030.2 T6 — it is how
+   the N402 in the first run of this experiment was found in one step). Solid
+   rather than dashed so a framework error never reads as an intentional
+   escape, and `display: block` because structure.css makes every host boxless:
+   a `display: contents` element has no box to draw an outline on, so the one
+   state that must be visible on a host has to give the host back its box. */
+[data-nisli-error] {
+  display: block;
+  outline: 2px solid var(--danger);
+  outline-offset: calc(var(--unit) * 0.5);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Container context: the axis, legible by name.
+   ══════════════════════════════════════════════════════════════════════════
+   Every fit container is also a query container, so descendants can resolve
+   against the space they were actually given rather than against the
+   viewport — which is the structural reason this experiment has no media
+   queries at all. */
+[data-fit] {
+  container-type: inline-size;
+  container-name: fitbox;
+}
+
+/* A style query reads the context by NAME (--density-name is set by the
+   density axis in tokens.css), not by re-deriving it from a measurement. This
+   one rule says "inside a dense fit container, controls lose their borders" —
+   once, for every control that will ever exist, including ones not written
+   yet. That is the whole claim of the experiment expressed in four lines. */
+@container fitbox style(--density-name: dense) {
+  [data-appearance='action'] {
+    border-color: transparent;
+  }
+}

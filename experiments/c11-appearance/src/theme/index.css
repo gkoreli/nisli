@@ -1,0 +1,34 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   THE RESOLUTION TABLE — the ~40% of the C11 bet.
+   ══════════════════════════════════════════════════════════════════════════
+   THIS DIRECTORY IS THE ONLY PLACE IN THE EXPERIMENT WHERE A NUMBER, A COLOUR
+   OR A RADIUS MAY APPEAR. Nothing under src/ui, src/app or src/appearance
+   contains one; `proof/no-values-guard.mjs` enforces it, and the deliberate
+   escape hatch is the single documented exception (it reports itself as N601).
+
+   Read it as a set of rules, not a stylesheet: a context declares one unit,
+   and every value in the rendered UI is a function of that unit plus the
+   element's declared meaning.
+
+   THE LAYERING RULE — the four files are imported in this order, and the
+   order is the dependency direction. Each layer may read what earlier layers
+   declared and may override what earlier layers painted; never the reverse.
+
+     1. tokens     the context axes: density, input, theme. Declares values,
+                   paints nothing.
+     2. structure  declared composition becomes geometry. Consumes the unit;
+                   knows nothing about colour or role.
+     3. roles      declared meaning becomes appearance. Consumes tokens and
+                   assumes structure; the only layer that paints a component.
+     4. states     what the engine writes, never an author. Last, because an
+                   engine decision must be able to beat a role.
+
+   Because CSS resolves ties by source order, the sequence below is load-
+   bearing: moving states above roles would let a role's `display` override
+   the solver's decision to remove a node from flow.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@import './tokens.css';
+@import './structure.css';
+@import './roles.css';
+@import './states.css';
