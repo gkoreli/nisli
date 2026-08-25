@@ -1,7 +1,7 @@
 import { component, getCurrentComponent, html, inject, signal, type ComponentFactory, type TemplateResult } from '@nisli/core';
 import { createMatcher, defineRoutes, prefixBase, type RouteMatch } from './matcher.js';
 import type { NotFoundDefinition, RedirectDefinition, RouteDefinition } from './route.js';
-import { Router, type EngineOption, type RouterApplicationDefinition } from './router.js';
+import { Router, type EngineOption, type RouterApplicationDefinition, type RouterViewTransitions } from './router.js';
 
 type AnyRouteDefinition = RouteDefinition<any, any, any>;
 type RouteMap = Readonly<Record<string, AnyRouteDefinition>>;
@@ -38,7 +38,12 @@ let routerId = 0;
 
 export function defineRouter<const Input extends Record<string, unknown>>(
   input: Input,
-  options: { base?: string; outletAttrs?: OutletAttrs; engine?: EngineOption } = {},
+  options: {
+    base?: string;
+    outletAttrs?: OutletAttrs;
+    engine?: EngineOption;
+    viewTransitions?: RouterViewTransitions;
+  } = {},
   ...validation: InvalidRouterKeys<Input> extends never ? [] : [invalidRouterConfig: never]
 ): ApplicationRouter<RoutesFrom<Input>> {
   void validation;
@@ -77,7 +82,10 @@ export function defineRouter<const Input extends Record<string, unknown>>(
       host.setAttribute('role', 'main');
       host.setAttribute('tabindex', '-1');
       host.style.display = 'contents';
-      const disconnect = router.connect(definition, host, rendered, { engine: options.engine });
+      const disconnect = router.connect(definition, host, rendered, {
+        engine: options.engine,
+        viewTransitions: options.viewTransitions,
+      });
       getCurrentComponent().addDisposer(disconnect);
       return html`${rendered}`;
     });

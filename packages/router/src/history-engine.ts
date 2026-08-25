@@ -1,4 +1,4 @@
-import type { EngineNavigateOptions, EngineSink, NavigationEngine } from './engine.js';
+import type { EngineNavigateOptions, EngineSink, NavigationDirection, NavigationEngine } from './engine.js';
 import type { RouteMatch } from './matcher.js';
 
 /** Reserved key under which the engine stamps its per-entry scroll key. */
@@ -18,6 +18,20 @@ function readHistoryKey(state: unknown): string | null {
 /** The user state carried by a history state, wrapped by this engine or not. */
 function unwrapHistoryState(state: unknown): unknown {
   return readHistoryKey(state) !== null ? (state as RouterHistoryState).state ?? null : state;
+}
+
+/**
+ * Back/forward from the engine's monotonic per-entry keys: an entry stamped
+ * earlier sits behind one stamped later. Unknown whenever the comparison
+ * cannot be trusted — an entry this engine never stamped (a foreign or
+ * reload-orphaned one), or the same entry on both sides.
+ */
+function traversalDirection(fromKey: string, toKey: string | null): NavigationDirection {
+  if (toKey === null) return 'unknown';
+  const from = Number(fromKey);
+  const to = Number(toKey);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from === to) return 'unknown';
+  return to < from ? 'back' : 'forward';
 }
 
 /**
@@ -45,16 +59,24 @@ export class HistoryEngine implements NavigationEngine {
     this.sink = sink;
     const onPopState = () => {
       // Record the scroll of the entry being left (manual restoration keeps it
-      // intact at popstate time), then adopt the target entry's key.
+      // intact at popstate time), then adopt the target entry's key. The
+      // comparison has to happen before that adoption — the key being left is
+      // the only thing that says which way this traversal went.
       this.rememberScroll();
-      this.currentKey = readHistoryKey(history.state) ?? this.nextKey();
-      void sink.transition({ url: this.browserURL(), kind: 'traverse' });
+      const leavingKey = this.currentKey;
+      const incomingKey = readHistoryKey(history.state);
+      this.currentKey = incomingKey ?? this.nextKey();
+      void sink.transition({
+        url: this.browserURL(),
+        kind: 'traverse',
+        direction: traversalDirection(leavingKey, incomingKey),
+      });
     };
     const onClick = (event: MouseEvent) => this.onDocumentClick(event);
     window.addEventListener('popstate', onPopState);
     document.addEventListener('click', onClick);
     this.enableManualScrollRestoration();
-    void sink.transition({ url: this.browserURL(), kind: 'initial' });
+    void sink.transition({ url: this.browserURL(), kind: 'initial', direction: 'unknown' });
     return () => {
       window.removeEventListener('popstate', onPopState);
       document.removeEventListener('click', onClick);
@@ -98,7 +120,15 @@ export class HistoryEngine implements NavigationEngine {
     // Mirrors the core's own guard: navigating before an outlet is connected is
     // the same misuse whether it is caught here or one call deeper.
     if (!this.sink) throw new Error('Router cannot navigate before an AppRouter outlet is connected');
-    await this.sink.transition({ url, kind: replace ? 'replace' : 'push', scroll, match });
+    await this.sink.transition({
+      url,
+      // A push creates an entry ahead of this one; a replace moves nowhere.
+      kind: replace ? 'replace' : 'push',
+      direction: replace ? 'unknown' : 'forward',
+      scroll,
+      match,
+      viewTransition: options.viewTransition,
+    });
   }
 
   /** Take over scroll restoration and stamp the current entry with a key. */

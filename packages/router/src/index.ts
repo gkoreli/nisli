@@ -25,7 +25,15 @@ export {
   type RouteMetadata,
   type RouteOptions,
 } from './route.js';
-export { Router, type EngineOption, type NavigateOptions, type RouterApplicationDefinition } from './router.js';
+export { type NavigationDirection, type ViewTransitionIntent } from './engine.js';
+export {
+  Router,
+  type EngineOption,
+  type NavigateOptions,
+  type NavInfo,
+  type RouterApplicationDefinition,
+  type RouterViewTransitions,
+} from './router.js';
 export {
   booleanParam,
   enumParam,

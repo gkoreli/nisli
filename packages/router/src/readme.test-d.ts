@@ -1,5 +1,5 @@
 import { component, html } from '@nisli/core';
-import { defineRouter, enumParam, route } from './index.js';
+import { defineRouter, enumParam, route, type Router } from './index.js';
 import { nisliHmr } from '@nisli/core/vite-hmr';
 import { nisliRoutes } from './vite.js';
 
@@ -46,3 +46,20 @@ AppRouter.routes.user.href({
   params: { userId: '42' },
   query: { tab: 'activity' },
 });
+
+// README View Transitions: the policy callbacks and the per-navigation override.
+const TransitioningRouter = defineRouter(
+  { home: route('/', { render: async () => HomePage({}) }) },
+  {
+    viewTransitions: {
+      enabled: (nav) => nav.to.pathname.startsWith('/blog'),
+      types: (nav) => [nav.direction, nav.kind],
+    },
+  },
+);
+void TransitioningRouter;
+
+declare const router: Router;
+void router.navigate('/blog', { viewTransition: false });
+void router.navigate('/blog', { viewTransition: true });
+void router.navigate('/blog', { viewTransition: { types: ['zoom'] } });

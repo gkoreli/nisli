@@ -1,4 +1,11 @@
-import type { EngineNavigateOptions, EngineNavigationKind, EngineSink, NavigationEngine } from './engine.js';
+import type {
+  EngineNavigateOptions,
+  EngineNavigationKind,
+  EngineSink,
+  NavigationDirection,
+  NavigationEngine,
+  ViewTransitionIntent,
+} from './engine.js';
 import type { RouteMatch } from './matcher.js';
 
 /*
@@ -15,6 +22,12 @@ export type NavigationApiType = 'push' | 'replace' | 'reload' | 'traverse';
 
 export interface NavigationDestinationLike {
   readonly url: string;
+  /**
+   * History-stack index of the destination, or `-1` when the navigation
+   * creates or replaces an entry rather than traversing to one. `undefined` on
+   * an implementation that does not report it, which reads as `'unknown'`.
+   */
+  readonly index?: number;
 }
 
 export interface NavigationInterceptOptions {
@@ -52,6 +65,8 @@ export interface NavigationResultLike {
 }
 
 export interface NavigationHistoryEntryLike {
+  /** History-stack index of this entry — the other half of the direction oracle. */
+  readonly index?: number;
   getState(): unknown;
 }
 
@@ -99,6 +114,23 @@ function ignoreRejection(promise: Promise<unknown>): void {
 }
 
 /**
+ * Back/forward from the history-stack indices the API reports: the destination
+ * index against the index of the entry being left. Only a traversal has a
+ * destination index at all, so a push is forward by construction, a replace
+ * moves nowhere, and anything unreported reads as unknown.
+ */
+function navigationDirection(
+  type: NavigationApiType,
+  destinationIndex: number | undefined,
+  currentIndex: number | undefined,
+): NavigationDirection {
+  if (type !== 'traverse') return type === 'push' ? 'forward' : 'unknown';
+  if (destinationIndex === undefined || currentIndex === undefined) return 'unknown';
+  if (destinationIndex < 0 || currentIndex < 0 || destinationIndex === currentIndex) return 'unknown';
+  return destinationIndex < currentIndex ? 'back' : 'forward';
+}
+
+/**
  * Per-navigation options the engine smuggles through `NavigateEvent.info`.
  * Identity is the marker: an `info` that is one of these came from
  * `Router.navigate()`, anything else came from the page (link click,
@@ -111,7 +143,10 @@ class RouterNavigateInfo {
    * rejects its `finished` promise early.
    */
   transition: Promise<void> | null = null;
-  constructor(readonly scroll: 'top' | 'preserve') {}
+  constructor(
+    readonly scroll: 'top' | 'preserve',
+    readonly viewTransition: ViewTransitionIntent | undefined,
+  ) {}
 }
 
 /**
@@ -163,7 +198,7 @@ export class NavigationApiEngine implements NavigationEngine {
     api.addEventListener('navigatesuccess', onSettled);
     api.addEventListener('navigateerror', onSettled);
     document.addEventListener('click', onClick, true);
-    void sink.transition({ url: this.browserURL(), kind: 'initial' });
+    void sink.transition({ url: this.browserURL(), kind: 'initial', direction: 'unknown' });
     return () => {
       api.removeEventListener('navigate', onNavigate);
       api.removeEventListener('navigatesuccess', onSettled);
@@ -181,11 +216,14 @@ export class NavigationApiEngine implements NavigationEngine {
     }
     // Mirrors the core's own guard, as the History engine does.
     if (!this.sink) throw new Error('Router cannot navigate before an AppRouter outlet is connected');
-    // Scroll intent rides `info`, since the navigate event is where the
-    // intercept options are chosen. A replace preserves the position unless the
-    // caller asked for the top — the History engine's effect table, applied by
-    // the browser instead of by the router.
-    const info = new RouterNavigateInfo(options.scroll ?? (options.replace ? 'preserve' : 'top'));
+    // Scroll intent and the view-transition override ride `info`, since the
+    // navigate event is where the intercept options are chosen. A replace
+    // preserves the position unless the caller asked for the top — the History
+    // engine's effect table, applied by the browser instead of by the router.
+    const info = new RouterNavigateInfo(
+      options.scroll ?? (options.replace ? 'preserve' : 'top'),
+      options.viewTransition,
+    );
     const result = api.navigate(url.href, {
       history: options.replace ? 'replace' : 'push',
       state: options.state ?? null,
@@ -257,6 +295,13 @@ export class NavigationApiEngine implements NavigationEngine {
     const kind: EngineNavigationKind = event.navigationType === 'traverse'
       ? 'traverse'
       : event.navigationType === 'replace' ? 'replace' : 'push';
+    // Read now, not in the handler: by the time the intercept handler runs the
+    // navigation has committed and `currentEntry` is already the destination.
+    const direction = navigationDirection(
+      event.navigationType,
+      event.destination.index,
+      navigationApi()?.currentEntry?.index,
+    );
     this.inFlight = { url, signal: event.signal };
     event.intercept({
       // Traversals restore the remembered offset and pushes scroll to the top
@@ -267,7 +312,14 @@ export class NavigationApiEngine implements NavigationEngine {
       // the documented contract focuses the outlet.
       focusReset: 'manual',
       handler: () => {
-        const transition = sink.transition({ url, kind, scroll: info?.scroll, match });
+        const transition = sink.transition({
+          url,
+          kind,
+          direction,
+          scroll: info?.scroll,
+          match,
+          viewTransition: info?.viewTransition,
+        });
         if (info) info.transition = transition;
         return transition;
       },

@@ -1,5 +1,12 @@
-import { signal, type ReadonlySignal, type Signal, type TemplateResult } from '@nisli/core';
-import type { EngineNavigation, EngineNavigationKind, EngineSink, NavigationEngine } from './engine.js';
+import { signal, viewTransition, type ReadonlySignal, type Signal, type TemplateResult } from '@nisli/core';
+import type {
+  EngineNavigation,
+  EngineNavigationKind,
+  EngineSink,
+  NavigationDirection,
+  NavigationEngine,
+  ViewTransitionIntent,
+} from './engine.js';
 import { HistoryEngine } from './history-engine.js';
 import { NavigationApiEngine, supportsNavigationApi } from './navigation-engine.js';
 import { createMatcher, normalizePathname, type MatcherDefinition, type RouteMatch } from './matcher.js';
@@ -9,6 +16,39 @@ export interface NavigateOptions {
   replace?: boolean;
   state?: unknown;
   scroll?: 'top' | 'preserve';
+  /**
+   * Override the router's view-transition policy for this navigation only:
+   * `true` transitions even where the policy is off, `false` never transitions,
+   * and `{ types }` transitions with those types instead of the policy's.
+   */
+  viewTransition?: ViewTransitionIntent;
+}
+
+/**
+ * What a view-transition policy callback is told about the navigation it is
+ * deciding on. `pop` is back/forward; `direction` is the engine's answer, and
+ * `'unknown'` wherever it genuinely cannot tell.
+ */
+export interface NavInfo {
+  readonly from: URL;
+  readonly to: URL;
+  readonly kind: 'push' | 'replace' | 'pop';
+  readonly direction: NavigationDirection;
+}
+
+/**
+ * Router-level View Transitions policy (`defineRouter(catalog, {
+ * viewTransitions })`). Opt-in: no config, or `enabled` absent, means no
+ * navigation ever transitions and the router behaves exactly as it did before.
+ */
+export interface RouterViewTransitions {
+  /** Which navigations transition. Default `false`. */
+  enabled?: boolean | ((nav: NavInfo) => boolean);
+  /**
+   * Transition types for `:active-view-transition-type()`. Defaults to the
+   * navigation direction (`['forward']` / `['back']`, none when unknown).
+   */
+  types?: (nav: NavInfo) => string[];
 }
 
 /**
@@ -22,6 +62,7 @@ export type EngineOption = 'auto' | 'history' | 'navigation';
 /** Options a root outlet passes when it connects its definition. */
 export interface RouterConnectOptions {
   readonly engine?: EngineOption;
+  readonly viewTransitions?: RouterViewTransitions;
 }
 
 /**
@@ -122,6 +163,59 @@ function desiredHeadElements(metadata: RouteMetadata | undefined): HeadDescripto
   return descriptors;
 }
 
+/**
+ * The navigation as a policy callback sees it, or `null` for the initial
+ * render: there is no previous frame to animate from, so no policy is
+ * consulted and no transition is ever started.
+ */
+function navInfo(
+  from: URL,
+  to: URL,
+  kind: EngineNavigationKind,
+  direction: NavigationDirection,
+): NavInfo | null {
+  if (kind === 'initial') return null;
+  return { from, to, kind: kind === 'traverse' ? 'pop' : kind, direction };
+}
+
+/** Only the fragment changed — the browser's own jump, never a transition. */
+function isHashOnly(from: URL, to: URL): boolean {
+  return from.hash !== to.hash
+    && from.origin === to.origin
+    && from.pathname === to.pathname
+    && from.search === to.search;
+}
+
+/**
+ * The transition types for this navigation, or `null` to commit without a
+ * transition at all.
+ *
+ * Two suppressions are unconditional, checked before any policy callback runs:
+ * a hash-only move (the browser is already doing that jump) and a hidden
+ * document (capture would animate a frame nobody can see, and the API is
+ * documented to skip it anyway). Everything else is the policy's call, and the
+ * per-navigation override outranks it in both directions.
+ */
+function transitionTypes(
+  config: RouterViewTransitions | undefined,
+  nav: NavInfo,
+  override: ViewTransitionIntent | undefined,
+): string[] | null {
+  if (isHashOnly(nav.from, nav.to)) return null;
+  if (typeof document === 'undefined' || document.hidden) return null;
+  const enabled = override !== undefined
+    ? override !== false
+    : typeof config?.enabled === 'function' ? config.enabled(nav) : config?.enabled === true;
+  if (!enabled) return null;
+  const requested = typeof override === 'object' ? override.types : undefined;
+  if (requested !== undefined) return requested;
+  if (config?.types) return config.types(nav);
+  // Direction is the default type, so `:active-view-transition-type(back)`
+  // works with no configuration. `'unknown'` is not a design token — an empty
+  // list is the honest answer, and core then uses the plain callback form.
+  return nav.direction === 'unknown' ? [] : [nav.direction];
+}
+
 export interface RouterApplicationDefinition extends MatcherDefinition {
   readonly routes: Readonly<Record<string, RouteDefinition<any, any, any>>>;
   readonly redirects?: Readonly<Record<string, RedirectDefinition<any>>>;
@@ -133,6 +227,8 @@ interface Connection {
   outlet: HTMLElement;
   rendered: Signal<TemplateResult | null>;
   generation: number;
+  /** The connected application's View Transitions policy, if it declared one. */
+  viewTransitions?: RouterViewTransitions;
   dispose: () => void;
 }
 
@@ -154,6 +250,11 @@ export class Router {
   private defaultDir = '';
   // Consecutive redirect hops in the current navigation (loop guard).
   private redirectHops = 0;
+  /**
+   * The view transition currently animating, so a navigation that lands
+   * mid-animation can skip it instead of queueing behind it.
+   */
+  private activeTransition: ViewTransition | null = null;
 
   readonly url: ReadonlySignal<URL>;
   readonly current: ReadonlySignal<RouteMatch | null> = this.currentState;
@@ -193,6 +294,8 @@ export class Router {
       outlet,
       rendered,
       generation: 0,
+      // Declared by `defineRouter`, so it lives and dies with the connection.
+      viewTransitions: options.viewTransitions,
       dispose: () => {
         disconnectEngine?.();
         if (this.connection === connection) this.connection = null;
@@ -211,6 +314,7 @@ export class Router {
       replace: options.replace === true,
       state: options.state,
       scroll: options.scroll,
+      viewTransition: options.viewTransition,
     });
   }
 
@@ -265,6 +369,9 @@ export class Router {
       return;
     }
     this.redirectHops = 0;
+    // Captured before the signal advances: the URL being left is what a policy
+    // callback sees as `NavInfo.from`.
+    const from = this.urlState.value;
     this.urlState.value = url;
     this.currentState.value = match;
     this.errorState.value = null;
@@ -290,9 +397,34 @@ export class Router {
             searchParams: match.searchParams,
           });
       if (this.connection !== connection || generation !== connection.generation) return;
-      connection.rendered.value = output;
-      this.applyMetadata(match.metadata);
-      this.applyNavigationEffects(connection.outlet, url, kind, scroll);
+      // Everything the browser would snapshot, in one synchronous closure: the
+      // rendered output, the reconciled head, and the scroll/focus effects.
+      const commit = (): void => {
+        connection.rendered.value = output;
+        this.applyMetadata(match.metadata);
+        this.applyNavigationEffects(connection.outlet, url, kind, scroll);
+      };
+      const nav = navInfo(from, url, kind, navigation.direction);
+      const types = nav === null
+        ? null
+        : transitionTypes(connection.viewTransitions, nav, navigation.viewTransition);
+      if (types === null) {
+        commit();
+        return;
+      }
+      // A navigation landing mid-animation wins outright: skip the transition
+      // in flight rather than let this commit queue behind it.
+      this.activeTransition?.skipTransition();
+      const handle = viewTransition(commit, { types });
+      this.activeTransition = handle;
+      if (handle === null) return;   // no platform support: `commit` already ran
+      const release = (): void => { if (this.activeTransition === handle) this.activeTransition = null; };
+      handle.finished.then(release, release);
+      // Navigation still resolves at commit, as it always has. The platform
+      // runs the update callback after capturing the old frame, so the DOM is
+      // only current once this settles — and a commit that threw rejects it,
+      // which keeps the catch below authoritative.
+      await handle.updateCallbackDone;
     } catch (error) {
       if (this.connection !== connection || generation !== connection.generation) return;
       this.errorState.value = error;

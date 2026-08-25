@@ -6,6 +6,30 @@ checkpoints (ADR 0022); dates are release dates.
 
 ## Unreleased
 
+- **View Transitions**: `defineRouter(catalog, { viewTransitions })` animates
+  navigations through the platform's View Transition API. Opt-in and off by
+  default — `enabled` takes `true` or a `(nav) => boolean` predicate, and
+  `types` chooses the transition types `:active-view-transition-type()` keys
+  off, defaulting to the navigation direction. Only the **commit** is wrapped
+  (rendered output, managed head, and the scroll/focus effects, so title and
+  meta swap atomically inside the snapshot); the awaited route render stays
+  outside, so a slow loader never freezes the page inside a capture window. A
+  navigation that lands mid-animation skips the transition in flight instead of
+  queueing behind it. The initial render, hash-only moves, and a hidden
+  document never transition. Where `document.startViewTransition` is missing the
+  commit applies directly and the router behaves exactly as before: no
+  polyfill, no UA sniffing, no new bytes on the no-opt-in path. Recommended
+  root-crossfade and `prefers-reduced-motion` CSS is documented in the README;
+  the package ships no stylesheet.
+- **`NavigateOptions.viewTransition`**: per-navigation override — `false` never
+  transitions, `true` transitions even where the policy is off, and
+  `{ types }` transitions with explicit types.
+- **`NavInfo`**: what the policy callbacks are told about a navigation —
+  `from`, `to`, `kind` (`'push' | 'replace' | 'pop'`), and `direction`
+  (`'forward' | 'back' | 'unknown'`). Direction is answered by the navigation
+  engine: history-entry indices under the Navigation API, the engine's own
+  per-entry keys under the History API, and `'unknown'` where neither can
+  decide. Both engines are covered by the same behavioural tests.
 - **Navigation API engine**: where the browser has `window.navigation`, routing
   now runs on `navigation.intercept()` — the browser owns scroll restoration,
   fragment jumps, and traversal semantics, and every same-origin navigation the

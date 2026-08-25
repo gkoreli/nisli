@@ -153,6 +153,95 @@ downloads, modifier and middle clicks, `target` other than `_self`,
 `data-router-ignore`, same-document fragment links, and same-origin URLs the
 matcher does not own.
 
+## View Transitions
+
+Animate navigations with the platform's View Transition API. Off by default —
+opt in per application, and the router wraps **only the commit**:
+
+```ts
+const AppRouter = defineRouter(catalog, {
+  viewTransitions: { enabled: true },
+});
+```
+
+`enabled` may be a predicate instead, so a section can transition while the rest
+of the application does not, and `types` chooses the transition types that
+`:active-view-transition-type()` CSS keys off:
+
+```ts
+const AppRouter = defineRouter(catalog, {
+  viewTransitions: {
+    enabled: (nav) => nav.to.pathname.startsWith('/blog'),
+    types: (nav) => [nav.direction, nav.kind],
+  },
+});
+```
+
+Both callbacks receive the navigation:
+
+| `NavInfo` | Value |
+| --- | --- |
+| `from` / `to` | The URL being left and the destination. |
+| `kind` | `'push'`, `'replace'`, or `'pop'` (back/forward). |
+| `direction` | `'forward'`, `'back'`, or `'unknown'` — reported by the navigation engine (history-entry indices under the Navigation API, per-entry keys under the History API). |
+
+`types` defaults to `[direction]`, so `:active-view-transition-type(back)` works
+with no configuration; an undecidable direction contributes no type rather than
+the meaningless `'unknown'`.
+
+A single navigation can overrule the policy in either direction:
+
+```ts
+await router.navigate('/blog', { viewTransition: false });            // never
+await router.navigate('/blog', { viewTransition: true });             // always
+await router.navigate('/blog', { viewTransition: { types: ['zoom'] } });
+```
+
+What is wrapped is the commit — rendered output, managed head, and the
+scroll/focus effects — so `document.title`, `<meta>`, and the DOM swap
+atomically inside the snapshot. The awaited route render stays **outside**: a
+slow loader delays the animation's start, it never freezes the page inside a
+capture window. A navigation that lands while a transition is still animating
+skips that transition rather than queueing behind it.
+
+Three navigations never transition, whatever the policy says: the initial
+render (there is no previous frame), a hash-only move (the browser is already
+performing that jump), and a hidden document.
+
+### Companion CSS (author-side, the router ships no stylesheet)
+
+The root crossfade is the browser default and needs no CSS. Tune its duration,
+and answer reduced motion, with:
+
+```css
+::view-transition-old(root),
+::view-transition-new(root) { animation-duration: 200ms; }
+
+/* Direction-scoped and purely additive: a browser without
+   :active-view-transition-type() keeps the plain crossfade. */
+@keyframes slide-from-right { from { translate: 100% 0; } }
+@keyframes slide-to-left { to { translate: -100% 0; } }
+
+html:active-view-transition-type(forward) {
+  &::view-transition-old(root) { animation-name: slide-to-left; }
+  &::view-transition-new(root) { animation-name: slide-from-right; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
+}
+```
+
+Reduced motion is answered in CSS, not JS: the transition still runs, so the
+swap stays atomic and type-scoped styles stay active — only the motion is
+neutralised.
+
+Where `document.startViewTransition` is missing the commit applies directly,
+synchronously flushed and unanimated, and the router behaves exactly as it does
+with the option off. No polyfill, no UA sniffing, nothing to remove later.
+
 ## Accessibility: the main landmark
 
 The outlet is the application's `<main>` landmark (`role="main"`,

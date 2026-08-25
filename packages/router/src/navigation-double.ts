@@ -7,7 +7,7 @@
  * uses: the `navigate` event with its eligibility flags, `intercept()` with the
  * scroll/focus options recorded for assertions, the `navigatesuccess` /
  * `navigateerror` outcome events, per-navigation abort on supersession, an
- * entry stack with per-entry state, and traversal.
+ * entry stack with per-entry state and indices, and traversal.
  *
  * It is a model, not the platform. Everything it proves is "the engine matches
  * this model of the Navigation API" — real-browser confidence is the Playwright
@@ -90,7 +90,11 @@ export class NavigationDouble implements NavigationApiLike {
 
   get currentEntry(): NavigationHistoryEntryLike | null {
     const entry = this.entries[this.index];
-    return entry === undefined ? null : { getState: () => entry.state };
+    if (entry === undefined) return null;
+    // The index is half the direction oracle; the platform reports it on every
+    // entry, and it is read while this entry is still the one being left.
+    const index = this.index;
+    return { index, getState: () => entry.state };
   }
 
   /** Entry count, for "did that redirect replace or push?" assertions. */
@@ -183,7 +187,8 @@ export class NavigationDouble implements NavigationApiLike {
     const handlers: NavigationInterceptOptions[] = [];
     const event: NavigateEventLike = {
       navigationType: input.navigationType,
-      destination: { url: input.url.href },
+      // `-1` for anything that is not a traversal, as the platform reports it.
+      destination: { url: input.url.href, index: input.traverseTo ?? -1 },
       canIntercept: input.canIntercept,
       hashChange: input.url.origin === current.origin
         && input.url.pathname === current.pathname
