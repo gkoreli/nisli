@@ -1,0 +1,203 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   THE RESOLUTION TABLE
+   ══════════════════════════════════════════════════════════════════════════
+   This file is the ~40% of the C11 bet. It is the ONLY place in this
+   experiment where a number, a colour or a radius exists. Every component in
+   src/components.ts contains zero of them.
+
+   Read it as a set of rules, not a stylesheet: context declares one unit, and
+   every value is a function of that unit plus the element's declared role.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Context axes ─────────────────────────────────────────────────────── */
+
+:root {
+  --unit: 4px;
+  --text: 14px;
+  --text-meta: 12px;
+  --text-title: 15px;
+  --text-display: 30px;
+  --radius: 8px;
+
+  --s1: #ffffff;
+  --s2: #f6f6f7;
+  --s3: #ececee;
+  --fg: #111114;
+  --fg-muted: #6f6f78;
+  --line: #dededf;
+  --accent: #111114;
+  --accent-fg: #ffffff;
+  --danger: #b4231f;
+
+  /* floors — pure derivation produces degenerate extremes at the dense end;
+     these are the "beauty is not derivable" corrections (C11-PROOF F2). */
+  --min-target: 0px;
+  --min-avatar: 20px;
+  --min-text: 11px;
+}
+
+[data-density='comfortable'] { --unit: 4px; --text: 14px; --text-meta: 12px; --text-title: 15px; }
+[data-density='compact']     { --unit: 3px; --text: 13px; --text-meta: 11px; --text-title: 14px; }
+[data-density='dense']       { --unit: 2px; --text: 12px; --text-meta: 11px; --text-title: 12px; }
+
+/* input mode is a context axis, not a media query: it raises the whole scale
+   and installs a hit-target floor (WCAG 2.5.8 becomes a property of context) */
+[data-input='touch'] { --unit: 5px; --min-target: 44px; }
+
+/* dark is a context axis too — same rules, different table.
+
+   A colour-changing context MUST paint its own backdrop. The first run of this
+   experiment omitted the two declarations below, and the derived checker
+   immediately reported light text at 1.10:1 on white: the tokens had switched
+   but the surrounding node had not. Recorded as finding F3 in REPORT.md — the
+   rule is that any context axis touching --fg must also own --s1. */
+[data-theme] {
+  background: var(--s1);
+  color: var(--fg);
+}
+[data-theme='dark'] {
+  --s1: #16161a; --s2: #1d1d22; --s3: #26262c;
+  --fg: #f4f4f5; --fg-muted: #a0a0ab; --line: #33333b;
+  --accent: #f4f4f5; --accent-fg: #16161a; --danger: #ff6b66;
+}
+
+/* ── 2. Structure: rhythm is a function of the container ─────────────────── */
+
+[data-layout] {
+  display: flex;
+  gap: calc(var(--unit) * 2);
+  align-items: center;
+  min-inline-size: 0;
+}
+[data-layout='stack'] { flex-direction: column; align-items: stretch; gap: calc(var(--unit) * 1.5); }
+[data-layout='wrap']  { flex-wrap: wrap; }
+[data-layout='grid']  { display: grid; grid-template-columns: repeat(auto-fit, minmax(calc(var(--unit) * 44), 1fr)); }
+[data-grow]           { flex: 1 1 auto; min-inline-size: 0; }
+[data-align='start']  { align-items: flex-start; }
+[data-align='between'] { justify-content: space-between; }
+
+/* ── 3. Roles consume the inherited unit ─────────────────────────────────── */
+
+[data-appearance='action'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--unit) * 2);
+  block-size: max(calc(var(--unit) * 9), var(--min-target));
+  padding-inline: calc(var(--unit) * 4);
+  font: inherit;
+  font-size: var(--text);
+  font-weight: 500;
+  line-height: 1;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--s1);
+  color: var(--fg);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .12s, border-color .12s;
+}
+[data-appearance='action'][data-role='primary'] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+[data-appearance='action'][data-role='danger']  { background: var(--danger); color: #fff; border-color: var(--danger); }
+[data-appearance='action'][data-role='quiet']   { background: transparent; border-color: transparent; color: var(--fg-muted); }
+[data-appearance='action'][data-role='quiet']:hover { background: var(--s3); color: var(--fg); }
+[data-appearance='action']:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[data-appearance='action'][aria-disabled='true'] { opacity: .45; pointer-events: none; }
+
+[data-appearance='avatar'] {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: max(calc(var(--unit) * 8), var(--min-avatar));
+  block-size: max(calc(var(--unit) * 8), var(--min-avatar));
+  border-radius: 999px;
+  background: var(--s3);
+  color: var(--fg-muted);
+  font-size: max(var(--text-meta), var(--min-text));
+  font-weight: 600;
+}
+
+[data-appearance='field'] {
+  display: flex;
+  align-items: center;
+  block-size: max(calc(var(--unit) * 9), var(--min-target));
+  padding-inline: calc(var(--unit) * 3);
+  font-size: var(--text);
+  color: var(--fg);
+  background: var(--s1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  min-inline-size: 0;
+}
+[data-appearance='field']:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+[data-appearance='field'][aria-invalid='true'] { border-color: var(--danger); }
+
+[data-appearance='nav-item'] {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--unit) * 2);
+  padding: calc(var(--unit) * 2) calc(var(--unit) * 3);
+  min-block-size: max(calc(var(--unit) * 8), var(--min-target));
+  border-radius: var(--radius);
+  font-size: var(--text);
+  color: var(--fg-muted);
+  text-decoration: none;
+  cursor: pointer;
+}
+[data-appearance='nav-item']:hover { background: var(--s3); color: var(--fg); }
+[data-appearance='nav-item'][aria-current='page'] { background: var(--s3); color: var(--fg); font-weight: 600; }
+
+/* ── 4. Text roles ───────────────────────────────────────────────────────── */
+
+[data-text='display'] { font-size: var(--text-display); font-weight: 700; letter-spacing: -.02em; line-height: 1.1; color: var(--fg); }
+[data-text='title']   { font-size: var(--text-title); font-weight: 600; color: var(--fg); }
+[data-text='body']    { font-size: var(--text); color: var(--fg); line-height: 1.5; }
+[data-text='meta']    { font-size: max(var(--text-meta), var(--min-text)); color: var(--fg-muted); }
+[data-text='label']   { font-size: max(var(--text-meta), var(--min-text)); color: var(--fg-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+[data-truncate]       { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-inline-size: 0; }
+
+/* ── 5. Elevation derived from nesting depth — nobody picks a shade ──────── */
+
+[data-surface] {
+  background: var(--s1);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: calc(var(--unit) * 4);
+}
+[data-surface] [data-surface] { background: var(--s2); }
+[data-surface] [data-surface] [data-surface] { background: var(--s3); }
+[data-surface][data-flush] { padding: 0; overflow: hidden; }
+
+/* ── 6. Tabular role: a table is a context, not a set of cell classes ───── */
+
+[data-appearance='table'] { inline-size: 100%; border-collapse: collapse; font-size: var(--text); color: var(--fg); }
+[data-appearance='table'] :is(th, td) {
+  padding: calc(var(--unit) * 2) calc(var(--unit) * 3);
+  text-align: start;
+  border-block-end: 1px solid var(--line);
+  white-space: nowrap;
+}
+[data-appearance='table'] th { font-size: max(var(--text-meta), var(--min-text)); color: var(--fg-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+[data-appearance='table'] tr:last-child :is(th, td) { border-block-end: 0; }
+
+/* ── 7. Context legible by name: container style queries ─────────────────── */
+
+[data-fit] { container-type: inline-size; container-name: fitbox; }
+
+/* inside a dense container, controls lose their borders — declared once, for
+   every control that will ever exist, including ones not written yet */
+@container fitbox style(--density-name: dense) {
+  [data-appearance='action'] { border-color: transparent; }
+}
+
+/* ── 8. Fit-solver output states (set by the engine, never by an author) ── */
+
+[data-collapsed] { display: none !important; }
+[data-overflow] { display: none; }
+[data-overflow][data-shown] { display: inline-flex; }
+[data-fit='unsatisfiable'] { outline: 2px dashed var(--danger); outline-offset: 3px; }
+
+/* ── 9. Escape hatch: possible, explicit, and visibly unverified ─────────── */
+
+[data-escaped] { outline: 1px dashed var(--danger); outline-offset: 2px; }

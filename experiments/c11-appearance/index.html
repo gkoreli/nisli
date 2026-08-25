@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>C11 — derived appearance, real nisli components</title>
+    <link rel="stylesheet" href="./src/theme.css" />
+    <style>
+      /* Harness chrome only. Not part of the mechanism under test:
+         the mechanism is src/theme.css, and the components use only that. */
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #f2f2f4;
+        font: 14px/1.45 ui-sans-serif, system-ui, sans-serif;
+        color: #111114;
+      }
+      #harness > #controls {
+        flex-wrap: wrap;
+        gap: 12px;
+        padding-block-end: 12px;
+        border-block-end: 1px solid #dedee0;
+      }
+      #controls select {
+        font: inherit;
+        font-size: 12px;
+        margin-inline-start: 4px;
+      }
+      #viewport {
+        margin-block: 16px;
+        max-inline-size: 100%;
+        border: 1px dashed #b6b6bb;
+        padding: 12px;
+        background: #fff;
+        transition: inline-size .15s;
+        overflow: hidden;
+      }
+      #findings {
+        gap: 4px;
+        font: 11px/1.5 ui-monospace, SFMono-Regular, monospace;
+        color: #444;
+      }
+      #findings code {
+        display: block;
+        padding: 4px 8px;
+        background: #fff;
+        border-inline-start: 3px solid #b6b6bb;
+      }
+      #harness { gap: 8px; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./src/app.ts"></script>
+  </body>
+</html>

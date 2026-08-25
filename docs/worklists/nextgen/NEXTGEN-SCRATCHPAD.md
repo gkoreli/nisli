@@ -1023,3 +1023,21 @@ proof-of-concept regime.
   produced a 16px avatar at dense — consistency is derivable, beauty is not.
   Still unproven: runtime integration, byte budget, flash-of-unfit, and whether
   an authored resolution table can be made genuinely beautiful.
+- **2026-08-25 · round 6 (prototype)** — Built the thing, not a sketch:
+  [`experiments/c11-appearance/`](../../../experiments/c11-appearance/) — real
+  `@nisli/core` components (no `className`, no `size` props, no values), four
+  pages, four context axes, the measured fit tier as `fit(host)`, and a derived
+  `check()`. Isolated: `experiments/*` joins the workspace only to link deps and
+  defines no gate script, so `pnpm typecheck` reports "6 of 7 workspace
+  projects". Measured across twelve context combinations: every fit container
+  settled, **zero canvas and document overflow everywhere**, one finding — the
+  intentional escape hatch reporting itself. Findings F1–F7 in the experiment
+  README; the two that matter for the design: **a colour-changing context must
+  paint its own backdrop** (the derived checker caught light-on-white at 1.10:1
+  that I had not noticed — the thesis working on its author), and **a checker
+  must assert rendered-ness before measuring** (ten false hit-target failures
+  from collapsed nodes, the corpus's "oracle was wrong" class reproduced
+  first-hand). Also: `truncate` is the wrong strategy for short atomic values
+  (`1…`, `Y…`), so the strategy set needs `hide` and the checker can derive a
+  degenerate-truncation warning. Still unproven: SSG pre-solve, byte budget,
+  flash-of-unfit, keyboard/ARIA for collapsed actions, cross-engine, and beauty.

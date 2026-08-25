@@ -1,0 +1,14 @@
+{
+  "name": "@nisli/experiment-c11-appearance",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Throwaway prototype: can appearance be derived from declared meaning and context, with zero pixel values in component source? Nothing here ships.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite"
+  },
+  "devDependencies": {
+    "@nisli/core": "workspace:*",
+    "vite": "^7.1.5"
+  }
+}
