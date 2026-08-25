@@ -1154,3 +1154,53 @@ describe('event handlers run untracked on dispatch', () => {
     dispose();
   });
 });
+
+describe('sanitized() — sanitizer trust boundary', () => {
+  afterEach(() => setSanitizerFallback(null));
+
+  it('does not treat an element-local setHTML as the platform sanitizer', () => {
+    let safeCalled = false;
+    let unsafeCalled = false;
+    setSanitizerFallback((el, markup) => {
+      safeCalled = true;
+      el.textContent = `[sanitized:${markup.length}]`;
+    });
+
+    const host = document.createElement('div');
+    const proto = Object.getPrototypeOf(host) as Record<string, unknown>;
+    const hadOwn = Object.prototype.hasOwnProperty.call(proto, 'setHTML');
+    // DOM clobbering / unsafe polyfill: a callable named setHTML that is NOT
+    // Element.prototype.setHTML. Trusting it would bypass the registered hook.
+    Object.defineProperty(host, 'setHTML', {
+      configurable: true,
+      value(this: Element, markup: string) {
+        unsafeCalled = true;
+        this.innerHTML = markup;
+      },
+    });
+
+    const result = html`<div html:inner="${sanitized('<img src=x onerror=BAD>')}"></div>`;
+    result.mount(host);
+
+    expect(unsafeCalled).toBe(false);
+    expect(safeCalled).toBe(true);
+    expect(host.querySelector('div')?.innerHTML ?? '').not.toContain('onerror');
+    expect(hadOwn).toBe(hadOwn); // proto untouched by this test
+  });
+
+  it('still uses the platform sanitizer when setHTML IS Element.prototype.setHTML', () => {
+    const seen: string[] = [];
+    const proto = Element.prototype as unknown as Record<string, unknown>;
+    proto.setHTML = function (this: Element, markup: string) {
+      seen.push(markup);
+      this.textContent = '[platform]';
+    };
+    try {
+      const host = document.createElement('div');
+      html`<div html:inner="${sanitized('<b>hi</b>')}"></div>`.mount(host);
+      expect(seen).toEqual(['<b>hi</b>']);
+    } finally {
+      delete proto.setHTML;
+    }
+  });
+});

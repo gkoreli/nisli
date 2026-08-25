@@ -86,3 +86,16 @@ describe('sanitized() in static rendering', () => {
     expect(renderToString(raw('<b>hi</b>'))).toBe('<b>hi</b>');
   });
 });
+
+describe('dual-branded markup is refused, not trusted', () => {
+  it('rejects an object carrying both raw and sanitized brands', () => {
+    // Attacker-supplied JSON: checking raw first would take the trusted path
+    // here while core refuses the same value with N106.
+    const dual = JSON.parse('{"__raw":true,"__sanitize":true,"value":"<script>BAD</script>"}');
+    expect(() => renderToString(dual)).toThrow(/ambiguous/);
+  });
+
+  it('still renders a genuine raw() value', () => {
+    expect(renderToString(raw('<b>ok</b>'))).toBe('<b>ok</b>');
+  });
+});

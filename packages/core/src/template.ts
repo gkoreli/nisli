@@ -163,13 +163,26 @@ const nativeSetHtml: SanitizerFallback = (el, html) => {
 /**
  * The sanitizing writer for this element, or `null` when the engine has none
  * and the app registered none — the fail-closed signal N107 is thrown on.
- * Asked per write, not cached at load: the check is one prototype-chain
- * lookup, and caching would freeze the answer before a late registration (or
- * a test's stub) lands. Like `canMoveWithin` above, the INSTANCE is asked, so
- * a cross-realm element answers for its own realm.
+ *
+ * The method must be the one on `Element.prototype`, not merely *a* callable
+ * named `setHTML`. A duck-typed check here is a sanitizer bypass: an element
+ * carrying its own `setHTML` — DOM clobbering, an unsafe polyfill, a library
+ * shim — would be trusted as the platform sanitizer and would preempt the
+ * fallback the app explicitly registered as safe. Verified: with an
+ * own-property `setHTML`, the registered fallback was never called and
+ * `<img src=x onerror=…>` reached innerHTML intact.
+ *
+ * Read from the prototype per write rather than captured at module load, so a
+ * late polyfill or a test's stub is still honoured; identity is what is
+ * checked, not existence. Replacing `Element.prototype.setHTML` wholesale is
+ * out of scope — an attacker who can do that owns the realm regardless.
  */
 function sanitizerFor(el: Element): SanitizerFallback | null {
-  return typeof (el as Partial<SanitizeCapableElement>).setHTML === 'function'
+  const platform = typeof Element === 'function'
+    ? (Element.prototype as Partial<SanitizeCapableElement>).setHTML
+    : undefined;
+  return typeof platform === 'function'
+    && (el as Partial<SanitizeCapableElement>).setHTML === platform
     ? nativeSetHtml
     : sanitizerFallback;
 }

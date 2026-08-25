@@ -92,6 +92,18 @@ export function renderToString(value: unknown): string {
     return value.toString();
   }
 
+  // Dual-branded values are rejected BEFORE the raw branch, matching core's
+  // N106. Checking raw first let an attacker-supplied object carrying both
+  // brands take the trusted path here while core refused it — verified: a
+  // JSON object with __raw and __sanitize emitted a literal <script> into the
+  // built page. Trust that is ambiguous is not resolved in favour of raw.
+  if (isRawHtml(value) && isSanitizedHtml(value)) {
+    throw new Error(
+      'Markup branded both raw() and sanitized() is ambiguous and is refused. ' +
+      'Pick one brand: raw() for markup you trust, sanitized() for markup you do not.',
+    );
+  }
+
   if (isRawHtml(value)) {
     return value.value;
   }
