@@ -10,76 +10,124 @@
  * This file was copied into your project by `nisli-ui` — you own it.
  */
 
+/*
+ * `color-scheme` is what `light-dark()` reads, so it is the mechanism behind
+ * every token below. It also makes native chrome — scrollbars, form controls,
+ * `::backdrop` — follow the theme. Nothing here reads `prefers-color-scheme`:
+ * the `.dark` class stays the single truth, so an app's own toggle (and its
+ * synchronous resolution of the system preference) keeps full control.
+ */
 :root {
+  color-scheme: light;
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  color-scheme: dark;
 }
+
+/*
+ * One declaration per token for both modes — `light-dark()` picks the arm from
+ * the element's `color-scheme`.
+ *
+ * `.dark` is in the selector list on purpose. The `@property` registrations
+ * below type these tokens, which makes them compute at the element that
+ * *declares* them; a nested `.dark` region therefore has to re-declare them to
+ * resolve against its own `color-scheme`. Without the list, `.dark` would only
+ * work on the same element that carries the tokens. (Re-declaring is harmless
+ * if you delete the registrations — untyped tokens resolve at the use site.)
+ *
+ * Retheming is unchanged: edit an arm here, or paste a stock shadcn
+ * `:root { … } .dark { … }` theme after this import — equal specificity, later
+ * source order, so it overrides both arms wholesale exactly as it did before.
+ */
+:root,
+.dark {
+  --background: light-dark(oklch(1 0 0), oklch(0.145 0 0));
+  --foreground: light-dark(oklch(0.145 0 0), oklch(0.985 0 0));
+  --card: light-dark(oklch(1 0 0), oklch(0.205 0 0));
+  --card-foreground: light-dark(oklch(0.145 0 0), oklch(0.985 0 0));
+  --popover: light-dark(oklch(1 0 0), oklch(0.205 0 0));
+  --popover-foreground: light-dark(oklch(0.145 0 0), oklch(0.985 0 0));
+  --primary: light-dark(oklch(0.205 0 0), oklch(0.922 0 0));
+  --primary-foreground: light-dark(oklch(0.985 0 0), oklch(0.205 0 0));
+  --secondary: light-dark(oklch(0.97 0 0), oklch(0.269 0 0));
+  --secondary-foreground: light-dark(oklch(0.205 0 0), oklch(0.985 0 0));
+  --muted: light-dark(oklch(0.97 0 0), oklch(0.269 0 0));
+  --muted-foreground: light-dark(oklch(0.556 0 0), oklch(0.708 0 0));
+  --accent: light-dark(oklch(0.97 0 0), oklch(0.269 0 0));
+  --accent-foreground: light-dark(oklch(0.205 0 0), oklch(0.985 0 0));
+  --destructive: light-dark(oklch(0.577 0.245 27.325), oklch(0.704 0.191 22.216));
+  --destructive-foreground: light-dark(oklch(0.985 0 0), oklch(0.985 0 0));
+  --border: light-dark(oklch(0.922 0 0), oklch(1 0 0 / 10%));
+  --input: light-dark(oklch(0.922 0 0), oklch(1 0 0 / 15%));
+  --ring: light-dark(oklch(0.708 0 0), oklch(0.556 0 0));
+  --chart-1: light-dark(oklch(0.87 0 0), oklch(0.87 0 0));
+  --chart-2: light-dark(oklch(0.556 0 0), oklch(0.556 0 0));
+  --chart-3: light-dark(oklch(0.439 0 0), oklch(0.439 0 0));
+  --chart-4: light-dark(oklch(0.371 0 0), oklch(0.371 0 0));
+  --chart-5: light-dark(oklch(0.269 0 0), oklch(0.269 0 0));
+  --sidebar: light-dark(oklch(0.985 0 0), oklch(0.205 0 0));
+  --sidebar-foreground: light-dark(oklch(0.145 0 0), oklch(0.985 0 0));
+  --sidebar-primary: light-dark(oklch(0.205 0 0), oklch(0.488 0.243 264.376));
+  --sidebar-primary-foreground: light-dark(oklch(0.985 0 0), oklch(0.985 0 0));
+  --sidebar-accent: light-dark(oklch(0.97 0 0), oklch(0.269 0 0));
+  --sidebar-accent-foreground: light-dark(oklch(0.205 0 0), oklch(0.985 0 0));
+  --sidebar-border: light-dark(oklch(0.922 0 0), oklch(1 0 0 / 10%));
+  --sidebar-ring: light-dark(oklch(0.708 0 0), oklch(0.556 0 0));
+}
+
+/* ---------------------------------------------------------------------------
+ * @property registrations — a fenced, deletable block.
+ *
+ * Typing the flat colour tokens buys two things. Theme flips become
+ * transition-capable: `:root { transition: --background 200ms }` interpolates
+ * across the `.dark` flip, where an unregistered custom property can only snap.
+ * And a malformed override is rejected as a value instead of being pasted into
+ * every use site that consumes it.
+ *
+ * Trade-off, since you own this file: a registered token rejects a bad value
+ * *wholesale*. These inherit, so a broken override falls back to the inherited
+ * value rather than failing soft at the individual use site. Delete this whole
+ * block to opt out — theming keeps working untyped; you lose token transitions
+ * and the type check, nothing else.
+ *
+ * Only the flat colours are registered. `--radius` stays untyped so consumer
+ * `calc()` chains against it keep working.
+ * ------------------------------------------------------------------------- */
+@property --background { syntax: "<color>"; inherits: true; initial-value: oklch(1 0 0); }
+@property --foreground { syntax: "<color>"; inherits: true; initial-value: oklch(0.145 0 0); }
+@property --card { syntax: "<color>"; inherits: true; initial-value: oklch(1 0 0); }
+@property --card-foreground { syntax: "<color>"; inherits: true; initial-value: oklch(0.145 0 0); }
+@property --popover { syntax: "<color>"; inherits: true; initial-value: oklch(1 0 0); }
+@property --popover-foreground { syntax: "<color>"; inherits: true; initial-value: oklch(0.145 0 0); }
+@property --primary { syntax: "<color>"; inherits: true; initial-value: oklch(0.205 0 0); }
+@property --primary-foreground { syntax: "<color>"; inherits: true; initial-value: oklch(0.985 0 0); }
+@property --secondary { syntax: "<color>"; inherits: true; initial-value: oklch(0.97 0 0); }
+@property --secondary-foreground { syntax: "<color>"; inherits: true; initial-value: oklch(0.205 0 0); }
+@property --muted { syntax: "<color>"; inherits: true; initial-value: oklch(0.97 0 0); }
+@property --muted-foreground { syntax: "<color>"; inherits: true; initial-value: oklch(0.556 0 0); }
+@property --accent { syntax: "<color>"; inherits: true; initial-value: oklch(0.97 0 0); }
+@property --accent-foreground { syntax: "<color>"; inherits: true; initial-value: oklch(0.205 0 0); }
+@property --destructive { syntax: "<color>"; inherits: true; initial-value: oklch(0.577 0.245 27.325); }
+@property --destructive-foreground { syntax: "<color>"; inherits: true; initial-value: oklch(0.985 0 0); }
+@property --border { syntax: "<color>"; inherits: true; initial-value: oklch(0.922 0 0); }
+@property --input { syntax: "<color>"; inherits: true; initial-value: oklch(0.922 0 0); }
+@property --ring { syntax: "<color>"; inherits: true; initial-value: oklch(0.708 0 0); }
+@property --chart-1 { syntax: "<color>"; inherits: true; initial-value: oklch(0.87 0 0); }
+@property --chart-2 { syntax: "<color>"; inherits: true; initial-value: oklch(0.556 0 0); }
+@property --chart-3 { syntax: "<color>"; inherits: true; initial-value: oklch(0.439 0 0); }
+@property --chart-4 { syntax: "<color>"; inherits: true; initial-value: oklch(0.371 0 0); }
+@property --chart-5 { syntax: "<color>"; inherits: true; initial-value: oklch(0.269 0 0); }
+@property --sidebar { syntax: "<color>"; inherits: true; initial-value: oklch(0.985 0 0); }
+@property --sidebar-foreground { syntax: "<color>"; inherits: true; initial-value: oklch(0.145 0 0); }
+@property --sidebar-primary { syntax: "<color>"; inherits: true; initial-value: oklch(0.205 0 0); }
+@property --sidebar-primary-foreground { syntax: "<color>"; inherits: true; initial-value: oklch(0.985 0 0); }
+@property --sidebar-accent { syntax: "<color>"; inherits: true; initial-value: oklch(0.97 0 0); }
+@property --sidebar-accent-foreground { syntax: "<color>"; inherits: true; initial-value: oklch(0.205 0 0); }
+@property --sidebar-border { syntax: "<color>"; inherits: true; initial-value: oklch(0.922 0 0); }
+@property --sidebar-ring { syntax: "<color>"; inherits: true; initial-value: oklch(0.708 0 0); }
+/* --- end @property registrations ----------------------------------------- */
 
 @theme inline {
   --color-background: var(--background);
