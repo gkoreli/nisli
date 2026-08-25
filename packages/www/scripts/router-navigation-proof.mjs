@@ -169,16 +169,6 @@ const traverse = (page, direction) => page.evaluate((d) => {
 
 async function runProof(page, base, requested, label) {
   const measured = {};
-  /**
-   * Defects and cross-engine divergences this run OBSERVED, as
-   * `{ kind, detail }`. Collected rather than asserted inline: each one
-   * reproduces on every browser (and, for RTR-3, on both engines), so failing
-   * at the point of discovery would leave the ~30 engine properties this proof
-   * exists for unmeasured. The run still fails — loudly, at the end, one named
-   * error per kind listing every variant that reproduced it.
-   */
-  const findings = [];
-  const finding = (kind, detail) => findings.push({ kind, detail });
 
   // ── P0 · initial load ────────────────────────────────────────────────
   await page.goto(`${base}/`, { waitUntil: 'load' });
@@ -237,21 +227,24 @@ async function runProof(page, base, requested, label) {
   assert.equal(afterPush.routeName, 'second', `${label}: push route signal`);
   assert.equal(afterPush.routeMarker, 'second', `${label}: push rendered route`);
   assert.equal(afterPush.title, 'proof / second', `${label}: push document title`);
-  if (afterPush.activeIsOutlet !== true) {
-    const probe = await page.evaluate(() => window.__routerProof.probeOutletFocus());
-    measured.outletFocusable = probe.focused;
-    measured.outletDisplay = probe.display;
-    finding(
-      'RTR-3 push→outlet focus is not delivered in any real browser',
-      `after a push, document.activeElement is <${afterPush.activeTag} id="${afterPush.activeId}">, not the `
-      + `outlet host. Direct probe: calling focus({preventScroll:true}) on <${probe.tag} role="${probe.role}" `
-      + `tabindex="${probe.tabindex}"> — exactly as router.ts:366 does — leaves activeElement `
-      + `<${probe.activeTag}> because the host's computed display is "${probe.display}" `
-      + `(application.ts:79 sets host.style.display='contents'; a box-less element is not focusable, `
-      + `verified independently in all three engines). Engine-independent, so NOT a BET03 regression: `
-      + `happy-dom has no layout, which is why router.test.ts never caught it.`,
-    );
-  }
+  const outletProbe = await page.evaluate(() => window.__routerProof.probeOutletFocus());
+  measured.outletFocusable = outletProbe.focused;
+  measured.outletDisplay = outletProbe.display;
+  // The first run of this proof found this unreachable: the outlet host was
+  // `display: contents`, and a box-less element cannot hold focus, so the
+  // documented a11y focus reset was a silent no-op in all three engines while
+  // happy-dom — which has no layout — reported it working.
+  assert.notEqual(
+    outletProbe.display,
+    'contents',
+    `${label}: the outlet host must generate a box to be focusable and to be a valid skip-link target`,
+  );
+  assert.equal(outletProbe.focused, true, `${label}: direct focus() on the outlet host must take`);
+  assert.equal(
+    afterPush.activeIsOutlet,
+    true,
+    `${label}: a push must move focus to the outlet host, measured <${afterPush.activeTag} id="${afterPush.activeId}">`,
+  );
 
   // ── P2 · traversal scroll restoration (the property that moved from
   //         nisli's scrollPositions map to the browser) ────────────────
@@ -286,10 +279,8 @@ async function runProof(page, base, requested, label) {
   const afterHash = await snapshot(page);
   // Documented (packages/router/src/router.ts:365-366): a hash carries its own
   // destination, so the push→outlet focus effect is deliberately skipped.
-  // NOTE: currently VACUOUS on every browser — the RTR-3 finding above shows the
-  // outlet host can never hold focus at all, so "focus did not move to the
-  // outlet" cannot distinguish the skip from the defect. Kept so the property is
-  // locked the moment the outlet becomes focusable.
+  // Non-vacuous since the outlet became focusable: P1 above proves a push DOES
+  // move focus there, so a hash push failing to is a real, distinguishable skip.
   assert.equal(
     afterHash.activeIsOutlet,
     false,
@@ -319,66 +310,35 @@ async function runProof(page, base, requested, label) {
   const afterFragment = await snapshot(page);
   measured.fragmentRouterHash = afterFragment.routerHash;
   assert.equal(afterFragment.routerPathname, '/second', `${label}: same-document fragment must not change the router path`);
-  // Each engine's MEASURED contract is locked here, because they are not the
-  // same. Measured in all three browsers: a fragment link click fires, in order,
-  // `navigate(push, hashChange:true)` → `popstate` → `hashchange` (the
+  // Both engines must report the same thing, and this is the assertion that
+  // locks it. A fragment link click fires, in order, `navigate(push,
+  // hashChange:true)` → `popstate` → `hashchange` in all three browsers (the
   // post-2022 session-history spec: a fragment navigation is a same-document
-  // navigation and so runs "apply the history step"). Therefore:
-  //   · NavigationApiEngine declines it (navigation-engine.ts:244) and nothing
-  //     else observes it → router.url does NOT track the fragment.
-  //   · HistoryEngine's click listener declines it too (history-engine.ts:150),
-  //     but its popstate listener (history-engine.ts:46-52) then picks the very
-  //     same navigation up as kind:'traverse' → router.url DOES track it.
-  if (effective === 'navigation') {
-    assert.equal(
-      afterFragment.routerHash,
-      '',
-      `${label}: NavigationApiEngine declines a same-document fragment push, so the router URL must not track it`,
-    );
-  } else {
-    assert.equal(
-      afterFragment.routerHash,
-      '#anchor',
-      `${label}: HistoryEngine's popstate listener picks the native fragment navigation up, so the router URL does track it`,
-    );
-    finding(
-      'same-document fragment URL tracking diverges between the two engines',
-      `after a native fragment link click the router URL carries `
-      + `"${measured.fragmentRouterHash}" under the History engine but no hash at all under the Navigation `
-      + `engine. Root cause: a fragment link click fires, in order, navigate(push, hashChange:true) → `
-      + `popstate → hashchange in all three browsers (measured independently), so the History engine's `
-      + `popstate listener (history-engine.ts:46-52) transitions to "/second#anchor" as kind:'traverse' even `
-      + `though its click listener declined the click (history-engine.ts:150), while the Navigation engine `
-      + `declines the navigation outright (navigation-engine.ts:244) and nothing else observes it. The BET03 `
-      + `brief claims "§6 parity" for that decline (briefs/bet-03-navigation-router.md:126); there is none — `
-      + `router.url (and therefore isActive/aria-current) stops tracking same-document fragments under the `
-      + `engine that is now the 'auto' default in Chromium, Firefox and WebKit.`,
-    );
-  }
+  // navigation and so runs "apply the history step"). Both engines route it to
+  // the same URL-only sync — `router.url` tracks the fragment, nothing
+  // re-renders — so `isActive`/`aria-current` cannot depend on which engine
+  // happens to be connected. This replaced the measured divergence the first
+  // run of this proof found (History adopted it as kind:'traverse', Navigation
+  // dropped it entirely).
+  assert.equal(
+    afterFragment.routerHash,
+    '#anchor',
+    `${label}: a same-document fragment must reach router.url on BOTH engines`,
+  );
 
   await traverse(page, 'back');
   await waitRouter(page, '/second', '', `${label}: back across the native fragment entry`);
   measured.fragmentBackScrollY = (await snapshot(page)).scrollY;
-  if (effective === 'navigation') {
-    // Browser-owned: the fragment entry's predecessor was at the top, so back
-    // must land at the top.
-    assert.equal(
-      measured.fragmentBackScrollY,
-      0,
-      `${label}: back across a native fragment entry must restore the pre-fragment offset`,
-    );
-  }
-  if (effective === 'history' && measured.fragmentBackScrollY !== 0) {
-    finding(
-      'HistoryEngine mis-restores scroll across a native fragment entry',
-      `back from "/second#anchor" to "/second" lands at scrollY ${measured.fragmentBackScrollY} instead of the `
-      + `pre-fragment 0 that the Navigation engine restores. The spurious popstate transition above runs `
-      + `rememberScroll() (history-engine.ts:137-140) while the browser is still parked at the fragment, `
-      + `overwriting the pre-fragment entry's remembered offset before the key is switched `
-      + `(history-engine.ts:49-50). Browser-dependent, which makes it worse: Chromium measures 0 here while `
-      + `Firefox and WebKit measure ~1736, so the same code restores different offsets per engine.`,
-    );
-  }
+  // Both engines: the fragment entry's predecessor was at the top, so back must
+  // land at the top. The History engine reaches this by NOT remembering scroll
+  // on the fragment path (its old spurious traverse overwrote the pre-fragment
+  // offset while the page was still parked at the anchor — Chromium measured 0
+  // there, Firefox and WebKit ~1736, from the same code).
+  assert.equal(
+    measured.fragmentBackScrollY,
+    0,
+    `${label}: back across a native fragment entry must restore the pre-fragment offset`,
+  );
 
   await traverse(page, 'forward');
   await waitRouter(page, '/second', '#anchor', `${label}: forward across the native fragment entry`);
@@ -403,17 +363,14 @@ async function runProof(page, base, requested, label) {
   measured.programmaticFocus = withState.activeIsOutlet
     ? 'outlet'
     : `${withState.activeTag}#${withState.activeId}`;
-  if (withState.activeIsOutlet !== true) {
-    // Same RTR-3 defect, isolated from any click-focus side effect: focus was
-    // provably on #second-nested immediately before this programmatic push.
-    finding(
-      'RTR-3 push→outlet focus is not delivered in any real browser',
-      `a PROGRAMMATIC push (router.navigate, no click involved) starting from a focused #second-nested `
-      + `button also leaves document.activeElement at <${withState.activeTag} `
-      + `id="${withState.activeId}">, so the a11y focus reset is genuinely lost, not merely masked by `
-      + `an anchor's click focus.`,
-    );
-  }
+  // Isolated from any click-focus side effect: focus was provably on
+  // #second-nested immediately before this programmatic push.
+  assert.equal(
+    withState.activeIsOutlet,
+    true,
+    `${label}: a programmatic push must move focus to the outlet, measured <${withState.activeTag} `
+    + `id="${withState.activeId}">`,
+  );
   assert.equal(withState.scrollY, 0, `${label}: programmatic push lands at scroll top`);
   assert.deepEqual(withState.state, { probe: token }, `${label}: router.state() after the push that set it`);
 
@@ -469,7 +426,7 @@ async function runProof(page, base, requested, label) {
   assert.equal(afterAssign.routeMarker, 'second', `${label}: rendered route after location.href =`);
   assert.equal(afterAssign.error, null, `${label}: no transition error across the whole run`);
 
-  return { measured, findings };
+  return { measured };
 }
 
 const servers = new Map();
@@ -517,8 +474,6 @@ if (process.argv.includes('--self-test-vacuity')) {
 }
 
 const failures = [];
-/** kind → { labels, detail } — one aggregated error per distinct defect. */
-const observed = new Map();
 try {
   for (const [browserName, browserType] of [
     ['chromium', chromium],
@@ -555,18 +510,13 @@ try {
           if (message.type() === 'error') consoleErrors.push(message.text());
         });
         page.on('pageerror', (error) => consoleErrors.push(String(error)));
-        const { measured, findings } = await runProof(page, servers.get(requested).base, requested, label);
+        const { measured } = await runProof(page, servers.get(requested).base, requested, label);
         assert.deepEqual(consoleErrors, [], `${label}: page errors leaked to the console`);
         if (suppressNavigationApi) {
           assert.equal(measured.hasNavigationApi, false, `${label}: the Navigation API must be hidden for this variant`);
           assert.equal(measured.engine, 'history', `${label}: engine:'navigation' must fall back to the History engine`);
         }
-        for (const { kind, detail } of findings) {
-          const entry = observed.get(kind) ?? { labels: new Set(), details: new Set() };
-          entry.labels.add(label);
-          entry.details.add(detail);
-          observed.set(kind, entry);
-        }
+
         console.log(`${label} → ${measured.engine}: PASS ${JSON.stringify(measured)}`);
       } catch (error) {
         failures.push(new Error(`${label}: ${error instanceof Error ? error.message : String(error)}`));
@@ -577,12 +527,6 @@ try {
   }
 } finally {
   for (const { server } of servers.values()) await new Promise((resolve) => server.close(resolve));
-}
-
-for (const [kind, { labels, details }] of observed) {
-  failures.push(new Error(
-    `${kind}\n  reproduced in: ${[...labels].join(', ')}\n  ${[...details].join('\n  ')}`,
-  ));
 }
 
 if (failures.length) throw new AggregateError(failures, 'router navigation browser proof failed');
