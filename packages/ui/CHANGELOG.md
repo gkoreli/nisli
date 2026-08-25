@@ -4,6 +4,32 @@ All notable changes to `@nisli/ui`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
+## Unreleased
+
+- `styles/theme.css` is modernized: every colour token carries both modes
+  in one `light-dark()` declaration, so the duplicated `.dark` override
+  block is gone — `.dark` now only sets `color-scheme: dark` and remains
+  the single truth for the mode (nothing reads `prefers-color-scheme`).
+  All 32 token values are unchanged in both arms. `color-scheme` also
+  makes native chrome — scrollbars, form controls, `::backdrop` — follow
+  the theme. Tokens are `@property`-registered behind a delete-to-opt-out
+  fence, which types them and makes them transition-capable. Because
+  registration makes a token compute at the element that *declares* it,
+  the block is `:root, .dark` rather than `:root` alone; without the
+  selector list a nested `.dark` region stops resolving. Retheming is
+  unchanged: a later `:root { … } .dark { … }` block still overrides
+  wholesale on source order. **Requires a browser with `light-dark()` and
+  `@property`** — both widely available, no fallback kept.
+- New `field-invalid` / `field-disabled` variants, declared as container
+  style queries. `form-field` publishes `--field-invalid` from its existing
+  `data-invalid` attribute, and `input`, `textarea`, `select`, `checkbox`
+  and `radio-group` style themselves from it. Custom properties cross
+  `display:contents`, so a control matches by *name* at any depth — no
+  `querySelector`, no DOM path, no per-control attribute plumbing. Additive
+  only: every `aria-invalid` utility, binding and attribute stays, and the
+  attribute selectors are removed only once the Firefox support floor
+  clears (review ~Q1 2027).
+
 ## 0.4.1 — 2026-07-31
 
 ### Changed

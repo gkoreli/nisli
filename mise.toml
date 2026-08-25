@@ -1,0 +1,10 @@
+# Pinned toolchain. Exact versions, not "latest" — a floating pnpm resolves to a
+# different version than package.json's `packageManager` field and the pnpm shim
+# then has no selected version, which fails as a confusing "unknown command".
+#
+# pnpm MUST match package.json's `packageManager` pin.
+# node matches the floor of the CI matrix (.github/workflows runs 22 and 24), so
+# a local green run means the same thing CI's lowest lane means.
+[tools]
+node = "22"
+pnpm = "10.17.1"

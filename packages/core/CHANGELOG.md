@@ -57,6 +57,24 @@ Agent-native core wave (ADR 0030.2, gate record in
 - New diagnostics layer: stable coded dev messages (`[nisli N…]`) behind
   a runtime dev gate (`setDevMode`; probes Vite/`NODE_ENV`, loud by
   default in buildless ESM); silent under production builds.
+- Keyed `each()` reorders now use `moveBefore()` where the engine has it,
+  so a moved row is *atomically* relocated instead of removed and
+  re-inserted. Proven in three real browsers: on Chromium and Firefox a
+  reorder fires `connectedMoveCallback` and no connect/disconnect pair, and
+  it preserves focus, input selection, iframes (no reload), running
+  animations including `currentTime`, and open popovers. WebKit has no
+  `moveBefore()` yet and takes the `insertBefore()` path, where those are
+  lost — but component *setup* still never re-runs on any engine, because
+  [ADR 0023](../../docs/adr/0023-move-resilient-component-lifecycle.md)'s
+  deferred teardown covers the fallback. Document `Selection` is **not**
+  preserved by `moveBefore()`; neither path preserves it. Components gain
+  an empty `connectedMoveCallback` so the platform treats an atomic move as
+  a move. `portal()` in `@nisli/ui` moves the same way.
+- Disposables are now `using`-compatible: `effect()`, `subscribe()`,
+  `Emitter` handles, `resource()` and `query()` results carry a
+  `Symbol.dispose` alias beside the callable disposer, so
+  `using stop = effect(…)` releases at scope exit. Guarded — nothing is
+  polyfilled and the callable form is unchanged.
 
 ## 0.54.1 — 2026-07-16
 

@@ -6,6 +6,14 @@ checkpoints (ADR 0022); dates are release dates.
 
 ## Unreleased
 
+- `renderToString()` now throws on `@nisli/core`'s `sanitized()` markup
+  instead of silently emitting an escaped `[object Object]`. This module is
+  DOM-free by design, so there is no `Element.setHTML()` and no registered
+  sanitizer to run untrusted markup through — matching `html:inner`'s
+  fail-closed N107 rather than producing wrong output in a built page.
+  Render untrusted markup on the client, or sanitize it at build time and
+  wrap the result in `raw()`.
+
 ## 0.4.0 — 2026-07-16
 
 - Static application routers that declare client-side redirects now remain
