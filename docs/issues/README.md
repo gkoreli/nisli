@@ -26,3 +26,4 @@ of numbering.
 | [0018 — SSG top-level factories mishandle signal inputs](./0018-ssg-top-level-factory-signals.md) | resolved | P1 |
 | [0019 — SSG truncates the shared router metadata contract](./0019-ssg-router-metadata-truncation.md) | resolved | P1 |
 | [0020 — No new runtime renderer-registry primitive](./0020-runtime-renderer-registries-no-new-primitive.md) | wont-fix | disposition |
+| [0021 — `each()` is the only template consumer that rejects factory results](./0021-each-rejects-factory-results.md) | open | P1 |
