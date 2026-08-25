@@ -64,11 +64,16 @@ for (const [name, browserType] of [
       assert.equal(result.focusPreserved, true, `${name}: focus was not preserved`);
       assert.equal(result.blurs, 0, `${name}: move fired blur`);
       assert.equal(result.inputSelectionPreserved, true, `${name}: input selection changed`);
-      // NOT asserted: document Selection. Measured 2026-08-24 against a bare
-      // <div><span>text</span></div> with no nisli involved, moveBefore()
-      // collapses the selection to offset 0 in both Chromium and Firefox —
-      // and insertBefore() does exactly the same. It is not a property
-      // moveBefore preserves, and not a regression against the old path.
+      // NOT asserted: document Selection, and this is BY DESIGN in the spec,
+      // not an engine defect. The move algorithm deliberately runs the live
+      // range pre-remove steps, collapsing a boundary inside the moved node to
+      // (oldParent, index-of-node) — measured 2026-08-24 with the node at
+      // index 2, where anchorNode became the parent and anchorOffset became 2
+      // in both Chromium and Firefox. insertBefore() behaves identically.
+      // The explainer states the scope directly: "Selection is currently not
+      // preserved... moving is constrained to 'intrinsic' state of the node,
+      // and not to state that relates to other nodes, like ranges."
+      // See https://dom.spec.whatwg.org/#live-range-pre-remove-steps
       // Still reported in the PASS line so a future engine that starts
       // preserving it is visible rather than silently absorbed.
       assert.equal(result.iframeLoadsAfter, result.iframeLoadsBefore, `${name}: iframe reloaded`);

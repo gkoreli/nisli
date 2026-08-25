@@ -57,10 +57,16 @@ meaning the `connected: 0` / `disconnected: 0` assertions passed vacuously and w
 passed just as happily if every row had been torn down and rebuilt. Fixed by declaring
 the reactions in the probe's own class body before `define()`.
 
-**Document Selection is not preserved.** Probed against a bare `<div><span>` with no nisli
-involved, `moveBefore()` collapses the selection to offset 0 in Chromium and Firefox — and
-`insertBefore()` does the same. Not a property `moveBefore` preserves, not a regression,
-no longer asserted.
+**Document Selection is not preserved**, and the spec says so on purpose. The move
+algorithm deliberately runs the [live range pre-remove
+steps](https://dom.spec.whatwg.org/#live-range-pre-remove-steps), collapsing a boundary
+inside the moved node to `(oldParent, index-of-node)`. `insertBefore()` does the same.
+Not a property `moveBefore` preserves, not a regression, no longer asserted.
+
+*Correction (2026-08-24):* this was first recorded here as "collapses to offset 0". That
+was an artifact of probing with the moved node at index 0. Re-measured with it at index 2,
+`anchorNode` becomes the old parent and `anchorOffset` becomes **2** in both Chromium and
+Firefox — the spec's rule exactly. Commit `3e7f5a1`'s message carries the original wording.
 
 With a working instrument, on Chromium and Firefox: `connectedMoveCallback` fires 10×,
 connect/disconnect 0, focus and input selection preserved, no iframe reload (3 → 3),
