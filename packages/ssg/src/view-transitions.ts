@@ -121,31 +121,33 @@ export function renderViewTransitionHead(options: StaticSiteViewTransitions | un
 }
 
 const HEAD_CLOSE = /([ \t]*)<\/head\s*>/i;
-const DOCUMENT_SHAPED = /<!doctype\s|<html[\s>]|<body[\s>]/i;
 
 /**
  * Inserts {@link renderViewTransitionHead} output into a rendered page.
  *
  * Indentation of the closing tag is reused so the injected lines sit flush with
  * the surrounding shell, keeping the diff of a committed build readable.
+ *
+ * A page WITHOUT a closing `</head>` is a hard error rather than a guess. This
+ * markup only works in the head: prepending it to a document would land content
+ * before `<!doctype html>` and force quirks mode, and prepending it to a
+ * fragment that a shell later embeds puts a `<style>` and a speculation-rules
+ * `<script>` in the `<body>`, where the cross-document opt-in does nothing —
+ * measured in a real build. A shell that composes its own document should call
+ * {@link renderViewTransitionHead} directly and place the block itself.
  */
 export function injectViewTransitionHead(html: string, head: string, path: string): string {
   if (!head) return html;
 
   const close = HEAD_CLOSE.exec(html);
-  if (close) {
-    const indent = close[1] ?? '';
-    const block = head.split('\n').map(line => `${indent}${line}`).join('\n');
-    return `${html.slice(0, close.index)}${block}\n${html.slice(close.index)}`;
+  if (!close) {
+    throw new Error(
+      `viewTransitions requires a closing </head> in rendered output: ${path}. `
+      + `A shell that returns a fragment or composes its own document should call `
+      + `renderViewTransitionHead() and place the block in the head itself.`,
+    );
   }
-
-  if (DOCUMENT_SHAPED.test(html)) {
-    // Prepending here would land content before `<!doctype html>` and drop the
-    // page into quirks mode. Failing is better than silently breaking layout.
-    throw new Error(`viewTransitions requires a closing </head> in rendered output: ${path}`);
-  }
-
-  // Fragment output: the parser routes a leading <style>/<script> into the
-  // implied <head>, so prepending is equivalent to injecting.
-  return `${head}\n${html}`;
+  const indent = close[1] ?? '';
+  const block = head.split('\n').map(line => `${indent}${line}`).join('\n');
+  return `${html.slice(0, close.index)}${block}\n${html.slice(close.index)}`;
 }

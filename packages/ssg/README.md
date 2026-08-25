@@ -128,13 +128,14 @@ without the feature. Everything emitted degrades cleanly: an engine without
 engine without the Speculation Rules API treats the script element as inert.
 
 The build injects before the first `</head>` in each rendered page, reusing that
-tag's indentation. A page rendered as a bare fragment gets the block prepended
-instead — the HTML parser routes a leading `<style>`/`<script>` into the implied
-head. If a page renders a *document* with no `</head>` at all, the build fails
-rather than emit content ahead of `<!doctype html>` and trigger quirks mode.
+tag's indentation. A page with no `</head>` is a build failure, not a guess:
+prepending to a document would put content ahead of `<!doctype html>` and force
+quirks mode, and prepending to a fragment that a shell later embeds puts the
+`<style>` and the speculation-rules `<script>` in the `<body>`, where the
+cross-document opt-in silently does nothing.
 
-Sites that render body fragments through SSG and assemble the document in their
-own shell should place the markup themselves instead, using the same emitter:
+So a site that renders body fragments through SSG and assembles the document in
+its own shell places the markup itself, using the same emitter:
 
 ```typescript
 import { renderViewTransitionHead } from '@nisli/ssg';

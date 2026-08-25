@@ -13,9 +13,14 @@ checkpoints (ADR 0022); dates are release dates.
   eagerness, and a `[data-no-prerender]` exclusion, all tunable). The payload is
   minified with a fixed key order so committed output is byte-stable, and a
   build without the option is byte-identical to before.
-- `renderViewTransitionHead()` is exported for sites that render body fragments
-  through SSG and assemble the document in their own shell: they place the same
-  markup in their head instead of enabling injection.
+  Injection targets the first `</head>`; a page with no `</head>` fails the
+  build. Prepending was tried and removed after the www build measured what it
+  actually does: a shell that returns a body fragment ends up with the `<style>`
+  and the speculation-rules `<script>` inside `<body>`, where the cross-document
+  opt-in silently does nothing.
+- `renderViewTransitionHead()` is exported for exactly those sites — ones that
+  render body fragments through SSG and assemble the document in their own
+  shell. They place the same markup in their head instead of enabling injection.
 - New `@nisli/ssg/client` entry point exports `whenActive(fn)`, the prerender
   guard for anything observable (analytics, timers, autofocus, media) in a page
   a browser may render in a hidden prerendered document. It is dependency-free,
