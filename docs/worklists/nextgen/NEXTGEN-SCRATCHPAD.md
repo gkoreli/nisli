@@ -572,6 +572,38 @@ the reactive graph. The one-line test for every future proposal in this bet:
 **does it still work for a component the framework has never seen?** If not, it
 is library work.
 
+### 5.4 What is actually load-bearing (weighting, so the demo is not mistaken for the bet)
+
+The proof fixture makes the *fit solver* the visible part, because collapse and
+truncation are what you can see in a screenshot. It is the smallest and last
+piece. Ranked by how much of the bet each part carries:
+
+| # | Part | Weight | Nature |
+|---|---|---|---|
+| 1 | **The resolution table** — the design system expressed as rules over one inherited unit, instead of 58 components × dozens of transcribed class strings | ~40% | design + policy |
+| 2 | **Exclusivity** — no second styling channel; `className` deleted, escapes explicit and counted | ~25% | a decision, almost no code |
+| 3 | **The vocabulary** — ~12 closed attributes that fit on one page and enumerate the whole styling language | ~20% | API design |
+| 4 | **Verification as byproduct** — checks derived from the declaration, no author, no mandate | ~10% | falls out of 1–3 |
+| 5 | **The measured fit pass** — one `ResizeObserver`, ~25 lines | ~5% | the only novel runtime code |
+
+Two consequences of that ranking:
+
+- **Most of this bet is not code.** Items 1–3 are a design decision, a policy
+  decision, and an API decision. That is *why* it is a framework-level move and
+  not a feature: features are code.
+- **The fit solver is the demo, not the thesis.** It is what makes the thesis
+  visible in one screenshot, which matters for adoption, but if it were removed
+  the bet would still be a bet — whereas removing exclusivity (item 2) collapses
+  everything below it.
+
+**And the honest ceiling:** none of this makes nisli the default on its own.
+0030.1's calibration still holds — corpus mass and distribution decide
+leaderboards. What a capability can do is make the *demonstration* undeniable
+and reproducible: same prompt, same agent, nisli vs React+Tailwind, counted
+rounds until the result is actually correct. That comparison is the artefact
+that travels; the capability is what makes us win it. Distribution remains
+0029's job.
+
 ### 5.5 Round-4 position (retained) — declarative appearance
 
 **Appearance becomes declarative (C10).** *React made structure a function of
