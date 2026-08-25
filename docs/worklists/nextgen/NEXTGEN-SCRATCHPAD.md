@@ -1041,3 +1041,30 @@ proof-of-concept regime.
   (`1…`, `Y…`), so the strategy set needs `hide` and the checker can derive a
   degenerate-truncation warning. Still unproven: SSG pre-solve, byte budget,
   flash-of-unfit, keyboard/ARIA for collapsed actions, cross-engine, and beauty.
+- **2026-08-25 · round 7 (architecture + the first real limit)** — The prototype
+  was rebuilt as ports-and-adapters across six domains (theme, fit engine,
+  diagnostics, ui, app, verification) so it can graduate rather than be thrown
+  away: pure domain reads geometry through `Metrics`, writes through `Mutator`,
+  and every diagnostic is a pure `Rule` over an `Inspector`, which is why 69
+  domain tests run in happy-dom with no browser. A 240-cell Chromium matrix and
+  a self-testing proof (all six assertion paths verified capable of failing)
+  replaced hand-checking. **F9 is the finding that matters, and it is a limit on
+  the thesis rather than a bug:** *derivation from one unit is not automatically
+  self-consistent.* Measured — `[data-layout=grid]` derives its minimum track
+  from `--unit`, so the track SHRINKS with density, while the content inside it
+  has floors the same table declares (`--min-target`, min text measure) that do
+  not shrink. At dense/320 the table sized a track at 62px of usable space and
+  simultaneously demanded a 76px control inside it. Dense — the context whose
+  whole job is fitting more in less — was the only context that overflowed.
+  This is worse than F8: F8 was the browser resolving an impossible constraint
+  badly; F9 is the resolution table *stating* one. The rule it forces:
+  **a floor must propagate through every derivation that bounds it, not only to
+  the leaf that declares it** — every unit-proportional container bound is
+  floored by the content floors it will be asked to hold. Consequence for the
+  bet: the resolution table needs its own static consistency check (§7.21), so
+  "the framework checks the UI" grows a second half, "the framework checks the
+  table". Also this round: the solver was declaring `unsatisfiable` with a
+  declared strategy unspent (priority orders *when* a strategy is spent, never
+  *whether*), floors were declared as sizes rather than minimums so a parent
+  could squeeze a 44px target to 43, and prose text that could not reflow
+  crushed 21px outside its box in a stack the solver never inspects.
