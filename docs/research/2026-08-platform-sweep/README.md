@@ -36,7 +36,7 @@ agent-legibility.
 | 01 | `moveBefore()` at move sites | **Landed + proven in three real browsers** |
 | 02 | Overlay stack on popover / anchor / dialog | Not started — net-deletion of ~985 LOC |
 | 03 | Navigation API router | **Phases 1–2 landed and proven in three real browsers** — engine seam plus `NavigationApiEngine` on `navigation.intercept()`, `engine: 'auto' \| 'history' \| 'navigation'`, `router.state()`. URLPattern **rejected**, hand matcher kept. The proof found three defects, all fixed (see below) |
-| 04 | View transitions, both lanes | **Phases 1 and 3 landed** — core `viewTransition(update, { types })`, the router opt-in on the commit, and the SSG cross-document emission with `whenActive()`. Phase 2 (the `each()` recipe) and www dogfooding are in flight |
+| 04 | View transitions, both lanes | **Complete, all three phases** — core `viewTransition(update, { types })`, the router opt-in on the commit, the `each()` recipe, and the SSG cross-document emission with `whenActive()`; www dogfoods all three and `proof:view-transitions` measures them in Chromium. The SSG option now fails closed without a `</head>`, which dogfooding found |
 | 05 | `adopt()` islands | **Blocked, and now experimentally falsified** — the review's probe fires: 16 of 24 assertions fail (`experiments/bet-05-adopt-probe/RESULT.md`). Needs a serialization contract AND an adoption lifecycle |
 | 06 | Agent-native surface | Not started |
 | 07 | `@nisli/server` server functions | **Unblocked, with a corrected verification shape** — the fail-closed fixture passes 35/35 on the Vite the repo actually has (`experiments/bet-07-server-split/RESULT.md`); the brief's audit method, not its authoring shape, was what failed |
