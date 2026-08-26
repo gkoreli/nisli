@@ -37,12 +37,31 @@
  * `codes.ts` is append-only.
  */
 
+/**
+ * COMPOSING A RULE SET, and why the fifteen rule factories are NOT exported.
+ *
+ * `DEFAULT_RULES()` returns fresh instances of all fifteen, and `check()` takes
+ * any `readonly Rule<T>[]`, so both directions of composition already work with
+ * no additional exports:
+ *
+ *   subtract   check(i, DEFAULT_RULES().filter((r) => r.code !== 'N650'))
+ *   add        check(i, [...DEFAULT_RULES(), myRule()])
+ *   from zero  check(i, DEFAULT_RULES().filter((r) => KEEP.has(r.code)))
+ *
+ * Exporting the factories individually would add fifteen permanent
+ * compatibility obligations and buy nothing those three lines do not already
+ * give — the same trade that kept four solver internals off the main entry. A
+ * rule is addressed by its CODE, which is append-only and documented, rather
+ * than by an import name that could be renamed.
+ */
 // ── Running the checks ─────────────────────────────────────────────────────
 export { check, DEFAULT_RULES } from './diagnostics/runner.js';
 export { domInspector } from './diagnostics/dom.js';
 
 // ── Reading the results ────────────────────────────────────────────────────
 export { formatFindings, summarize } from './diagnostics/report.js';
+
+// ── The code registry ──────────────────────────────────────────────────────
 export { CODES, codeEntry, DOCS_BASE } from './diagnostics/codes.js';
 
 // ── Authoring a rule ───────────────────────────────────────────────────────
