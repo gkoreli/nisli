@@ -86,12 +86,25 @@ export function isSweepFailure(result) {
     Boolean(result.assetFails?.length);
 }
 
-export function phoneFit(scrollWidth, innerWidth, expectedWidth = 390) {
+/**
+ * The phone-fit verdict. Two independent checks, and both matter:
+ *
+ * `relative` catches a page that scrolls sideways at its own width. `absolute`
+ * catches the subtler one — under mobile emulation Chromium SHRINKS TO FIT, so
+ * a page whose content demands more than the device width gets a wider layout
+ * viewport instead of a scrollbar, and `scroll <= inner` then holds while the
+ * user is looking at a zoomed-out page. `inner !== 390` is how that surfaces.
+ *
+ * `blame` is the element that caused it. Without it the verdict is a number
+ * with no cause, which costs one CI round trip per hypothesis on an
+ * environment-dependent failure — the case this argument was written for.
+ */
+export function phoneFit(scrollWidth, innerWidth, expectedWidth = 390, blame = []) {
   const absolute = innerWidth === expectedWidth;
   const relative = scrollWidth <= innerWidth + 1;
-  return absolute && relative
-    ? `OK(${scrollWidth}/${innerWidth})`
-    : `FAIL(${scrollWidth}/${innerWidth};expected=${expectedWidth})`;
+  if (absolute && relative) return `OK(${scrollWidth}/${innerWidth})`;
+  const why = blame.length ? ` by ${blame.join(' ')}` : '';
+  return `FAIL(${scrollWidth}/${innerWidth};expected=${expectedWidth}${why})`;
 }
 
 export function drawerIsUseful(state) {
