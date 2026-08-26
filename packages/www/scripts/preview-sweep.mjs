@@ -23,8 +23,8 @@
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { extname, join, dirname } from 'node:path';
+import { existsSync, readdirSync } from 'node:fs';
+import { extname, join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { INTERACTIONS, assertInteractionCoverage, cleanupSweepResources, drawerIsUseful, isSweepFailure, phoneFit } from './preview-interactions.mjs';
 
@@ -646,6 +646,73 @@ for (const name of names) {
   }
   results.push({ name: 'phone:docs-drawer', mode: 'phone', upgrade: 'OK', open, hydrated: 'n/a', fit, touch: open, assetFails: [], err: mErrors[0] || '', artifacts: [] });
   await mpage.close();
+}
+
+// PAGE-LEVEL ROUTES AT PHONE WIDTH. The lanes above visit only
+// `/ui/<component>`, and that blind spot is why three page-level overflows
+// shipped in one day: `/ui` blew out a grid track to 619px, and two `/intent`
+// pages held a 435px switcher row. Every one of them was reachable from the top
+// bar and none was reachable by this script.
+//
+// DERIVED FROM THE BUILD, not typed here: every emitted `index.html` is a route,
+// minus the component pages already covered above. A route that cannot drift
+// from the pages is the same argument the nav model and the intent surface
+// catalog already make in this package.
+{
+  const componentPaths = new Set(names.map((name) => `/ui/${name}`));
+  const routes = readdirSync(DIST, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name === 'index.html')
+    .map((entry) => `/${relative(DIST, join(entry.parentPath ?? entry.path, entry.name)).replace(/index\.html$/, '')}`)
+    .map((route) => (route.length > 1 ? route.replace(/\/$/, '') : route))
+    .filter((route) => !componentPaths.has(route))
+    .sort();
+  for (const route of routes) {
+    const rpage = await phone.newPage();
+    const rErrors = [];
+    rpage.on('pageerror', (error) => rErrors.push(String(error).split('\n')[0]));
+    let fit = 'FAIL';
+    try {
+      await rpage.goto(`${base}${route}`, { waitUntil: 'networkidle', timeout: 20000 });
+      const widths = await rpage.evaluate((deviceWidth) => {
+        const scroll = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
+        const viewport = window.innerWidth;
+        const blame = [];
+        if (scroll > viewport + 1 || viewport !== deviceWidth) {
+          const over = [];
+          for (const el of document.querySelectorAll('body *')) {
+            const box = el.getBoundingClientRect();
+            if (box.width < 1) continue;
+            if (box.right <= deviceWidth + 1 && box.width <= deviceWidth + 1) continue;
+            over.push({ el, box });
+          }
+          const causes = over.filter(({ el }) => !over.some((other) => other.el !== el && other.el.contains(el)));
+          for (const { el, box } of (causes.length ? causes : over).slice(0, 3)) {
+            const id = el.getAttribute('data-slot') ||
+              (el.className || '').toString().split(/\s+/).slice(0, 2).join('.') || '';
+            const text = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 18);
+            blame.push(`${el.tagName.toLowerCase()}${id ? `[${id}]` : ''}=${Math.round(box.width)}w@${Math.round(box.right)}r${text ? `"${text}"` : ''}`);
+          }
+        }
+        return { scroll, viewport, blame };
+      }, 390);
+      fit = phoneFit(widths.scroll, widths.viewport, 390, widths.blame);
+    } catch (error) {
+      fit = `LOAD-ERR ${String(error.message).slice(0, 36)}`;
+    }
+    results.push({
+      name: `route:${route}`,
+      mode: 'phone',
+      upgrade: 'OK',
+      open: 'n/a',
+      hydrated: 'n/a',
+      fit,
+      touch: 'n/a',
+      assetFails: [],
+      err: rErrors[0] || '',
+      artifacts: [],
+    });
+    await rpage.close();
+  }
 }
 
 const bad = isSweepFailure;
