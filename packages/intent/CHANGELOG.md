@@ -93,6 +93,23 @@ testing."*
   horizontally wrapped into the block axis where nothing was looking — a row
   measured as fitting while standing ten lines tall. Closed in both halves: the
   solver acts where degrading helps, the checker speaks where it cannot.
+- **A container inside a container could not reflow, so it overflowed the page
+  instead.** The no-crush block sets `flex: none` on every descendant of a
+  layout container, which is `flex: 0 0 auto` — so a nested container was rigid
+  at its *max*-content width and a wrapping row inside a wrapping row could not
+  wrap. It held its widest possible line and painted past the page, which is the
+  one degradation that block exists to prevent, arriving through the rule that
+  prevents it. Measured on two shipped pages at a 390px device: a switcher row
+  of six unbreakable buttons held 435px and widened the whole document, and the
+  browser's shrink-to-fit then hid it from every relative overflow test.
+
+  Nested containers may now shrink, and only they. `min-width` stays `auto`, so
+  the floor is the container's own min-content — for a wrapping row, its widest
+  child — and shrinking to that floor is exactly reflow, never a crush; the
+  guarantee that nothing is squeezed below its content is unchanged. The licence
+  is granted as a single `flex-shrink` declaration rather than the shorthand,
+  because the nested selector outranks the grow opt-in and a shorthand would
+  have silently un-grown every nested region that asked to absorb slack.
 
 ### Debts resolved by measurement
 
