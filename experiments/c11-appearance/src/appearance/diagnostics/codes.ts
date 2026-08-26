@@ -114,6 +114,14 @@ const REGISTRY = {
       'A word was broken inside itself so the text would fit a box that could not hold it. The geometry is satisfied and the prose is damaged.',
     hint: "Floor the bound instead of shredding the content: a box that cannot hold its own minimum is the defect, and `overflow-wrap: anywhere` only hides it. This is N621's sibling — one covers the solver destroying a value, this covers the table doing it.",
   },
+  N700: {
+    code: 'N700',
+    title: 'competing primary actions',
+    severity: 'fail',
+    summary:
+      'Two or more actions in one surface each declare themselves the thing to do. The declarations contradict each other, so the reader is asked to spend the same attention twice.',
+    hint: 'Keep one primary or danger action per surface and demote the rest to quiet, or split them into separate surfaces if they really are separate decisions. Normative source: the GNOME HIG allows a single suggested-or-destructive button per view.',
+  },
 } as const satisfies Record<string, CodeEntry>;
 
 /**

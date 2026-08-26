@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>probe 05b — interaction states, derived from role + state only</title>
+<style>
+/* ══════════════════════════════════════════════════════════════════════
+   PROBE 05b — interaction states.  experiments/coverage/05-colour-states.html
+   Every state paint below is DERIVED from --surface / --fg. No component is
+   named; the question under test is whether "role + state" is enough.
+   Split out of 05-colour.html only because that fixture's 729-swatch gamut
+   sweep makes a full style recalc per hover too slow to drive.
+   ══════════════════════════════════════════════════════════════════════ */
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px/1.4 system-ui, sans-serif; }
+.box {
+  --surface-base: #ffffff;
+  --ink: contrast-color(var(--surface-base));
+  --surface: var(--surface-base);
+  --fg: contrast-color(var(--surface));
+  --fg-muted: color-mix(in oklab, var(--fg) 62%, var(--surface));
+  --line: color-mix(in oklab, var(--fg) 22%, var(--surface));
+  --wash: color-mix(in oklab, var(--surface) 90%, var(--fg));
+  --press: color-mix(in oklab, var(--surface) 80%, var(--fg));
+  --accent: var(--fg);
+  --accent-fg: contrast-color(var(--accent));
+  --danger: color-mix(in oklab, #d93a35 62%, var(--fg));
+  --danger-fg: contrast-color(var(--danger));
+  background: var(--surface); color: var(--fg); padding: 10px;
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+}
+.box[data-theme='dark'] { --surface-base: #16161a; color-scheme: dark; }
+.sact { block-size: 36px; padding-inline: 14px; font: inherit;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface); color: var(--fg); cursor: pointer; }
+.sact:hover          { background: var(--wash); }
+.sact:active         { background: var(--press); }
+.sact:focus-visible  { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sact:disabled       { color: var(--fg-muted); border-color: var(--fg-muted); cursor: default; }
+.sinp { block-size: 36px; padding-inline: 10px; font: inherit; inline-size: 130px;
+  background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; }
+.sinp::placeholder        { color: var(--fg-muted); }
+.sinp:placeholder-shown   { border-style: dashed; }
+.sinp:user-invalid        { border-color: var(--danger); border-inline-start-width: 3px; }
+.sinp:autofill            { background: var(--surface); color: var(--fg); }
+.schk { accent-color: var(--accent); inline-size: 18px; block-size: 18px; }
+.selx::selection { background: var(--accent); color: var(--accent-fg); }
+/* the ring-on-a-filled-role case: outline-color == the element's own fill.
+   The ring is only visible because outline-offset exposes the surface. */
+.sprim { block-size: 36px; padding-inline: 14px; font: inherit; border: 1px solid var(--accent);
+  border-radius: 6px; background: var(--accent); color: var(--accent-fg); cursor: pointer; }
+.sprim:focus-visible      { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sprim.nogap:focus-visible{ outline: 2px solid var(--accent); outline-offset: 0; }
+/* the fix: the ring is derived from the box it rings, not from the page */
+.sprim.fixed:focus-visible{ outline: 2px solid contrast-color(var(--accent)); outline-offset: 0; }
+</style></head><body>
+<div class="box" data-theme="light">
+  <button class="sact" data-st="light/rest">Rest</button>
+  <button class="sact" data-st="light/hover">Hover</button>
+  <button class="sact" data-st="light/active">Press</button>
+  <button class="sact" data-st="light/focus">Focus</button>
+  <button class="sact" data-st="light/disabled" disabled>Disabled</button>
+  <input class="sinp" data-st="light/placeholder" placeholder="placeholder">
+  <input class="sinp" data-st="light/filled" value="filled">
+  <form style="display:contents"><input class="sinp" data-st="light/uinvalid" type="email" required value="nope"></form>
+  <label><input type="checkbox" class="schk" data-st="light/checked" checked>on</label>
+  <label><input type="checkbox" class="schk" data-st="light/unchecked">off</label>
+  <button class="sprim" data-st="light/primary">Primary</button>
+  <button class="sprim nogap" data-st="light/primary-nogap">No gap</button>
+  <button class="sprim fixed" data-st="light/primary-fixed">Fixed</button>
+  <span class="selx" data-st="light/selection">selection sample</span>
+  <input class="sinp" data-st="light/autofill" name="email-light" autocomplete="email">
+</div>
+<div class="box" data-theme="dark">
+  <button class="sact" data-st="dark/rest">Rest</button>
+  <button class="sact" data-st="dark/hover">Hover</button>
+  <button class="sact" data-st="dark/active">Press</button>
+  <button class="sact" data-st="dark/focus">Focus</button>
+  <button class="sact" data-st="dark/disabled" disabled>Disabled</button>
+  <input class="sinp" data-st="dark/placeholder" placeholder="placeholder">
+  <input class="sinp" data-st="dark/filled" value="filled">
+  <form style="display:contents"><input class="sinp" data-st="dark/uinvalid" type="email" required value="nope"></form>
+  <label><input type="checkbox" class="schk" data-st="dark/checked" checked>on</label>
+  <label><input type="checkbox" class="schk" data-st="dark/unchecked">off</label>
+  <button class="sprim" data-st="dark/primary">Primary</button>
+  <button class="sprim nogap" data-st="dark/primary-nogap">No gap</button>
+  <button class="sprim fixed" data-st="dark/primary-fixed">Fixed</button>
+  <span class="selx" data-st="dark/selection">selection sample</span>
+  <input class="sinp" data-st="dark/autofill" name="email-dark" autocomplete="email">
+</div>
+</body></html>

@@ -51,52 +51,51 @@
  *     violated either way, which is why the severity stands.
  * Real inline-axis intersection is asserted in the playwright proof, where
  * rectangles exist.
+ *
+ * THE GEOMETRY IS `box()`, NEVER `bounds()`, and this rule is where the reason
+ * is written down for the family. The inference is a CONTAINMENT claim:
+ * `contentInline` against `inline`, scrollWidth against clientWidth, both
+ * padding-box measures, which is the only thing that makes the comparison
+ * like-for-like. Swapping in the border box would give every child a free
+ * border width of slack — the crush would have to exceed the border before this
+ * rule spoke, so the loud false failures of a bad geometry become silent false
+ * passes. That is the direction of error that gets a checker deleted, and it is
+ * the same confusion that cost five of the first run's nine defects.
  */
 
-import type { Finding, Inspector, Rule } from '../../contracts.js';
-import { admittedFailures } from '../admitted.js';
-import { codeEntry } from '../codes.js';
-
-const CODE = codeEntry('N670');
+import type { Rule } from '../../contracts.js';
+import { isAdmittedFailure } from '../admitted.js';
+import { rule } from '../rule.js';
 
 export function overlapRule<TNode>(): Rule<TNode> {
-  return {
-    code: CODE.code,
-    title: CODE.title,
-    run(inspector: Inspector<TNode>): readonly Finding[] {
-      const findings: Finding[] = [];
-      const escaped = new Set<TNode>(inspector.all('[data-escaped], [data-escaped] *'));
-      const admitted = admittedFailures(inspector);
+  return rule<TNode>('N670', (lens, out) => {
+    const escaped = new Set(lens.declared('[data-escaped], [data-escaped] *').map((el) => el.node));
 
-      const final = new Set<TNode>(inspector.all('[data-layout="row"] > *:last-child'));
-      for (const child of inspector.all('[data-layout="row"] > *')) {
-        if (final.has(child) || escaped.has(child)) continue;
-        // One root cause, one primary finding: a row that already reported N620
-        // does not also get told it collides with its neighbour.
-        if (admitted.has(child)) continue;
-        // A declared truncation clips its own overflow; it lands on nobody. So
-        // does a field, which scrolls its own value rather than painting it on
-        // the neighbour (see the exemption note in crushed.ts).
-        if (inspector.attr(child, 'data-truncate') !== null) continue;
-        if (inspector.attr(child, 'data-appearance') === 'field') continue;
-        if (!inspector.rendered(child)) continue;
-        const box = inspector.box(child);
-        if (box.contentInline <= box.inline + 1) continue;
-        // An out-of-flow child has no following sibling in the flow sense: the
-        // overflow menu panel is absolutely positioned inside the row, so it
-        // cannot displace anything. Its clipping is N660's finding, not this
-        // rule's.
-        const position = inspector.style(child, 'position');
-        if (position === 'absolute' || position === 'fixed') continue;
-        findings.push({
-          code: CODE.code,
-          severity: CODE.severity,
-          subject: inspector.describe(child),
-          detail: `${Math.round(box.contentInline - box.inline)}px of content paints past this ${Math.round(box.inline)}px box into the following sibling in a single-line row`,
-          hint: CODE.hint,
-        });
-      }
-      return findings;
-    },
-  };
+    const final = new Set(lens.declared('[data-layout="row"] > *:last-child').map((el) => el.node));
+    // `painted()` owns the rendered precondition this loop used to restate by
+    // hand: an unpainted child has no box to paint past anything (F4).
+    for (const el of lens.painted('[data-layout="row"] > *')) {
+      if (final.has(el.node) || escaped.has(el.node)) continue;
+      // One root cause, one primary finding: a row that already reported N620
+      // does not also get told it collides with its neighbour.
+      if (isAdmittedFailure(el)) continue;
+      // A declared truncation clips its own overflow; it lands on nobody. So
+      // does a field, which scrolls its own value rather than painting it on
+      // the neighbour (see the exemption note in crushed.ts).
+      if (el.attr('data-truncate') !== null) continue;
+      if (el.attr('data-appearance') === 'field') continue;
+      const box = el.box();
+      if (box.contentInline <= box.inline + 1) continue;
+      // An out-of-flow child has no following sibling in the flow sense: the
+      // overflow menu panel is absolutely positioned inside the row, so it
+      // cannot displace anything. Its clipping is N660's finding, not this
+      // rule's.
+      const position = el.raw('position');
+      if (position === 'absolute' || position === 'fixed') continue;
+      out.finding(
+        el.subject,
+        `${Math.round(box.contentInline - box.inline)}px of content paints past this ${Math.round(box.inline)}px box into the following sibling in a single-line row`,
+      );
+    }
+  });
 }

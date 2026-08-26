@@ -68,6 +68,35 @@ export const VOCABULARY = {
   collapse: ['truncate', 'hide', 'menu'],
 } as const satisfies Record<string, readonly string[]>;
 
+/**
+ * Which attribute declares which axis. The vocabulary above says what the legal
+ * VALUES are; this says where they are written.
+ *
+ * Reified because a checker that selects `[data-surface]` when the vocabulary
+ * spells it `[data-appearance="surface"]` is not a failing rule — it is a rule
+ * that can never fire, and nothing catches that. Unit tests over a fake
+ * inspector cannot: the fixture and the selector come from the same author in
+ * the same wrong assumption, so they agree with each other and pass. The 240
+ * cell matrix cannot either: a rule that matches nothing produces no findings,
+ * which is indistinguishable from a clean page. That is the sixth oracle bug
+ * this experiment has produced and the first of a new class — not measuring the
+ * wrong box, but speaking a word the vocabulary does not contain.
+ *
+ * With the mapping as data, `test/reachability.test.ts` can assert that every
+ * selector in every rule addresses an attribute the codebase actually produces
+ * and a value the axis actually allows.
+ */
+export const AXIS_ATTRS = {
+  'data-layout': 'layout',
+  'data-appearance': 'appearance',
+  'data-role': 'emphasis',
+  'data-text': 'text',
+  'data-density': 'density',
+  'data-input': 'input',
+  'data-theme': 'theme',
+  'data-collapse': 'collapse',
+} as const satisfies Record<string, keyof typeof VOCABULARY>;
+
 /* ══════════════════════════════════════════════════════════════════════════
    2. Geometry — the values the domain is allowed to know
    ══════════════════════════════════════════════════════════════════════════ */
@@ -82,6 +111,31 @@ export interface Box {
   readonly inline: number;
   readonly block: number;
   readonly contentInline: number;
+}
+
+/**
+ * Border-box dimensions. The geometry of PRESSABILITY and visual bounds, and
+ * deliberately a different type from `Box` rather than a third field on it.
+ *
+ * Five of the nine defects in the first run were the checker measuring the
+ * wrong box, twice in a row: N650 reported 710 false hit-target failures by
+ * comparing a padding box against a floor, and N690 repeated the mistake inside
+ * the rule written to prevent it. The principle they cost us — *a check must
+ * measure the box its claim is about* — is worth more as a type than as a
+ * comment, so the two geometries cannot be confused at a call site:
+ *
+ *   - `Box` answers CONTAINMENT: does content fit inside its own box. It is a
+ *     padding-box measure, which is what makes `contentInline > inline` a
+ *     like-for-like comparison.
+ *   - `Bounds` answers PRESSABILITY and visual extent: what a finger hits and
+ *     what the eye sees. Borders are part of the target; transforms move it.
+ *
+ * There is no `contentInline` here on purpose. "What the content wanted" is a
+ * containment question, so asking it of `Bounds` is a category error.
+ */
+export interface Bounds {
+  readonly inline: number;
+  readonly block: number;
 }
 
 /** Read-only geometry and style access. Implemented by the DOM adapter. */
@@ -152,11 +206,16 @@ export interface Finding {
 /** Everything a rule may observe. Rules never touch the DOM directly. */
 export interface Inspector<TNode> {
   all(selector: string): readonly TNode[];
+  /** Descendants of `node` matching `selector`. Scopes a claim to a subtree. */
+  within(node: TNode, selector: string): readonly TNode[];
   attr(node: TNode, name: string): string | null;
   text(node: TNode): string;
   describe(node: TNode): string;
   rendered(node: TNode): boolean;
+  /** Padding box — for containment claims. See `Box`. */
   box(node: TNode): Box;
+  /** Border box — for pressability and visual-extent claims. See `Bounds`. */
+  bounds(node: TNode): Bounds;
   style(node: TNode, property: string): string;
   /** Nearest painted background colour behind this node. */
   backdrop(node: TNode): string;

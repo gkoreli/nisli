@@ -100,6 +100,7 @@ describe('CODES', () => {
       'N670',
       'N680',
       'N690',
+      'N700',
     ]);
     for (const [key, entry] of Object.entries(CODES)) expect(entry.code).toBe(key);
   });
@@ -643,6 +644,131 @@ describe('N690 — word shredded to fit its box', () => {
 
   it('stays silent on the clean document', () => {
     expect(run('N690', CLEAN)).toEqual([]);
+  });
+});
+
+/**
+ * N700's world. Scope is the whole design of this rule, so the fixtures are
+ * built to pin the scope decision rather than the counting: `SIBLING_CARDS` is
+ * the marketing page's real shape — four self-contained cards, each with its own
+ * primary action — and it MUST stay silent, while a single surface owning two
+ * emphatic actions MUST fire exactly once.
+ */
+const emphatic = (id: string, role: 'primary' | 'danger'): InspectSpec => ({
+  id,
+  tag: 'button',
+  attrs: { 'data-appearance': 'action', 'data-role': role },
+});
+
+const SIBLING_CARDS: InspectWorldSpec = {
+  nodes: [
+    {
+      id: 'page',
+      attrs: { 'data-component': 'app-region' },
+      children: [
+        { id: 'card-a', attrs: { 'data-appearance': 'surface' }, children: [emphatic('save-a', 'primary')] },
+        { id: 'card-b', attrs: { 'data-appearance': 'surface' }, children: [emphatic('save-b', 'primary')] },
+        { id: 'card-c', attrs: { 'data-appearance': 'surface' }, children: [emphatic('save-c', 'primary')] },
+      ],
+    },
+  ],
+};
+
+describe('N700 — competing primary actions', () => {
+  it('fires once when one surface owns two emphatic actions', () => {
+    const findings = run('N700', {
+      nodes: [
+        {
+          id: 'panel',
+          attrs: { 'data-appearance': 'surface' },
+          children: [emphatic('save', 'primary'), emphatic('delete', 'danger')],
+        },
+      ],
+    });
+    expect(findings.map((finding) => finding.subject)).toEqual(['panel']);
+    // primary and danger COMPETE rather than coexisting: both spend the same
+    // attention, which is why the GNOME rule counts them together.
+    expect(findings[0]?.detail).toContain('save');
+    expect(findings[0]?.detail).toContain('delete');
+    expect(findings[0]?.severity).toBe('fail');
+  });
+
+  it('sibling-cards: stays silent when each surface owns exactly one', () => {
+    // The marketing page's real shape. A page-scoped version of this rule would
+    // report three defects here, all of them wrong, and get muted.
+    expect(run('N700', SIBLING_CARDS)).toEqual([]);
+  });
+
+  it('nested-ownership: a violation is reported by its own surface, not its ancestors', () => {
+    const findings = run('N700', {
+      nodes: [
+        {
+          id: 'page',
+          attrs: { 'data-component': 'app-region' },
+          children: [
+            {
+              id: 'card',
+              attrs: { 'data-appearance': 'surface' },
+              children: [emphatic('save', 'primary'), emphatic('publish', 'primary')],
+            },
+          ],
+        },
+      ],
+    });
+    expect(findings.map((finding) => finding.subject)).toEqual(['card']);
+  });
+
+  it('a region owning emphatic actions directly is itself a surface', () => {
+    const findings = run('N700', {
+      nodes: [
+        {
+          id: 'bare-region',
+          attrs: { 'data-component': 'app-region' },
+          children: [emphatic('save', 'primary'), emphatic('discard', 'danger')],
+        },
+      ],
+    });
+    expect(findings.map((finding) => finding.subject)).toEqual(['bare-region']);
+  });
+
+  it('counts an unrendered declaration: this is a claim about source, not layout', () => {
+    // Deliberately `declared()` rather than `painted()`. Every component host in
+    // this framework is `display: contents` and therefore answers "not
+    // rendered"; a rule about what the author wrote must not depend on layout.
+    const findings = run('N700', {
+      nodes: [
+        {
+          id: 'panel',
+          attrs: { 'data-appearance': 'surface' },
+          children: [
+            emphatic('save', 'primary'),
+            { ...emphatic('hidden-publish', 'primary'), rendered: false },
+          ],
+        },
+      ],
+    });
+    expect(findings.map((finding) => finding.subject)).toEqual(['panel']);
+  });
+
+  it('ignores quiet actions entirely', () => {
+    expect(
+      run('N700', {
+        nodes: [
+          {
+            id: 'panel',
+            attrs: { 'data-appearance': 'surface' },
+            children: [
+              emphatic('save', 'primary'),
+              { id: 'cancel', tag: 'button', attrs: { 'data-appearance': 'action', 'data-role': 'quiet' } },
+            ],
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  it('stays silent on the clean document', () => {
+    expect(run('N700', CLEAN)).toEqual([]);
   });
 });
 

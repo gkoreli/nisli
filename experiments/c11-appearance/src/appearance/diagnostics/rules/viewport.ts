@@ -7,31 +7,25 @@
  * enough: a 704-wide page inside a 704-wide viewport passed every relative check
  * while scrolling sideways. Some geometry only means something against the
  * one number the author does not control.
+ *
+ * The only rule with no selector at all: its subject is the document, so it
+ * reads `lens.viewport()` and never observes a node. There is nothing to filter
+ * for paintedness because there is nothing selected — the two numbers are the
+ * measurement.
  */
 
-import type { Finding, Inspector, Rule } from '../../contracts.js';
-import { codeEntry } from '../codes.js';
-
-const CODE = codeEntry('N630');
+import type { Rule } from '../../contracts.js';
+import { rule } from '../rule.js';
 
 export function viewportRule<TNode>(): Rule<TNode> {
-  return {
-    code: CODE.code,
-    title: CODE.title,
-    run(inspector: Inspector<TNode>): readonly Finding[] {
-      const { inline, documentInline } = inspector.viewport();
-      // One pixel of slack: fractional layout rounds, and a half-pixel of
-      // scrollWidth is not a sideways scrollbar.
-      if (documentInline <= inline + 1) return [];
-      return [
-        {
-          code: CODE.code,
-          severity: CODE.severity,
-          subject: 'document',
-          detail: `document is ${Math.round(documentInline)}px wide in a ${Math.round(inline)}px viewport — ${Math.round(documentInline - inline)}px scrolls sideways`,
-          hint: CODE.hint,
-        },
-      ];
-    },
-  };
+  return rule<TNode>('N630', (lens, out) => {
+    const { inline, documentInline } = lens.viewport();
+    // One pixel of slack: fractional layout rounds, and a half-pixel of
+    // scrollWidth is not a sideways scrollbar.
+    if (documentInline <= inline + 1) return;
+    out.finding(
+      'document',
+      `document is ${Math.round(documentInline)}px wide in a ${Math.round(inline)}px viewport — ${Math.round(documentInline - inline)}px scrolls sideways`,
+    );
+  });
 }

@@ -1,0 +1,1081 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>04-overlays — top layer, anchor positioning, stacking probe</title>
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   The resolution table, reduced to the parts this probe measures.
+   Copied in SHAPE from experiments/c11-appearance/src/theme/, not in full.
+   No length below is a design decision: each is either a probe marker
+   (7px / 5px, chosen to be unmistakable in a computed-style read) or a
+   fixture coordinate.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root { --unit-base: 4px; --unit-scale: 1; --density-name: comfortable; }
+
+/* Per-element recomputation — the c11 mechanism (theme/tokens.css:111-121). */
+* { --unit: calc(var(--unit-base) * var(--unit-scale)); }
+
+[data-density='comfortable'] { --unit-base: 4px; --density-name: comfortable; }
+[data-density='compact']     { --unit-base: 3px; --density-name: compact; }
+[data-density='dense']       { --unit-base: 2px; --density-name: dense; }
+[data-input='pointer'] { --unit-scale: 1; }
+[data-input='touch']   { --unit-scale: 1.25; }
+[data-theme='light'] { --s1: rgb(255,255,255); --fg: rgb(24,24,27);   --line: rgb(228,228,231); }
+[data-theme='dark']  { --s1: rgb(24,24,27);    --fg: rgb(250,250,250); --line: rgb(63,63,70); }
+[data-theme] { background: var(--s1); color: var(--fg); }
+
+/* The fit container is the query container (theme/states.css:185-188). */
+[data-fit] { container-type: inline-size; container-name: fitbox; }
+
+/* Layout-transparent hosts — the framework uses these everywhere
+   (theme/structure.css:32-51). */
+app-toolbar, app-overflow-menu, app-action-group, app-host { display: contents; }
+
+/* ── The surface under test ──────────────────────────────────────────── */
+[data-overflow-menu] {
+  box-sizing: border-box;
+  border-style: solid;
+  border-width: 0;              /* UA `border: solid` on popover/dialog reset,
+                                   so the container-query probes below own the
+                                   only nonzero border widths. */
+  border-color: var(--line);
+  padding: calc(var(--unit) * 3);
+  background: var(--s1);
+  color: var(--fg);
+  max-inline-size: 100cqi;      /* container-relative: the load-bearing unit */
+  font: 13px/1.4 system-ui, sans-serif;
+}
+
+/* SIZE container query. Fires only if the element still sees `fitbox`. */
+@container fitbox (min-width: 500px) {
+  [data-overflow-menu] { border-block-start-width: 7px; }
+}
+/* STYLE container query. Fires only if the element still sees `fitbox`
+   AND that container's --density-name is dense. */
+@container fitbox style(--density-name: dense) {
+  [data-overflow-menu] { border-inline-start-width: 5px; }
+}
+
+/* ::backdrop — does it inherit the context axes from its originator? */
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.4);
+  border-block-start: calc(var(--unit) * 3) solid transparent;
+}
+
+/* P17 — container-type on a BOXLESS host vs a boxed one. */
+#cqBoxless app-host { container-type: inline-size; container-name: cqprobe; }
+#cqBoxed .boxed { display: block; container-type: inline-size; container-name: cqprobe; }
+.cqTarget { border-block-end-style: solid; border-block-end-width: 0; }
+@container cqprobe (min-width: 10px) { .cqTarget { border-block-end-width: 9px; } }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   P2 / P11 — DERIVED PLACEMENT. This is the ENTIRE authored placement rule
+   for the whole application. It names no side, no offset, no anchor.
+   ══════════════════════════════════════════════════════════════════════════ */
+[data-anchored] {
+  inset: auto;                 /* undo the UA popover `inset: 0` */
+  margin: 0;                   /* undo the UA popover `margin: auto` */
+  position-area: block-end span-inline-start;
+  margin-block-start: var(--unit);
+  position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+  position-try-order: most-height;
+}
+
+/* The discriminating fixture for position-try-order: identical except the
+   order keyword. If both land on the same side, the keyword is inert here
+   and the "browser derives the best side" claim is unproven. */
+[data-anchored-normal] {
+  inset: auto;
+  margin: 0;
+  position-area: block-end span-inline-start;
+  margin-block-start: var(--unit);
+  position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+  position-try-order: normal;
+}
+
+[data-anchored], [data-anchored-normal] {
+  box-sizing: border-box;
+  inline-size: max-content;
+  border: 1px solid var(--line);
+  padding: var(--unit);
+  background: var(--s1);
+  color: var(--fg);
+  font: 13px/1.4 system-ui, sans-serif;
+}
+[data-anchored] [role='menuitem'], [data-anchored-normal] [role='menuitem'] {
+  display: block;
+  inline-size: 100%;
+  text-align: start;
+  min-block-size: calc(var(--unit) * 8);
+  padding: calc(var(--unit) * 1.5);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+/* P12 — a menu longer than the space it has. `stretch` fills the
+   position-area box, so the bound is derived, not chosen. */
+[data-anchored][data-scrollable] { max-block-size: stretch; overflow-y: auto; }
+
+/* P13 — conditional hiding, three values, three fixtures. */
+#sv-a { position-visibility: always; }
+#sv-v { position-visibility: anchors-visible; }
+#sv-o { position-visibility: no-overflow; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   P11 — ONE anchor name for the whole application. Three groups differ only
+   in where (or whether) `anchor-scope` is declared, so the property is the
+   only variable. Every menu is a fixed 20x20 box aligned to the anchor's
+   inline-start edge, which makes "which trigger did it attach to" a single
+   unambiguous coordinate rather than an inference.
+   ══════════════════════════════════════════════════════════════════════════ */
+.trg { display: block; block-size: 40px; inline-size: 60px;
+       anchor-name: --ovf; font: 12px system-ui; }
+.gmenu {
+  box-sizing: border-box;
+  position: fixed;
+  position-anchor: --ovf;
+  inset: auto; margin: 0;
+  position-area: block-end span-inline-end;   /* no fallbacks: no flip can
+                                                 confuse the attribution */
+  inline-size: 20px; block-size: 20px;
+  border: 0; padding: 0; background: rgb(220 40 40);
+}
+/* Group 1 declares NO scope — the honest baseline. */
+/* Group 2 scopes on a BOXLESS host, which is what the framework has. */
+#p11-boxless app-overflow-menu { anchor-scope: --ovf; }
+/* Group 3 scopes on a boxed wrapper — the paired control that separates
+   "anchor-scope works" from "anchor-scope works without a box". */
+#p11-boxed .scoper { display: block; anchor-scope: --ovf; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   P3 — STACKING. Boxless host vs boxed host, same z-index.
+   ══════════════════════════════════════════════════════════════════════════ */
+.stack { position: relative; inline-size: 260px; block-size: 46px; }
+.abs { position: absolute; inset-block-start: 0; inset-inline-start: 0;
+       inline-size: 150px; block-size: 40px; font: 11px system-ui; }
+#boxB, #boxD, #boxF { background: rgb(255 90 90); }
+#boxA, #boxC, #boxE { background: rgb(90 170 255); }
+#hostZ { z-index: 10; isolation: isolate; }          /* display:contents => no box */
+#hostZBoxed { display: block; position: relative; z-index: 10; }
+#boxF { z-index: 10; }
+
+/* P4 — transformed ancestor, kept inside the viewport on purpose. */
+#tx { position: fixed; inset-block-start: 120px; inset-inline-start: 40px;
+      transform: translateX(120px);
+      inline-size: 220px; block-size: 46px; background: rgb(240 240 240); }
+#fixedChild { position: fixed; inset-block-start: 300px; inset-inline-start: 0;
+              inline-size: 24px; block-size: 24px; background: rgb(0 160 0); }
+
+/* P8 — top layer vs the largest legal z-index, and top-layer order. */
+#zmax { position: fixed; inset-block-start: 200px; inset-inline-start: 200px;
+        inline-size: 200px; block-size: 100px; z-index: 2147483647;
+        background: rgb(255 200 0); }
+#zpop { inline-size: 100px; block-size: 50px; background: rgb(120 0 255);
+        inset: auto; inset-block-start: 220px; inset-inline-start: 220px;
+        margin: 0; border: 0; padding: 0; }
+#orderA, #orderB { inset: auto; margin: 0; border: 0; padding: 0;
+                   inline-size: 120px; block-size: 60px;
+                   inset-block-start: 400px; inset-inline-start: 500px; }
+#orderA { background: rgb(0 200 200); z-index: 999; }
+#orderB { background: rgb(200 0 200); z-index: 1; }
+
+/* P13 — a scroller whose anchor can leave. */
+.scroller { block-size: 60px; inline-size: 160px; overflow: auto;
+            border: 1px solid #999; display: inline-block; vertical-align: top; }
+.filler { block-size: 300px; }
+
+/* Layout of the probe page itself. Not under test. */
+body { margin: 0; font: 13px/1.5 system-ui, sans-serif; }
+#report { padding: 12px; white-space: pre-wrap;
+          font: 11px/1.45 ui-monospace, monospace; }
+.corner { position: fixed; inline-size: 96px; block-size: 28px;
+          font: 12px system-ui; }
+#stage { position: relative; block-size: 60px; }
+.inst { padding: 4px; }
+h2 { font: 600 12px system-ui; margin: 10px 0 2px; color: #555; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   P18 — THE PROPOSED RESOLUTION TABLE FOR OVERLAYS, VERBATIM.
+   Every selector is prefixed `#p18` ONLY to keep it from reaching the other
+   fixtures in this one file; in the real theme these are global rules. There
+   is no anchor-name and no anchor-scope: both overlays are opened by an
+   invoker (command / interest), which establishes the IMPLICIT anchor, and
+   per css-anchor-position-1 §2.2 anchor-scope "has no effect on implicit
+   anchor elements" — so the shared-name collision measured in P11a cannot
+   arise on this path at all.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Missing context axis this table needs: theme/tokens.css exposes
+   --density-name but not --input-name. One line, same shape. */
+#p18[data-input='pointer'] { --input-name: pointer; }
+#p18[data-input='touch'] { --input-name: touch; }
+
+/* 1. Every overlay, regardless of kind. */
+#p18 [data-overlay] {
+  box-sizing: border-box;
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  position-try-order: most-height;   /* the browser derives the best side */
+  max-block-size: stretch;           /* the bound is derived, not chosen */
+  overflow: auto;
+  padding: var(--unit);
+  background: var(--s1);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--unit) * 1.5);
+  box-shadow: 0 calc(var(--unit) * 0.5) calc(var(--unit) * 3) rgb(0 0 0 / 0.14);
+  font: 13px/1.4 system-ui, sans-serif;
+}
+
+/* 2. The RELATIONSHIP, per kind. Three rules for the whole application. */
+#p18 [data-overlay='menu'] {
+  position-area: block-end span-inline-start;
+  margin-block-start: var(--unit);
+  position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+  min-inline-size: anchor-size(self-inline);
+  position-visibility: always;
+}
+#p18 [data-overlay='hint'] {
+  position-area: block-start center;
+  justify-self: anchor-center;
+  margin-block-end: var(--unit);
+  position-try-fallbacks: flip-block;
+  position-visibility: anchors-visible;
+}
+#p18 [data-overlay='dialog'] {
+  inset: 0;
+  margin: auto;
+  max-inline-size: min(calc(var(--unit) * 120), calc(100dvi - var(--unit) * 8));
+}
+#p18 [data-overlay='dialog']::backdrop { background: rgb(0 0 0 / 0.4); }
+
+/* 3. Menu items are a list, not a row. Unchanged in shape from
+      theme/states.css:134-145. */
+#p18 [data-overlay='menu'] [role='menuitem'] {
+  display: block;
+  inline-size: 100%;
+  text-align: start;
+  min-block-size: max(calc(var(--unit) * 9), var(--min-target, 0px));
+  padding: calc(var(--unit) * 1.5);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* 4. Touch: a tethered menu becomes a bottom sheet. Derived from a context
+      axis, not a breakpoint, and with no new vocabulary. */
+@container fitbox style(--input-name: touch) {
+  #p18 [data-overlay='menu'] {
+    position-area: none;
+    inset: auto 0 0 0;
+    max-block-size: 60dvb;
+    border-radius: calc(var(--unit) * 1.5) calc(var(--unit) * 1.5) 0 0;
+    padding-block-end: max(var(--unit), env(safe-area-inset-bottom));
+  }
+}
+</style>
+</head>
+<body data-density="comfortable" data-input="pointer" data-theme="light">
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     P1 — does the top layer still see the context?
+     dense + touch + dark, inside a 600px-wide named container, reached
+     through two layout-transparent (display: contents) hosts.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<h2>P1 — top layer vs the context axes</h2>
+<div id="ctx" data-density="dense" data-input="touch" data-theme="dark" data-fit
+     style="inline-size: 600px;">
+  <app-toolbar>
+    <app-overflow-menu>
+      <div id="control" data-overflow-menu>in-flow control</div>
+      <div id="pop" data-overflow-menu popover="auto">popover in top layer</div>
+      <div id="hintpop" data-overflow-menu popover="hint">hint popover</div>
+      <dialog id="dlg" data-overflow-menu>modal dialog in top layer</dialog>
+      <div id="fixedpop" data-overflow-menu
+           style="position: fixed; inset: auto;">fixed, not promoted</div>
+    </app-overflow-menu>
+  </app-toolbar>
+</div>
+
+<!-- P17 — container-type on a boxless host vs a boxed one -->
+<h2>P17 — container-type on a display:contents host</h2>
+<div id="cqBoxless"><app-host><div class="cqTarget">boxless container</div></app-host></div>
+<div id="cqBoxed"><div class="boxed"><div class="cqTarget">boxed container</div></div></div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     P2 — derived placement, invoked the way a user invokes it (a click on a
+     popovertarget button), which is what establishes the implicit anchor.
+     All triggers are position:fixed, so page scrolling cannot move them.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="stage">
+  <button class="corner" id="t-tl" style="inset-block-start: 8px; inset-inline-start: 8px;" popovertarget="m-tl">top-left</button>
+  <button class="corner" id="t-tr" style="inset-block-start: 8px; inset-inline-end: 8px;" popovertarget="m-tr">top-right</button>
+  <button class="corner" id="t-bl" style="inset-block-end: 8px; inset-inline-start: 8px;" popovertarget="m-bl">bottom-left</button>
+  <button class="corner" id="t-br" style="inset-block-end: 8px; inset-inline-end: 8px;" popovertarget="m-br">bottom-right</button>
+  <button class="corner" id="t-c"  style="inset-block-start: 50%; inset-inline-start: 45%;" popovertarget="m-c">center</button>
+  <!-- 55% down: below has less block space than above, so most-height must
+       flip while normal must not. The discriminating fixture. -->
+  <button class="corner" id="t-o1" style="inset-block-start: 55%; inset-inline-start: 20%;" popovertarget="m-o1">order-most</button>
+  <button class="corner" id="t-o2" style="inset-block-start: 55%; inset-inline-start: 60%;" popovertarget="m-o2">order-normal</button>
+  <button class="corner" id="t-long" style="inset-block-start: 40%; inset-inline-start: 78%;" popovertarget="m-long">long</button>
+
+  <div popover="auto" id="m-tl" data-anchored role="menu" aria-label="More"></div>
+  <div popover="auto" id="m-tr" data-anchored role="menu" aria-label="More"></div>
+  <div popover="auto" id="m-bl" data-anchored role="menu" aria-label="More"></div>
+  <div popover="auto" id="m-br" data-anchored role="menu" aria-label="More"></div>
+  <div popover="auto" id="m-c"  data-anchored role="menu" aria-label="More"></div>
+  <div popover="auto" id="m-o1" data-anchored role="menu" aria-label="More"></div>
+  <div popover="auto" id="m-o2" data-anchored-normal role="menu" aria-label="More"></div>
+  <div popover="auto" id="m-long" data-anchored data-scrollable role="menu" aria-label="More"></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     P11 — ONE anchor name, many instances, three scoping treatments.
+     The third instance of each group puts the MENU BEFORE its trigger, so
+     the result also answers whether resolution depends on tree order.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<h2>P11 — one anchor-name, many instances</h2>
+<div id="p11-none">
+  <app-overflow-menu><button class="trg" id="g1t">g1</button><div class="gmenu" id="g1m" popover="manual"></div></app-overflow-menu>
+  <app-overflow-menu><button class="trg" id="g2t">g2</button><div class="gmenu" id="g2m" popover="manual"></div></app-overflow-menu>
+  <app-overflow-menu><div class="gmenu" id="g3m" popover="manual"></div><button class="trg" id="g3t">g3</button></app-overflow-menu>
+</div>
+<div id="p11-boxless">
+  <app-overflow-menu><button class="trg" id="h1t">h1</button><div class="gmenu" id="h1m" popover="manual"></div></app-overflow-menu>
+  <app-overflow-menu><button class="trg" id="h2t">h2</button><div class="gmenu" id="h2m" popover="manual"></div></app-overflow-menu>
+  <app-overflow-menu><div class="gmenu" id="h3m" popover="manual"></div><button class="trg" id="h3t">h3</button></app-overflow-menu>
+</div>
+<div id="p11-boxed">
+  <div class="scoper"><button class="trg" id="k1t">k1</button><div class="gmenu" id="k1m" popover="manual"></div></div>
+  <div class="scoper"><button class="trg" id="k2t">k2</button><div class="gmenu" id="k2m" popover="manual"></div></div>
+  <div class="scoper"><div class="gmenu" id="k3m" popover="manual"></div><button class="trg" id="k3t">k3</button></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     P3 — stacking through a boxless host, with two paired controls.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<h2>P3 — stacking through a display:contents host</h2>
+<div class="stack" id="stack1">
+  <app-host id="hostZ"><div class="abs" id="boxB">B — display:contents host, z-index:10</div></app-host>
+  <div class="abs" id="boxA">A — later in DOM, no z-index</div>
+</div>
+<div class="stack" id="stack2">
+  <div id="hostZBoxed"><div class="abs" id="boxD">D — BOXED host, z-index:10</div></div>
+  <div class="abs" id="boxC">C — later in DOM, no z-index</div>
+</div>
+<div class="stack" id="stack3">
+  <app-host><div class="abs" id="boxF">F — z-index on the CHILD</div></app-host>
+  <div class="abs" id="boxE">E — later in DOM, no z-index</div>
+</div>
+
+<!-- P13 — anchor scrolls out of its scroller; three position-visibility values -->
+<h2>P13 — position-visibility</h2>
+<div class="scroller" id="scr-a"><button class="svt" id="sv-ta" style="anchor-name:--sva;">a</button><div class="filler"></div></div>
+<div class="scroller" id="scr-v"><button class="svt" id="sv-tv" style="anchor-name:--svv;">v</button><div class="filler"></div></div>
+<div class="scroller" id="scr-o"><button class="svt" id="sv-to" style="anchor-name:--svo;">o</button><div class="filler"></div></div>
+<div popover="manual" id="sv-a" data-anchored style="position-anchor:--sva;">A</div>
+<div popover="manual" id="sv-v" data-anchored style="position-anchor:--svv;">V</div>
+<div popover="manual" id="sv-o" data-anchored style="position-anchor:--svo;">O</div>
+
+<!-- P14 — command / commandfor invoker -->
+<h2>P14 — declarative invokers</h2>
+<button id="cmdBtn" commandfor="cmdPop" command="toggle-popover">command invoker</button>
+<div popover="auto" id="cmdPop" data-anchored role="menu" aria-label="More">
+  <button role="menuitem" type="button">via command</button>
+</div>
+<button id="interestBtn" interestfor="hintPop">interest invoker</button>
+<div popover="hint" id="hintPop" data-anchored>hint content</div>
+
+<!-- P15 — nesting -->
+<h2>P15 — nesting and light dismiss</h2>
+<button id="pA" popovertarget="popParent">parent</button>
+<div popover="auto" id="popParent" data-anchored>
+  parent panel
+  <button id="pB" popovertarget="popChild">child</button>
+  <div popover="auto" id="popChild" data-anchored>child panel</div>
+</div>
+<div popover="auto" id="popUnrelated" data-anchored>unrelated panel</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     P18 — THE PROPOSED TABLE, EXACTLY AS SPECIFIED, RENDERED.
+     Two overlay kinds in ONE overlay scope, which is the case that breaks a
+     shared `anchor-name`. Both are opened by an invoker (command / interest),
+     so both rely on the IMPLICIT anchor and neither declares a name.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<h2>P18 — the proposed table, rendered</h2>
+<div id="p18" data-density="comfortable" data-input="pointer" data-theme="light"
+     data-fit style="inline-size: 420px;">
+  <app-toolbar>
+    <app-overflow-menu>
+      <button id="p18-menu-trigger" type="button"
+              data-appearance="action" data-role="quiet" data-overflow
+              command="toggle-popover" commandfor="p18-menu"
+              aria-haspopup="menu" aria-label="More actions">⋯ more</button>
+      <div id="p18-menu" popover="auto" data-overlay="menu" role="menu"
+           data-layout="stack" aria-label="More actions">
+        <button role="menuitem" tabindex="-1" autofocus type="button"
+                data-appearance="action" data-role="quiet">Reply</button>
+        <button role="menuitem" tabindex="-1" type="button"
+                data-appearance="action" data-role="quiet">Reply all</button>
+        <button role="menuitem" tabindex="-1" type="button"
+                data-appearance="action" data-role="quiet">Archive</button>
+        <button role="menuitem" tabindex="-1" type="button"
+                data-appearance="action" data-role="quiet">Delete</button>
+      </div>
+    </app-overflow-menu>
+  </app-toolbar>
+  <button id="p18-hint-trigger" type="button" data-overflow
+          interestfor="p18-hint" aria-label="What is this">?</button>
+  <div id="p18-hint" popover="hint" data-overlay="hint">Derived from intent.</div>
+  <dialog id="p18-dialog" data-overlay="dialog">
+    <button id="p18-dialog-ok" type="button">OK</button>
+  </dialog>
+</div>
+
+<!-- P4 — transform vs fixed vs top layer vs anchor -->
+<div id="tx">
+  transformed ancestor
+  <div id="fixedChild"></div>
+  <button id="t-tx" popovertarget="m-tx">tx trigger</button>
+  <div popover="auto" id="m-tx" data-anchored role="menu" aria-label="More"></div>
+  <div popover="auto" id="m-txplain" style="inline-size:80px;block-size:40px;background:#ccc;"></div>
+</div>
+
+<!-- P8 — top layer vs z-index: 2147483647, and top-layer order -->
+<div id="zmax">z-index 2147483647</div>
+<div popover="manual" id="zpop"></div>
+<div popover="manual" id="orderA"></div>
+<div popover="manual" id="orderB"></div>
+
+<!-- P9 — focus containment -->
+<h2>P9 — focus containment</h2>
+<button id="outside">outside button</button>
+<div popover="auto" id="fpop" style="inset:auto;inset-block-start:400px;inset-inline-start:400px;margin:0;">
+  <button id="inpop-1">in popover 1</button>
+  <button id="inpop-2" autofocus>in popover 2 (autofocus)</button>
+</div>
+<dialog id="fdlg"><button id="indlg-1">in dialog 1</button></dialog>
+
+<div id="report">running…</div>
+
+<script>
+(async () => {
+  const R = [];
+  const rec = (id, claim, measured, control, verdict, note) =>
+    R.push({ id, claim, measured, control, verdict, note: note || '' });
+
+  const px = (v) => Math.round(parseFloat(v) * 100) / 100;
+  const cs = (el, pseudo) => getComputedStyle(el, pseudo || null);
+  const rnd = (n) => Math.round(n * 10) / 10;
+  /* ORACLE FIX. The first run hit-tested boxes that were below the fold and
+     elementFromPoint returned null, which read as "the z-index did not
+     apply" — a checker bug of exactly the class the c11 README names five
+     times. Nothing is hit-tested before it is brought into the viewport. */
+  const bring = (el) => { el.scrollIntoView({ block: 'center' }); return el; };
+  const hit = (x, y) => { const e = document.elementFromPoint(x, y); return e ? (e.id || e.tagName.toLowerCase()) : null; };
+
+  const derived = (el) => {
+    const s = cs(el);
+    return {
+      unitToken: s.getPropertyValue('--unit').trim(),
+      densityName: s.getPropertyValue('--density-name').trim(),
+      paddingTop: px(s.paddingTop),   // calc(--unit * 3) => 7.5 at dense+touch
+      background: s.backgroundColor,
+      color: s.color,
+      sizeCQ: px(s.borderTopWidth),   // 7 iff `fitbox (min-width:500px)` matched
+      styleCQ: px(s.borderLeftWidth), // 5 iff `fitbox style(dense)` matched
+      cqi: s.maxInlineSize,           // 600px iff 100cqi saw fitbox
+    };
+  };
+
+  /* ── P0. Feature support, measured not assumed ──────────────────────── */
+  const sup = {
+    popover: HTMLElement.prototype.hasOwnProperty('popover'),
+    popoverHintReflects: document.getElementById('hintpop').popover,
+    popoverOpenSelector: CSS.supports('selector(:popover-open)'),
+    anchorName: CSS.supports('anchor-name', '--a'),
+    anchorScope: CSS.supports('anchor-scope', '--a'),
+    positionAnchor: CSS.supports('position-anchor', '--a'),
+    positionAnchorAuto: CSS.supports('position-anchor', 'auto'),
+    positionAnchorNormal: CSS.supports('position-anchor', 'normal'),
+    positionAnchorInitialComputed: cs(document.getElementById('m-tl')).positionAnchor,
+    anchorFn: CSS.supports('top', 'anchor(bottom)'),
+    anchorSize: CSS.supports('width', 'anchor-size(width)'),
+    positionArea: CSS.supports('position-area', 'block-end span-inline-start'),
+    positionTryFallbacks: CSS.supports('position-try-fallbacks', 'flip-block'),
+    positionTryOrder: CSS.supports('position-try-order', 'most-height'),
+    positionVisibility: CSS.supports('position-visibility', 'no-overflow'),
+    anchorCenter: CSS.supports('justify-self', 'anchor-center'),
+    maxBlockSizeStretch: CSS.supports('max-block-size', 'stretch'),
+    interestForElement: 'interestForElement' in HTMLButtonElement.prototype,
+    commandForElement: 'commandForElement' in HTMLButtonElement.prototype,
+    interestTargetPseudo: CSS.supports('selector(:interest-target)'),
+    interestSourcePseudo: CSS.supports('selector(:interest-source)'),
+    safeArea: CSS.supports('padding-top', 'env(safe-area-inset-top)'),
+    inert: 'inert' in HTMLElement.prototype,
+    dialogClosedBy: 'closedBy' in HTMLDialogElement.prototype,
+    readingFlow: CSS.supports('reading-flow', 'source-order'),
+    fieldSizing: CSS.supports('field-sizing', 'content'),
+    overlayProperty: CSS.supports('overlay', 'auto'),
+  };
+  rec('P0', 'feature support in this engine', sup, null, 'info', navigator.userAgent);
+
+  /* ── P1. Does the top layer inherit the context axes? ───────────────── */
+  const control = document.getElementById('control');
+  const pop = document.getElementById('pop');
+  const dlg = document.getElementById('dlg');
+  const fixedpop = document.getElementById('fixedpop');
+  const hintpop = document.getElementById('hintpop');
+
+  const mControl = derived(control);
+  const mFixed = derived(fixedpop);
+
+  pop.showPopover();
+  const mPop = derived(pop);
+  pop.hidePopover();
+
+  let mHint = null;
+  try { hintpop.showPopover(); mHint = derived(hintpop); hintpop.hidePopover(); }
+  catch (e) { mHint = { error: String(e) }; }
+
+  dlg.showModal();
+  const mDlg = derived(dlg);
+  const mBackdrop = (() => {
+    const s = cs(dlg, '::backdrop');
+    return {
+      unitToken: s.getPropertyValue('--unit').trim(),
+      densityName: s.getPropertyValue('--density-name').trim(),
+      borderTop: px(s.borderTopWidth),
+      background: s.backgroundColor,
+    };
+  })();
+  dlg.close();
+
+  rec('P1a', 'popover in the top layer inherits --unit and the theme from its DOM ancestor',
+      mPop, mControl,
+      (mPop.paddingTop === mControl.paddingTop && mPop.background === mControl.background) ? 'YES' : 'NO');
+  rec('P1b', 'popover in the top layer still resolves SIZE container queries against fitbox',
+      { sizeCQ: mPop.sizeCQ }, { sizeCQ: mControl.sizeCQ },
+      mPop.sizeCQ === mControl.sizeCQ ? 'YES' : 'NO');
+  rec('P1c', 'popover in the top layer still resolves STYLE container queries against fitbox',
+      { styleCQ: mPop.styleCQ }, { styleCQ: mControl.styleCQ },
+      mPop.styleCQ === mControl.styleCQ ? 'YES' : 'NO');
+  rec('P1d', 'popover in the top layer resolves 100cqi against fitbox, not the viewport',
+      { cqi: mPop.cqi, viewport: innerWidth + 'px', container: '600px' },
+      { cqi: mControl.cqi }, mPop.cqi === mControl.cqi ? 'YES' : 'NO');
+  rec('P1e', 'modal dialog in the top layer inherits --unit and the theme',
+      mDlg, mControl,
+      (mDlg.paddingTop === mControl.paddingTop && mDlg.background === mControl.background) ? 'YES' : 'NO');
+  rec('P1f', 'modal dialog in the top layer resolves container queries against fitbox',
+      { sizeCQ: mDlg.sizeCQ, styleCQ: mDlg.styleCQ, cqi: mDlg.cqi },
+      { sizeCQ: mControl.sizeCQ, styleCQ: mControl.styleCQ, cqi: mControl.cqi },
+      (mDlg.sizeCQ === mControl.sizeCQ && mDlg.styleCQ === mControl.styleCQ && mDlg.cqi === mControl.cqi) ? 'YES' : 'NO');
+  rec('P1g', '::backdrop inherits the context axes from its originating element',
+      mBackdrop, { originatorUnitToken: mControl.unitToken, originatorPaddingTop: mControl.paddingTop },
+      mBackdrop.unitToken === mControl.unitToken ? 'YES' : 'NO',
+      'border-top reads 7 rather than 7.5 because a used border width is floored to a whole device pixel; the inherited token is the evidence');
+  rec('P1h', 'popover="hint" derives identically to popover="auto"',
+      mHint, mControl,
+      mHint && mHint.paddingTop === mControl.paddingTop ? 'YES' : 'NO');
+  rec('P1i', 'position:fixed WITHOUT top-layer promotion — the paired control',
+      mFixed, mControl,
+      (mFixed.paddingTop === mControl.paddingTop && mFixed.cqi === mControl.cqi) ? 'YES' : 'NO',
+      'proves P1b/P1d are about promotion, not merely about being out of flow');
+
+  /* ── P17. container-type on a boxless host ──────────────────────────── */
+  const cqBoxless = px(cs(document.querySelector('#cqBoxless .cqTarget')).borderBottomWidth);
+  const cqBoxed = px(cs(document.querySelector('#cqBoxed .cqTarget')).borderBottomWidth);
+  rec('P17a', 'container-type on a display:contents host establishes a query container',
+      { borderBottom: cqBoxless, hostDisplay: cs(document.querySelector('#cqBoxless app-host')).display,
+        computedContainerType: cs(document.querySelector('#cqBoxless app-host')).containerType },
+      { boxedWrapperBorderBottom: cqBoxed },
+      cqBoxless === 9 ? 'YES' : 'NO',
+      'the boxed wrapper is the paired control that proves the query itself works');
+
+  /* ── P2. Derived placement, invoked by a real click ─────────────────── */
+  const items = ['Reply', 'Reply all', 'Forward', 'Archive', 'Move to…', 'Delete'];
+  const many = Array.from({ length: 22 }, (_, i) => 'Action ' + (i + 1));
+  for (const m of document.querySelectorAll('[data-anchored],[data-anchored-normal]')) {
+    if (!m.id.startsWith('m-') || m.id === 'm-txplain') continue;
+    const src = m.id === 'm-long' ? many : items;
+    m.innerHTML = src.map((l) => `<button role="menuitem" type="button">${l}</button>`).join('');
+  }
+
+  const side = (t, p) => {
+    const b = p.bottom <= t.top + 1.5 ? 'block-start'
+            : p.top >= t.bottom - 1.5 ? 'block-end' : 'overlapping';
+    const i = Math.abs(p.right - t.right) < 2 ? 'span-inline-start'
+            : Math.abs(p.left - t.left) < 2 ? 'span-inline-end'
+            : 'unaligned(' + rnd(p.left - t.left) + ',' + rnd(p.right - t.right) + ')';
+    return b + ' / ' + i;
+  };
+  const inViewport = (r) =>
+    r.top >= -0.5 && r.left >= -0.5 && r.bottom <= innerHeight + 0.5 && r.right <= innerWidth + 0.5;
+
+  const placements = {};
+  const measurePlacement = (key) => {
+    const trigger = document.getElementById('t-' + key);
+    const menu = document.getElementById('m-' + key);
+    if (!trigger || !menu) return;
+    trigger.click();                       // the invoker path: implicit anchor
+    const t = trigger.getBoundingClientRect();
+    const p = menu.getBoundingClientRect();
+    placements[key] = {
+      open: menu.matches(':popover-open'),
+      trigger: { x: rnd(t.x), y: rnd(t.y), w: rnd(t.width), h: rnd(t.height) },
+      menu: { x: rnd(p.x), y: rnd(p.y), w: rnd(p.width), h: rnd(p.height) },
+      resolvedSide: side(t, p),
+      insideViewport: inViewport(p),
+      gapToTrigger: rnd(Math.min(Math.abs(p.top - t.bottom), Math.abs(t.top - p.bottom))),
+      scrollable: menu.scrollHeight > menu.clientHeight + 1,
+    };
+    if (menu.matches(':popover-open')) menu.hidePopover();
+  };
+  for (const key of ['tl', 'tr', 'bl', 'br', 'c', 'o1', 'o2', 'long']) measurePlacement(key);
+
+  const core = ['tl', 'tr', 'bl', 'br', 'c'];
+  const allIn = core.every((k) => placements[k].insideViewport);
+  const allAligned = core.every((k) => placements[k].resolvedSide.includes('span-inline'));
+  const allGapUnit = core.every((k) => placements[k].gapToTrigger === 4);
+
+  rec('P2a', 'a popover with NO anchor-name and NO position-anchor is anchored to the invoker that opened it (implicit anchor)',
+      { sides: Object.fromEntries(core.map((k) => [k, placements[k].resolvedSide])),
+        gaps: Object.fromEntries(core.map((k) => [k, placements[k].gapToTrigger])),
+        computedPositionAnchor: sup.positionAnchorInitialComputed },
+      { authoredPlacementRules: 1, authoredSides: 0, authoredAnchorNames: 0, authoredIds: 0 },
+      allAligned ? 'YES' : 'NO');
+  rec('P2b', 'placement side is DERIVED per instance: four corners + centre all stay inside the viewport from one rule',
+      { allInsideViewport: allIn, placements },
+      { viewport: innerWidth + 'x' + innerHeight },
+      allIn ? 'YES' : 'NO');
+  rec('P2c', 'position-try-order: most-height picks a DIFFERENT side than normal at the same offset (discriminating fixture)',
+      { mostHeight: placements.o1.resolvedSide, mostHeightRect: placements.o1.menu,
+        normal: placements.o2.resolvedSide, normalRect: placements.o2.menu },
+      { bothTriggersAtBlockOffset: '55%', menuBlockSize: placements.o1.menu.h,
+        spaceBelow: rnd(innerHeight - placements.o1.trigger.y - placements.o1.trigger.h),
+        spaceAbove: rnd(placements.o1.trigger.y) },
+      placements.o1.resolvedSide !== placements.o2.resolvedSide ? 'YES' : 'NO',
+      'equal sides would mean the keyword is inert here and the claim is unproven');
+  rec('P2d', 'the trigger-to-menu gap is one --unit on every instance and survives a block flip',
+      { gaps: Object.fromEntries(core.map((k) => [k, placements[k].gapToTrigger])) },
+      { expected: 4 }, allGapUnit ? 'YES' : 'NO',
+      'flip-block flips the margin with the axis, so no side-specific offset is authored');
+  rec('P2e', 'a menu longer than the available space is bounded by max-block-size: stretch and scrolls instead of overflowing',
+      { rect: placements.long.menu, insideViewport: placements.long.insideViewport,
+        scrollable: placements.long.scrollable, items: many.length },
+      { supported: sup.maxBlockSizeStretch },
+      (placements.long.insideViewport && placements.long.scrollable) ? 'YES' : 'NO');
+
+  /* ── P11. One anchor name, many instances ───────────────────────────── */
+  /* ORACLE FIX 2, and the most instructive one in this probe. The first
+     version inferred attribution from a WIDE menu with fallbacks enabled: a
+     90px panel hanging off a 26px trigger cannot fit the start-side area, so
+     the engine applied flip-inline and the check — which only recognised
+     end-alignment — reported `not-anchored`. Widening it to accept both
+     alignments then produced a second, worse failure: with three triggers
+     29px apart and a 4px gap, "own trigger below" and "a different trigger
+     above" are the same coordinate within tolerance, so the check reported
+     two attributions at once and picked the first. Both readings were noise.
+     The fixture is now built so attribution is a single coordinate: a 20x20
+     menu, one alignment, no fallbacks, triggers 40px apart. */
+  const triggers = [...document.querySelectorAll('.trg')];
+  const attribute = (m) => {
+    const mr = m.getBoundingClientRect();
+    const found = triggers.filter((t) => {
+      const tr = t.getBoundingClientRect();
+      return Math.abs(mr.top - tr.bottom) < 1.5 && Math.abs(mr.left - tr.left) < 1.5;
+    }).map((t) => t.id);
+    return found.length ? found.join('|') : 'not-anchored';
+  };
+  const group = (containerId, ids) => {
+    bring(document.getElementById(containerId));
+    const menus = ids.map(([, mid]) => document.getElementById(mid));
+    for (const m of menus) m.showPopover();     /* all open at once: manual
+                                                   popovers do not evict each
+                                                   other, so one layout holds
+                                                   every reading */
+    const out = ids.map(([tid, mid], n) => {
+      const resolvedAnchor = attribute(menus[n]);
+      return { menu: mid, ownTrigger: tid, menuPrecedesTrigger: n === 2,
+               resolvedAnchor, attachedToOwnTrigger: resolvedAnchor === tid };
+    });
+    for (const m of menus) m.hidePopover();
+    return out;
+  };
+  const unscoped = group('p11-none', [['g1t', 'g1m'], ['g2t', 'g2m'], ['g3t', 'g3m']]);
+  const boxlessScope = group('p11-boxless', [['h1t', 'h1m'], ['h2t', 'h2m'], ['h3t', 'h3m']]);
+  const boxedScope = group('p11-boxed', [['k1t', 'k1m'], ['k2t', 'k2m'], ['k3t', 'k3m']]);
+
+  rec('P11a', 'ONE anchor-name shared by every trigger, with no anchor-scope, attaches each menu to its own trigger',
+      unscoped, { anchorNamesAuthored: 1, instances: 3, lastTriggerInDocument: triggers.at(-1).id },
+      unscoped.every((p) => p.attachedToOwnTrigger) ? 'YES' : 'NO',
+      'read resolvedAnchor: a single repeated id means every menu collapsed onto the LAST anchor of that name in the document');
+  rec('P11b', 'anchor-scope on a display:contents host repairs it — one authored name, correct per instance',
+      boxlessScope,
+      { hostDisplay: cs(document.querySelector('#p11-boxless app-overflow-menu')).display,
+        computedAnchorScope: cs(document.querySelector('#p11-boxless app-overflow-menu')).anchorScope,
+        unscopedResultForComparison: unscoped.map((p) => p.resolvedAnchor) },
+      boxlessScope.every((p) => p.attachedToOwnTrigger) ? 'YES' : 'NO',
+      'the boxless host is what this framework actually has; z-index, isolation and container-type all die on it');
+  rec('P11c', 'anchor-scope on a BOXED wrapper does the same (paired control isolating "needs a box")',
+      boxedScope, { wrapperDisplay: cs(document.querySelector('#p11-boxed .scoper')).display },
+      boxedScope.every((p) => p.attachedToOwnTrigger) ? 'YES' : 'NO');
+  rec('P11d', 'scoped resolution is independent of tree order: the third instance of each group puts the MENU BEFORE its trigger',
+      { unscoped: unscoped[2], boxlessScope: boxlessScope[2], boxedScope: boxedScope[2] },
+      { firstTwoInstancesHaveTriggerFirst: true },
+      (boxlessScope[2].attachedToOwnTrigger && boxedScope[2].attachedToOwnTrigger) ? 'YES' : 'NO');
+
+  /* ── P3. Stacking through a boxless host ────────────────────────────── */
+  const hitIn = (stackId) => {
+    const stack = bring(document.getElementById(stackId));
+    const r = stack.querySelector('.abs').getBoundingClientRect();
+    return hit(r.x + 30, r.y + 12);
+  };
+  const s1 = hitIn('stack1'), s2 = hitIn('stack2'), s3 = hitIn('stack3');
+
+  rec('P3a', 'z-index on a display:contents host lifts its child',
+      { paintedOnTop: s1, expectedIfHostZIndexApplied: 'boxB' },
+      { boxedHostStack: s2, expectedThere: 'boxD' },
+      s1 === 'boxB' ? 'YES' : 'NO',
+      'boxA is later in DOM, so it wins unless the host z-index applies');
+  rec('P3b', 'the SAME z-index on a boxed host does lift its child (paired control)',
+      { paintedOnTop: s2 }, { boxlessHostStack: s1 },
+      s2 === 'boxD' ? 'YES' : 'NO', 'proves P3a measures z-index, not a null hit test');
+  rec('P3c', 'z-index on the CHILD works through a boxless host',
+      { paintedOnTop: s3 }, { boxlessHostWithHostZIndex: s1 },
+      s3 === 'boxF' ? 'YES' : 'NO');
+  rec('P3d', 'isolation:isolate on a display:contents host creates a stacking context',
+      { computedIsolation: cs(document.getElementById('hostZ')).isolation,
+        computedDisplay: cs(document.getElementById('hostZ')).display,
+        observedEffect: s1 === 'boxB' ? 'applied' : 'none' },
+      { note: 'the computed value survives; the box that would apply it never exists' },
+      s1 === 'boxB' ? 'YES' : 'NO');
+
+  /* ── P13. position-visibility, three values ─────────────────────────── */
+  /* ORACLE FIX 3. The first version read visibility in the same synchronous
+     turn as the scroll. Anchor-position visibility is resolved in a post-
+     layout step, so every reading was the PRE-scroll answer and all three
+     values looked identical — a checker that could not fail. Two frames are
+     awaited between the scroll and the reading, and `resolvedSide` is
+     recorded so a menu that was never anchored cannot masquerade as one that
+     refused to hide. */
+  /* A hidden/background tab may never fire requestAnimationFrame, which is
+     how the first async version hung forever with an empty report. The race
+     guarantees progress; when the deadline wins, `after` may be a stale
+     reading, which is why every P13 verdict is paired with `always`. */
+  const frame = () => new Promise((resolve) => {
+    let settled = false;
+    const done = () => { if (!settled) { settled = true; resolve(); } };
+    requestAnimationFrame(() => requestAnimationFrame(done));
+    setTimeout(done, 120);
+  });
+  const svCase = async (menuId, scrollerId, triggerId) => {
+    const m = document.getElementById(menuId);
+    const sc = bring(document.getElementById(scrollerId));
+    const t = document.getElementById(triggerId);
+    m.showPopover();
+    await frame();
+    const vis = () => {
+      const r = m.getBoundingClientRect();
+      const at = hit(r.x + r.width / 2, r.y + r.height / 2);
+      return {
+        checkVisibility: m.checkVisibility({ visibilityProperty: true, opacityProperty: true }),
+        computedVisibility: cs(m).visibility,
+        hitTestAtOwnCentre: at,
+        /* ORACLE FIX 4. `hitTestAtOwnCentre === null` was the wrong test: a
+           strongly-hidden menu keeps its box, so the point still hits
+           WHATEVER IS BEHIND IT and the reading came back as some `div`,
+           never null. The claim is "is this menu painted at its own centre",
+           so the check has to name the menu — the box its claim is about. */
+        paintsAtOwnCentre: at === menuId,
+        resolvedSide: side(t.getBoundingClientRect(), r),
+      };
+    };
+    const before = vis();
+    sc.scrollTop = 260;
+    await frame();
+    const after = vis();
+    after.anchorClipped = t.getBoundingClientRect().bottom < sc.getBoundingClientRect().top;
+    m.hidePopover();
+    sc.scrollTop = 0;
+    await frame();
+    return { before, after };
+  };
+  const svA = await svCase('sv-a', 'scr-a', 'sv-ta');
+  const svV = await svCase('sv-v', 'scr-v', 'sv-tv');
+  const svO = await svCase('sv-o', 'scr-o', 'sv-to');
+  const hidden = (v) => !v.paintsAtOwnCentre || !v.checkVisibility;
+
+  rec('P13a', 'position-visibility: anchors-visible hides the menu when its anchor is clipped out of a scroller',
+      svV.after, svV.before,
+      (!hidden(svV.before) && hidden(svV.after)) ? 'YES' : 'NO',
+      'two paired controls: the same element before the scroll, and the `always` fixture below which must NOT hide');
+  rec('P13b', 'position-visibility: always keeps the menu painted in the same situation (paired control)',
+      svA.after, svA.before,
+      (!hidden(svA.before) && !hidden(svA.after)) ? 'YES' : 'NO',
+      'if this also hid, P13a is measuring the scroll and not the property');
+  rec('P13c', 'position-visibility: no-overflow tracks the MENU overflowing, so it does NOT hide on anchor clipping alone',
+      svO.after, svO.before,
+      (!hidden(svO.before) && !hidden(svO.after)) ? 'YES' : 'NO',
+      'the two values are not interchangeable: hiding-when-the-anchor-leaves is anchors-visible, and it is also the initial value');
+
+  /* ── P14. Declarative invokers ──────────────────────────────────────── */
+  const cmdBtn = bring(document.getElementById('cmdBtn'));
+  const cmdPop = document.getElementById('cmdPop');
+  cmdBtn.click();
+  const cmdOpened = cmdPop.matches(':popover-open');
+  const cmdAnchored = cmdOpened ? side(cmdBtn.getBoundingClientRect(), cmdPop.getBoundingClientRect()) : null;
+  if (cmdOpened) { cmdBtn.click(); }
+  const cmdToggledOff = !cmdPop.matches(':popover-open');
+  rec('P14a', 'command="toggle-popover" + commandfor opens, anchors and toggles a popover with no JavaScript',
+      { opened: cmdOpened, resolvedSide: cmdAnchored, toggledOff: cmdToggledOff,
+        commandForElement: document.getElementById('cmdBtn').commandForElement?.id ?? null },
+      { supported: sup.commandForElement },
+      (cmdOpened && cmdToggledOff && cmdAnchored && cmdAnchored.includes('span-inline')) ? 'YES' : 'NO');
+  rec('P14b', 'interestfor is wired to a hint popover (API surface; the hover dwell itself is not synthesisable here)',
+      { interestForElement: document.getElementById('interestBtn').interestForElement?.id ?? null,
+        targetPopover: document.getElementById('hintPop').popover,
+        interestTargetPseudo: sup.interestTargetPseudo,
+        interestSourcePseudo: sup.interestSourcePseudo },
+      { supported: sup.interestForElement }, sup.interestForElement ? 'YES' : 'NO',
+      'UNVERIFIED: the show-on-dwell behaviour needs a real pointer dwell, which this probe cannot synthesise');
+
+  /* ── P15. Nesting and light dismiss ─────────────────────────────────── */
+  const pAB = bring(document.getElementById('pA'));
+  const popParent = document.getElementById('popParent');
+  const popChild = document.getElementById('popChild');
+  const popUnrelated = document.getElementById('popUnrelated');
+  pAB.click();
+  const parentOpen1 = popParent.matches(':popover-open');
+  document.getElementById('pB').click();
+  const nesting = { parentStillOpen: popParent.matches(':popover-open'),
+                    childOpen: popChild.matches(':popover-open') };
+  popUnrelated.showPopover();
+  const afterUnrelated = { parentOpen: popParent.matches(':popover-open'),
+                           childOpen: popChild.matches(':popover-open'),
+                           unrelatedOpen: popUnrelated.matches(':popover-open') };
+  for (const p of [popUnrelated, popChild, popParent]) if (p.matches(':popover-open')) p.hidePopover();
+  rec('P15a', 'a DOM-nested popover=auto opens WITHOUT closing its ancestor popover',
+      nesting, { parentOpenBeforeChild: parentOpen1 },
+      (nesting.parentStillOpen && nesting.childOpen) ? 'YES' : 'NO',
+      'this is what makes a submenu inside an overflow menu possible with no JS');
+  rec('P15b', 'an UNRELATED popover=auto closes the open stack (paired control for P15a)',
+      afterUnrelated, { nestedCaseKeptParentOpen: nesting.parentStillOpen },
+      (!afterUnrelated.parentOpen && !afterUnrelated.childOpen) ? 'YES' : 'NO',
+      'if this did not close them, P15a is measuring nothing');
+
+  /* ── P4. Transform vs fixed vs top layer vs anchor ──────────────────── */
+  measurePlacement('tx');
+  const fixedRect = document.getElementById('fixedChild').getBoundingClientRect();
+  const txPlain = document.getElementById('m-txplain');
+  txPlain.showPopover();
+  const txPlainRect = txPlain.getBoundingClientRect();
+  txPlain.hidePopover();
+
+  rec('P4a', 'position:fixed inside a transform:translateX(120px) ancestor stays viewport-relative',
+      { fixedChildX: rnd(fixedRect.x), declaredInsetInlineStart: 0 },
+      { ancestorTransform: 'translateX(120px)', ancestorInsetInlineStart: 40,
+        xIfViewportRelative: 0, xIfAncestorIsContainingBlock: 160 },
+      rnd(fixedRect.x) === 0 ? 'YES' : 'NO',
+      'x==160 (ancestor origin 40 + transform 120) means the transformed ancestor became the containing block, which is the well-known quirk');
+  rec('P4b', 'a popover promoted to the top layer ESCAPES a transformed ancestor',
+      { popoverCentreX: rnd(txPlainRect.x + txPlainRect.width / 2), viewportCentreX: rnd(innerWidth / 2) },
+      { fixedNonPromotedX: rnd(fixedRect.x) },
+      Math.abs((txPlainRect.x + txPlainRect.width / 2) - innerWidth / 2) < 2 ? 'YES' : 'NO');
+  rec('P4c', 'anchor positioning resolves against the VISUAL position of an anchor inside a transformed ancestor',
+      placements.tx, { ancestorTransform: 'translateX(120px)', untransformedTriggerX: 40 },
+      (placements.tx.resolvedSide.includes('span-inline') && placements.tx.insideViewport) ? 'YES' : 'NO');
+
+  /* ── P8. Top layer vs z-index, and order within the top layer ───────── */
+  const zpop = document.getElementById('zpop');
+  window.scrollTo(0, 0);
+  zpop.showPopover();
+  const zHit = hit(240, 240);
+  const zpopZ = cs(zpop).zIndex;
+  zpop.hidePopover();
+  rec('P8a', 'the top layer paints above z-index: 2147483647 with no z-index of its own',
+      { hitTest: zHit, popoverZIndex: zpopZ }, { competitorZIndex: 2147483647 },
+      zHit === 'zpop' ? 'YES' : 'NO');
+
+  const orderA = document.getElementById('orderA'), orderB = document.getElementById('orderB');
+  orderA.showPopover(); orderB.showPopover();
+  const orderHit = hit(540, 420);
+  orderB.hidePopover(); orderA.hidePopover();
+  rec('P8b', 'within the top layer, invocation order beats z-index (later-shown paints above)',
+      { hitTest: orderHit, laterShown: 'orderB', laterZIndex: cs(orderB).zIndex },
+      { earlierShown: 'orderA', earlierZIndex: cs(orderA).zIndex },
+      orderHit === 'orderB' ? 'YES' : 'NO',
+      'orderA declares z-index 999 and orderB declares 1; if orderB wins, z-index is inert across top-layer siblings');
+
+  /* ── P9. Focus containment ──────────────────────────────────────────── */
+  const outside = bring(document.getElementById('outside'));
+  const fpop = document.getElementById('fpop');
+  const fdlg = document.getElementById('fdlg');
+
+  outside.focus();
+  fpop.showPopover();
+  const afterPopoverOpen = document.activeElement ? document.activeElement.id : null;
+  outside.focus();
+  const popoverLetFocusOut = document.activeElement === outside;
+  const outsideHitWithPopover = (() => { const r = outside.getBoundingClientRect(); return hit(r.x + 4, r.y + 4); })();
+  fpop.hidePopover();
+
+  outside.focus();
+  fdlg.showModal();
+  const afterDialogOpen = document.activeElement ? document.activeElement.id : null;
+  outside.focus();
+  const dialogLetFocusOut = document.activeElement === outside;
+  const outsideHitWithDialog = (() => { const r = outside.getBoundingClientRect(); return hit(r.x + 4, r.y + 4); })();
+  fdlg.close();
+
+  rec('P9a', 'popover=auto focuses a declared autofocus element on open',
+      { activeElementAfterShow: afterPopoverOpen }, { expected: 'inpop-2' },
+      afterPopoverOpen === 'inpop-2' ? 'YES' : 'NO');
+  rec('P9b', 'popover=auto contains focus (blocks focus and pointer outside itself)',
+      { outsideFocusSucceeded: popoverLetFocusOut, outsideHitTest: outsideHitWithPopover },
+      { modalDialogEquivalentFocus: dialogLetFocusOut, modalDialogHitTest: outsideHitWithDialog },
+      popoverLetFocusOut ? 'NO' : 'YES',
+      'NO means the engine must supply focus containment for a menu; the browser will not');
+  rec('P9c', 'dialog.showModal() contains focus AND inerts the rest of the document',
+      { activeElementAfterShowModal: afterDialogOpen, outsideFocusSucceeded: dialogLetFocusOut,
+        outsideHitTest: outsideHitWithDialog },
+      { popoverEquivalent: popoverLetFocusOut },
+      (!dialogLetFocusOut && outsideHitWithDialog !== 'outside') ? 'YES' : 'NO');
+
+  /* ── P10. env(safe-area-inset-*) ────────────────────────────────────── */
+  const probe = document.createElement('div');
+  probe.style.paddingTop = 'env(safe-area-inset-top, 99px)';
+  probe.style.paddingBottom = 'env(safe-area-inset-bottom, 99px)';
+  document.body.append(probe);
+  rec('P10a', 'env(safe-area-inset-*) is a value the resolution table can consume',
+      { top: cs(probe).paddingTop, bottom: cs(probe).paddingBottom, supported: sup.safeArea },
+      { fallbackIfUnsupported: '99px' }, sup.safeArea ? 'YES' : 'NO',
+      '0px on a desktop engine is correct and says nothing about a notched device');
+  probe.remove();
+
+  /* ── P18. The proposed table, measured as specified ─────────────────── */
+  const p18 = bring(document.getElementById('p18'));
+  const menuTrigger = document.getElementById('p18-menu-trigger');
+  const menuPanel = document.getElementById('p18-menu');
+  const hintTrigger = document.getElementById('p18-hint-trigger');
+  const hintPanel = document.getElementById('p18-hint');
+  const p18Dialog = document.getElementById('p18-dialog');
+
+  /* Open the menu the only way a user can: activate the invoker. */
+  menuTrigger.focus();
+  menuTrigger.click();
+  const menuOpen = {
+    open: menuPanel.matches(':popover-open'),
+    side: side(menuTrigger.getBoundingClientRect(), menuPanel.getBoundingClientRect()),
+    gap: rnd(menuPanel.getBoundingClientRect().top - menuTrigger.getBoundingClientRect().bottom),
+    /* min-inline-size: anchor-size(self-inline) — the panel must be at least
+       as wide as the control that revealed it, with no length authored. */
+    panelInline: rnd(menuPanel.getBoundingClientRect().width),
+    triggerInline: rnd(menuTrigger.getBoundingClientRect().width),
+    resolvedMinInline: cs(menuPanel).minInlineSize,
+    activeElement: document.activeElement ? (document.activeElement.textContent || '').trim() : null,
+    /* the proposal's claim that the panel escapes the fit container's
+       geometry: it must not be inside the container's scroll extent */
+    containerScrollWidth: p18.scrollWidth,
+    containerClientWidth: p18.clientWidth,
+    insideViewport: inViewport(menuPanel.getBoundingClientRect()),
+  };
+  /* The panel must NOT collide with the hint trigger, which is the second
+     [data-overflow] in the same overlay scope — the exact configuration that
+     a shared anchor-name collapses (P11a). */
+  menuOpen.attachedToHintTriggerInstead =
+    Math.abs(menuPanel.getBoundingClientRect().top - hintTrigger.getBoundingClientRect().bottom) < 2;
+  menuPanel.hidePopover();
+
+  rec('P18a', 'the proposed table places an invoker-opened menu with no anchor-name, no anchor-scope and no authored side',
+      menuOpen,
+      { authoredLengths: 0, authoredSides: 0, authoredAnchorNames: 0,
+        secondDataOverflowInSameScope: 'p18-hint-trigger',
+        expectedGap: 4, expectedMinInline: menuOpen.triggerInline },
+      (menuOpen.open && menuOpen.side.includes('span-inline') && menuOpen.gap === 4 &&
+       !menuOpen.attachedToHintTriggerInstead &&
+       menuOpen.panelInline >= menuOpen.triggerInline - 0.5) ? 'YES' : 'NO',
+      'attachedToHintTriggerInstead is the P11a failure mode; it must be false');
+  rec('P18b', 'declarative autofocus puts focus on the first menu item, with no flush() and no focus() call',
+      { activeElement: menuOpen.activeElement }, { expected: 'Reply' },
+      menuOpen.activeElement === 'Reply' ? 'YES' : 'NO');
+
+  /* The hint: a different overlay kind, same scope, opened by interest. The
+     dwell itself is driven from outside; here the CSS resolution is checked. */
+  hintPanel.showPopover();
+  const hintResolved = {
+    positionArea: cs(hintPanel).positionArea,
+    justifySelf: cs(hintPanel).justifySelf,
+    positionVisibility: cs(hintPanel).positionVisibility,
+    padding: cs(hintPanel).paddingTop,
+    popover: hintPanel.popover,
+  };
+  hintPanel.hidePopover();
+  rec('P18c', 'the hint kind resolves its own relationship from the same table',
+      hintResolved,
+      { menuPositionArea: 'end span-start', expectedPadding: '4px' },
+      (hintResolved.popover === 'hint' && hintResolved.positionArea.includes('start') &&
+       hintResolved.padding === '4px') ? 'YES' : 'NO');
+
+  /* The dialog: centred, not tethered, and bounded without a breakpoint. */
+  p18Dialog.showModal();
+  const dialogResolved = {
+    maxInlineSize: cs(p18Dialog).maxInlineSize,
+    centred: Math.abs((p18Dialog.getBoundingClientRect().x +
+                       p18Dialog.getBoundingClientRect().width / 2) - innerWidth / 2) < 2,
+    backdropBackground: cs(p18Dialog, '::backdrop').backgroundColor,
+    unitInherited: cs(p18Dialog).getPropertyValue('--unit').trim(),
+    focusContained: (() => { const o = document.getElementById('outside');
+      o.focus(); return document.activeElement !== o; })(),
+  };
+  p18Dialog.close();
+  rec('P18d', 'the dialog kind is centred, bounded by a unit-and-viewport expression rather than a breakpoint, and contains focus',
+      dialogResolved,
+      { expectedMaxInline: 'min(480px, 100dvi - 32px) => ' + Math.min(480, innerWidth - 32) + 'px' },
+      (dialogResolved.centred && dialogResolved.focusContained &&
+       parseFloat(dialogResolved.maxInlineSize) === Math.min(480, innerWidth - 32)) ? 'YES' : 'NO');
+
+  /* Touch: the same menu, same source, becomes a bottom sheet. */
+  p18.setAttribute('data-input', 'touch');
+  menuTrigger.click();
+  const sheet = (() => {
+    const r = menuPanel.getBoundingClientRect();
+    return { positionArea: cs(menuPanel).positionArea,
+             rect: { x: rnd(r.x), y: rnd(r.y), w: rnd(r.width), h: rnd(r.height) },
+             flushToBlockEnd: Math.abs(r.bottom - innerHeight) < 1,
+             fullInline: Math.abs(r.width - innerWidth) < 1,
+             unit: cs(menuPanel).paddingTop,
+             paddingBlockEnd: cs(menuPanel).paddingBottom };
+  })();
+  if (menuPanel.matches(':popover-open')) menuPanel.hidePopover();
+  p18.setAttribute('data-input', 'pointer');
+  menuTrigger.click();
+  const backToTethered = { side: side(menuTrigger.getBoundingClientRect(), menuPanel.getBoundingClientRect()),
+                           positionArea: cs(menuPanel).positionArea };
+  if (menuPanel.matches(':popover-open')) menuPanel.hidePopover();
+
+  rec('P18e', 'flipping ONE context attribute turns the same menu into a bottom sheet, and back, with no source change',
+      sheet, backToTethered,
+      (sheet.flushToBlockEnd && sheet.fullInline &&
+       backToTethered.side.includes('span-inline')) ? 'YES' : 'NO',
+      'the paired control is the same element after the axis is restored: it must return to tethered placement');
+
+  window.__probe = { userAgent: navigator.userAgent,
+                     viewport: { w: innerWidth, h: innerHeight },
+                     dpr: devicePixelRatio, results: R };
+
+  document.getElementById('report').textContent = R.map((r) =>
+    `${r.id} [${r.verdict}] ${r.claim}\n   measured: ${JSON.stringify(r.measured)}\n   control:  ${JSON.stringify(r.control)}${r.note ? '\n   note:     ' + r.note : ''}`
+  ).join('\n\n');
+})();
+</script>
+</body>
+</html>

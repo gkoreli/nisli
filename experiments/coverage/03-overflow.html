@@ -1,0 +1,990 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>03 — overflow, scrolling, containment: measured probe</title>
+    <style>
+      /* ══════════════════════════════════════════════════════════════════════
+         A FAITHFUL SLICE OF THE c11 RESOLUTION TABLE.
+         Copied, not imported, so this probe is plain HTML+CSS with no build.
+         Values from experiments/c11-appearance/src/theme/tokens.css and
+         roles.css (comfortable / pointer / light).
+         ══════════════════════════════════════════════════════════════════════ */
+      :root {
+        --unit-base: 4px;
+        --unit-scale: 1;
+        --text-base: 14px;
+        --text-meta-base: 12px;
+        --text-scale: 1;
+        --min-text: 11px;
+        --s1: #ffffff;
+        --s2: #f6f6f7;
+        --fg: #111114;
+        --fg-muted: #5f5f68;
+        --line: #dededf;
+        color-scheme: light;
+      }
+      * {
+        --unit: calc(var(--unit-base) * var(--unit-scale));
+        --text: calc(var(--text-base) * var(--text-scale));
+        --text-meta: calc(var(--text-meta-base) * var(--text-scale));
+        --radius: calc(var(--unit) * 2);
+      }
+      body {
+        margin: 0;
+        padding: calc(var(--unit) * 4);
+        font: var(--text) / 1.45 system-ui, sans-serif;
+        background: var(--s2);
+        color: var(--fg);
+      }
+      h1 { font-size: calc(var(--unit) * 5); margin: 0 0 calc(var(--unit) * 2); }
+      h2 { font-size: calc(var(--unit) * 4); margin: calc(var(--unit) * 6) 0 calc(var(--unit) * 2); }
+      h3 { font-size: var(--text); margin: calc(var(--unit) * 4) 0 calc(var(--unit)); }
+      p { margin: 0 0 calc(var(--unit) * 2); color: var(--fg-muted); max-inline-size: 70ch; }
+
+      /* surface + flush surface, verbatim intent from roles.css:245-251 */
+      [data-appearance='surface'] {
+        background: var(--s1);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: calc(var(--unit) * 4);
+      }
+      [data-appearance='surface'][data-flush] {
+        padding: 0;
+        overflow: hidden; /* THE DEFECT UNDER TEST */
+      }
+
+      /* table role, verbatim from roles.css:257-282 */
+      [data-appearance='table'] {
+        inline-size: 100%;
+        border-collapse: collapse;
+        font-size: var(--text);
+        color: var(--fg);
+      }
+      [data-appearance='table'] :is(th, td) {
+        padding: calc(var(--unit) * 2) calc(var(--unit) * 3);
+        text-align: start;
+        border-block-end: 1px solid var(--line);
+        white-space: nowrap; /* a column that rewraps stops being a column */
+      }
+      [data-appearance='table'] th {
+        font-size: max(var(--text-meta), var(--min-text));
+        color: var(--fg-muted);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      /* structure.css:154 — the authored scroll region as it stands today */
+      [data-scroll-region] { overflow-x: auto; }
+
+      /* PROPOSED — what the engine WRITES when it derives a scroll region.
+         `min-inline-size: 0` so the promotion survives a flex/grid parent;
+         `scrollbar-gutter: stable` so a scrollbar cannot change the inline
+         space the fit solver measured (probe B). */
+      [data-scrolls] {
+        overflow-x: auto;
+        min-inline-size: 0;
+        scrollbar-gutter: stable;
+      }
+      /* PROPOSED — the honest spelling of "this box may trim decoration":
+         `clip`, never `hidden`, because `hidden` is programmatically scrollable
+         and a focused descendant silently scrolls it (probe D3). */
+      [data-trims] {
+        overflow: clip;
+        overflow-clip-margin: calc(var(--unit) / 2);
+      }
+
+      /* the c11 no-crush block, structure.css:189-200 */
+      [data-layout] * { flex: none; }
+      [data-grow] { flex: 1 1 auto; }
+
+      .frame { inline-size: 360px; }
+      .row {
+        display: flex;
+        gap: calc(var(--unit) * 2);
+        align-items: center;
+        inline-size: 360px;
+        box-sizing: border-box;
+        background: var(--s1);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: calc(var(--unit) * 2);
+      }
+      button {
+        font: inherit;
+        padding: calc(var(--unit)) calc(var(--unit) * 2);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--s1);
+        white-space: nowrap;
+      }
+      [data-collapsed] { display: none; }
+
+      /* probe B — a panel with FORCED CLASSIC scrollbars. Styling
+         ::-webkit-scrollbar is the only way to opt out of macOS overlay
+         scrollbars, which measure 0px and would make this probe vacuous. */
+      .panel {
+        block-size: 120px;
+        overflow-y: auto;
+        inline-size: 360px;
+        box-sizing: border-box;
+        background: var(--s1);
+        border: 1px solid var(--line);
+      }
+      .panel.classic::-webkit-scrollbar { width: 15px; height: 15px; }
+      .panel.classic::-webkit-scrollbar-thumb { background: #b0b0b8; }
+      .panel.classic::-webkit-scrollbar-track { background: #ececee; }
+      .panel[data-gutter] { scrollbar-gutter: stable; }
+
+      /* probe C — containment */
+      .cv { content-visibility: auto; contain-intrinsic-size: 200px 40px; }
+      .cvh { content-visibility: hidden; }
+      .cpaint { contain: paint; }
+      .ccontent { contain: content; }
+      .csize { contain: size; block-size: 40px; inline-size: 200px; }
+      .cinline { contain: inline-size; }
+      .clipbox { overflow: clip; overflow-clip-margin: 4px; }
+      .hidebox { overflow: hidden; }
+      .wide { inline-size: 400px; block-size: 20px; background: linear-gradient(90deg,#ececee,#c8c8d0); }
+      .spacer { block-size: 6000px; }
+
+      pre {
+        background: var(--s1);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: calc(var(--unit) * 3);
+        overflow-x: auto;
+        font-size: var(--text-meta);
+        max-block-size: 60vh;
+      }
+      .verdict { font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <h1>overflow / scroll / containment — measured probe</h1>
+    <p>
+      Baseline: <code>experiments/c11-appearance</code>. Every number below is
+      read out of Chromium after layout; nothing is asserted from expectation.
+      Results also on <code>window.__probe</code>. Fixtures marked
+      <code>data-fixture</code> are never mutated, so the defect stays
+      reproducible in the same run that demonstrates the fix.
+    </p>
+
+    <h2>A — the open defect and the derived fix</h2>
+
+    <h3>A1 · defect fixture: flush surface clips a wide table (silent loss)</h3>
+    <div class="frame">
+      <div id="a1" data-appearance="surface" data-flush data-fixture>
+        <table data-appearance="table" id="a1t">
+          <thead><tr id="a1h"></tr></thead>
+          <tbody id="a1b"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>A2 · authored fix as it stands today (<code>data-scroll-region</code>)</h3>
+    <div class="frame">
+      <div id="a2s" data-appearance="surface" data-flush data-fixture>
+        <div id="a2" data-scroll-region tabindex="0">
+          <table data-appearance="table" id="a2t">
+            <thead><tr id="a2h"></tr></thead>
+            <tbody id="a2b"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <h3>A3 · derived: markup identical to A1 plus one wrapper, engine promotes</h3>
+    <div class="frame">
+      <div id="a3" data-appearance="surface" data-flush>
+        <div id="a3w">
+          <table data-appearance="table" id="a3t">
+            <thead><tr id="a3h"></tr></thead>
+            <tbody id="a3b"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <h3>A4 · derived: markup EXACTLY as A1, no wrapper — engine must supply one</h3>
+    <div class="frame">
+      <div id="a4" data-appearance="surface" data-flush>
+        <table data-appearance="table" id="a4t">
+          <thead><tr id="a4h"></tr></thead>
+          <tbody id="a4b"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>A5 · control: what is clipped is genuinely decorative — must NOT promote</h3>
+    <div class="frame">
+      <div id="a5" data-appearance="surface" data-flush>
+        <div id="a5w" style="block-size: 40px">
+          <div id="a5deco" aria-hidden="true" class="wide" style="inline-size: 900px; block-size: 40px"></div>
+        </div>
+      </div>
+    </div>
+
+    <h3>A6 · control: declared truncation is declared loss — must NOT promote</h3>
+    <div class="frame">
+      <div id="a6" data-appearance="surface" data-flush>
+        <div id="a6t" data-truncate style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
+          a deliberately truncated line of prose that is far wider than the surface it sits inside
+        </div>
+      </div>
+    </div>
+
+    <h2>B — a scrollbar appearing changes available inline size</h2>
+    <p>
+      macOS ships overlay scrollbars, which measure 0px and make this question
+      look answered. <code>::-webkit-scrollbar</code> forces classic scrollbars,
+      which is the only way to measure the swing on this platform.
+    </p>
+    <div class="panel classic" id="b1" data-fixture>
+      <div class="row" id="brow" data-layout="row">
+        <span>Ambient</span>
+        <span data-collapse="hide" data-priority="4">2026-08-25 14:02</span>
+        <button data-collapse="menu" data-priority="3">Archive</button>
+        <button>Reply</button>
+      </div>
+      <div id="btall" style="block-size: 300px"></div>
+    </div>
+    <div class="panel classic" id="b2" data-gutter data-fixture>
+      <div class="row" id="brow2" data-layout="row">
+        <span>Ambient</span>
+        <span data-collapse="hide" data-priority="4">2026-08-25 14:02</span>
+        <button data-collapse="menu" data-priority="3">Archive</button>
+        <button>Reply</button>
+      </div>
+      <div id="btall2" style="block-size: 300px"></div>
+    </div>
+    <h3>B3 · the oscillation fixture: degrading changes the block size across the scrollbar threshold</h3>
+    <div class="panel classic" id="b3" data-fixture>
+      <div class="row" id="brow3" data-layout="row" style="inline-size: 100%; white-space: nowrap">
+        <span id="b3label" style="display: inline-block; overflow: hidden; background: var(--s2)">label</span>
+        <span data-collapse="hide" data-priority="4" id="b3cand">2026-08-25 14:02</span>
+        <button>Reply</button>
+      </div>
+      <div id="b3tall" style="block-size: 300px"></div>
+    </div>
+
+    <h2>C — containment: can the engine and the checker still measure?</h2>
+    <div id="cpaint" class="cpaint" style="inline-size: 200px" data-fixture>
+      <span style="white-space: nowrap" id="cpainttext">contain paint — a long unbreakable string of content well past two hundred pixels</span>
+    </div>
+    <div id="ccontent" class="ccontent" style="inline-size: 200px" data-fixture>
+      <span style="white-space: nowrap" id="ccontenttext">contain content — a long unbreakable string of content well past two hundred pixels</span>
+    </div>
+    <div id="csize" class="csize" data-fixture>
+      <span style="white-space: nowrap" id="csizetext">contain size — a long unbreakable string of content well past two hundred pixels</span>
+    </div>
+    <div id="cinline" class="cinline" data-fixture style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; inline-size: 120px">
+      contain inline-size, truncating: a long unbreakable string
+    </div>
+    <div id="cclip" class="clipbox" style="inline-size: 200px" data-fixture>
+      <div class="wide" id="cclipkid"></div>
+    </div>
+    <div id="chide" class="hidebox" style="inline-size: 200px" data-fixture>
+      <div class="wide" id="chidekid"></div>
+    </div>
+    <div id="cvnear" class="cv" style="inline-size: 200px" data-fixture>
+      <span id="cvneartext" style="white-space: nowrap">content-visibility auto, in viewport, wider than two hundred pixels</span>
+    </div>
+    <div id="cvhidden" class="cvh" style="inline-size: 200px" data-fixture>
+      <span id="cvhiddentext" style="white-space: nowrap">content-visibility hidden subtree</span>
+    </div>
+
+    <h2>D — sticky, focus, clip margin</h2>
+    <h3>D1 · sticky header inside a horizontally scrolling region</h3>
+    <div class="frame">
+      <div data-appearance="surface" data-flush id="d1" data-fixture>
+        <div id="d1r" data-scroll-region>
+          <table data-appearance="table" id="d1t">
+            <thead><tr id="d1h"></tr></thead>
+            <tbody id="d1b"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <h3>D2 · sticky header inside a clipping (<code>overflow: hidden</code>) surface</h3>
+    <div class="frame">
+      <div data-appearance="surface" data-flush id="d2" data-fixture>
+        <table data-appearance="table" id="d2t">
+          <thead><tr id="d2h"></tr></thead>
+          <tbody id="d2b"></tbody>
+        </table>
+      </div>
+    </div>
+    <h3>D3 · CONTROL: sticky header with no clipping and no scrolling ancestor</h3>
+    <div class="frame">
+      <div data-appearance="surface" id="d3" data-fixture>
+        <table data-appearance="table" id="d3t">
+          <thead><tr id="d3h"></tr></thead>
+          <tbody id="d3b"></tbody>
+        </table>
+      </div>
+    </div>
+    <h3>D6 · scroll-margin and a focused row under a sticky header</h3>
+    <div class="frame">
+      <div data-appearance="surface" data-flush id="d6" data-fixture>
+        <div id="d6r" style="overflow: auto; block-size: 90px">
+          <table data-appearance="table" id="d6t">
+            <thead><tr id="d6h"></tr></thead>
+            <tbody id="d6b"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <h2>E — a scroll region inside a fit container</h2>
+    <h3>E1 · with the c11 no-crush block in force (<code>flex: none</code>)</h3>
+    <div class="row" id="e1" data-fit data-layout="row" data-fixture>
+      <span>Label</span>
+      <div id="e1r" style="overflow-x: auto">
+        <span style="white-space: nowrap">a very long unbreakable run of content far wider than this row will ever be</span>
+      </div>
+      <button data-collapse="hide" data-priority="4">Archive</button>
+    </div>
+    <h3>E2 · the same region declared <code>data-grow</code> (flex: 1 1 auto)</h3>
+    <div class="row" id="e2" data-fit data-layout="row" data-fixture>
+      <span>Label</span>
+      <div id="e2r" data-grow style="overflow-x: auto; min-inline-size: 0">
+        <span style="white-space: nowrap">a very long unbreakable run of content far wider than this row will ever be</span>
+      </div>
+      <button data-collapse="hide" data-priority="4">Archive</button>
+    </div>
+
+    <h2>F — hit testing through a clip and a clip margin</h2>
+    <div id="f1" class="hidebox" style="inline-size: 100px" data-fixture>
+      <div class="wide" id="f1kid" style="inline-size: 200px"></div>
+    </div>
+    <div id="f2" class="clipbox" style="inline-size: 100px" data-fixture>
+      <div class="wide" id="f2kid" style="inline-size: 200px"></div>
+    </div>
+
+    <h2>G — content-visibility: auto, genuinely skipped (6000px below)</h2>
+    <div class="spacer"></div>
+    <div id="cvfar" class="cv" style="inline-size: 200px" data-fixture>
+      <span id="cvfartext" style="white-space: nowrap">far offscreen, content-visibility auto, much wider than two hundred pixels</span>
+    </div>
+    <div id="cvfar2" class="cv" style="inline-size: 200px">
+      <span id="cvfar2text" style="white-space: nowrap">far offscreen, content-visibility auto, derivation target</span>
+    </div>
+
+    <pre id="out">measuring…</pre>
+
+    <script>
+      window.__err = null;
+      addEventListener('unhandledrejection', (e) => {
+        window.__err = String((e.reason && e.reason.stack) || e.reason);
+        document.getElementById('out').textContent = 'PROBE ERROR\n' + window.__err;
+      });
+      addEventListener('error', (e) => {
+        window.__err = String(e.message);
+      });
+    </script>
+    <script type="module">
+      /* ══════════════════════════════════════════════════════════════════════
+         FIXTURE DATA
+         ══════════════════════════════════════════════════════════════════════ */
+      const COLUMNS = ['Service', 'Region', 'Owner', 'Latency p99', 'Error rate', 'Deploy', 'Runtime version'];
+      const ROWS = [
+        ['ingest-api', 'eu-west-1', 'platform', '184 ms', '0.02 %', '2026-08-24', 'node 24.3.1'],
+        ['billing-sync', 'us-east-1', 'payments', '612 ms', '0.41 %', '2026-08-21', 'node 22.9.0'],
+        ['media-thumb', 'eu-central-1', 'media', '97 ms', '0.00 %', '2026-08-25', 'bun 1.4.2'],
+        ['search-idx', 'ap-south-1', 'search', '331 ms', '0.09 %', '2026-08-19', 'node 24.3.1'],
+      ];
+      const $ = (id) => document.getElementById(id);
+      const r2 = (n) => Math.round(n * 100) / 100;
+      for (const id of ['a1', 'a2', 'a3', 'a4', 'd1', 'd2', 'd3', 'd6']) {
+        $(`${id}h`).innerHTML = COLUMNS.map((c) => `<th scope="col" data-text="label">${c}</th>`).join('');
+        $(`${id}b`).innerHTML = ROWS.map(
+          (r) => `<tr>${r.map((c) => `<td data-text="body">${c}</td>`).join('')}</tr>`,
+        ).join('');
+      }
+      const probe = {};
+      /* A settle step. Deliberately NOT requestAnimationFrame: a headless tab
+         with `visibilityState: hidden` throttles rAF to never, which hung the
+         first run of this file. A macrotask plus a forced reflow is what
+         actually guarantees the next measurement sees the new layout. */
+      const frame = () =>
+        new Promise((r) =>
+          setTimeout(() => {
+            void document.body.offsetHeight;
+            r();
+          }, 20),
+        );
+
+      /* ══════════════════════════════════════════════════════════════════════
+         THE MEASUREMENT PRIMITIVES.
+         House rule: a check must measure the box its claim is about. Version 1
+         of this file broke it three times; every guard below exists because a
+         measured number contradicted the first spelling.
+         ══════════════════════════════════════════════════════════════════════ */
+      const CLIP_VALUES = { hidden: true, clip: true };
+      const SCROLL_VALUES = { auto: true, scroll: true, overlay: true };
+
+      /** Every way a box can destroy content, including the ones that leave
+       *  `overflow` computing to `visible`. */
+      function clipKind(el) {
+        const s = getComputedStyle(el);
+        if (CLIP_VALUES[s.overflowX] || CLIP_VALUES[s.overflowY]) return `overflow:${s.overflowX}/${s.overflowY}`;
+        const contain = s.contain || '';
+        if (/\bpaint\b|\bcontent\b|\bstrict\b/.test(contain)) return `contain:${contain}`;
+        if (s.contentVisibility === 'hidden') return 'content-visibility:hidden';
+        if (s.contentVisibility === 'auto') return 'content-visibility:auto';
+        return null;
+      }
+      function scrolls(el) {
+        const s = getComputedStyle(el);
+        return Boolean(SCROLL_VALUES[s.overflowX] || SCROLL_VALUES[s.overflowY]);
+      }
+      /** A node inside a skipped `content-visibility: auto` subtree has no
+       *  layout. `checkVisibility()` WITHOUT the option returns true for it —
+       *  the same false-PASS shape c11 recorded for `display: contents`. */
+      function skipped(el) {
+        return !el.checkVisibility({ contentVisibilityAuto: true, visibilityProperty: true });
+      }
+      /** Is any part of this clipper's own subtree unmeasurable? Then no verdict
+       *  about it is honest — this is the N680 condition. */
+      function subtreeMeasurable(clipper) {
+        if (getComputedStyle(clipper).contentVisibility === 'hidden') return 'hidden-by-intent';
+        for (const el of clipper.querySelectorAll('*')) {
+          if (skipped(el)) return false;
+        }
+        return true;
+      }
+      /** Every rect a node contributes, including a bare text node's. */
+      function contentRects(el) {
+        const out = [];
+        for (const kid of el.childNodes) {
+          if (kid.nodeType === Node.TEXT_NODE && kid.data.trim()) {
+            const range = document.createRange();
+            range.selectNodeContents(kid);
+            for (const r of range.getClientRects()) out.push({ rect: r, text: kid.data.trim().slice(0, 28), node: '#text' });
+          }
+        }
+        return out;
+      }
+      function meaningful(el) {
+        if (el.closest('[aria-hidden=true]')) return false;
+        if (el.matches('a[href],button,input,select,textarea,[tabindex],[role=button],[role=link]')) return true;
+        return Boolean((el.textContent || '').trim());
+      }
+      /** Declared loss is not lost: the ellipsis is the affordance. */
+      function declaredLoss(el, clipper) {
+        for (let n = el; n && n !== clipper.parentElement; n = n.parentElement) {
+          if (n.hasAttribute?.('data-truncate') || n.hasAttribute?.('data-collapse')) return true;
+        }
+        return false;
+      }
+      /** Is anything between `el` and `clipper` a scroll container? Then the
+       *  content is REACHABLE and it is not lost. Version 1 of this probe
+       *  omitted this and reported 16 lost columns inside a working scroller. */
+      function reachableByScroll(el, clipper) {
+        for (let n = el.parentElement; n && n !== clipper; n = n.parentElement) {
+          if (scrolls(n)) return true;
+        }
+        return false;
+      }
+
+      /**
+       * THE LOSS MEASUREMENT. Compares content rects against the clipper's
+       * padding box on ALL FOUR edges (version 1 checked only the inline-end
+       * edge and went silent the moment focus scrolled the loss to the
+       * inline-start side), and answers `unmeasurable` rather than `clean` when
+       * the subtree cannot be measured at all.
+       */
+      function clipLoss(clipper) {
+        const measurable = subtreeMeasurable(clipper);
+        const b = clipper.getBoundingClientRect();
+        const cs = getComputedStyle(clipper);
+        const box = {
+          left: b.left + parseFloat(cs.borderLeftWidth || '0'),
+          right: b.right - parseFloat(cs.borderRightWidth || '0'),
+          top: b.top + parseFloat(cs.borderTopWidth || '0'),
+          bottom: b.bottom - parseFloat(cs.borderBottomWidth || '0'),
+        };
+        const report = {
+          kind: clipKind(clipper),
+          clipBox: { left: r2(box.left), right: r2(box.right), top: r2(box.top), bottom: r2(box.bottom) },
+          scrollWidth: clipper.scrollWidth,
+          clientWidth: clipper.clientWidth,
+          overflowPxByScrollWidth: clipper.scrollWidth - clipper.clientWidth,
+          measurable,
+          lost: [],
+        };
+        if (measurable !== true) return report;
+        const candidates = [];
+        for (const el of clipper.querySelectorAll('*')) {
+          if (!el.firstElementChild && meaningful(el) && !declaredLoss(el, clipper) && !reachableByScroll(el, clipper)) {
+            candidates.push({ rect: el.getBoundingClientRect(), text: (el.textContent || '').trim().slice(0, 28), node: el.tagName.toLowerCase() });
+          }
+          for (const t of contentRects(el)) {
+            if (!declaredLoss(el, clipper) && !reachableByScroll(el, clipper) && !el.closest('[aria-hidden=true]')) candidates.push(t);
+          }
+        }
+        for (const t of contentRects(clipper)) {
+          if (!clipper.hasAttribute('data-truncate')) candidates.push(t);
+        }
+        for (const c of candidates) {
+          const r = c.rect;
+          if (r.width === 0 && r.height === 0) continue;
+          const over = {
+            end: r2(r.right - box.right),
+            start: r2(box.left - r.left),
+            below: r2(r.bottom - box.bottom),
+            above: r2(box.top - r.top),
+          };
+          const worst = Math.max(over.end, over.start, over.below, over.above);
+          if (worst <= 0.5) continue;
+          report.lost.push({
+            node: c.node,
+            text: c.text,
+            over,
+            whollyOutside: r.left >= box.right - 0.5 || r.right <= box.left + 0.5 || r.top >= box.bottom - 0.5 || r.bottom <= box.top + 0.5,
+          });
+        }
+        report.lostCount = report.lost.length;
+        report.whollyLost = report.lost.filter((l) => l.whollyOutside).length;
+        report.worstOverhang = report.lost.reduce((m, l) => Math.max(m, l.over.end, l.over.start, l.over.below, l.over.above), 0);
+        report.lost = report.lost.slice(0, 4);
+        return report;
+      }
+
+      /**
+       * THE DERIVATION. Reads no new attribute: the promotion is derived from
+       * (1) a box that clips, (2) measured loss of meaningful content, (3) the
+       * absence of a declared degradation covering it.
+       *
+       * The promotion target is the clipper's SINGLE IN-FLOW CHILD, wrapping if
+       * there is not exactly one. Version 1 descended to the deepest
+       * overflowing box and promoted the `<table>` itself — measured result: the
+       * surface still lost 414px, because a scroll container whose own inline
+       * size is content-derived scrolls nothing. The scrollport must be the box
+       * that inherits the CLIPPER's constrained width.
+       */
+      function deriveScroll(root) {
+        const report = [];
+        for (const clipper of root.querySelectorAll(':not([data-fixture]):not([data-fixture] *)')) {
+          const kind = clipKind(clipper);
+          if (!kind) continue;
+          if (scrolls(clipper)) continue;
+          const before = clipLoss(clipper);
+          if (before.measurable === 'hidden-by-intent') {
+            report.push({ el: clipper.id || clipper.tagName, kind, verdict: 'hidden-by-intent', before });
+            continue;
+          }
+          if (before.measurable !== true) {
+            report.push({ el: clipper.id || clipper.tagName, kind, verdict: 'UNMEASURABLE-N680', before });
+            continue;
+          }
+          if (before.lostCount === 0) {
+            report.push({ el: clipper.id || clipper.tagName, kind, verdict: 'clip-safe', before });
+            continue;
+          }
+          const kids = [...clipper.children].filter((k) => {
+            const p = getComputedStyle(k).position;
+            return p !== 'absolute' && p !== 'fixed';
+          });
+          let target;
+          if (kids.length === 1 && kids[0].tagName !== 'TABLE') {
+            target = kids[0];
+          } else {
+            target = document.createElement('div');
+            target.dataset.derivedScrollport = '';
+            while (clipper.firstChild) target.append(clipper.firstChild);
+            clipper.append(target);
+          }
+          target.setAttribute('data-scrolls', '');
+          if (!target.matches('a[href],button,input,select,textarea,[tabindex]')) target.setAttribute('tabindex', '0');
+          report.push({
+            el: clipper.id || clipper.tagName,
+            kind,
+            verdict: 'promoted',
+            promotedTo: target.id || (target.dataset.derivedScrollport !== undefined ? 'generated scrollport' : target.tagName.toLowerCase()),
+            before: { lostCount: before.lostCount, whollyLost: before.whollyLost, worstOverhang: before.worstOverhang, overflowPxByScrollWidth: before.overflowPxByScrollWidth },
+          });
+        }
+        return report;
+      }
+
+      /** The proposed diagnostic, as a rule over the same primitives. */
+      function n710(root) {
+        const out = [];
+        for (const el of root.querySelectorAll('*')) {
+          const kind = clipKind(el);
+          if (!kind) continue;
+          if (scrolls(el)) continue;
+          const loss = clipLoss(el);
+          if (loss.measurable === 'hidden-by-intent') continue;
+          if (loss.measurable !== true) {
+            out.push({ code: 'N680', severity: 'incomplete', subject: el.id || el.tagName.toLowerCase(),
+              detail: `${kind} cannot be verified: part of the clipped subtree is skipped and has no layout, so "nothing is lost" is unmeasurable` });
+            continue;
+          }
+          if (!loss.lostCount) continue;
+          out.push({ code: 'N710', severity: 'fail', subject: el.id || el.tagName.toLowerCase(),
+            detail: `${kind} destroys ${loss.lostCount} meaningful node(s) (${loss.whollyLost} entirely, worst overhang ${loss.worstOverhang}px) with no scroll affordance and no declared degradation` });
+        }
+        return out;
+      }
+
+      /* ══════════════════════════════════════════════════════════════════════
+         A. defect, authored fix, derived fix
+         ══════════════════════════════════════════════════════════════════════ */
+      await frame();
+      probe.A_beforeDerivation = {
+        A1_defect: clipLoss($('a1')),
+        A2_authoredSurface: clipLoss($('a2s')),
+        A2_authoredRegion: { scrollWidth: $('a2').scrollWidth, clientWidth: $('a2').clientWidth, reachablePx: $('a2').scrollWidth - $('a2').clientWidth, overflowX: getComputedStyle($('a2')).overflowX, overflowY_computed: getComputedStyle($('a2')).overflowY },
+        A3_wrapped: clipLoss($('a3')),
+        A4_bare: clipLoss($('a4')),
+        A5_decorative: clipLoss($('a5')),
+        A6_declaredTruncation: clipLoss($('a6')),
+        tableIntrinsicWidth: $('a1t').scrollWidth,
+      };
+      probe.N710_beforeDerivation = n710(document.body);
+
+      probe.derivation = deriveScroll(document.body);
+      await frame();
+
+      async function reachability(regionId, headId, clipperId) {
+        const region = $(regionId);
+        region.scrollLeft = 99999;
+        await frame();
+        const lastTh = $(headId).lastElementChild;
+        const clipRight = $(clipperId).getBoundingClientRect().right;
+        const out = {
+          scrollLeftReached: region.scrollLeft,
+          maxScroll: region.scrollWidth - region.clientWidth,
+          lastColumnRight: r2(lastTh.getBoundingClientRect().right),
+          clipRight: r2(clipRight),
+          lastColumnInsideClip: lastTh.getBoundingClientRect().right <= clipRight + 1,
+          lossAtEndOfScroll: clipLoss($(clipperId)).lostCount,
+        };
+        region.scrollLeft = 0;
+        await frame();
+        return out;
+      }
+
+      probe.A_afterDerivation = {
+        A3: {
+          surface: clipLoss($('a3')),
+          region: { el: 'a3w', promoted: $('a3w').hasAttribute('data-scrolls'), overflowX: getComputedStyle($('a3w')).overflowX, scrollWidth: $('a3w').scrollWidth, clientWidth: $('a3w').clientWidth, reachablePx: $('a3w').scrollWidth - $('a3w').clientWidth, tabindex: $('a3w').getAttribute('tabindex') },
+          reachability: await reachability('a3w', 'a3h', 'a3'),
+        },
+        A4: (() => {
+          const port = $('a4').querySelector('[data-scrolls]');
+          return { surface: clipLoss($('a4')), generatedScrollport: Boolean(port), port: port ? { tag: port.tagName.toLowerCase(), overflowX: getComputedStyle(port).overflowX, scrollWidth: port.scrollWidth, clientWidth: port.clientWidth, reachablePx: port.scrollWidth - port.clientWidth, tabindex: port.getAttribute('tabindex') } : null };
+        })(),
+        A4_reachability: await (async () => {
+          const port = $('a4').querySelector('[data-scrolls]');
+          if (!port) return null;
+          port.id = 'a4port';
+          return await reachability('a4port', 'a4h', 'a4');
+        })(),
+        A5: { promoted: Boolean($('a5').querySelector('[data-scrolls]')), loss: clipLoss($('a5')) },
+        A6: { promoted: Boolean($('a6').querySelector('[data-scrolls]')) || $('a6t').hasAttribute('data-scrolls'), loss: clipLoss($('a6')) },
+        cvFar2: { promoted: Boolean($('cvfar2').querySelector('[data-scrolls]')) },
+      };
+      probe.N710_afterDerivation = n710(document.body);
+
+      /* ══════════════════════════════════════════════════════════════════════
+         B. the scrollbar and the fit solver
+         ══════════════════════════════════════════════════════════════════════ */
+      function scrollbarWidth(styleText) {
+        const d = document.createElement('div');
+        d.className = 'panel classic';
+        d.style.cssText = `position:absolute;top:-9999px;inline-size:200px;block-size:100px;overflow-y:scroll;${styleText}`;
+        d.innerHTML = '<div style="block-size:400px"></div>';
+        document.body.append(d);
+        const w = d.offsetWidth - d.clientWidth;
+        d.remove();
+        return w;
+      }
+      function scrollbarWidthPlain(styleText) {
+        const d = document.createElement('div');
+        d.style.cssText = `position:absolute;top:-9999px;inline-size:200px;block-size:100px;overflow-y:scroll;${styleText}`;
+        d.innerHTML = '<div style="block-size:400px"></div>';
+        document.body.append(d);
+        const w = d.offsetWidth - d.clientWidth;
+        d.remove();
+        return w;
+      }
+      const swing = async (panelId, rowId, tallId) => {
+        $(tallId).style.blockSize = '300px';
+        await frame();
+        const withBar = { row: $(rowId).clientWidth, panel: $(panelId).clientWidth, hasBar: $(panelId).scrollHeight > $(panelId).clientHeight };
+        $(tallId).style.blockSize = '0px';
+        await frame();
+        const withoutBar = { row: $(rowId).clientWidth, panel: $(panelId).clientWidth, hasBar: $(panelId).scrollHeight > $(panelId).clientHeight };
+        $(tallId).style.blockSize = '300px';
+        await frame();
+        return { withBar, withoutBar, rowInlineSwing: withoutBar.row - withBar.row, panelInlineSwing: withoutBar.panel - withBar.panel };
+      };
+      probe.B_scrollbar = {
+        platform_overlay: { auto: scrollbarWidthPlain(''), thin: scrollbarWidthPlain('scrollbar-width:thin'), none: scrollbarWidthPlain('scrollbar-width:none') },
+        forced_classic: { auto: scrollbarWidth(''), gutterStable: scrollbarWidth('scrollbar-gutter:stable') },
+        noGutter: await swing('b1', 'brow', 'btall'),
+        gutterStable: await swing('b2', 'brow2', 'btall2'),
+      };
+
+      // The c11 solve loop, verbatim (appearance.ts:59-66), against a container
+      // whose available inline size depends on a scrollbar that its own
+      // degradation makes appear and disappear.
+      function solveOnce(container) {
+        for (const c of container.querySelectorAll('[data-collapse]')) c.removeAttribute('data-collapsed');
+        const items = [...container.querySelectorAll('[data-collapse]')].sort(
+          (a, b) => Number(b.dataset.priority ?? 3) - Number(a.dataset.priority ?? 3),
+        );
+        let i = 0;
+        while (container.scrollWidth > container.clientWidth + 1 && i < items.length) items[i++].setAttribute('data-collapsed', '');
+        return items.filter((n) => n.hasAttribute('data-collapsed')).length;
+      }
+      /* THE SWEEP. A single width proves nothing: the oscillation only exists
+         when the row's required inline size falls inside the 15px window the
+         scrollbar opens and closes. So sweep the width and report how many of
+         the swept widths are bistable, with and without the proposed remedy. */
+      $('b3').style.inlineSize = '300px';
+      const label = $('b3label');
+      async function sweep(gutter) {
+        $('b3').style.scrollbarGutter = gutter;
+        const oscillating = [];
+        for (let pad = 60; pad <= 240; pad += 2) {
+          label.style.inlineSize = `${pad}px`;
+          $('b3tall').style.blockSize = '300px';
+          await frame();
+          const trace = [];
+          for (let i = 0; i < 8; i++) {
+            const clientWidth = $('brow3').clientWidth;
+            const collapsed = solveOnce($('brow3'));
+            // The modelled coupling: a degradation shortens the panel's content,
+            // so the vertical scrollbar comes and goes. Only the coupling is
+            // scripted; the inline-size swing it exploits is measured above.
+            $('b3tall').style.blockSize = collapsed > 0 ? '20px' : '300px';
+            await frame();
+            trace.push(`${clientWidth}/${collapsed}`);
+          }
+          if (new Set(trace).size > 1) oscillating.push({ pad, trace });
+        }
+        return oscillating;
+      }
+      const swept = 91;
+      const oscNoGutter = await sweep('auto');
+      const oscGutter = await sweep('stable');
+      probe.B_oscillation = {
+        widthsSwept: swept,
+        bistable_noGutter: oscNoGutter.length,
+        bistable_withGutterStable: oscGutter.length,
+        sample: oscNoGutter.slice(0, 3),
+        gutterSample: oscGutter.slice(0, 2),
+      };
+
+      /* ══════════════════════════════════════════════════════════════════════
+         C. containment
+         ══════════════════════════════════════════════════════════════════════ */
+      function report(el, kidId) {
+        const cs = getComputedStyle(el);
+        const kid = kidId ? $(kidId) : null;
+        return {
+          overflowX_computed: cs.overflowX,
+          contain: cs.contain,
+          contentVisibility: cs.contentVisibility,
+          containIntrinsicSize: cs.containIntrinsicSize,
+          clientWidth: el.clientWidth,
+          scrollWidth: el.scrollWidth,
+          clientHeight: el.clientHeight,
+          scrollHeight: el.scrollHeight,
+          c11_overflows: el.scrollWidth > el.clientWidth + 1,
+          c11_rendered: el.checkVisibility({ contentVisibilityAuto: true, visibilityProperty: true }) && cs.display !== 'contents',
+          clipKind: clipKind(el),
+          child: kid
+            ? {
+                rect: (() => { const b = kid.getBoundingClientRect(); return { w: r2(b.width), h: r2(b.height) }; })(),
+                offsetWidth: kid.offsetWidth,
+                clientWidth: kid.clientWidth,
+                scrollWidth: kid.scrollWidth,
+                checkVisibility_plain: kid.checkVisibility(),
+                checkVisibility_cvAuto: kid.checkVisibility({ contentVisibilityAuto: true }),
+                c11_rendered: kid.checkVisibility({ contentVisibilityAuto: true, visibilityProperty: true }) && getComputedStyle(kid).display !== 'contents',
+              }
+            : null,
+          loss: (() => { const l = clipLoss(el); return { measurable: l.measurable, lostCount: l.lostCount ?? null, worstOverhang: l.worstOverhang ?? null }; })(),
+        };
+      }
+      probe.C = {
+        contain_paint: report('cpaint' && $('cpaint'), 'cpainttext'),
+        contain_content: report($('ccontent'), 'ccontenttext'),
+        contain_size: report($('csize'), 'csizetext'),
+        contain_inlineSize_truncating: report($('cinline'), null),
+        overflow_clip: report($('cclip'), 'cclipkid'),
+        overflow_hidden: report($('chide'), 'chidekid'),
+        contentVisibility_auto_inViewport: report($('cvnear'), 'cvneartext'),
+        contentVisibility_hidden: report($('cvhidden'), 'cvhiddentext'),
+        contentVisibility_auto_offscreen_SKIPPED: report($('cvfar'), 'cvfartext'),
+        overflow_overlay_computes_to: (() => {
+          const d = document.createElement('div');
+          d.style.cssText = 'overflow:overlay;inline-size:100px';
+          document.body.append(d);
+          const v = getComputedStyle(d).overflowX;
+          d.remove();
+          return v;
+        })(),
+        support: {
+          overflowClip: CSS.supports('overflow', 'clip'),
+          overflowClipMargin: CSS.supports('overflow-clip-margin', '4px'),
+          scrollbarGutter: CSS.supports('scrollbar-gutter', 'stable'),
+          contentVisibility: CSS.supports('content-visibility', 'auto'),
+          containIntrinsicSize: CSS.supports('contain-intrinsic-size', 'auto 200px'),
+          overscrollBehavior: CSS.supports('overscroll-behavior', 'contain'),
+          scrollTimeline: CSS.supports('animation-timeline', 'scroll()'),
+          fieldSizing: CSS.supports('field-sizing', 'content'),
+          readingFlow: CSS.supports('reading-flow', 'grid-order'),
+          textWrapPretty: CSS.supports('text-wrap', 'pretty'),
+        },
+      };
+
+      /* ══════════════════════════════════════════════════════════════════════
+         D. sticky, focus, clip margin
+         ══════════════════════════════════════════════════════════════════════ */
+      for (const id of ['d1h', 'd2h', 'd3h', 'd6h']) {
+        for (const th of $(id).children) {
+          th.style.position = 'sticky';
+          th.style.insetBlockStart = '0';
+          th.style.background = 'var(--s1)';
+          th.style.zIndex = '1';
+        }
+      }
+      const stickyOffset = (h, t) => r2($(h).firstElementChild.getBoundingClientRect().top - $(t).getBoundingClientRect().top);
+      const beforeScroll = { d1: stickyOffset('d1h', 'd1t'), d2: stickyOffset('d2h', 'd2t'), d3: stickyOffset('d3h', 'd3t') };
+      window.scrollTo(0, $('d3t').getBoundingClientRect().top + window.scrollY + 60);
+      await frame();
+      const afterScroll = { d1: stickyOffset('d1h', 'd1t'), d2: stickyOffset('d2h', 'd2t'), d3: stickyOffset('d3h', 'd3t') };
+      probe.D_sticky = {
+        scrolledBy: window.scrollY,
+        d1_insideScrollRegion: { overflowX: getComputedStyle($('d1r')).overflowX, overflowY_computed: getComputedStyle($('d1r')).overflowY, offsetBefore: beforeScroll.d1, offsetAfter: afterScroll.d1, stuck: afterScroll.d1 > 1 },
+        d2_insideClippingSurface: { surfaceOverflow: getComputedStyle($('d2')).overflowX, offsetBefore: beforeScroll.d2, offsetAfter: afterScroll.d2, stuck: afterScroll.d2 > 1 },
+        d3_control_noClipNoScroll: { surfaceOverflow: getComputedStyle($('d3')).overflowX, offsetBefore: beforeScroll.d3, offsetAfter: afterScroll.d3, stuck: afterScroll.d3 > 1 },
+      };
+      window.scrollTo(0, 0);
+      await frame();
+
+      // D4 — focusing a clipped descendant inside `overflow: hidden` scrolls the
+      // clipper. Measured on both inline edges, because the loss MOVES.
+      const a1Last = $('a1h').lastElementChild;
+      a1Last.setAttribute('tabindex', '0');
+      const lossBeforeFocus = clipLoss($('a1'));
+      const firstThBefore = r2($('a1h').firstElementChild.getBoundingClientRect().left);
+      a1Last.focus();
+      await frame();
+      const lossAfterFocus = clipLoss($('a1'));
+      probe.D_focusScrollTrap = {
+        clipperOverflow: getComputedStyle($('a1')).overflowX,
+        scrollLeftAfterFocus: $('a1').scrollLeft,
+        firstColumnDisplacedPx: r2(firstThBefore - $('a1h').firstElementChild.getBoundingClientRect().left),
+        firstColumnNowOutsideClip: $('a1h').firstElementChild.getBoundingClientRect().right < $('a1').getBoundingClientRect().left,
+        lostBeforeFocus: { count: lossBeforeFocus.lostCount, worst: lossBeforeFocus.worstOverhang, edges: lossBeforeFocus.lost.map((l) => l.over) },
+        lostAfterFocus: { count: lossAfterFocus.lostCount, worst: lossAfterFocus.worstOverhang, edges: lossAfterFocus.lost.map((l) => l.over) },
+        wheelCanRecover: false,
+      };
+      $('a1').scrollLeft = 0;
+      a1Last.removeAttribute('tabindex');
+      a1Last.blur();
+
+      // D5 — `clip` vs `hidden`: scrollability and whether scrollWidth reports.
+      probe.D_clipVsHidden = {
+        clip: { overflowX: getComputedStyle($('cclip')).overflowX, overflowClipMargin: getComputedStyle($('cclip')).overflowClipMargin, clientWidth: $('cclip').clientWidth, scrollWidth: $('cclip').scrollWidth, c11_overflows: $('cclip').scrollWidth > $('cclip').clientWidth + 1, programmaticallyScrollable: (() => { $('cclip').scrollLeft = 50; const v = $('cclip').scrollLeft !== 0; $('cclip').scrollLeft = 0; return v; })(), childWidth: $('cclipkid').offsetWidth },
+        hidden: { overflowX: getComputedStyle($('chide')).overflowX, clientWidth: $('chide').clientWidth, scrollWidth: $('chide').scrollWidth, c11_overflows: $('chide').scrollWidth > $('chide').clientWidth + 1, programmaticallyScrollable: (() => { $('chide').scrollLeft = 50; const v = $('chide').scrollLeft !== 0; $('chide').scrollLeft = 0; return v; })(), childWidth: $('chidekid').offsetWidth },
+      };
+
+      // D7 — hit testing through the clip and the clip margin. `elementFromPoint`
+      // is VIEWPORT-relative and returns null outside it, so the fixture is
+      // scrolled into view first — the first run of this file measured five
+      // nulls and would have reported "the clip swallows hit testing".
+      $('f1').scrollIntoView({ block: 'center' });
+      await frame();
+      const f1r = $('f1').getBoundingClientRect();
+      const f2r = $('f2').getBoundingClientRect();
+      const at = (x, y) => {
+        const e = document.elementFromPoint(x, y);
+        return e ? e.id || e.tagName.toLowerCase() : null;
+      };
+      probe.D_hitTest = {
+        inViewport: f1r.top >= 0 && f2r.bottom <= innerHeight,
+        hidden_insideBox: at(f1r.left + 50, f1r.top + 10),
+        hidden_2pxPastEdge: at(f1r.right + 2, f1r.top + 10),
+        clip_insideBox: at(f2r.left + 50, f2r.top + 10),
+        clip_2pxPastEdge_insideMargin: at(f2r.right + 2, f2r.top + 10),
+        clip_6pxPastEdge_outsideMargin: at(f2r.right + 6, f2r.top + 10),
+        clipMargin: getComputedStyle($('f2')).overflowClipMargin,
+      };
+
+      // D6 — WCAG 2.4.11 focus-not-obscured. The obscuring case is focusing a
+      // row ABOVE the current scroll position: the scrollport brings it to its
+      // own top edge, which is exactly where the sticky header sits.
+      $('d6').scrollIntoView({ block: 'center' });
+      const target = $('d6b').querySelector('tr').firstElementChild;
+      target.setAttribute('tabindex', '0');
+      const headerH = r2($('d6h').getBoundingClientRect().height);
+      async function focusFromBottom() {
+        // `focus()` on the ALREADY-focused element is a no-op and performs no
+        // scroll-into-view: the first run of this file re-measured the stale
+        // scroll position and reported the remedy as "not obscured" when the
+        // row was simply off-scrollport. Blur first, and assert the row is
+        // actually inside the scrollport before believing either verdict.
+        target.blur();
+        $('d6r').scrollTop = $('d6r').scrollHeight;
+        await frame();
+        target.focus();
+        await frame();
+        const t = target.getBoundingClientRect();
+        const port = $('d6r').getBoundingClientRect();
+        const hit = document.elementFromPoint(t.left + 4, t.top + 2);
+        return {
+          scrollTop: r2($('d6r').scrollTop),
+          focusedTop: r2(t.top),
+          scrollportTop: r2(port.top),
+          focusedRowInsideScrollport: t.top >= port.top - 0.5 && t.bottom <= port.bottom + 0.5,
+          elementAtFocusTopLeft: hit ? hit.tagName.toLowerCase() : null,
+          obscuredByStickyHeader: Boolean(hit && hit.closest('thead')),
+        };
+      }
+      probe.D_focusObscured = { headerHeight: headerH, scrollPaddingBlockStart: getComputedStyle($('d6r')).scrollPaddingBlockStart, ...(await focusFromBottom()) };
+      // The derived remedy: scroll-padding equal to the sticky header's own
+      // measured height. Nothing authored — the header measures itself.
+      $('d6r').style.scrollPaddingBlockStart = `${headerH}px`;
+      probe.D_focusObscured_afterDerivedScrollPadding = { scrollPaddingBlockStart: getComputedStyle($('d6r')).scrollPaddingBlockStart, ...(await focusFromBottom()) };
+      target.removeAttribute('tabindex');
+
+      /* ══════════════════════════════════════════════════════════════════════
+         E. a scroll region inside a fit container
+         ══════════════════════════════════════════════════════════════════════ */
+      const fitReport = (rowId, regionId) => ({
+        row: { scrollWidth: $(rowId).scrollWidth, clientWidth: $(rowId).clientWidth, c11_overflows: $(rowId).scrollWidth > $(rowId).clientWidth + 1 },
+        region: { flex: getComputedStyle($(regionId)).flex, scrollWidth: $(regionId).scrollWidth, clientWidth: $(regionId).clientWidth, unreachableWithoutScrolling: $(regionId).scrollWidth - $(regionId).clientWidth, paintsOutsideRow: r2($(regionId).getBoundingClientRect().right - $(rowId).getBoundingClientRect().right) },
+        c11_crushedPredicate: (() => {
+          for (const d of $(rowId).querySelectorAll('*')) {
+            if (d.hasAttribute('data-truncate') || d.hasAttribute('data-overflow-menu')) continue;
+            if (d.scrollWidth <= d.clientWidth + 1) continue;
+            if (d.getAttribute('data-appearance') === 'field') continue;
+            const ov = getComputedStyle(d).overflowX;
+            if (ov === 'hidden' || ov === 'clip' || ov === 'auto' || ov === 'scroll' || ov === 'overlay') continue;
+            return true;
+          }
+          return false;
+        })(),
+      });
+      probe.E_fit = { E1_flexNone: fitReport('e1', 'e1r'), E2_dataGrow: fitReport('e2', 'e2r') };
+      probe.E_verdict =
+        probe.E_fit.E2_dataGrow.row.c11_overflows === false && probe.E_fit.E2_dataGrow.region.unreachableWithoutScrolling > 1
+          ? 'BLIND: with data-grow the row measures settled while content is unreachable inside the region'
+          : 'not blind in this configuration';
+
+      window.__probe = probe;
+      $('out').textContent = JSON.stringify(probe, null, 2);
+      document.title = 'probe done';
+    </script>
+  </body>
+</html>

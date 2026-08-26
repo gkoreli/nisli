@@ -16,6 +16,7 @@
  * Nodes are plain string ids; the world holds all the state.
  */
 import type {
+  Bounds,
   Box,
   FitState,
   Inspector,
@@ -214,6 +215,13 @@ export interface InspectSpec {
   readonly text?: string;
   readonly rendered?: boolean;
   readonly box?: Partial<Box>;
+  /**
+   * Border box. Omitted in almost every fixture on purpose: the default derives
+   * it from `box` plus the declared border longhands, so a fixture that says
+   * nothing about borders gets `bounds === box` and reads the way a reviewer
+   * expects. Set it explicitly only to test a transform or a fractional rect.
+   */
+  readonly bounds?: Partial<Bounds>;
   /** Nearest painted background behind the node. */
   readonly backdrop?: string;
   readonly children?: readonly InspectSpec[];
@@ -371,6 +379,21 @@ export class FakeInspector implements Inspector<string> {
       .map((node) => node.id);
   }
 
+  /**
+   * `querySelectorAll` semantics, deliberately: the selector is matched against
+   * the whole document and the results are then narrowed to this subtree. A
+   * scoped selector that happens to match an ancestor must not leak in.
+   */
+  within(node: string, selector: string): readonly string[] {
+    this.node(node);
+    return this.all(selector).filter((id) => {
+      for (let up = this.parents.get(id) ?? null; up !== null; up = this.parents.get(up) ?? null) {
+        if (up === node) return true;
+      }
+      return false;
+    });
+  }
+
   attr(node: string, name: string): string | null {
     return this.node(node).attrs?.[name] ?? null;
   }
@@ -389,6 +412,26 @@ export class FakeInspector implements Inspector<string> {
 
   box(node: string): Box {
     return { ...ZERO_BOX, ...this.node(node).box };
+  }
+
+  private edge(node: string, property: string): number {
+    return Number.parseFloat(this.style(node, property)) || 0;
+  }
+
+  bounds(node: string): Bounds {
+    const declared = this.node(node).bounds;
+    if (declared) return { inline: 0, block: 0, ...declared };
+    const box = this.box(node);
+    return {
+      inline:
+        box.inline +
+        this.edge(node, 'border-inline-start-width') +
+        this.edge(node, 'border-inline-end-width'),
+      block:
+        box.block +
+        this.edge(node, 'border-block-start-width') +
+        this.edge(node, 'border-block-end-width'),
+    };
   }
 
   style(node: string, property: string): string {

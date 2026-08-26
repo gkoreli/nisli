@@ -5,13 +5,18 @@
  * one enumerable list in `contracts.ts`, so "is this value legal" is a lookup
  * rather than an opinion. An open `className` channel makes this rule
  * unwritable, which is the whole argument for not having one.
+ *
+ * `declared`, never `painted`: an illegal value is illegal as written, with no
+ * appeal to layout. Nothing here reads geometry, so there is no measurement to
+ * guard — and a `painted()` selector would drop every `display: contents`
+ * component host, which the DOM adapter reports as not rendered. Those hosts
+ * are precisely where the vocabulary attributes are authored, so filtering them
+ * out would turn this rule into a silent pass over most of the app.
  */
 
-import type { Finding, Inspector, Rule } from '../../contracts.js';
+import type { Rule } from '../../contracts.js';
 import { VOCABULARY } from '../../contracts.js';
-import { codeEntry } from '../codes.js';
-
-const CODE = codeEntry('N610');
+import { rule } from '../rule.js';
 
 /**
  * Markup spellings that differ from their vocabulary axis. `emphasis` is
@@ -22,28 +27,19 @@ const CODE = codeEntry('N610');
 const ALIASES: Readonly<Record<string, readonly string[]>> = { emphasis: ['data-role'] };
 
 export function vocabularyRule<TNode>(): Rule<TNode> {
-  return {
-    code: CODE.code,
-    title: CODE.title,
-    run(inspector: Inspector<TNode>): readonly Finding[] {
-      const findings: Finding[] = [];
-      const axes = Object.entries(VOCABULARY) as [string, readonly string[]][];
-      for (const [axis, legal] of axes) {
-        for (const attribute of [`data-${axis}`, ...(ALIASES[axis] ?? [])]) {
-          for (const node of inspector.all(`[${attribute}]`)) {
-            const value = inspector.attr(node, attribute);
-            if (value === null || legal.includes(value)) continue;
-            findings.push({
-              code: CODE.code,
-              severity: CODE.severity,
-              subject: inspector.describe(node),
-              detail: `${attribute}="${value}" is not in the vocabulary (${legal.join(' | ')})`,
-              hint: CODE.hint,
-            });
-          }
+  return rule<TNode>('N610', (lens, out) => {
+    const axes = Object.entries(VOCABULARY) as [string, readonly string[]][];
+    for (const [axis, legal] of axes) {
+      for (const attribute of [`data-${axis}`, ...(ALIASES[axis] ?? [])]) {
+        for (const el of lens.declared(`[${attribute}]`)) {
+          const value = el.attr(attribute);
+          if (value === null || legal.includes(value)) continue;
+          out.finding(
+            el.subject,
+            `${attribute}="${value}" is not in the vocabulary (${legal.join(' | ')})`,
+          );
         }
       }
-      return findings;
-    },
-  };
+    }
+  });
 }

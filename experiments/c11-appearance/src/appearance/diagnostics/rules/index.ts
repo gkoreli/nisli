@@ -7,6 +7,7 @@
  * adding a check costs one file rather than an argument.
  */
 
+export { competingPrimariesRule } from './competing-primaries.js';
 export { contrastRule } from './contrast.js';
 export { crushedRule } from './crushed.js';
 export { escapedRule } from './escaped.js';

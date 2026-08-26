@@ -6,36 +6,32 @@
  * result was useless, because the author picked `truncate` for a short atomic
  * value. No framework gives that feedback today, and it is derivable — the
  * engine knows which nodes it truncated and how much text is left.
+ *
+ * The claim pairs TEXT with BOX and cannot be made from either alone: "1…" is
+ * only a defect relative to the width it was clamped to, and a narrow box is
+ * only a defect relative to how little text survived it. So both are read for
+ * the same node and handed to `truncationDegenerate` together. The geometry is
+ * `box()` — the padding box — because this is a containment claim about content
+ * against the space it was given.
  */
 
-import type { Finding, Inspector, Rule } from '../../contracts.js';
+import type { Rule } from '../../contracts.js';
 import { truncationDegenerate } from '../../fit/strategies.js';
-import { codeEntry } from '../codes.js';
-
-const CODE = codeEntry('N621');
+import { rule } from '../rule.js';
 
 export function truncationRule<TNode>(): Rule<TNode> {
-  return {
-    code: CODE.code,
-    title: CODE.title,
-    run(inspector: Inspector<TNode>): readonly Finding[] {
-      const findings: Finding[] = [];
-      // Only nodes the solver actually truncated; a declared `data-collapse`
-      // that never fired is not a defect.
-      for (const node of inspector.all('[data-truncate]')) {
-        if (!inspector.rendered(node)) continue;
-        const text = inspector.text(node).trim();
-        const box = inspector.box(node);
-        if (!truncationDegenerate(box, text.length)) continue;
-        findings.push({
-          code: CODE.code,
-          severity: CODE.severity,
-          subject: inspector.describe(node),
-          detail: `truncated to ${Math.round(box.inline)}px of the ${Math.round(box.contentInline)}px its ${text.length} characters need — what remains is not readable as a value`,
-          hint: CODE.hint,
-        });
-      }
-      return findings;
-    },
-  };
+  return rule<TNode>('N621', (lens, out) => {
+    // Only nodes the solver actually truncated; a declared `data-collapse`
+    // that never fired is not a defect. The `rendered` precondition this loop
+    // used to restate by hand is now owned by `painted()`.
+    for (const el of lens.painted('[data-truncate]')) {
+      const text = el.text().trim();
+      const box = el.box();
+      if (!truncationDegenerate(box, text.length)) continue;
+      out.finding(
+        el.subject,
+        `truncated to ${Math.round(box.inline)}px of the ${Math.round(box.contentInline)}px its ${text.length} characters need — what remains is not readable as a value`,
+      );
+    }
+  });
 }

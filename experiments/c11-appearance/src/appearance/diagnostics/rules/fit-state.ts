@@ -7,35 +7,30 @@
  * numbers a reader needs — how much inline space the content still wants
  * against how much the container has — because "unsatisfiable" alone tells the
  * author nothing about how far off they are.
+ *
+ * `painted`, because those numbers are a MEASUREMENT of the container. The F4
+ * precondition this rule used to spell out by hand — a collapsed container
+ * measures 0×0, and reporting "needs zero inline space in a zero-wide box" is
+ * worse than saying nothing — is now owned by the lens: `painted()` is the only
+ * route to geometry, so the unrendered container cannot reach the comparison.
+ * `box()` and not `bounds()`, because "does the content fit in its container"
+ * is a containment question, and `contentInline` against `inline` is only a
+ * like-for-like comparison inside the padding box.
  */
 
-import type { Finding, Inspector, Rule } from '../../contracts.js';
-import { codeEntry } from '../codes.js';
-
-const CODE = codeEntry('N620');
+import type { Rule } from '../../contracts.js';
+import { rule } from '../rule.js';
 
 export function fitStateRule<TNode>(): Rule<TNode> {
-  return {
-    code: CODE.code,
-    title: CODE.title,
-    run(inspector: Inspector<TNode>): readonly Finding[] {
-      const findings: Finding[] = [];
-      for (const node of inspector.all('[data-fit]')) {
-        if (inspector.attr(node, 'data-fit') !== 'unsatisfiable') continue;
-        // F4: a collapsed container measures 0×0, and reporting "needs zero
-        // inline space in a zero-wide box" is worse than saying nothing.
-        if (!inspector.rendered(node)) continue;
-        const box = inspector.box(node);
-        const collapsed = inspector.attr(node, 'data-collapsed-count') ?? '0';
-        findings.push({
-          code: CODE.code,
-          severity: CODE.severity,
-          subject: inspector.describe(node),
-          detail: `unsatisfiable: content needs ${Math.round(box.contentInline)}px of inline space in a ${Math.round(box.inline)}px container after ${collapsed} declared degradation(s)`,
-          hint: CODE.hint,
-        });
-      }
-      return findings;
-    },
-  };
+  return rule<TNode>('N620', (lens, out) => {
+    for (const el of lens.painted('[data-fit]')) {
+      if (el.attr('data-fit') !== 'unsatisfiable') continue;
+      const box = el.box();
+      const collapsed = el.attr('data-collapsed-count') ?? '0';
+      out.finding(
+        el.subject,
+        `unsatisfiable: content needs ${Math.round(box.contentInline)}px of inline space in a ${Math.round(box.inline)}px container after ${collapsed} declared degradation(s)`,
+      );
+    }
+  });
 }

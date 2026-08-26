@@ -18,6 +18,7 @@
 import type { Finding, Inspector, Rule } from '../contracts.js';
 import { codeEntry, DOCS_BASE } from './codes.js';
 import {
+  competingPrimariesRule,
   contrastRule,
   crushedRule,
   escapedRule,
@@ -45,6 +46,7 @@ export function DEFAULT_RULES<TNode>(): readonly Rule<TNode>[] {
     crushedRule<TNode>(),
     overlapRule<TNode>(),
     shreddedRule<TNode>(),
+    competingPrimariesRule<TNode>(),
   ];
 }
 

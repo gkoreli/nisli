@@ -7,7 +7,7 @@
  * is the only part reviewed for byte cost and browser quirks.
  */
 
-import type { Box, Inspector } from '../contracts.js';
+import type { Bounds, Box, Inspector } from '../contracts.js';
 
 /** Computed `background-color` values that paint nothing. */
 const TRANSPARENT: Readonly<Record<string, true>> = {
@@ -34,6 +34,10 @@ export function domInspector(root: ParentNode): Inspector<HTMLElement> {
   return {
     all(selector: string): readonly HTMLElement[] {
       return [...root.querySelectorAll<HTMLElement>(selector)];
+    },
+
+    within(node: HTMLElement, selector: string): readonly HTMLElement[] {
+      return [...node.querySelectorAll<HTMLElement>(selector)];
     },
 
     attr(node: HTMLElement, name: string): string | null {
@@ -79,6 +83,22 @@ export function domInspector(root: ParentNode): Inspector<HTMLElement> {
       // crush inside pure inline text is invisible to every measured rule —
       // the layout vocabulary produces flex and grid items, which do report.
       return { inline: node.clientWidth, block: node.clientHeight, contentInline: node.scrollWidth };
+    },
+
+    bounds(node: HTMLElement): Bounds {
+      // `getBoundingClientRect()` IS the pressable rectangle: it includes
+      // borders and it follows transforms, which is exactly what a pointer
+      // hits. The rule this replaces reconstructed the same number by adding
+      // four resolved border longhands to a padding box — arithmetic that was
+      // correct only while no ancestor was transformed, and that shipped 710
+      // false failures on the run where two of those longhands resolved to the
+      // empty string.
+      //
+      // Fractional by design. A floor derived from a fractional unit lands on
+      // values like 44.5, and rounding here would hide a real shortfall or
+      // invent one; the caller owns its own tolerance.
+      const rect = node.getBoundingClientRect();
+      return { inline: rect.width, block: rect.height };
     },
 
     style(node: HTMLElement, property: string): string {

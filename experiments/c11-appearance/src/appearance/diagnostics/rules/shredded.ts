@@ -28,76 +28,60 @@
  *  - `line-height: normal` is not a length, so the line count is undecidable.
  *    That is reported as N680 `incomplete` rather than skipped, because "I could
  *    not tell" and "there is nothing wrong" are different answers and this rule
- *    exists precisely because they were being conflated.
+ *    exists precisely because they were being conflated. `out.undecidable()` in
+ *    rule.ts is where that admission now lives; it stamps this rule's code into
+ *    the message, so the message no longer names N690 itself.
  */
 
-import type { Finding, Inspector, Rule } from '../../contracts.js';
-import { codeEntry } from '../codes.js';
-
-const CODE = codeEntry('N690');
-const UNDECIDABLE = codeEntry('N680');
+import type { Rule } from '../../contracts.js';
+import { rule } from '../rule.js';
 
 /** Scripts that wrap between characters, where `lines > words` proves nothing. */
 const UNSPACED_SCRIPT =
   /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}]/u;
 
 export function shreddedRule<TNode>(): Rule<TNode> {
-  return {
-    code: CODE.code,
-    title: CODE.title,
-    run(inspector: Inspector<TNode>): readonly Finding[] {
-      const findings: Finding[] = [];
+  return rule<TNode>('N690', (lens, out) => {
+    for (const el of lens.painted('[data-text]')) {
+      const text = el.text().trim();
+      if (text.length === 0) continue;
+      if (UNSPACED_SCRIPT.test(text)) continue;
 
-      for (const node of inspector.all('[data-text]')) {
-        if (!inspector.rendered(node)) continue;
-
-        const text = inspector.text(node).trim();
-        if (text.length === 0) continue;
-        if (UNSPACED_SCRIPT.test(text)) continue;
-
-        const lineHeight = Number.parseFloat(inspector.style(node, 'line-height'));
-        if (!Number.isFinite(lineHeight) || lineHeight <= 0) {
-          findings.push({
-            code: UNDECIDABLE.code,
-            severity: UNDECIDABLE.severity,
-            subject: inspector.describe(node),
-            detail: `line-height is not a length, so the rendered line count cannot be derived and ${CODE.code} cannot be decided here`,
-            hint: 'declare a length line-height on text roles so wrapping stays checkable',
-          });
-          continue;
-        }
-
-        // `box.block` is a padding-box measure (clientHeight), so dividing it
-        // by the line height counts a padded element's padding as extra lines.
-        // That is what this rule did on its first run: every table header
-        // reported "1 word across 2 lines" because a two-line-tall padding box
-        // holds one line of text. It is the same mistake N650 made with
-        // borders, in the rule written to close N660's ambiguity — the fifth
-        // oracle bug this experiment produced, and the reason the principle is
-        // stated as a rule rather than a war story: A CHECK MUST MEASURE THE
-        // BOX ITS CLAIM IS ABOUT. The claim here is about rendered text, so the
-        // padding comes off before the lines are counted.
-        const box = inspector.box(node);
-        const paddingBlock =
-          (Number.parseFloat(inspector.style(node, 'padding-block-start')) || 0) +
-          (Number.parseFloat(inspector.style(node, 'padding-block-end')) || 0);
-        const textBlock = box.block - paddingBlock;
-        if (textBlock < lineHeight) continue;
-
-        const lines = Math.round(textBlock / lineHeight);
-        const words = text.split(/\s+/).length;
-        if (lines <= words) continue;
-
-        findings.push({
-          code: CODE.code,
-          severity: CODE.severity,
-          subject: inspector.describe(node),
-          detail: `${words} word(s) rendered across ${lines} lines in ${Math.round(textBlock)}px of text height, so a word was broken inside itself to fit a ${Math.round(box.inline)}px box`,
-          hint: CODE.hint,
-        });
+      // `raw()`, not `px()`: this is the one read where "zero" and
+      // "unresolvable" must stay distinguishable, because `normal` is the whole
+      // reason the undecidable arm below exists.
+      const lineHeight = Number.parseFloat(el.raw('line-height'));
+      if (!Number.isFinite(lineHeight) || lineHeight <= 0) {
+        out.undecidable(
+          el.subject,
+          'line-height is not a length, so the rendered line count cannot be derived here',
+        );
+        continue;
       }
 
-      return findings;
-    },
-  };
+      // `box.block` is a padding-box measure (clientHeight), so dividing it
+      // by the line height counts a padded element's padding as extra lines.
+      // That is what this rule did on its first run: every table header
+      // reported "1 word across 2 lines" because a two-line-tall padding box
+      // holds one line of text. It is the same mistake N650 made with
+      // borders, in the rule written to close N660's ambiguity — the fifth
+      // oracle bug this experiment produced, and the reason the principle is
+      // stated as a rule rather than a war story: A CHECK MUST MEASURE THE
+      // BOX ITS CLAIM IS ABOUT. The claim here is about rendered text, so the
+      // padding comes off before the lines are counted.
+      const box = el.box();
+      const paddingBlock = el.px('padding-block-start') + el.px('padding-block-end');
+      const textBlock = box.block - paddingBlock;
+      if (textBlock < lineHeight) continue;
+
+      const lines = Math.round(textBlock / lineHeight);
+      const words = text.split(/\s+/).length;
+      if (lines <= words) continue;
+
+      out.finding(
+        el.subject,
+        `${words} word(s) rendered across ${lines} lines in ${Math.round(textBlock)}px of text height, so a word was broken inside itself to fit a ${Math.round(box.inline)}px box`,
+      );
+    }
+  });
 }

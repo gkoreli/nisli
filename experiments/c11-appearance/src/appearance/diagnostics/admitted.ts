@@ -29,14 +29,24 @@
  *     unpredictable exemption costs them their trust in the tool.
  *
  * The rule is local, testable, and states its own blind spot.
+ *
+ * SHAPE: this was a `ReadonlySet<TNode>` factory that ran `all('[data-fit=
+ * "unsatisfiable"]')` once per consuming rule. Both call sites only ever asked
+ * `has(thatSameNode)` — the node they were already holding — so the set was a
+ * memoized self-test that scanned the whole document to answer a question about
+ * one element. Stated directly as a predicate over one observation it is the
+ * same claim ("`[data-fit=…]` matches" and "`attr('data-fit') === …`" are one
+ * predicate), and it costs neither the scan nor the allocation. The exemption
+ * being LOCAL to a single node — the whole point above — is now visible in the
+ * signature rather than promised by a comment.
  */
 
-import type { Inspector } from '../contracts.js';
+import type { Observation } from './observe.js';
 
 /**
- * Containers that have admitted they cannot fit. Built once per check pass and
- * consulted by every rule that would otherwise re-report their geometry.
+ * Has this element already admitted it cannot fit? Asked of the node under
+ * judgement by every rule that would otherwise re-report its geometry.
  */
-export function admittedFailures<TNode>(inspector: Inspector<TNode>): ReadonlySet<TNode> {
-  return new Set<TNode>(inspector.all('[data-fit="unsatisfiable"]'));
+export function isAdmittedFailure<TNode>(el: Observation<TNode>): boolean {
+  return el.attr('data-fit') === 'unsatisfiable';
 }

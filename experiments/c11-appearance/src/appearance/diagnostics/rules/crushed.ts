@@ -37,13 +37,17 @@
  * wraps to two lines and scrollWidth stays within clientWidth. An exemption
  * that only hides a defect the theme already prevents buys nothing and costs
  * the one finding that would tell us the theme stopped preventing it.
+ *
+ * `box()` — the padding box — is the only geometry this rule may use:
+ * `contentInline > inline` is a like-for-like comparison exactly because both
+ * are padding-box measures. A border-box geometry would hand every element a
+ * free border width of slack and turn this check's loud failures into silent
+ * passes, which is the failure direction that gets an oracle deleted.
  */
 
-import type { Finding, Inspector, Rule } from '../../contracts.js';
-import { admittedFailures } from '../admitted.js';
-import { codeEntry } from '../codes.js';
-
-const CODE = codeEntry('N660');
+import type { Rule } from '../../contracts.js';
+import { isAdmittedFailure } from '../admitted.js';
+import { rule } from '../rule.js';
 
 /**
  * Computed `overflow-x` values that make an oversized content box legitimate.
@@ -65,40 +69,33 @@ const CODE = codeEntry('N660');
 const SCROLLABLE: Readonly<Record<string, true>> = { auto: true, scroll: true, overlay: true };
 
 export function crushedRule<TNode>(): Rule<TNode> {
-  return {
-    code: CODE.code,
-    title: CODE.title,
-    run(inspector: Inspector<TNode>): readonly Finding[] {
-      const findings: Finding[] = [];
-      // Ancestry is not on the port, so subtree exclusion is expressed as a
-      // second query and an identity set.
-      const excluded = new Set<TNode>(
-        inspector.all(
+  return rule<TNode>('N660', (lens, out) => {
+    // Ancestry is not on the port, so subtree exclusion is expressed as a
+    // second query and an identity set.
+    const excluded = new Set(
+      lens
+        .declared(
           'html, head, body, script, style, template, meta, link, title, [data-escaped], [data-escaped] *',
-        ),
-      );
+        )
+        .map((el) => el.node),
+    );
+    // `painted()` owns the rendered precondition this loop used to restate by
+    // hand — measuring an unpainted node is how an oracle invents defects (F4).
+    for (const el of lens.painted('*')) {
+      if (excluded.has(el.node)) continue;
+      if (el.attr('data-truncate') !== null) continue;
+      if (el.attr('data-appearance') === 'field') continue;
+      const box = el.box();
+      if (box.contentInline <= box.inline + 1) continue;
       // One root cause, one primary finding: a container that already reported
       // N620 does not report its own overflow a second time here. Its
       // descendants and ancestors are NOT exempt — see admitted.ts.
-      const admitted = admittedFailures(inspector);
-      for (const node of inspector.all('*')) {
-        if (excluded.has(node)) continue;
-        if (inspector.attr(node, 'data-truncate') !== null) continue;
-        if (inspector.attr(node, 'data-appearance') === 'field') continue;
-        if (!inspector.rendered(node)) continue;
-        const box = inspector.box(node);
-        if (box.contentInline <= box.inline + 1) continue;
-        if (admitted.has(node)) continue;
-        if (SCROLLABLE[inspector.style(node, 'overflow-x')]) continue;
-        findings.push({
-          code: CODE.code,
-          severity: CODE.severity,
-          subject: inspector.describe(node),
-          detail: `crushed: content needs ${Math.round(box.contentInline)}px but the box got ${Math.round(box.inline)}px — ${Math.round(box.contentInline - box.inline)}px paints outside it`,
-          hint: CODE.hint,
-        });
-      }
-      return findings;
-    },
-  };
+      if (isAdmittedFailure(el)) continue;
+      if (SCROLLABLE[el.raw('overflow-x')]) continue;
+      out.finding(
+        el.subject,
+        `crushed: content needs ${Math.round(box.contentInline)}px but the box got ${Math.round(box.inline)}px — ${Math.round(box.contentInline - box.inline)}px paints outside it`,
+      );
+    }
+  });
 }
