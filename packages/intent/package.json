@@ -1,6 +1,6 @@
 {
   "name": "@nisli/intent",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Appearance derived from declared meaning and context. Components declare what a thing is; the engine derives every value, and checks the result.",
   "type": "module",
@@ -43,7 +43,12 @@
       "./theme.css": "./theme/index.css"
     }
   },
-  "files": ["dist", "theme", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "theme",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
