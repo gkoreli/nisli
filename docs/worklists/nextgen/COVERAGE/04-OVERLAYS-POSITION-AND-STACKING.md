@@ -9,7 +9,7 @@ promotion to the top layer.
 
 ## Coverage in one line
 
-D 21 · T 16 · L 4 · X 1 — of 42 capabilities audited.
+D 22 · T 14 · L 4 · X 1 — of 41 capabilities audited.
 
 The three questions the assignment asked, answered first, with numbers:
 
@@ -178,11 +178,30 @@ Three things make this the most valuable paragraph in the audit:
   design is indistinguishable from the right one. That is exactly the c11
   README's F8: "buttons visibly overlapped while the oracle reported success".
 
-Cost of the fix: **one rule, and it needs no new declaration at all**, because
-the framework already marks the right subtree —
-`[data-fit] { anchor-scope: --overlay; }`. And per the spec, `anchor-scope`
-"has no effect on implicit anchor elements", so the invoker-anchored path
-(P2a) was never exposed to the collision in the first place.
+**And then the fix turned out to be "do not use names at all".** My first
+proposal paid for the collision with `[data-fit] { anchor-scope: --overlay; }`
+plus `[data-overflow] { anchor-name: --overlay; }` — one rule each, no new
+declaration, and it works. Rendering that proposal (P18) immediately showed it
+is the wrong answer: a real toolbar has **two** `[data-overflow]` triggers in
+one `[data-fit]` scope — the overflow menu's and a help hint's — so scoping to
+the fit container does not disambiguate them either, and the menu would attach
+to whichever trigger came last. Scoping per instance would need a per-instance
+scope element, i.e. exactly the per-callsite wiring the design exists to
+avoid.
+
+The right answer is the one the spec hands over in the same section:
+`anchor-scope` "has no effect on implicit anchor elements", and an
+invoker-opened overlay *has* an implicit anchor. So the shipping path declares
+**no `anchor-name`, no `anchor-scope` and no `position-anchor`** — the overlay
+is anchored to whatever invoked it. Measured on the proposed table with both
+triggers live in one scope: the menu attached to its own trigger,
+`attachedToHintTriggerInstead: false`, gap 4px, and
+`min-inline-size: anchor-size(self-inline)` resolved to **63.6719px** — the
+trigger's exact width, with no length authored (P18a).
+
+The named+scoped pair survives only as the documented fallback for an overlay
+the engine opens without an invoker (see open question 2), and that is where
+`anchor-scope`'s immunity to boxless hosts (P11b) still pays.
 
 ## Capability table
 
@@ -193,14 +212,13 @@ the framework already marks the right subtree —
 | hover/focus-intent overlay | `popover="hint"` | **D** | `data-overlay="hint"` | reflects as `"hint"` (measured); derives identically to `auto` (P1h) |
 | blocking decision surface | `<dialog>` + `showModal()` | **D** | `data-overlay="dialog"` | modality, `inert`, backdrop and focus containment all arrive together |
 | overlay scrim | `::backdrop` | **T** | — | one rule; inherits the context axes from its originator (P1g), so no values per callsite |
-| naming an anchor | `anchor-name` | **T** | — | one rule on `[data-overflow]`; **must** be paired with `anchor-scope` |
-| scoping an anchor name | `anchor-scope` | **T** | — | one rule on `[data-fit]`; works on a boxless host (P11b) — the exception to L1/L2/L3 |
-| default anchor, invoker-linked | `position-anchor` initial | **D** | — | implicit anchor from `command`/`popovertarget`; **no name, no scope, no id** (P2a) |
-| default anchor, not invoker-linked | `position-anchor: --name` | **T** | — | needed only when the anchor is not the invoker |
+| naming an anchor | `anchor-name` | **T** | — | **fallback path only.** One rule, and it **must** be paired with `anchor-scope`; unpaired it collapses every overlay onto the last anchor in the document (P11a) |
+| scoping an anchor name | `anchor-scope` | **T** | — | **fallback path only.** Works on a boxless host (P11b) — the one property in this slice that is not box-dependent, and the exception to L1/L2/L3. Does **not** disambiguate two triggers in one scope (P18a's motivation) |
+| default anchor, invoker-linked | `position-anchor` initial | **D** | — | **the shipping path.** Implicit anchor from `command`/`popovertarget`/`interestfor`; no name, no scope, no `position-anchor`. Initial value computes to `normal`, and `showPopover()` establishes **no** implicit anchor — only invoker activation does (P2a, P18a) |
+| sizing the panel from its trigger | `anchor-size(self-inline)` | **D** | — | resolved to 63.6719px = the trigger's exact width, no length authored (P18a) |
 | geometric tethering (carets, connectors) | `anchor()` in `calc()` | **X** | `data-escaped` | reports **N601**; `justify-self: anchor-center` covers the common caret without arithmetic |
-| sizing from the anchor | `anchor-size()` | **T** | — | `min-inline-size: anchor-size(self-inline)` replaces the prototype's unit-derived width bound |
 | which side, which alignment | `position-area` | **T** | — | one rule per overlay kind; the author declares the *relationship*, never a side |
-| what to try when it does not fit | `position-try-fallbacks` | **T** | — | one rule; `flip-block` flips the margin with the axis, so the gap is authored once (P2d) |
+| what to try when it does not fit | `position-try-fallbacks` | **T** | — | one rule; `flip-block` flips the margin with the axis, so the gap is authored once (P2d). **Caveat, measured: it is an OVERFLOW test, so a shrink-to-fit panel never triggers it** — see "F8, restated inside the browser" |
 | which fallback is best | `position-try-order` | **D** | — | `most-height`; proven to change the outcome vs `normal` (P2c). **The browser owns this half of `data-collapse`.** |
 | hide when the anchor leaves | `position-visibility` | **T** | — | `anchors-visible` (also the initial value) hides on anchor clipping; `no-overflow` does not (P13a/b/c) |
 | raising an overlay above the page | `z-index` | **D** | — | unnecessary: the top layer beats `z-index: 2147483647` with `z-index: auto` (P8a) |
@@ -234,14 +252,17 @@ the framework already marks the right subtree —
 ## Measured probes
 
 **Probe**: `experiments/coverage/04-overlays.html` — plain HTML + CSS + one
-inline script, no npm, no dependencies, no build. 38 recorded claims, each
-with an explicit paired control.
+inline script, no npm, no dependencies, no build. **43 recorded claims**, each
+with an explicit paired control, plus five driver-level measurements
+(real pointer dwell, real Tab/Escape keystrokes, real outside click, and an
+accessibility-tree snapshot) that a page script cannot synthesise.
 **Engine**: Chromium **151.0.0.0** (headless, `dpr 1.25`), viewport
 **800×600**, loaded over `file://`.
-**Result**: every claim now behaves as designed. Remaining `NO` verdicts are
-**five genuine findings**, each with a `YES` paired control proving the check
-can distinguish: `P17a` (L3), `P11a` (the shared-name collapse), `P3a` (L1),
-`P3d` (L2), `P4a` (L4), `P9b` (no popover focus containment).
+**Result**: every claim behaves as designed. The remaining `NO` verdicts are
+**exactly the six genuine findings**, each with a `YES` paired control proving
+the check can distinguish: `P17a` (L3), `P11a` (the shared-name collapse),
+`P3a` (L1), `P3d` (L2), `P4a` (L4), `P9b` (no popover focus containment).
+Everything else — 37 claims — is YES.
 
 Headline numbers, all from the run:
 
@@ -265,10 +286,58 @@ Headline numbers, all from the run:
 | P13a `anchors-visible` | stopped painting at its own centre after the anchor was clipped | `always` kept painting; `no-overflow` kept painting | YES |
 | driver: implicit `aria-expanded` | AX `expanded: false` → `true` | zero authored ARIA attributes | YES |
 | driver: `interestfor` dwell | opened, anchored (gap 4px), closed on leave | `:interest-source`/`:interest-target` matched | YES |
+| driver: Tab / Escape | Tab walked all 6 items in DOM order; Escape closed **and** restored focus to the invoker | menu stayed open when Tab left it | YES + one gap |
+| **P18a the proposed table, rendered** | menu attached to its **own** trigger with a second `[data-overflow]` live in the same scope; gap **4px**; `min-inline-size` **63.6719px** = the trigger's exact width | 0 authored lengths, 0 sides, 0 anchor names | YES |
+| P18b declarative `autofocus` | `activeElement` = "Reply" | replaces `flush()` + `focus()` | YES |
+| P18c the `hint` kind | `position-area: start center`, `justify-self: anchor-center`, `popover: hint`, padding 4px | menu resolves `end span-start` from the same table | YES |
+| P18d the `dialog` kind | centred, `max-inline-size` **480px** from `min(--unit*120, 100dvi - --unit*8)`, backdrop painted, focus contained | no breakpoint anywhere | YES |
+| **P18e one axis flip, menu → bottom sheet** | `data-input="touch"`: `position-area: none`, rect **0,408 800×192**, flush to the block end, full inline, padding **5px** (= 4 × 1.25) | axis restored → back to `block-start / span-inline-start` | YES |
+| **P18f the floor that makes the fallback work** | with `min-inline-size: max-content`: panel 72.7px, flipped inline, **all four labels on one line** | remove only that floor: panel 63.7px, **"Reply all" and "Archive" each broken across two line boxes** | YES |
+
+### F8, restated inside the browser — the most useful thing I measured
+
+The c11 README's F8 says: *"A container-only overflow test cannot see a
+crush."* Flex children default to shrinking, so a row measured
+`scrollWidth 318 === clientWidth 318` — "settled" — while a child sat at 32/71
+and painted over its neighbour.
+
+**`position-try-fallbacks` is a container-only overflow test, and it has the
+same blind spot.** Measured on the proposed table: the overflow trigger sits at
+the container's inline start, so `position-area: block-end span-inline-start`
+offers the panel a **64px** region. The UA stylesheet sets
+`width: fit-content` on every popover, so the panel *shrank into* the 64px
+instead of overflowing it — and because it never overflowed, the browser
+**never tried a single fallback**. `flip-inline` was declared, available, and
+would have worked. What actually happened is that "Reply all" and "Archive"
+were each broken across two line boxes. The geometry was satisfied and the
+prose was damaged: that is N690 verbatim, produced by the browser's own
+fallback machinery.
+
+Adding `min-inline-size: max-content` forbids the shrink. The panel then
+genuinely overflows the 64px region, the browser sees it, `flip-inline` fires,
+the panel lands at 72.7px on the other side, and every label fits on one line
+(P18f, with the floor removed as the paired control). Measured both ways round:
+with a trigger padded to 171.7px — wider than the content — the same two rules
+size the panel to 171.7px and no flip is needed.
+
+Three consequences, and I think the first is the important one for the bet:
+
+1. **The rule the c11 theme learned from F8 — "nothing may shrink below its
+   content except where declared" — is not merely a house style. It is a
+   precondition for the browser's own derivation to work at all.** Anchor
+   positioning cannot rescue a box that has already agreed to be crushed. The
+   same sentence now buys two different things.
+2. **This is the failure mode of trusting a shipped browser feature to own a
+   piece of our mechanism.** `position-try-order` genuinely does own half of
+   `data-collapse` (P2c), which is the good news in this slice — but it owns it
+   only for boxes that refuse to shrink. Handing a mechanism to the platform
+   does not remove the obligation to know what the platform measures.
+3. **N690 already exists and would have caught it — if it ever ran on an
+   overlay.** It does not, and that is the gap N716 below closes.
 
 ### The failure I did not expect
 
-**Twice, and the second time was worse than the first.**
+**Four times, and each one changed the proposal.**
 
 The first was the design I was most confident in: one `anchor-name` for the
 whole application, resolved by tree position, giving genuinely zero
@@ -289,12 +358,30 @@ overlay opened by engine code rather than by a real invoker loses its anchor**,
 so the engine must either route every open through `command`/`commandfor` (the
 proposal below does) or fall back to the named+scoped path.
 
-### Five oracle bugs, zero page bugs — the c11 pattern held exactly
+The third only appeared because I rendered the proposal instead of describing
+it (P18). The touch-to-sheet rule sets `inset: auto 0 0 0`, which reads as
+"full bleed along the block end" — and produced a sheet **77.7px wide in an
+800px viewport**. The UA stylesheet sets `width: fit-content` on every
+popover, and that survives both inline insets being zero, because a
+fit-content box simply does not consume the space its insets offer. One line
+(`inline-size: auto`) fixes it, and the corrected measurement is
+**0,408 800×192, flush to the block end**.
+
+The fourth is the shredded-label crush above, and it is the same lesson twice:
+*the proposal I would have shipped from reading specs was wrong in two
+independent places, and only rendering it said so.* Both were UA-stylesheet
+interactions — `width: fit-content` on popovers, once making insets
+meaningless and once making the fallback machinery blind. Writing a table that
+looks right is not the same as writing one that resolves right, and the gap
+between them was not visible in any spec I read.
+
+### Seven oracle bugs to two page bugs — the c11 ratio held exactly
 
 The c11 README's sharpest cost signal was "five of the defects found were in
-the oracle, not the page". This probe reproduced the ratio, and every one was
-the same root cause the README names: *a check must measure the box its claim
-is about.*
+the oracle, not the page". This probe reproduced it and then some: **seven
+defects in the checker against two in the thing being checked**, and every one
+of the seven has the same root cause the README names: *a check must measure
+the box its claim is about.*
 
 - **O1 — hit-testing below the fold.** `elementFromPoint` returned `null` for
   two of three stacking fixtures because the page had grown taller than the
@@ -326,9 +413,31 @@ is about.*
   `requestAnimationFrame` await; a hidden/background tab never fires it, so the
   probe hung forever with `running…` on screen and no results. Fixed with a
   `setTimeout` race so the harness always terminates, plus `bringToFront()`.
+- **O6 — a signed distance used as a distance.** The proposed-table check read
+  the trigger-to-panel gap as `panel.top - trigger.bottom`, which is negative
+  whenever the engine flips the panel above its trigger. It reported **-207.7**
+  for a panel placed correctly with a 4px gap, and the whole P18a claim failed
+  on it. The gap is the distance on *whichever side the engine chose*, so the
+  check has to ask both. Same family as O2: a two-sided outcome measured on one
+  side.
+- **O7 — N690, a fourth time, by someone who had just written about it.** The
+  check for "did a label wrap" read `item.height > lineHeight * 1.6`. Every
+  menu item carries `min-block-size: max(--unit * 9, --min-target)`, so every
+  item is 36px tall whether its text wrapped or not, and the check reported
+  "2.7 lines" for single-line labels — and, worse, reported `shredded: true`
+  for the *fixed* variant too, which would have hidden the fix. A claim about
+  line breaking has to measure **line boxes**: `Range.selectNodeContents(textNode)`
+  then `getClientRects().length`. With that, the reading is unambiguous —
+  1,1,1,1 with the floor and 1,2,2,1 without it. I had read the N690 entry in
+  `codes.ts` (`diagnostics/codes.ts:109-116`) and its README paragraph earlier
+  the same session, and still divided a padded height by a line height. **The
+  README's claim that this is the expensive half is not a rhetorical flourish;
+  it is the observed behaviour of a careful agent who knows the failure mode by
+  name.**
 
-Both O2 and O4 are recorded as comments in the probe next to the code they
-fixed, so the file carries its own history.
+O2, O4, O6 and O7 are recorded as comments in the probe next to the code they
+fixed, so the file carries its own history rather than relying on this
+document to remember it.
 
 ## Proposed vocabulary
 
@@ -346,44 +455,47 @@ data-overlay = "menu" | "dialog" | "hint"
 - `hint` — non-essential explanation, revealed by interest rather than
   invocation. `popover="hint"`, `interestfor`, never focus-stealing.
 
-**What pays for it.** Two existing ad-hoc attributes are deleted
-(`data-overflow-anchor`, `data-overflow-menu`) plus one state attribute on the
-panel (`data-shown` on the panel; it stays on the trigger) and three authored
-ARIA attributes. **Net: −1 attribute, and the vocabulary gets an enumerable
-axis where it had two markers with implicit behaviour.** `data-overflow` stays
-as the trigger marker. `data-collapse="menu"` stays and is unchanged: it says
-*what to do when space runs out*, and `data-overlay` says *what kind of
-surface the result is*.
+**What pays for it.** Deleted: two existing ad-hoc attributes
+(`data-overflow-anchor`, `data-overflow-menu`), one state attribute on the
+panel (`data-shown`; it stays on the trigger, where the solver sets it), and
+three authored ARIA attributes (`aria-expanded`, `aria-controls`, and the
+`computed()` wrappers that flipped them). **Net: −1 attribute, and the
+vocabulary gains an enumerable axis where it had two booleans with implicit
+behaviour.**
+
+`data-overflow` stays as the trigger marker, and it stays *unchanged* — the
+proposal no longer hangs an `anchor-name` on it, because the implicit anchor
+makes names unnecessary. `data-collapse="menu"` stays and is unchanged too:
+it says *what to do when space runs out*, and `data-overlay` says *what kind
+of surface the result is*. Those are different questions and the prototype was
+right to have only the first one.
 
 The three values also give the vocabulary check (N610) an axis it can police,
-which two bespoke boolean attributes never could.
-
-**Table addition needed, one line.** The touch-to-sheet derivation below reads
-`--input-name` in a style query; `theme/tokens.css` currently exposes only
-`--density-name` (`theme/states.css:190-198` is the existing precedent). Add
-`--input-name: pointer|touch` alongside the existing axis declarations at
-`tokens.css:166-176`.
+which two bespoke booleans never could — and they are the whole of the new
+vocabulary. Total addition to the framework's public surface: **one attribute
+name and three enumerated values.**
 
 ### The complete authored placement table
 
-This is the whole thing. Six rules, no side, no offset, no anchor name at a
-callsite, no pixel outside the `--unit` derivation.
+This is the whole thing. **Four rules and one container query**, no side, no
+offset, no anchor name anywhere, no pixel outside the `--unit` derivation, and
+**no `anchor-name`, `anchor-scope` or `position-anchor` at all** — the overlay
+is anchored to whatever invoked it. Every declaration below was rendered and
+measured as P18a–P18e; the version in the probe is byte-identical except for
+an `#p18` prefix that keeps it off the file's other fixtures.
 
 ```css
-/* 1. Scope. The fit container is ALREADY the overflow scope, so scoping the
-      anchor name costs no new declaration — and anchor-scope is the one
-      box-dependent-looking property that works on a boxless host (P11b). */
-[data-fit] { anchor-scope: --overlay; }
-
-/* 2. The trigger. `data-overflow` already exists (theme/states.css:60-65). */
-[data-overflow] { anchor-name: --overlay; }
-
-/* 3. Every overlay, regardless of kind. */
+/* 1. Every overlay, regardless of kind. `position-anchor` is left at its
+      initial value, which resolves to the IMPLICIT anchor — the invoker that
+      opened this overlay. That is what makes the collision measured in P11a
+      structurally impossible here: per css-anchor-position-1 §2.2,
+      anchor-scope "has no effect on implicit anchor elements", and no name is
+      ever matched, so two triggers in one subtree cannot be confused. */
 [data-overlay] {
+  box-sizing: border-box;
   position: fixed;
-  position-anchor: --overlay;
-  inset: auto;
-  margin: 0;
+  inset: auto;                       /* undo the UA popover `inset: 0` */
+  margin: 0;                         /* undo the UA popover `margin: auto` */
   position-try-order: most-height;   /* the browser derives the best side */
   max-block-size: stretch;           /* fills the position-area box, so the
                                         bound is derived, not chosen (P2e) */
@@ -396,47 +508,69 @@ callsite, no pixel outside the `--unit` derivation.
   box-shadow: 0 calc(var(--unit) * 0.5) calc(var(--unit) * 3) rgb(0 0 0 / 0.14);
 }
 
-/* 4. The RELATIONSHIP, per kind. Three rules for the whole application. */
+/* 2. The RELATIONSHIP, per kind. Three rules for the whole application.
+      Not one names a side: `position-area` names a preference and
+      `position-try-*` names what may be traded away. */
 [data-overlay='menu'] {
   position-area: block-end span-inline-start;
   margin-block-start: var(--unit);
-  position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
-  min-inline-size: anchor-size(self-inline);
-  position-visibility: anchors-visible;
+  /* Two floors, and the second one is NOT optional — see P18f and
+     "F8, restated inside the browser" above. The panel is never narrower than
+     the control that revealed it, and never narrower than its own content.
+     Both are expressed without a length. */
+  inline-size: anchor-size(self-inline);
+  min-inline-size: max-content;
+  /* a menu outlives its trigger scrolling away; see open question 3 */
+  position-visibility: always;
 }
 [data-overlay='hint'] {
   position-area: block-start center;
-  justify-self: anchor-center;
+  justify-self: anchor-center;        /* the caret case, with no arithmetic */
   margin-block-end: var(--unit);
   position-try-fallbacks: flip-block;
+  /* an explanation with no visible subject is noise */
   position-visibility: anchors-visible;
 }
 [data-overlay='dialog'] {
-  position-anchor: normal;           /* a decision is not tethered to a control */
-  inset: 0;
+  inset: 0;                           /* a decision is not tethered */
   margin: auto;
   max-inline-size: min(calc(var(--unit) * 120), calc(100dvi - var(--unit) * 8));
 }
 [data-overlay='dialog']::backdrop { background: rgb(0 0 0 / 0.4); }
 
-/* 5. Touch: a tethered menu becomes a bottom sheet. Derived from a context
-      axis, not a breakpoint, and no new vocabulary — this is the same claim
-      as theme/states.css:190-198, applied to placement. */
+/* 3. Touch: a tethered menu becomes a bottom sheet. Derived from a context
+      axis, not a breakpoint, and with no new vocabulary — the same claim as
+      theme/states.css:190-198, applied to placement instead of to a border. */
 @container fitbox style(--input-name: touch) {
   [data-overlay='menu'] {
-    position-anchor: normal;
     position-area: none;
     inset: auto 0 0 0;
+    /* REQUIRED, and it is the one thing reading the specs got wrong. The UA
+       stylesheet sets `width: fit-content` on every popover, and a
+       fit-content box does not consume the space its insets offer: without
+       this line the "full-bleed" sheet measured 77.7px wide in an 800px
+       viewport. With it: 0,408 800x192. */
+    inline-size: auto;
     max-block-size: 60dvb;
+    border-radius: var(--radius) var(--radius) 0 0;
     padding-block-end: max(var(--unit), env(safe-area-inset-bottom));
   }
 }
 ```
 
+**Table addition needed, one line.** The container query above reads
+`--input-name`, and `theme/tokens.css` exposes only `--density-name`
+(`theme/states.css:190-198` is the existing precedent). Add
+`--input-name: pointer|touch` alongside the existing axis declarations at
+`tokens.css:166-176`.
+
 ### What the pattern renders
 
-Values: none. Sides: none. Ids: one, and only because `commandfor` needs a
-target (the prototype already mints it — `overflow-menu.ts:178,186`).
+Values: none. Sides: none. Anchor names: none. Ids: one, and only because
+`commandfor` needs a target — which the prototype already mints
+(`overflow-menu.ts:178,186`). This exact markup is in the probe and produced
+P18a/P18b, alongside a second `[data-overflow]` trigger in the same subtree to
+prove the two do not collide.
 
 ```html
 <button data-appearance="action" data-role="quiet" data-overflow
@@ -456,7 +590,8 @@ target (the prototype already mints it — `overflow-menu.ts:178,186`).
 
 ### What this deletes from the prototype
 
-Measured-free, not assumed-free. Every deletion below is backed by a probe.
+Measured, not assumed. Every deletion below is backed by a probe, and the
+replacement was rendered as P18 before this table was written.
 
 | deleted | lines | why it is safe |
 |---|---|---|

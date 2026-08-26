@@ -237,7 +237,15 @@ h2 { font: 600 12px system-ui; margin: 10px 0 2px; color: #555; }
   position-area: block-end span-inline-start;
   margin-block-start: var(--unit);
   position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
-  min-inline-size: anchor-size(self-inline);
+  /* Two floors, and the second one is not optional — see P18f. The UA
+     `width: fit-content` lets the panel SHRINK into whatever inline space its
+     position-area happens to offer, and a shrink-to-fit box never overflows,
+     so `position-try-fallbacks` above never fires and the labels wrap instead.
+     `min-inline-size: max-content` forbids the shrink, which is what makes
+     the overflow visible and the flip happen. This is F8 exactly: an overflow
+     test cannot see a crush. */
+  inline-size: anchor-size(self-inline);   /* at least as wide as the control */
+  min-inline-size: max-content;            /* and never narrower than itself */
   position-visibility: always;
 }
 #p18 [data-overlay='hint'] {
@@ -276,6 +284,11 @@ h2 { font: 600 12px system-ui; margin: 10px 0 2px; color: #555; }
   #p18 [data-overlay='menu'] {
     position-area: none;
     inset: auto 0 0 0;
+    /* The UA popover sheet sets `width: fit-content`, which survives both
+       insets being 0 — measured: a "full-bleed" sheet came out 77.7px wide in
+       an 800px viewport. Releasing the inline size is what makes the two
+       insets mean what they say. */
+    inline-size: auto;
     max-block-size: 60dvb;
     border-radius: calc(var(--unit) * 1.5) calc(var(--unit) * 1.5) 0 0;
     padding-block-end: max(var(--unit), env(safe-area-inset-bottom));
@@ -975,9 +988,14 @@ h2 { font: 600 12px system-ui; margin: 10px 0 2px; color: #555; }
   const menuOpen = {
     open: menuPanel.matches(':popover-open'),
     side: side(menuTrigger.getBoundingClientRect(), menuPanel.getBoundingClientRect()),
-    gap: rnd(menuPanel.getBoundingClientRect().top - menuTrigger.getBoundingClientRect().bottom),
-    /* min-inline-size: anchor-size(self-inline) — the panel must be at least
-       as wide as the control that revealed it, with no length authored. */
+    /* A block flip makes `panel.top - trigger.bottom` negative, so the naive
+       subtraction read -207.7 for a correctly placed menu. The gap is the
+       distance on whichever side the engine chose. */
+    gap: rnd(Math.min(
+      Math.abs(menuPanel.getBoundingClientRect().top - menuTrigger.getBoundingClientRect().bottom),
+      Math.abs(menuTrigger.getBoundingClientRect().top - menuPanel.getBoundingClientRect().bottom))),
+    /* The panel is at least as wide as the control that revealed it and never
+       narrower than its own content, both expressed without a length. */
     panelInline: rnd(menuPanel.getBoundingClientRect().width),
     triggerInline: rnd(menuTrigger.getBoundingClientRect().width),
     resolvedMinInline: cs(menuPanel).minInlineSize,
@@ -994,6 +1012,46 @@ h2 { font: 600 12px system-ui; margin: 10px 0 2px; color: #555; }
   menuOpen.attachedToHintTriggerInstead =
     Math.abs(menuPanel.getBoundingClientRect().top - hintTrigger.getBoundingClientRect().bottom) < 2;
   menuPanel.hidePopover();
+
+  /* ORACLE NOTE. The first version of this check read "did a label wrap" as
+     `item.height > lineHeight * 1.6`. Every item carries
+     `min-block-size: max(--unit * 9, --min-target)`, so every item is 36px
+     tall whether its text wrapped or not, and the check reported two lines for
+     single-line labels. That is N690's defect — the padded box measured for a
+     claim about text — reproduced by someone who had just finished reading
+     about N690. A claim about line breaking has to measure LINE BOXES. */
+  const lineBoxes = (el) => {
+    const node = el.firstChild;
+    if (!node || node.nodeType !== Node.TEXT_NODE) return -1;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    return range.getClientRects().length;
+  };
+  const labelLines = () => {
+    if (!menuPanel.matches(':popover-open')) menuTrigger.click();
+    const per = [...menuPanel.querySelectorAll('[role="menuitem"]')]
+      .map((b) => ({ text: b.textContent.trim(), lines: lineBoxes(b) }));
+    const r = menuPanel.getBoundingClientRect();
+    const t = menuTrigger.getBoundingClientRect();
+    const out = { panelInline: rnd(r.width), triggerInline: rnd(t.width),
+                  atLeastTriggerWide: r.width >= t.width - 0.5,
+                  flippedInline: Math.abs(r.left - t.left) < 2,
+                  items: per, anyWrapped: per.some((p) => p.lines > 1) };
+    menuPanel.hidePopover();
+    return out;
+  };
+  const withFloor = labelLines();
+  /* Paired control: remove ONLY the max-content floor. If the labels still do
+     not wrap, this check is not measuring the floor and P18f proves nothing. */
+  menuPanel.style.minInlineSize = 'auto';
+  const withoutFloor = labelLines();
+  menuPanel.style.minInlineSize = '';
+
+  rec('P18f', 'a menu whose position-area is narrower than its content flips instead of shredding its labels — but only because min-inline-size forbids the shrink',
+      withFloor, withoutFloor,
+      (!withFloor.anyWrapped && withoutFloor.anyWrapped &&
+       withFloor.atLeastTriggerWide) ? 'YES' : 'NO',
+      'F8 restated inside the browser: position-try-fallbacks is an OVERFLOW test, and a shrink-to-fit box never overflows, so the fallback never fires and the content is crushed instead. Forbidding the shrink is what makes the browser able to see it.');
 
   rec('P18a', 'the proposed table places an invoker-opened menu with no anchor-name, no anchor-scope and no authored side',
       menuOpen,

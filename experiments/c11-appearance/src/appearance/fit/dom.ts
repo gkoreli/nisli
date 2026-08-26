@@ -35,7 +35,10 @@ const CONTAINED_OVERFLOW: Readonly<Record<string, true>> = {
   clip: true,
   auto: true,
   scroll: true,
-  overlay: true,
+  // `overlay` is deliberately absent: it computes to `auto` per css-overflow-3,
+  // so it can never arrive here as a computed value. It was listed for two
+  // months and measured as unreachable. A dead branch in a fail-safe table is
+  // worse than a gap, because it reads as coverage.
 };
 
 export const domMetrics: Metrics<HTMLElement> = {

@@ -122,6 +122,35 @@ const REGISTRY = {
       'Two or more actions in one surface each declare themselves the thing to do. The declarations contradict each other, so the reader is asked to spend the same attention twice.',
     hint: 'Keep one primary or danger action per surface and demote the rest to quiet, or split them into separate surfaces if they really are separate decisions. Normative source: the GNOME HIG allows a single suggested-or-destructive button per view.',
   },
+  /* ── Measurement truth ──────────────────────────────────────────────────
+     Three codes for defects the checker was PASSING silently. Each was found
+     by measuring a CSS feature the prototype had never met, and each is a
+     false-PASS rather than a false-FAIL, which is the worse currency: nobody
+     reads a finding that is not there. */
+  N710: {
+    code: 'N710',
+    title: 'clipped content lost',
+    severity: 'fail',
+    summary:
+      'A box clips, its content is larger than the box, and nothing declared that the clipped material was expendable. Measured worst case in this prototype: a 772px table in a 358px flush surface deleted 414px and 30 nodes entirely, in silence.',
+    hint: 'Either let the region scroll, so the rest stays reachable, or declare `data-clip="trim"` to say the overhang is decoration. Scrolling is a promise to the reader; clipping without a declaration is a deletion.',
+  },
+  N713: {
+    code: 'N713',
+    title: 'content lost in a multicolumn box',
+    severity: 'fail',
+    summary:
+      'A multicolumn container overflowed. A column box is not an element, so the per-node crush test can never see this: measured 3 columns of 101.33px holding 103px of content, 6 crushed nodes and a 323/320 container, invisible to every per-element predicate.',
+    hint: 'This one must be measured with rectangles rather than element geometry. Derive the column count instead of declaring a column width.',
+  },
+  N715: {
+    code: 'N715',
+    title: 'overflow before the box',
+    severity: 'fail',
+    summary:
+      'Content painted above or to the logical start of its container. `scrollHeight`/`scrollWidth` are directional and cannot see it: measured a box reporting scrollHeight 36 === clientHeight 36 with a 45px control sitting outside it.',
+    hint: 'Compare rectangles, not scroll extents. Any container whose block-start or inline-start overflow matters needs the rect pass, because the scroll extent is structurally blind to it.',
+  },
 } as const satisfies Record<string, CodeEntry>;
 
 /**

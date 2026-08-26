@@ -153,6 +153,21 @@ app-action-group {
    region paints nothing and only declares how its overflow behaves. */
 [data-scroll-region] {
   overflow-x: auto;
+  /* MEASURED, and this line prevents a permanent flicker rather than a cosmetic
+     one. A classic (space-consuming) scrollbar changes the container's
+     clientWidth, which is the number the fit solver measures. So the loop can
+     degrade a candidate to make room, lose the scrollbar because the content now
+     fits, un-degrade because there is room again, regain the scrollbar, and
+     oscillate forever. Running the solve loop across a 15px scrollbar window in
+     2px steps: 79 of 91 widths were PERMANENTLY BISTABLE (281/1 → 296/0 →
+     281/1 …). With this declaration: 0 of 91.
+
+     It is invisible on the platform the 240-cell matrix runs on, because macOS
+     overlay scrollbars consume 0px — which is precisely why it needs to be a
+     declaration in the table rather than a thing someone notices on Windows. A
+     solver that measures a viewport the scrollbar is still arguing about cannot
+     terminate, and reserving the gutter removes the argument. */
+  scrollbar-gutter: stable;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

@@ -18,7 +18,7 @@
  * Three exemptions, all principled:
  *   - a node the solver truncated: clamping to one ellipsised line is a
  *     DECLARED loss, and its clipped content is not painting on anything;
- *   - a real scroll container (`overflow-x: auto | scroll | overlay`): content
+ *   - a real scroll container (`overflow-x: auto | scroll`): content
  *     larger than the box is the point of a scroller;
  *   - `data-appearance="field"`: a text control scrolls its own value, so a
  *     value wider than the box is the field WORKING. This is the only
@@ -66,7 +66,10 @@ import { rule } from '../rule.js';
  * overflow panel above: the solver asks whether a container can settle, this
  * rule asks whether anything is unreadable.
  */
-const SCROLLABLE: Readonly<Record<string, true>> = { auto: true, scroll: true, overlay: true };
+// `overlay` is absent by measurement, not oversight: css-overflow-3 computes it
+// to `auto`, so it never appears as a computed value and a branch for it reads
+// as coverage while being unreachable.
+const SCROLLABLE: Readonly<Record<string, true>> = { auto: true, scroll: true };
 
 export function crushedRule<TNode>(): Rule<TNode> {
   return rule<TNode>('N660', (lens, out) => {
