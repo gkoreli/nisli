@@ -106,8 +106,9 @@ app, so this is the cheapest possible leak — but it is a leak, and pretending
 ### L4 — The checker cannot see `opacity`, and the shipped table hides a 3.03:1 control behind it.
 
 `roles.css:130-133` dims a disabled action with `opacity: 0.45`. `contrast.ts`
-reads `inspector.style(node, 'color')` and `inspector.backdrop(node)` and never
-looks at `opacity`, so it computes **18.85:1** for a control that actually
+reads `el.raw('color')` and `el.backdrop()` (`contrast.ts:61-62`, post-lens
+migration) and never looks at `opacity`, so it computes **18.85:1** for a
+control that actually
 composites to `#949495` on white — **3.03:1** (dark: `#7a7a7d` on `#16161a`,
 **4.22:1**). WCAG 1.4.3 exempts inactive components, so this is not a
 conformance failure; it is a **silent confidence failure**, the sixth member of
@@ -129,7 +130,7 @@ unknowable from computed style, and a checker must refuse rather than guess.
 
 ### L5 — Text over an image, gradient or video backdrop is outside the mechanism.
 
-`contrast.ts` gets its backdrop from `inspector.backdrop(node)`, which is a
+`contrast.ts` gets its backdrop from `el.backdrop()`, which is a
 *background-color* walk. An ancestor carrying `background-image` contributes no
 colour to that walk, so the rule silently measures the colour *behind* the
 image and reports a ratio that has nothing to do with what is on screen. This is
@@ -139,7 +140,7 @@ wrong box. `contrast-color()` cannot help: there is no single input colour.
 Cheapest honest option: a declared `data-scrim` on any surface that paints a
 non-colour background, from which the table derives an opaque-enough scrim, plus
 N741 to make the undeclared case an error rather than a wrong number. Not
-probed — reasoned from `contrast.ts:58-59` and the `backdrop()` contract.
+probed — reasoned from `contrast.ts:61-62` and the `backdrop()` contract.
 `[REASONED, NOT MEASURED]`
 
 ### L6 — The brand hues themselves.
@@ -510,7 +511,7 @@ risk.**
 
 ### P7 — The cost nobody budgeted: derivation blinds the existing checker
 
-`contrast.ts:23-36` parses colours with a regex that accepts `rgb…` and
+`contrast.ts:27-41` parses colours with a regex that accepts `rgb…` and
 `color(srgb …)` and returns `null` for everything else, producing N680
 "undecidable". A derived table's computed values are `oklab(…)`.
 
@@ -525,9 +526,19 @@ risk.**
 288 of 1188 text cells overall. This is not a hypothetical: adopting derivation
 without touching the checker converts roughly a third of the contrast surface
 from *checked* to *undecidable*, which is precisely how a checker gets muted —
-the failure mode `contrast.ts:12-13` was written to avoid. The fix is small
+the failure mode `contrast.ts:11-14` was written to avoid. The fix is small
 (resolve via the compositor, as this harness does, or register `@property`) but
 it must land in the same change.
+
+**Re-checked against the in-flight lens migration.** `contrast.ts` has since
+moved to the `rule()`/`lens` seam, but `channels()` came through
+**byte-identical** — same regex, same `rgb`/`color(srgb …)` allow-list, same
+`null` for everything else. Line 37 now says so out loud:
+`// oklch(), lab(), a named keyword the adapter did not resolve`. So the
+migration relocates the defect without fixing it, and the same is true of L4 and
+L5: `el.backdrop()` is still a background-*colour* walk, and nothing anywhere
+consults `opacity`. The amendment to N640 is still required, and it is
+independent of the adapter work.
 
 ### P8 — `@property` makes the invariant checkable
 
