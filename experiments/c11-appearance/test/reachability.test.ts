@@ -86,7 +86,9 @@ function producedAttributes(): ReadonlySet<string> {
   for (const dir of PRODUCERS) {
     for (const file of filesUnder(dir)) {
       if (file.endsWith('.test.ts')) continue;
-      for (const match of readFileSync(file, 'utf8').matchAll(/data-[a-z-]+/g)) {
+      // Cannot end in a dash, so `data-table-caption-${id}` yields the
+      // attribute and not a fragment of the template that built it.
+      for (const match of readFileSync(file, 'utf8').matchAll(/data-[a-z]+(?:-[a-z]+)*/g)) {
         found.add(match[0]);
       }
     }
@@ -133,5 +135,117 @@ describe('rule selectors are reachable', () => {
     // selecting it is unreachable and must be reported as such.
     expect(produced.has('data-surface')).toBe(false);
     expect(produced.has('data-appearance')).toBe(true);
+  });
+});
+
+/**
+ * The vocabulary is the DENOMINATOR of the third reachability direction, and
+ * that direction does not live here — it lives in `proof/declaration-guard.mjs`
+ * as class D, which asks the live DOM whether every legal value is carried by
+ * an element in some exercised context.
+ *
+ * WHY NOT HERE. This file could grep the pages for each value in milliseconds
+ * with no browser, and it would be answering a weaker question. The components
+ * write `data-layout=${layout}`, so which value reaches an element is decided
+ * at runtime by a page, a prop default, a computed or the solver; a grep finds
+ * the spelling in whichever module mentions it and cannot tell a branch that
+ * renders from a branch that never runs. "A rule has had a chance to run
+ * against this value" is a claim about elements that existed, so the DOM is the
+ * box that claim is about — and a check must measure the box its claim is
+ * about. Two homes for one claim is worse than one: the cheap one gets trusted.
+ *
+ * WHAT DOES BELONG HERE is everything about the vocabulary that is decidable
+ * from source and that class D's numbers depend on. Class D can only be as
+ * complete as the seam it reads, so this is where the seam is held to it.
+ */
+describe('the vocabulary can be exercised at all', () => {
+  const produced = producedAttributes();
+  const axes = Object.keys(VOCABULARY);
+  const addressed: string[] = Object.values(AXIS_ATTRS);
+
+  it('addresses every axis with exactly one attribute, and no attribute twice', () => {
+    // An axis no attribute addresses is a set of values that cannot be written
+    // and therefore cannot be exercised, which would make class D's count a
+    // number about nothing. Two attributes on one axis would double-count it.
+    expect([...addressed].sort()).toEqual([...axes].sort());
+    expect(new Set(addressed).size).toBe(addressed.length);
+  });
+
+  it('is written by something, so the values have somewhere to land', () => {
+    const orphans = Object.keys(AXIS_ATTRS).filter((attr) => !produced.has(attr));
+    expect(orphans).toEqual([]);
+  });
+
+  it('keeps a denominator that cannot silently shrink', () => {
+    // Class D reports "N values checked, M found". Deleting an axis or a value
+    // makes it quieter, and a quieter guard reads exactly like a healthier
+    // codebase — the failure mode the guard exists to catch, one level up. A
+    // deliberate shrink edits these floors and says why; an accidental one
+    // fails here.
+    const values = axes.flatMap((axis) => VOCABULARY[axis as keyof typeof VOCABULARY]);
+    expect(axes.length).toBeGreaterThanOrEqual(8);
+    expect(values.length).toBeGreaterThanOrEqual(25);
+  });
+});
+
+/**
+ * Declarations whose VALUES no axis enumerates. Class D is structurally unable
+ * to say anything about these, so naming them is the difference between an
+ * honest denominator and a count that implies coverage it does not have. Two of
+ * the four selectors the demo has never exercised are exactly here — `wrap` is
+ * a `VOCABULARY.layout` value and class D fails on it, while `data-align`'s
+ * `start` and `end` are outside every claim class D makes.
+ *
+ * Checked in both directions, because an unstated blind spot and a stale one
+ * are the same defect: each entry must still be produced, and must still be
+ * outside `AXIS_ATTRS`. Giving one of them an axis therefore FAILS this test,
+ * and the fix is to delete the entry — which is the point. `contracts.ts` is
+ * the frozen seam, so whether the first two SHOULD become axes is a decision
+ * recorded here rather than taken here.
+ */
+const UNENUMERATED = [
+  {
+    attr: 'data-fit',
+    why: 'written by the solver rather than an author, so it is deliberately outside the author vocabulary — and equally outside class D. Enumerating it would invite an author to write it.',
+  },
+  {
+    attr: 'data-truncate',
+    why: 'the mutator stamps it to record a spent degradation; an illegal value would be a bug in the solver rather than a mistake an author can make',
+  },
+  {
+    attr: 'data-component',
+    why: 'written by the component factory from the tag name, so its value space is the registry rather than a vocabulary axis',
+  },
+];
+
+/*
+ * DELETED ON 2026-08-25, and the deletion is the record: `data-align` and
+ * `data-clip` were listed here as author-facing declarations that no axis
+ * enumerated. That was a real gap — N610 checks values against `VOCABULARY`, so
+ * a word with no axis could not be checked against anything and
+ * `data-align="stat"` silently did nothing. It is the N700 dead-selector class
+ * on the AUTHOR's side of the seam. Both now have axes (`align`, `clip`), this
+ * test failed because the entries had gone false, and honouring it rather than
+ * relaxing it is the whole reason it was written in both directions.
+ */
+
+describe('the vocabulary states what it does not cover', () => {
+  const produced = producedAttributes();
+
+  it('names every value-bearing declaration that no axis enumerates', () => {
+    const stale = UNENUMERATED.filter((entry) => !produced.has(entry.attr)).map(
+      (entry) => `${entry.attr} is named as unenumerated but nothing writes it`,
+    );
+    const covered = UNENUMERATED.filter((entry) => entry.attr in AXIS_ATTRS).map(
+      (entry) => `${entry.attr} now has an axis, so delete this entry: ${entry.why}`,
+    );
+    expect([...stale, ...covered]).toEqual([]);
+  });
+
+  it('is not an empty gesture', () => {
+    // If this list ever empties legitimately, the assertion below is what makes
+    // somebody delete the suite rather than leave a check over nothing.
+    expect(UNENUMERATED.length).toBeGreaterThan(0);
+    expect(UNENUMERATED.every((entry) => entry.why.length > 20)).toBe(true);
   });
 });

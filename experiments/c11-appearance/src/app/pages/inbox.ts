@@ -17,10 +17,38 @@
  * defer to `states.ts`, an empty corpus falls through to the empty panel as a
  * CONSEQUENCE rather than as a branch anybody chose, and everything else is the
  * row list the matrix has always measured.
+ *
+ * THE SENDERS STRIP IS DECORATION, AND SAYS SO TWICE. A row of initials above
+ * the list is a visual summary of who is in it, and every identity in it is
+ * rendered as text a few boxes below — which is why `Avatar` was already
+ * `aria-hidden`: the initials are a redundant rendering of a name that is
+ * always announced beside them. A strip of them is therefore not in the
+ * accessibility tree at all, and that is the whole licence for `clip: 'trim'`.
+ *
+ * The theme derives a reachable scroll region for clipped content by default,
+ * because a clipped column is a deleted column and the demo table paid for
+ * that lesson. Nothing measurable separates this strip from that table — both
+ * are simply wider than their box — so the author has to answer the one
+ * question the engine cannot, and `trim` is that answer: the overhang here
+ * carries no information, because the accessibility tree already says there is
+ * none to carry. The claim is checkable rather than decorative prose: N710
+ * stops reporting clipped loss on a trimmed clipper, so declaring it on a
+ * strip whose contents were NOT duplicated below would be muting a real
+ * finding, and declaring it here is not.
+ *
+ * It renders only when there is a list. An empty decorative strip is furniture.
  */
 
 import { computed, each, html, type ReadonlySignal, type TemplateResult } from '@nisli/core';
-import { type ActionGroupSpec, Button, MessageRow, Region, Surface, Toolbar } from '../../ui/index.js';
+import {
+  type ActionGroupSpec,
+  Avatar,
+  Button,
+  MessageRow,
+  Region,
+  Surface,
+  Toolbar,
+} from '../../ui/index.js';
 import {
   archive,
   compose,
@@ -138,9 +166,29 @@ function inboxBody(): ReadonlySignal<TemplateResult> {
   });
 }
 
+/**
+ * The decorative summary of who is in the list.
+ *
+ * Empty when the list is, which covers loading, failed and genuinely empty
+ * without asking about any of them: all three seed an empty corpus, so "there
+ * is nobody to show" and "there is no list" are the same fact read once.
+ */
+function sendersStrip(): ReadonlySignal<TemplateResult> {
+  return computed((): TemplateResult => {
+    const senders = visibleMessages.value;
+    if (senders.length === 0) return html``;
+    return Region({
+      layout: 'row',
+      clip: 'trim',
+      children: html`${senders.map((message) => Avatar({ initials: message.initials }))}`,
+    });
+  });
+}
+
 export function InboxPage(): TemplateResult {
   return Region({
     layout: 'stack',
-    children: html`${Toolbar({ title: 'Inbox', actions: TOOLBAR_ACTIONS })} ${inboxBody()}`,
+    children: html`${Toolbar({ title: 'Inbox', actions: TOOLBAR_ACTIONS })} ${sendersStrip()}
+    ${inboxBody()}`,
   });
 }

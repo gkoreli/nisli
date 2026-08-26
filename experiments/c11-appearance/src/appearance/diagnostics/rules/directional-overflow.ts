@@ -80,9 +80,31 @@ const TOLERANCE = 1;
  */
 const OUT_OF_FLOW: Readonly<Record<string, true>> = { absolute: true, fixed: true };
 
+/**
+ * A promoted overlay and EVERYTHING INSIDE IT. `OUT_OF_FLOW` above exempts the
+ * panel itself, and that was not enough: a button inside an open popover is in
+ * normal flow *relative to the panel*, so it reads as in-flow here while its
+ * rect is positioned against the viewport. The result was a confident false
+ * failure — "paints 46 pixels above its block-start edge of app-message-row" — about
+ * an element that is not laid out inside that row at all.
+ *
+ * This is the eighth oracle bug in this experiment and the one with the least
+ * excuse: N710 was given exactly this exemption an hour earlier, for exactly
+ * this reason, and its sibling did not get it. A fix applied to one rule and not
+ * to the rule beside it is its own defect class, and the reason it is recorded
+ * here rather than quietly patched.
+ *
+ * `[popover]` rather than `:popover-open`, matching N710: happy-dom has no
+ * popover API, so the pseudo would make the unit lens and the browser lens
+ * disagree about the same document. A closed popover is `display: none` and
+ * `painted()` has already dropped it.
+ */
+const PROMOTED = '[popover], [popover] *';
+
 export function directionalOverflowRule<TNode>(): Rule<TNode> {
   return rule<TNode>('N715', (lens, out) => {
     const escaped = new Set(lens.declared('[data-escaped], [data-escaped] *').map((el) => el.node));
+    const promoted = new Set(lens.declared(PROMOTED).map((el) => el.node));
     const containers = lens.painted(CONTAINERS);
     const claimed = new Set<TNode>();
 
@@ -116,6 +138,7 @@ export function directionalOverflowRule<TNode>(): Rule<TNode> {
         if (claimed.has(item.node)) continue;
         claimed.add(item.node);
         if (escaped.has(item.node)) continue;
+        if (promoted.has(item.node)) continue;
         if (OUT_OF_FLOW[item.raw('position')]) continue;
 
         const inner = item.bounds();

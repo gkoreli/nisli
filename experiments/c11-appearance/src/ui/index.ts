@@ -19,7 +19,7 @@ export { Button, type ButtonProps } from './primitives/button.js';
 export { Escaped, type EscapedProps } from './primitives/escaped.js';
 export { Field, type FieldProps } from './primitives/field.js';
 export { NavItem, type NavItemProps } from './primitives/nav-item.js';
-export { type Align, Region, type RegionProps } from './primitives/region.js';
+export { type Align, type Clip, Region, type RegionProps } from './primitives/region.js';
 export { Surface, type SurfaceProps } from './primitives/surface.js';
 export { Text, type TextProps, type TextStrategy } from './primitives/text.js';
 

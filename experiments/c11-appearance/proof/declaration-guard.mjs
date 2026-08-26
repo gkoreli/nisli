@@ -21,7 +21,7 @@
  * silence, one layer below the N700 dead-selector bug, inside the largest
  * single part of the bet.
  *
- * Three classes, and the honest scope of each is the point of this file:
+ * Four classes, and the honest scope of each is the point of this file:
  *
  *   A  REJECTED   the declaration cannot parse as a value for its property,
  *                 after the custom properties it names are substituted with
@@ -33,6 +33,11 @@
  *   C  UNMATCHED  a theme selector that matched nothing in any exercised
  *                 context. WARNS only, and §Class C explains why it cannot
  *                 honestly do more than warn.
+ *   D  UNEXERCISED  a value the VOCABULARY declares legal that no element
+ *                 carried in any exercised context. FAILS the run, with a
+ *                 checked allowlist as the only escape. §Class D argues the
+ *                 difference from C, which is why C can only warn and D can
+ *                 do better.
  *
  * It starts nothing. Point it at a running dev server:
  *
@@ -123,6 +128,211 @@ function reachContexts(pages) {
     }
   }
   return contexts;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   §Class D — the vocabulary checks that it is exercised
+   ══════════════════════════════════════════════════════════════════════════
+   Class C asks a question about the TABLE: does this selector match anything.
+   `test/reachability.test.ts` asks a question about the RULES: can this
+   selector match anything. Neither asks the question about the VOCABULARY:
+   is every value it declares legal actually rendered by something.
+
+   That third direction is not a nicety, it is the same bug one level up. A
+   legal value no page renders is a value no rule has ever run against, no
+   declaration has ever resolved for, and no assertion has ever covered — and
+   the matrix reports every cell clean regardless, because a value that is
+   never rendered produces no findings, which is exactly what a clean page
+   produces. Success by silence, third occurrence, and the reason this file
+   exists at all.
+
+   WHY THE LIVE DOM AND NOT A SOURCE SCAN. A vitest test could read the
+   vocabulary and grep the pages for the spelling, with no browser and in
+   milliseconds. It would also be answering a different question than the one
+   asked. `data-layout=${layout}` is what the components actually write, so
+   the value that reaches an element is chosen at runtime by a page, a prop
+   default, a computed, or the solver — a grep for the literal finds the value
+   in whichever page mentions it and cannot tell a branch that renders from a
+   branch that never runs. The claim being made here is "a rule has had a
+   chance to run against this value", and the only thing that supports it is
+   an element that existed. A check must measure the box its claim is about;
+   the box is the DOM.
+
+   WHY THIS FAILS WHERE C ONLY WARNS. C cannot distinguish "dead" from "not
+   on these four pages", and it holds the proof inside the table it audits:
+   `[data-fit='unsatisfiable']` matches nothing precisely BECAUSE the solver
+   never gives up, so the rule is correct and unmatched at once. D has no such
+   ambiguity. The vocabulary is the closed set of what an author is ALLOWED to
+   write, so a value in it that nothing writes is either a word the demo owes
+   a use, or a word the vocabulary should not contain. Both are defects, and
+   both are actionable by whoever reads the failure. A permanent warning is a
+   permanent lie and this project has already recorded that an oracle nobody
+   acts on gets muted, so D fails and offers `EXERCISE_ALLOWLIST` as the only
+   escape — an escape that is itself checked, below.
+
+   WHAT D CANNOT SEE, stated here rather than discovered later:
+
+     - Only the contexts in `reachContexts()`: every page, the widest and the
+       narrowest viewport, and three axis triples. A value that appears only
+       at an intermediate width, only in an axis combination outside those
+       triples, or only after an interaction beyond the one overflow menu this
+       sweep opens, reads as unexercised. That direction is the safe one — it
+       over-reports rather than under-reports — but it is not free of cost,
+       and the allowlist exists partly for it.
+     - Only attributes `AXIS_ATTRS` names. Attributes carrying values that no
+       axis enumerates are outside the vocabulary and therefore outside every
+       claim D makes; the run prints which ones, computed from the table's own
+       selectors, so the denominator of "values checked" is never implied to
+       be the whole authored surface.
+     - Nothing about whether the value LOOKS right. D proves an element
+       existed carrying it, which is what makes the other assertion paths
+       non-vacuous for that value. It is a precondition of coverage, not
+       coverage.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * The vocabulary is read out of the frozen seam rather than restated here, for
+ * the same reason the pages are: a copy is a second source of truth that goes
+ * stale silently, and a guard reporting an artefact of its own staleness is
+ * worse than no guard. An unparseable seam is a broken self-check, never an
+ * empty run.
+ */
+const CONTRACTS = 'src/appearance/contracts.ts';
+
+async function readVocabulary() {
+  const source = stripComments(await readFile(path.join(ROOT, CONTRACTS), 'utf8'));
+  const axes = {};
+  const vocabulary = source.match(/VOCABULARY\s*=\s*\{([\s\S]*?)\n\}/);
+  if (vocabulary) {
+    for (const entry of vocabulary[1].matchAll(/([a-z]+)\s*:\s*\[([^\]]*)\]/g)) {
+      axes[entry[1]] = [...entry[2].matchAll(/'([^']+)'/g)].map((match) => match[1]);
+    }
+  }
+  const attrs = {};
+  const mapping = source.match(/AXIS_ATTRS\s*=\s*\{([\s\S]*?)\n\}/);
+  if (mapping) {
+    for (const entry of mapping[1].matchAll(/'(data-[a-z-]+)'\s*:\s*'([a-z]+)'/g)) attrs[entry[1]] = entry[2];
+  }
+  return { axes, attrs };
+}
+
+/** One row per legal value: the axis that declares it and the selector that finds it. */
+function vocabularyValues(vocabulary) {
+  const values = [];
+  for (const [attr, axis] of Object.entries(vocabulary.attrs)) {
+    for (const value of vocabulary.axes[axis] ?? []) {
+      values.push({ axis, attr, value, selector: `[${attr}='${value}']` });
+    }
+  }
+  return values;
+}
+
+/**
+ * The honest escape, and the whole design of it is in the two rules below.
+ *
+ * A value can be legitimately unexercised for a while — a word the vocabulary
+ * declares before the surface that uses it lands. What must never happen is
+ * the state this class exists to end: an exception that outlives its reason
+ * and quietly subtracts from what the guard covers. So an entry is a dated
+ * claim, and both ways it can go false are FAILURES rather than shrugs:
+ *
+ *   STALE    the value IS exercised now. The exception is no longer true, so
+ *            it is reported and must be deleted. This is the direction that
+ *            rots silently everywhere else.
+ *   UNKNOWN  the entry names an axis or value the vocabulary does not have.
+ *            The entry is not an exception, it is a typo asserting nothing —
+ *            the N700 shape inside the allowlist itself.
+ *
+ * Shipped empty, deliberately: every value the vocabulary declares is
+ * rendered by the demo, so there is nothing to except. Format, if that ever
+ * stops being true: `{ axis, value, why }`, and `why` is a sentence a reader
+ * can disagree with, never the word "later".
+ */
+const EXERCISE_ALLOWLIST = [];
+
+/**
+ * The claim class D is really making is "the 240-cell matrix rendered this
+ * value", and that is only true while every context this sweep visits is also
+ * a cell of that matrix. Nothing enforced it, so the axis lists are read back
+ * out of the matrix and the containment is checked. Change a width here to one
+ * the matrix does not run and the claim silently weakens to "reachable in the
+ * demo"; this is what says so instead.
+ */
+const MATRIX_SOURCE = 'proof/geometry-proof.mjs';
+
+async function readMatrix() {
+  const source = await readFile(path.join(ROOT, MATRIX_SOURCE), 'utf8');
+  const list = (name, item) => {
+    const block = source.match(new RegExp(`const ${name}\\s*=\\s*\\[([^\\]]*)\\]`));
+    return block ? [...block[1].matchAll(item)].map((match) => match[1]) : null;
+  };
+  const word = /'([a-z0-9-]+)'/g;
+  return {
+    page: list('PAGES', word),
+    density: list('DENSITIES', word),
+    input: list('INPUTS', word),
+    theme: list('THEMES', word),
+    width: list('WIDTHS', /(\d+)/g),
+  };
+}
+
+/** Which visited contexts are not cells of the matrix, and why. */
+function outsideMatrix(visiting, matrix) {
+  const unreadable = Object.entries(matrix)
+    .filter(([, values]) => values === null || values.length === 0)
+    .map(([axis]) => axis);
+  if (unreadable.length > 0) return { unreadable, strays: [] };
+  const strays = [];
+  for (const context of visiting) {
+    for (const [axis, values] of Object.entries(matrix)) {
+      if (!values.includes(String(context[axis]))) strays.push(`${axis}=${context[axis]}`);
+    }
+  }
+  return { unreadable, strays: [...new Set(strays)] };
+}
+
+/**
+ * The denominator, printed rather than implied. Every attribute the table
+ * selects a VALUE on is a place values live; the ones `AXIS_ATTRS` does not
+ * name are outside the vocabulary, so class D is structurally unable to say
+ * anything about them and must not be read as having tried. Computed from the
+ * table's own selectors on every run, so unlike a hand-written note it cannot
+ * go stale.
+ */
+/* Both quote styles and the unquoted form, so a restyled table cannot quietly
+   shrink this list — an under-reported blind spot is the defect this line is
+   here to prevent. */
+const VALUED_ATTR = /\[(data-[a-z-]+)\s*[~^|*$]?=\s*(?:'[^']*'|"[^"]*"|[^\]\s]+)\s*\]/g;
+
+function outsideVocabulary(files, vocabulary) {
+  const found = new Set();
+  for (const file of files) {
+    for (const rule of file.rules) {
+      for (const selector of rule.selectors) {
+        for (const match of withoutNegations(selector).matchAll(VALUED_ATTR)) found.add(match[1]);
+      }
+    }
+  }
+  return [...found].filter((attr) => vocabulary.attrs[attr] === undefined).sort();
+}
+
+/**
+ * The class D verdict. Three findings, all failures, and the last two are the
+ * allowlist holding itself to the same standard it exempts values from.
+ */
+function classifyValues(counted, allowlist, vocabulary) {
+  const exercised = counted.filter((value) => value.count > 0);
+  const unexercised = [];
+  const excused = [];
+  for (const value of counted.filter((value) => value.count <= 0)) {
+    const allowance = allowlist.find((entry) => entry.axis === value.axis && entry.value === value.value);
+    (allowance ? excused : unexercised).push({ ...value, why: allowance?.why });
+  }
+  const stale = allowlist.filter((entry) =>
+    exercised.some((value) => value.axis === entry.axis && value.value === entry.value),
+  );
+  const unknown = allowlist.filter((entry) => !(vocabulary.axes[entry.axis] ?? []).includes(entry.value));
+  return { exercised, unexercised, excused, stale, unknown, findings: unexercised.length + stale.length + unknown.length };
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -831,7 +1041,7 @@ function modelOf(files) {
   return files.map((file) => ({ file: file.file, source: file.source, rules: file.rules }));
 }
 
-async function collectReach(browser, files, visiting) {
+async function collectReach(browser, files, visiting, values) {
   const selectors = [];
   const owners = new Map();
   for (const file of files) {
@@ -845,6 +1055,11 @@ async function collectReach(browser, files, visiting) {
     }
   }
   const best = new Map(selectors.map((selector) => [selector, 0]));
+  /* Class D rides the same sweep rather than starting a second browser: the
+     question is asked of the same DOM in the same contexts, so the two classes
+     can never disagree about what was on screen. Counted while the overflow
+     menu is open, for the same reason class C counts there. */
+  const valueBest = new Map(values.map((value) => [value.selector, 0]));
   let visited = 0;
   for (const context of visiting) {
     await browser.evaluate(async (ctx) => {
@@ -865,6 +1080,10 @@ async function collectReach(browser, files, visiting) {
     const counts = await browser.evaluate(reachInPage, { selectors });
     for (const [selector, total] of Object.entries(counts)) {
       best.set(selector, Math.max(best.get(selector) ?? 0, total));
+    }
+    const valueCounts = await browser.evaluate(termsInPage, { terms: values.map((value) => value.selector) });
+    for (const [selector, total] of Object.entries(valueCounts)) {
+      valueBest.set(selector, Math.max(valueBest.get(selector) ?? 0, total));
     }
     await browser.evaluate(() => {
       const trigger = document.querySelector('[data-overflow][data-shown]');
@@ -896,6 +1115,7 @@ async function collectReach(browser, files, visiting) {
       const dead = termsOf(selector).filter((term) => (termCounts.get(term) ?? 0) <= 0);
       return { selector, ...owners.get(selector), dead };
     }),
+    values: values.map((value) => ({ ...value, count: valueBest.get(value.selector) ?? 0 })),
   };
 }
 
@@ -923,7 +1143,7 @@ function printFindings(title, entries, total) {
   console.log('');
 }
 
-function selfChecksOf(audit, theme, pages) {
+function selfChecksOf(audit, theme, pages, coverage, matrix) {
   const drift = audit.parserAudit.filter((entry) => entry.mismatch);
   return [
     {
@@ -977,6 +1197,39 @@ function selfChecksOf(audit, theme, pages) {
         audit.stats.keywordsCompared > 20,
       detail: `${audit.stats.declarations} declarations parsed, ${audit.stats.uniquePairs} distinct property/value pairs answered by CSS.supports(), ${audit.stats.substituted} needed custom-property substitution, ${audit.stats.keywordsCompared} keyword longhands compared against their computed value`,
     },
+    {
+      /* The seam is read, not restated, so an unreadable seam has to be louder
+         than a clean class D — otherwise a rename in contracts.ts turns this
+         class into a check over an empty list, which passes. */
+      name: 'vocabulary readable',
+      ok: coverage.axes > 0 && coverage.checked > 0 && coverage.unaddressed.length === 0,
+      detail:
+        coverage.axes === 0 || coverage.checked === 0
+          ? `VOCABULARY / AXIS_ATTRS could not be read from ${CONTRACTS}, so class D checked nothing and its silence means nothing`
+          : coverage.unaddressed.length > 0
+            ? `no attribute in AXIS_ATTRS addresses ${coverage.unaddressed.join(', ')}, so those axes are unreachable and unchecked`
+            : `${coverage.checked} values across ${coverage.axes} axes read from ${CONTRACTS}, every axis addressed by an attribute`,
+    },
+    {
+      /* The denominator cannot silently shrink. Deleting an axis or a value
+         makes class D quieter, and a quieter guard reads exactly like a
+         healthier codebase. */
+      name: 'class D is not vacuous',
+      ok: coverage.axes >= 8 && coverage.checked >= 25 && coverage.visited > 0,
+      detail: `${coverage.checked} legal values across ${coverage.axes} axes asked of ${coverage.visited} page contexts; ${coverage.exercised} found live`,
+    },
+    {
+      /* What makes "exercised" mean "the matrix rendered it" rather than
+         "some context somewhere rendered it". */
+      name: 'class D contexts are matrix cells',
+      ok: matrix.unreadable.length === 0 && matrix.strays.length === 0,
+      detail:
+        matrix.unreadable.length > 0
+          ? `could not read ${matrix.unreadable.join(', ')} from ${MATRIX_SOURCE}, so class D cannot claim its contexts are matrix cells`
+          : matrix.strays.length > 0
+            ? `visited outside the matrix: ${matrix.strays.join(', ')} — class D proves reachability in the demo, not coverage of the matrix`
+            : `every context class D visits is a cell of the ${MATRIX_SOURCE} matrix, so a value found here was rendered in at least one cell`,
+    },
   ];
 }
 
@@ -985,6 +1238,8 @@ function selfChecksOf(audit, theme, pages) {
  * pipeline — findings, self-checks, verdict and EXIT CODE — over a table with
  * the recorded defects put back. A guard that finds a defect and returns zero
  * is not a guard, and that last link is not provable from the audit alone.
+ * `override.vocabulary` and `override.allowlist` are the same lever for class
+ * D: the sweep is real, the page is real, and only the question is poisoned.
  */
 async function run(options, override) {
   const theme = await readTheme();
@@ -992,18 +1247,31 @@ async function run(options, override) {
   const visiting = reachContexts(pages);
   const contexts = tokenContexts();
   const model = override?.model ?? modelOf(theme.files);
+  const vocabulary = override?.vocabulary ?? (await readVocabulary());
+  const allowlist = override?.allowlist ?? EXERCISE_ALLOWLIST;
+  const values = vocabularyValues(vocabulary);
+  const matrix = outsideMatrix(visiting, await readMatrix());
   const say = override?.silent ? () => {} : console.log;
   const live = await session(options);
   let audit;
   let reach;
   try {
     audit = await live.evaluate(auditInPage, { files: model, contexts });
-    reach = await collectReach(live, model, visiting);
+    reach = await collectReach(live, model, visiting, values);
   } finally {
     await live.close();
   }
 
-  const checks = selfChecksOf(audit, theme, pages);
+  const vocab = classifyValues(reach.values, allowlist, vocabulary);
+  const unenumerated = outsideVocabulary(model, vocabulary);
+  const coverage = {
+    axes: new Set(Object.values(vocabulary.attrs)).size,
+    checked: values.length,
+    exercised: vocab.exercised.length,
+    visited: reach.visited,
+    unaddressed: Object.keys(vocabulary.axes).filter((axis) => !Object.values(vocabulary.attrs).includes(axis)),
+  };
+  const checks = selfChecksOf(audit, theme, pages, coverage, matrix);
 
   say(`c11 declaration guard — ${THEME} against ${options.url}\n`);
   say(`checked  ${audit.stats.declarations} declarations in ${audit.stats.rules} rules across ${model.length} files`);
@@ -1021,6 +1289,14 @@ async function run(options, override) {
   );
   say(
     `         C  ${reach.checked} selectors across ${reach.visited} page contexts; ${reach.matched} matched, ${reach.warnings.length} unmatched`,
+  );
+  say(
+    `         D  ${coverage.checked} legal values across ${coverage.axes} axes x ${reach.visited} page contexts; ${vocab.exercised.length} exercised, ${vocab.unexercised.length} not, ${vocab.excused.length} allowlisted`,
+  );
+  say(
+    unenumerated.length > 0
+      ? `            outside the vocabulary and therefore outside D: ${unenumerated.join(', ')} carry values no axis enumerates`
+      : '            every value-bearing attribute the table selects on is enumerated by an axis',
   );
   say('');
   for (const check of checks) say(`${check.ok ? 'ok  ' : 'FAIL'}  ${check.name}: ${check.detail}`);
@@ -1056,29 +1332,67 @@ async function run(options, override) {
     say('');
   }
 
+  if (vocab.findings > 0) {
+    /* CLASS D FAILS, AND THE ALLOWLIST FAILS THE SAME WAY. Unlike class C
+       there is no ambiguity to be honest about: the vocabulary is the closed
+       set of what an author may write, so a value in it that nothing renders
+       is a word the demo owes a use or a word the vocabulary should not have.
+       Both are somebody's decision, neither is a warning. */
+    say(`unexercised vocabulary (${vocab.findings}) — failures\n──────────────────`);
+    for (const value of vocab.unexercised) {
+      say(`  ${CONTRACTS}  ${value.axis}: '${value.value}'`);
+      say(
+        `      ${value.selector} matched nothing in any of the ${reach.visited} contexts, so no rule has run against it and no assertion covers it`,
+      );
+    }
+    for (const entry of vocab.stale) {
+      say(`  stale allowlist entry  ${entry.axis}: '${entry.value}'`);
+      say(`      is exercised now, so the exception is no longer true — delete it (was: ${entry.why})`);
+    }
+    for (const entry of vocab.unknown) {
+      say(`  unknown allowlist entry  ${entry.axis}: '${entry.value}'`);
+      say('      names no value the vocabulary has, so it excuses nothing and hides a typo');
+    }
+    say('');
+  }
+
   const broken = checks.filter((check) => !check.ok).length;
-  const pass = audit.findings.length === 0 && broken === 0;
+  const pass = audit.findings.length === 0 && vocab.findings === 0 && broken === 0;
   say(
     (pass
-      ? `PASS — every one of ${audit.stats.declarations} declarations in ${THEME} parses, substitutes and computes to what it says. ${audit.undecidable.length} undecidable, ${reach.warnings.length} unmatched selectors (warnings).`
-      : `FAIL — ${audit.findings.length} declarations do not take effect, ${broken} broken self-checks.`) +
+      ? `PASS — every one of ${audit.stats.declarations} declarations in ${THEME} parses, substitutes and computes to what it says, and every one of ${coverage.checked} legal values is exercised by the demo. ${audit.undecidable.length} undecidable, ${reach.warnings.length} unmatched selectors (warnings).`
+      : `FAIL — ${audit.findings.length} declarations do not take effect, ${vocab.findings} class D finding(s) (values nothing exercises, or exceptions that have gone false), ${broken} broken self-checks.`) +
       (live.state.reloads > 0 ? ` (${live.state.reloads} dev-server reloads recovered from)` : ''),
   );
-  return { code: pass ? 0 : 1, findings: audit.findings.length };
+  return {
+    code: pass ? 0 : 1,
+    findings: audit.findings.length,
+    broken,
+    unexercised: vocab.unexercised,
+    stale: vocab.stale,
+    unknown: vocab.unknown,
+    exercised: vocab.exercised,
+  };
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
    The self-test — the guard on the guard
    ══════════════════════════════════════════════════════════════════════════
-   Every fixture is a PAIR: the spelling that was wrong and the spelling that
-   is right, in a synthetic model that never touches `src/`. A row passes only
-   if the guard reports the broken one AND stays silent on the fixed one —
+   Every fixture is a PAIR: the defect and its correction, and a row passes
+   only if the guard reports the first AND stays silent on the second —
    detection without silence is a guard nobody will keep.
 
-   The first two fixtures are the two defects measured today, verbatim. The
-   third is the same family with no `var()` at all, because a rejection that
-   needs substitution and a rejection the parser makes outright are different
-   code paths in class A.
+   Classes A and B are injected into a synthetic model that never touches
+   `src/`. The first two fixtures are the two defects measured today, verbatim;
+   the third is the same family with no `var()` at all, because a rejection
+   that needs substitution and a rejection the parser makes outright are
+   different code paths in class A.
+
+   Classes C and D cannot be synthetic, because "matched nothing" and
+   "rendered nowhere" are questions about the DOM. They are asked of the live
+   pages, with only the selector (C) or the vocabulary and its allowlist (D)
+   poisoned. §Class D's fixture explains why the value whose usage it removes
+   is chosen by measurement rather than named here.
 
    No fixture contains a length or a colour literal: every value is derived
    from the table's own `--unit`, which is the same discipline the table is
@@ -1116,6 +1430,52 @@ const REACH_FIXTURE = {
   broken: "[data-appearance='dropdown']",
   fixed: "[data-appearance='action']",
 };
+
+/**
+ * Class D's fixture is the VOCABULARY, not the table, and it is deliberately
+ * not synthetic: the real pages, the real contexts and the real sweep, with
+ * only the question poisoned. Two poisons, because "unexercised" has two
+ * causes and they are different code paths:
+ *
+ *   RENAMED    an exercised value is renamed to a near-miss, which is exactly
+ *              "remove a value's only usage" seen from the vocabulary side —
+ *              the word the table declares legal is now one nothing writes.
+ *              The value renamed is chosen from MEASUREMENT rather than named
+ *              here, so this row cannot go stale when the demo changes.
+ *   UNWRITTEN  a word added to a real axis that nothing writes anywhere. The
+ *              same word `REACH_FIXTURE` uses, so the two classes are shown
+ *              failing on the same fact from opposite directions: class C from
+ *              the table's selector, class D from the vocabulary's value.
+ *
+ * And the allowlist is poisoned the same way, because an escape nobody checks
+ * is how this class would rot: one entry excusing a value that IS exercised
+ * (stale) and one naming a value the vocabulary does not have (unknown).
+ *
+ * The silence half is taken from the run with the REAL vocabulary, not from
+ * the poisoned one — restoring the value and observing nothing is the claim,
+ * so it has to be measured on the restored vocabulary.
+ */
+const TYPO = '-typo';
+
+const UNWRITTEN = { axis: 'appearance', value: 'dropdown' };
+
+function poisonVocabulary(vocabulary, exercised) {
+  const axes = Object.fromEntries(Object.entries(vocabulary.axes).map(([axis, values]) => [axis, [...values]]));
+  const live = exercised[0];
+  const renamed = live ? { axis: live.axis, from: live.value, to: `${live.value}${TYPO}` } : null;
+  if (renamed) axes[renamed.axis] = axes[renamed.axis].map((value) => (value === renamed.from ? renamed.to : value));
+  axes[UNWRITTEN.axis] = [...(axes[UNWRITTEN.axis] ?? []), UNWRITTEN.value];
+  const excused = exercised.find((value) => value !== live) ?? null;
+  const allowlist = [
+    ...(excused ? [{ ...excused, why: 'injected by --self-test: an exception that has gone false' }] : []),
+    {
+      axis: UNWRITTEN.axis,
+      value: `${UNWRITTEN.value}${TYPO}`,
+      why: 'injected by --self-test: names no value the vocabulary has',
+    },
+  ];
+  return { vocabulary: { axes, attrs: vocabulary.attrs }, renamed, excused, allowlist };
+}
 
 function fixtureModel(fixture, which) {
   const declarations = [];
@@ -1156,9 +1516,25 @@ const REGRESSIONS = [
   {
     name: 'A in situ',
     class: 'A',
-    what: "structure.css's clip margin with the keyword that rescues its parse removed",
-    property: 'overflow-clip-margin',
-    rewrite: (value) => value.replace(/^padding-box\s+/, ''),
+    what: "structure.css's clip-margin defect put back on the rule that carried it",
+    // INJECTS rather than rewrites, and the reason is a real repair. This row
+    // used to strip the `padding-box` keyword off a live
+    // `overflow-clip-margin` declaration. That declaration is GONE: exercising
+    // `data-clip="trim"` for the first time measured that a clip margin is ink
+    // overflow in the element and therefore SCROLLABLE overflow in every
+    // ancestor, so a two-pixel decorative bleed was crushing its own parent,
+    // and it was deleted rather than exempted.
+    //
+    // A rewrite therefore found nothing and the row honestly reported
+    // INCONCLUSIVE — which is the guard's own contract working, and exactly why
+    // it was built to say so instead of passing. But deleting the row would
+    // throw away the regression test for a defect we just fixed, which is what
+    // a regression test is FOR. So the historical spelling is injected into the
+    // deep-copied model at the rule that used to carry it. Nothing under `src/`
+    // is touched, and if that selector ever disappears the row goes
+    // INCONCLUSIVE again and says so.
+    selector: "[data-clip='trim']",
+    inject: { property: 'overflow-clip-margin', value: 'calc(var(--unit) / 2)' },
   },
   {
     name: 'B in situ',
@@ -1174,18 +1550,34 @@ function regressionModel(regression, files) {
   const touched = [];
   for (const file of model) {
     for (const rule of file.rules) {
+      if (regression.inject) {
+        // Match on the rule's own selector text, so an injection lands where the
+        // defect actually lived rather than on the first rule that happens to
+        // mention the property. `selectorText` is the parser's verbatim prelude.
+        if (rule.selectorText.trim() !== regression.selector) continue;
+        rule.declarations.push({
+          property: regression.inject.property,
+          value: regression.inject.value,
+          line: rule.line ?? 0,
+        });
+        touched.push(
+          `${file.file}  ${regression.selector} += ${regression.inject.property}: ${regression.inject.value}`,
+        );
+        continue;
+      }
       for (const declaration of rule.declarations) {
         if (declaration.property !== regression.property) continue;
         const rewritten = regression.rewrite(declaration.value);
         if (rewritten === declaration.value) continue;
-        touched.push(`${file.file}:${declaration.line}  ${declaration.property}: ${declaration.value} -> ${rewritten}`);
+        touched.push(
+          `${file.file}:${declaration.line}  ${declaration.property}: ${declaration.value} -> ${rewritten}`,
+        );
         declaration.value = rewritten;
       }
     }
   }
   return { model, touched };
 }
-
 async function runSelfTest(options) {
   const contexts = [{ density: 'comfortable', input: 'pointer', theme: 'light' }];
   const live = await session(options);
@@ -1326,6 +1718,123 @@ async function runSelfTest(options) {
       name: 'exit code',
       verdict: 'CAUGHT',
       note: `the table with both recorded defects back reports ${verdict.findings} finding(s) and returns ${verdict.code}`,
+    });
+  }
+
+  /* CLASS D, FALSIFIED. `verdict` above already measured the shipped
+     vocabulary against the live pages, so its class D result IS the restored
+     state: which values are exercised, and whether any real value is not.
+     That decides the silence half. The detection half needs one more pass of
+     the same pipeline with the question poisoned — real model, real pages,
+     renamed value, unwritten word, rotten allowlist — and it is also what
+     proves class D ALONE can flip the exit code, which the row above cannot
+     show because the regressed table is loud on its own account. */
+  const poison = poisonVocabulary(await readVocabulary(), verdict.exercised);
+  const poisoned = await run(options, {
+    vocabulary: poison.vocabulary,
+    allowlist: poison.allowlist,
+    silent: true,
+  });
+  const named = (entry) => `${entry.axis}: '${entry.value}'`;
+  const reported = (list, axis, value) => list.some((entry) => entry.axis === axis && entry.value === value);
+
+  if (poison.renamed === null) {
+    rows.push({
+      name: 'D renamed',
+      verdict: 'INCONCLUSIVE',
+      note: 'no vocabulary value is exercised at all, so there is no usage to remove and a zero count proves nothing',
+    });
+    broken += 1;
+  } else if (!reported(poisoned.unexercised, poison.renamed.axis, poison.renamed.to)) {
+    rows.push({
+      name: 'D renamed',
+      verdict: 'BLIND',
+      note: `${poison.renamed.axis}: '${poison.renamed.from}' renamed to '${poison.renamed.to}' and the guard did not notice its only usage was gone`,
+    });
+    broken += 1;
+  } else {
+    rows.push({
+      name: 'D renamed',
+      verdict: 'CAUGHT',
+      note: `${poison.renamed.axis}: '${poison.renamed.from}' -> '${poison.renamed.to}' reported unexercised; the same axis is silent for every value the demo still writes`,
+    });
+  }
+
+  if (!reported(poisoned.unexercised, UNWRITTEN.axis, UNWRITTEN.value)) {
+    rows.push({
+      name: 'D unwritten',
+      verdict: 'BLIND',
+      note: `${named(UNWRITTEN)} added to the vocabulary and reported as exercised, so class D is measuring something other than the DOM`,
+    });
+    broken += 1;
+  } else {
+    rows.push({
+      name: 'D unwritten',
+      verdict: 'CAUGHT',
+      note: `${named(UNWRITTEN)} is legal in the poisoned vocabulary and written nowhere, and is reported unexercised`,
+    });
+  }
+
+  /* Every real value still in the poisoned vocabulary, plus every real value
+     in the restored one: both must be silent, and the union is what gets named
+     when they are not. Deduplicated, because a value dead in both runs is one
+     fact and printing it twice reads like two. */
+  const leftovers = [...verdict.unexercised, ...poisoned.unexercised].filter(
+    (value) =>
+      !(poison.renamed && value.axis === poison.renamed.axis && value.value === poison.renamed.to) &&
+      !(value.axis === UNWRITTEN.axis && value.value === UNWRITTEN.value),
+  );
+  const stillDead = [...new Set(leftovers.map((value) => `${value.axis}: '${value.value}'`))];
+  if (stillDead.length > 0) {
+    rows.push({
+      name: 'D silent',
+      verdict: 'INCONCLUSIVE',
+      note: `the shipped vocabulary already reports ${stillDead.join(', ')} unexercised, so restoring a value cannot be distinguished from this`,
+    });
+    broken += 1;
+  } else {
+    rows.push({
+      name: 'D silent',
+      verdict: 'CAUGHT',
+      note: `every one of ${verdict.exercised.length} values the shipped vocabulary declares is exercised, so the two poisons above are the only findings`,
+    });
+  }
+
+  if (poison.excused === null) {
+    rows.push({
+      name: 'D allowlist',
+      verdict: 'INCONCLUSIVE',
+      note: 'no second exercised value to excuse, so the stale half of the allowlist check was never entered',
+    });
+    broken += 1;
+  } else if (!reported(poisoned.stale, poison.excused.axis, poison.excused.value) ||
+    !reported(poisoned.unknown, UNWRITTEN.axis, `${UNWRITTEN.value}${TYPO}`)) {
+    rows.push({
+      name: 'D allowlist',
+      verdict: 'BLIND',
+      note: `an entry excusing the exercised ${named(poison.excused)} and an entry naming a value the vocabulary lacks were accepted, so the escape is unchecked`,
+    });
+    broken += 1;
+  } else {
+    rows.push({
+      name: 'D allowlist',
+      verdict: 'CAUGHT',
+      note: `stale entry ${named(poison.excused)} and unknown entry ${UNWRITTEN.axis}: '${UNWRITTEN.value}${TYPO}' both reported as failures, so an exception cannot outlive its reason`,
+    });
+  }
+
+  if (poisoned.findings > 0 || poisoned.broken > 0 || poisoned.code === 0) {
+    rows.push({
+      name: 'D exit code',
+      verdict: 'BLIND',
+      note: `class D alone was meant to flip the verdict; got ${poisoned.findings} declaration finding(s), ${poisoned.broken} broken self-check(s), exit ${poisoned.code}`,
+    });
+    broken += 1;
+  } else {
+    rows.push({
+      name: 'D exit code',
+      verdict: 'CAUGHT',
+      note: `a table with no declaration defect and no broken self-check still returns ${poisoned.code} on ${poisoned.unexercised.length + poisoned.stale.length + poisoned.unknown.length} class D finding(s)`,
     });
   }
 

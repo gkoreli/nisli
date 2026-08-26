@@ -33,6 +33,27 @@ export type Emphasis = 'primary' | 'quiet' | 'danger' | 'link';
 /** Semantic text level. */
 export type TextRole = 'display' | 'title' | 'body' | 'meta' | 'label';
 
+/**
+ * Cross-axis and distribution intent on a container.
+ *
+ * These were AUTHOR-FACING DECLARATIONS OUTSIDE THE ENUMERATED VOCABULARY
+ * until the coverage guard pointed it out, which made the exclusivity claim
+ * narrower than it was being stated. `data-align` and `data-clip` are written
+ * by hand in components, so a typo — `data-align="stat"` — silently did
+ * nothing: N610 checks values against `VOCABULARY`, and a word with no axis
+ * cannot be checked against anything. That is the N700 dead-selector class one
+ * level up, on the AUTHOR's side of the seam rather than the checker's.
+ *
+ * Engine-written attributes (`data-fit`, `data-truncate`, `data-collapsed`) are
+ * deliberately still absent: the mutator is the only writer, so an illegal
+ * value there would be a bug in the solver rather than a mistake an author can
+ * make, and enumerating them would invite an author to write them.
+ */
+export type AlignKind = 'start' | 'center' | 'end' | 'between';
+
+/** Whether a clipping box may trim its overhang. One value, and it is opt-in. */
+export type ClipKind = 'trim';
+
 /** Context axes — the only inputs that change resolved values. */
 export type Density = 'comfortable' | 'compact' | 'dense';
 export type InputMode = 'pointer' | 'touch';
@@ -66,6 +87,8 @@ export const VOCABULARY = {
   input: ['pointer', 'touch'],
   theme: ['light', 'dark'],
   collapse: ['truncate', 'hide', 'menu'],
+  align: ['start', 'center', 'end', 'between'],
+  clip: ['trim'],
 } as const satisfies Record<string, readonly string[]>;
 
 /**
@@ -95,6 +118,8 @@ export const AXIS_ATTRS = {
   'data-input': 'input',
   'data-theme': 'theme',
   'data-collapse': 'collapse',
+  'data-align': 'align',
+  'data-clip': 'clip',
 } as const satisfies Record<string, keyof typeof VOCABULARY>;
 
 /* ══════════════════════════════════════════════════════════════════════════

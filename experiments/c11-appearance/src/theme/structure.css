@@ -231,12 +231,31 @@ app-action-group {
    arriving from a second direction, and it is queued rather than smuggled into
    this change.
 
-   Until then: this is the only declaration in the table that carries a keyword
-   purely to get itself parsed. If a future Chromium fixes the grammar, the
-   keyword stays harmless; deleting it would reintroduce a silent zero. */
+   Until then: the note above is preserved because the grammar finding is worth
+   keeping even though the declaration it was found on is gone.
+
+   THE DECLARATION IS GONE, and the measurement that removed it is the point.
+   `overflow-clip-margin` extends the element's INK overflow, and ink overflow
+   is scrollable overflow in every ANCESTOR. So the very first element in this
+   app to carry `[data-clip='trim']` crushed its own innocent parent by exactly
+   one clip margin: the outer stack reported clientWidth 320 against scrollWidth
+   322 while every one of its three children sat exactly at the content edge,
+   worst child overhang 0.00px, parent inline padding zero. Blame test in the
+   same frame: remove `data-clip` and the parent reads 952 (the untrimmed
+   strip); restore it and 322; keep the trim and zero the margin and the
+   overflow disappears.
+
+   So a decorative two-pixel bleed was buying a real ancestor crush, on every
+   ancestor, forever. Deleted rather than exempted in the checker — a clipper
+   that trims to its own padding box cannot leak, which makes the defect
+   unrepresentable instead of merely reported. That is the same trade the house
+   made when it deleted `batch()` and made move-disconnect impossible.
+
+   Recorded so nobody adds it back for the bleed: the bleed is worth less than
+   the crush, and the crush is invisible until an ancestor happens to be exactly
+   as wide as its content — which is every context the fit solver drives toward. */
 [data-clip='trim'] {
   overflow: clip;
-  overflow-clip-margin: padding-box calc(var(--unit) / 2);
 }
 
 /* ── The derived scroll region ───────────────────────────────────────────
