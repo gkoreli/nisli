@@ -62,6 +62,45 @@
  * review-time vigilance to compile time, and it can also REFUSE the nonsense a
  * field would have had to carry: `Bounds` has no `contentInline`, because what
  * the content wanted is a containment question.
+ *
+ * ══════════════════════════════════════════════════════════════════════════
+ * THE THIRD ORACLE BUG IN THIS FILE, AND THE ONLY ONE THAT WAS SILENT.
+ * ══════════════════════════════════════════════════════════════════════════
+ * Found by the accessor sweep rather than by a failure, which is the point: the
+ * two above were noisy and this one could not be. The floor was read with
+ * `px()`, and `px()` coerces an unresolvable property to zero. The next line
+ * was `if (!(floor > 0)) continue`. So a floor that did not resolve — for ANY
+ * reason — made this rule skip every control it selected and report a clean
+ * page FOREVER. No error, no finding, nothing to notice, and no fixture that
+ * could notice either, because silence is what a healthy document looks like.
+ *
+ * `namespace.test.ts` records this hazard in prose and guards it by asserting
+ * that `--intent-min-target` is declared somewhere in `theme/`. That is a fact
+ * about THIS REPOSITORY and it says nothing about a consumer's document: a page
+ * carrying intent markup with no resolution table included resolves the token
+ * to the empty string on every node, and this rule went quiet across all of it.
+ * That is precisely the fourth case N640 enumerates and REFUSES — "no floor
+ * declared, so the theme that owns the threshold is not loaded" — and N650 was
+ * the rule beside it that did not refuse. A fix applied to one rule and not to
+ * the rule next to it is this project's own recorded defect class, and this is
+ * the third instance of it.
+ *
+ * THE FIX IS `raw()` AND A THREE-WAY SPLIT, not "treat zero as undecidable",
+ * because a declared zero is a real and different answer. The table declares
+ * this floor twice: zero in the pointer context, a length in the touch context.
+ * An explicit zero is a context saying it makes no promise about target size,
+ * which must stay silent. An empty string is nobody having declared anything.
+ * `px()` maps both onto the same number and `raw()` is the accessor that keeps
+ * them apart — which is the entire content of `raw()`'s doc comment, applied.
+ *
+ * AND THE FLOOR IS NOT NECESSARILY A LENGTH, which is why the parse is checked
+ * rather than trusted. An unregistered custom property computes to its
+ * SUBSTITUTED TOKEN STREAM, not to a resolved length, so a floor derived from
+ * the inherited unit the way every other value in this table is derived
+ * computes to `calc(…)` and no parse of it is a number. The shipped table
+ * declares this one token as a plain length, which is the only reason the
+ * deployed rule ever worked. Under `px()` that near-miss was a silent pass;
+ * here it is N680.
  */
 
 import type { Rule } from '../../contracts.js';
@@ -70,8 +109,22 @@ import { rule } from '../rule.js';
 export function hitTargetRule<TNode>(): Rule<TNode> {
   return rule<TNode>('N650', (lens, out) => {
     for (const el of lens.painted('[data-appearance="action"], [data-appearance="nav-item"]')) {
-      const floor = el.px('--intent-min-target');
-      if (!(floor > 0)) continue; // no floor declared: this context makes no promise
+      // `raw()`, never `px()`: the whole argument is in the header, and the
+      // short version is that `px()` turns "nobody declared a floor" into the
+      // number zero, every rectangle clears zero, and this rule then reports a
+      // clean page forever.
+      const declared = el.raw('--intent-min-target');
+      const floor = Number.parseFloat(declared);
+      if (!Number.isFinite(floor)) {
+        out.undecidable(
+          el.subject,
+          `--intent-min-target resolves to ${declared || '<empty>'}, so this context declares no readable target floor and no verdict about this control is supportable`,
+        );
+        continue;
+      }
+      // A DECLARED zero is a context refusing to promise, which is a real
+      // answer and stays silent. This is the line `px()` could not express.
+      if (floor <= 0) continue;
       const pressable = el.bounds();
       // Half a pixel of slack: a floor derived from a fractional unit lands on
       // fractional values like 44.5, and rounding down is not a defect.

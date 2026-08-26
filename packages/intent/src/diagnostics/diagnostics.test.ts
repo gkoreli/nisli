@@ -496,12 +496,20 @@ describe('N650 — hit target below the context floor', () => {
     expect(findings).toEqual([]);
   });
 
-  it('says nothing in a context that declared no floor', () => {
+  it('says nothing in a context that DECLARED no floor', () => {
+    // The declaration matters and this fixture used to omit it. The pointer
+    // context sets this token to zero on purpose — a mouse needs no target
+    // floor — and that is a context refusing to promise, which stays silent.
+    // Omitting the token entirely is a DIFFERENT state: nobody declared
+    // anything, and the rule now says N680 rather than passing. Both directions
+    // are pinned in `hit-target.test.ts`, which is where the read that
+    // distinguishes them is the subject.
     const findings = run('N650', {
       nodes: [
         {
           id: 'star',
           attrs: { 'data-appearance': 'action' },
+          styles: { '--intent-min-target': '0px' },
           box: { inline: 24, block: 24, contentInline: 24 },
         },
       ],
@@ -734,11 +742,18 @@ const ADMITTED: InspectWorldSpec = {
 };
 
 /**
- * N690's world. A "word" cannot occupy more lines than there are words unless it
- * was broken inside itself, so the line count is the witness. The three nodes
- * are: a single word rendered over three lines (shredded), ordinary prose
- * wrapped at its spaces (fine), and an unspaced script where the inference does
- * not hold at all (must decline).
+ * N690's world. A "word" cannot occupy more line boxes than there are words
+ * unless it was broken inside itself, so the LINE BOX COUNT is the witness. The
+ * three nodes are: a single word rendered over three lines (shredded), ordinary
+ * prose wrapped at its spaces (fine), and an unspaced script where the
+ * inference does not hold at all (must decline).
+ *
+ * `lines` is declared per node because the count is now a MEASUREMENT this
+ * fixture supplies rather than an arithmetic result the rule derives. That is
+ * the whole content of the fix: the boxes below no longer decide the verdict,
+ * so a padded or stretched element cannot fake an extra line. `line-height`
+ * stays for the same reason it is on `READABLE` — it is what the checker would
+ * see — and no longer for N690, which does not read it.
  */
 const WRAPPING: InspectWorldSpec = {
   nodes: [
@@ -752,6 +767,7 @@ const WRAPPING: InspectWorldSpec = {
           attrs: { 'data-text': 'title' },
           text: 'Comfortable',
           styles: { ...READABLE, 'line-height': '18px' },
+          lines: 3,
           box: { inline: 40, block: 54, contentInline: 40 },
         },
         {
@@ -760,6 +776,7 @@ const WRAPPING: InspectWorldSpec = {
           text: 'A larger hit target arrives with the input mode',
           styles: { ...READABLE, 'line-height': '18px' },
           box: { inline: 120, block: 54, contentInline: 120 },
+          lines: 3,
         },
         {
           id: 'unspaced',
@@ -767,6 +784,7 @@ const WRAPPING: InspectWorldSpec = {
           text: '快速的棕色狐狸跳过了那只懒狗',
           styles: { ...READABLE, 'line-height': '18px' },
           box: { inline: 40, block: 90, contentInline: 40 },
+          lines: 5,
         },
       ],
     },
@@ -789,7 +807,14 @@ describe('N690 — word shredded to fit its box', () => {
     expect(subjects).not.toContain('unspaced');
   });
 
-  it('undecidable-line-height: reports incomplete rather than guessing a line count', () => {
+  it('keyword-line-height-still-decides: the divisor is gone, so `normal` costs nothing', () => {
+    // THIS TEST ASSERTED THE OPPOSITE, and the reversal is the point rather
+    // than a relaxation. N690 used to divide a block size by `line-height`, so
+    // the keyword made the count underivable and the honest answer was N680.
+    // `lines()` counts the line boxes the browser produced, so there is no
+    // divisor and nothing for a keyword to defeat: the same node now gets the
+    // verdict that was always available. An admission that was an artefact of
+    // the arithmetic was never an honest admission.
     const findings = run('N690', {
       nodes: [
         {
@@ -798,11 +823,12 @@ describe('N690 — word shredded to fit its box', () => {
           text: 'Comfortable',
           styles: { ...READABLE, 'line-height': 'normal' },
           box: { inline: 40, block: 54, contentInline: 40 },
+          lines: 3,
         },
       ],
     });
-    expect(findings.map((finding) => finding.code)).toEqual(['N680']);
-    expect(findings[0]?.severity).toBe('incomplete');
+    expect(findings.map((finding) => finding.code)).toEqual(['N690']);
+    expect(findings[0]?.detail).toContain('3 line boxes');
   });
 
   it('stays silent on the clean document', () => {
