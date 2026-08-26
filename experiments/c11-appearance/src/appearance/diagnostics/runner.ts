@@ -18,12 +18,15 @@
 import type { Finding, Inspector, Rule } from '../contracts.js';
 import { codeEntry, DOCS_BASE } from './codes.js';
 import {
+  clippedLossRule,
   competingPrimariesRule,
   contrastRule,
   crushedRule,
+  directionalOverflowRule,
   escapedRule,
   fitStateRule,
   hitTargetRule,
+  multicolumnRule,
   overlapRule,
   shreddedRule,
   truncationRule,
@@ -47,6 +50,9 @@ export function DEFAULT_RULES<TNode>(): readonly Rule<TNode>[] {
     overlapRule<TNode>(),
     shreddedRule<TNode>(),
     competingPrimariesRule<TNode>(),
+    clippedLossRule<TNode>(),
+    multicolumnRule<TNode>(),
+    directionalOverflowRule<TNode>(),
   ];
 }
 

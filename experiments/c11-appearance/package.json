@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "verify": "vitest run",
+    "verify": "tsc --noEmit -p tsconfig.json && vitest run",
     "proof": "node proof/geometry-proof.mjs",
     "lint:values": "node proof/no-values-guard.mjs"
   },

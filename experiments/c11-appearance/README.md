@@ -29,7 +29,7 @@ until something measured it three different ways.
 
 ```sh
 pnpm --filter @nisli/experiment-c11-appearance dev          # http://127.0.0.1:5199
-pnpm --filter @nisli/experiment-c11-appearance verify       # 78 domain tests, no browser
+pnpm --filter @nisli/experiment-c11-appearance verify       # 128 domain tests, no browser
 node proof/geometry-proof.mjs                               # 240 cells in Chromium
 node proof/geometry-proof.mjs --self-test                   # prove the proof can fail
 node proof/no-values-guard.mjs                              # the exclusivity invariant
@@ -225,9 +225,34 @@ it.
   table can be made genuinely beautiful is still the open question, and F9 shows
   the table can even be internally contradictory while every value in it looks
   reasonable.
-- **One deliberate open item:** the flush surface clips a wide table rather than
-  scrolling it (silent loss); the scroll-region fix was specified and is not
-  fully landed.
+- **The flush surface's clip is derived now, but only for one shape.** This used
+  to read "one deliberate open item: the flush surface clips a wide table rather
+  than scrolling it (silent loss); the scroll-region fix was specified and is
+  not fully landed." What landed is narrower than "fixed" and the difference
+  matters. The theme now derives a scroll region for a clipping surface's single
+  in-flow child, so the demo table is reachable rather than deleted — measured on
+  the real component at 360: 0 lost, the full 477 of overhang reachable,
+  `scrollLeft` 477/477, `tabindex="0"` and `role="region"` named by the caption,
+  rounded-corner clip intact. `data-scroll-region` was deleted from the call site
+  and `data-clip="trim"` added, so the author vocabulary did not grow.
+  What is still open: **bare markup inside a flush surface — no component
+  wrapper to promote — is still clipped.** That is variant A4, where the engine
+  generates the wrapper itself, and it is deferred because the mutator in
+  `appearance/fit/dom.ts` only sets attributes and cannot insert an element. A4
+  measured identically to the variant that landed, so this is a dependency and
+  not a design question. The real change is therefore not that the loss stopped:
+  **the loss became loud (N710) and one shape of it became derivable.**
+- **The resolution table does not check its own declarations.** Two declarations
+  in this round resolved to something other than what they said, and every
+  safety net here was blind to both: `overflow-clip-margin: calc(var(--unit)/2)`
+  is silently rejected by Chromium and computes to zero, and `overflow-y: clip`
+  beside `overflow-x: auto` computes to `hidden`. The values guard passes because
+  there is no literal, `tsc` passes because it is CSS, and the matrix passes
+  because a declaration that does nothing is not a defect anyone declared. This
+  is F9's sibling from a second direction — F9 was the table stating an
+  impossible constraint, these are the table stating a rejected one — and it is
+  the second independent argument that "the framework checks the UI" needs the
+  half where the framework checks the table.
 
 ## Packaging
 

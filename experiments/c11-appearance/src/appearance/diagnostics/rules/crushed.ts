@@ -15,11 +15,15 @@
  * The right question is per element: did this box get the inline space its
  * content needs?
  *
- * Three exemptions, all principled:
+ * Four exemptions, all principled:
  *   - a node the solver truncated: clamping to one ellipsised line is a
  *     DECLARED loss, and its clipped content is not painting on anything;
- *   - a real scroll container (`overflow-x: auto | scroll`): content
- *     larger than the box is the point of a scroller;
+ *   - a real scroll container: content larger than the box is the point of a
+ *     scroller;
+ *   - a CLIPPER: content larger than the box is not painting on a neighbour, it
+ *     is deleted, and N710 owns that claim. This exemption is new and it is a
+ *     narrowing of this rule — see `EXEMPT_CONTAINMENT` below for why the
+ *     narrowing is the honest direction;
  *   - `data-appearance="field"`: a text control scrolls its own value, so a
  *     value wider than the box is the field WORKING. This is the only
  *     role-keyed exemption in the set, and it is documented at its source in
@@ -27,6 +31,9 @@
  * Escaped subtrees are excluded because they forfeited the guarantee (N601).
  * A `contain: inline-size` truncator reports zero intrinsic width; that is not
  * an undecidable measurement (never N680), it is a node already exempt above.
+ * Measured, correcting the note this comment used to carry: `contain:
+ * inline-size` does NOT blind the measurement — the audit read 362/120 through
+ * it — so the exemption stands on the truncation, not on the containment.
  *
  * The exemption deliberately NOT here is the overflow menu panel, which is the
  * one a reader would add by analogy: the solver exempts it, because a clipped
@@ -45,31 +52,45 @@
  * passes, which is the failure direction that gets an oracle deleted.
  */
 
-import type { Rule } from '../../contracts.js';
+import type { Containment, Rule } from '../../contracts.js';
 import { isAdmittedFailure } from '../admitted.js';
 import { rule } from '../rule.js';
 
 /**
- * Computed `overflow-x` values that make an oversized content box legitimate.
+ * A box whose content is legitimately larger than itself, keyed on CONTAINMENT
+ * rather than on the `overflow-x` string this rule used to read.
  *
- * The polarity is deliberate and load-bearing: this ENUMERATES what is exempt
- * rather than testing `overflow-x !== 'visible'`. happy-dom does not expand the
- * `overflow` shorthand and does not default the longhand, so the computed value
- * is the empty string there — the negative spelling would silently exempt every
- * element and this rule would go vacuously quiet in unit tests while still
- * working in Chromium. An unknown value must fail safe INTO the check.
+ * That change is a measured fix and a transfer of ownership, both worth
+ * recording. Measured, Chromium 151: `contain: paint` and `contain: content`
+ * clip a 471-pixel child inside a 200-pixel box while `overflow-x` and `overflow-y` BOTH
+ * compute to `visible` (523/200 and 540/200 in the audit's fixture). Reading the
+ * property therefore classified two real clippers as "content paints outside its
+ * box and lands on a neighbour" — the right location with a false claim.
  *
- * `hidden` and `clip` are deliberately absent, though the theme does use them
- * (avatar, and a flush surface). The solver exempts them, because a clipped
- * table can never be relieved by degrading its enclosing row; this rule must
- * not, because clipped content is unreadable content. Same split as the
- * overflow panel above: the solver asks whether a container can settle, this
- * rule asks whether anything is unreadable.
+ * OWNERSHIP, so nobody re-adds the branch: `clip` is EXEMPT here and N710 owns
+ * clipped loss. This rule previously failed clipped content deliberately, on the
+ * argument that clipped content is unreadable content, and that argument was
+ * right about the defect and wrong about the claim. N660 says "this box did not
+ * get the inline space its content needs, so the overflow lands on a neighbour";
+ * for a clipper nothing lands anywhere, the content is simply deleted, and N710
+ * says that with the numbers that matter (measured worst case: a 772-pixel table in
+ * a 358-pixel flush surface, 414 pixels and 30 nodes gone). Keeping both would report one
+ * node twice with contradictory claims, and "one defect reported N times" is a
+ * recorded muting cause in the round-2 corpus, not a hypothetical.
+ *
+ * The polarity of the old table is preserved for the reason it was written down:
+ * it ENUMERATED what is exempt rather than testing `overflow-x !== 'visible'`,
+ * because happy-dom does not expand the `overflow` shorthand and does not
+ * default the longhand, so the negative spelling would exempt every element and
+ * this rule would go vacuously quiet in unit tests while still working in
+ * Chromium. `containment()` keeps that: it returns `visible` for a value it
+ * cannot read, and an unknown value must fail safe INTO the check.
  */
-// `overlay` is absent by measurement, not oversight: css-overflow-3 computes it
-// to `auto`, so it never appears as a computed value and a branch for it reads
-// as coverage while being unreachable.
-const SCROLLABLE: Readonly<Record<string, true>> = { auto: true, scroll: true };
+const EXEMPT_CONTAINMENT: Readonly<Record<Containment, boolean>> = {
+  visible: false,
+  scroll: true,
+  clip: true,
+};
 
 export function crushedRule<TNode>(): Rule<TNode> {
   return rule<TNode>('N660', (lens, out) => {
@@ -94,7 +115,7 @@ export function crushedRule<TNode>(): Rule<TNode> {
       // N620 does not report its own overflow a second time here. Its
       // descendants and ancestors are NOT exempt — see admitted.ts.
       if (isAdmittedFailure(el)) continue;
-      if (SCROLLABLE[el.raw('overflow-x')]) continue;
+      if (EXEMPT_CONTAINMENT[el.containment()]) continue;
       out.finding(
         el.subject,
         `crushed: content needs ${Math.round(box.contentInline)}px but the box got ${Math.round(box.inline)}px — ${Math.round(box.contentInline - box.inline)}px paints outside it`,

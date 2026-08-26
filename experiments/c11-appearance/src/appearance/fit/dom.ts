@@ -3,7 +3,16 @@
  * an `HTMLElement` living in a document.
  */
 
-import type { Box, Candidate, FitState, Metrics, Mutator, Priority, Strategy } from '../contracts.js';
+import type {
+  Box,
+  Candidate,
+  Containment,
+  FitState,
+  Metrics,
+  Mutator,
+  Priority,
+  Strategy,
+} from '../contracts.js';
 import { STRATEGIES } from '../contracts.js';
 
 /**
@@ -25,21 +34,57 @@ const STRATEGY_ATTRIBUTES: readonly string[] = Object.values(STRATEGY_ATTRIBUTE)
 const DEFAULT_PRIORITY: Priority = 3;
 
 /**
- * Overflow values whose content cannot paint outside the box: it either scrolls
- * or is cut off. Enumerated rather than tested as `!== 'visible'` so that an
+ * Computed overflow values whose content stays REACHABLE, and values that CUT
+ * IT OFF. Enumerated rather than tested as `!== 'visible'` so that an
  * unresolved computed value fails safe — a node whose overflow cannot be read
  * is treated as able to paint outside, which is also the browser default.
+ *
+ * These two tables REPLACE a single `CONTAINED_OVERFLOW` table that lumped all
+ * four values together under "content cannot paint outside the box". The lump
+ * was not wrong for the solver, which treats scrolling and clipping alike, but
+ * it was the wrong SHAPE: asking one property's string value for the answer
+ * meant the table could not see a clipper that does not spell itself in
+ * `overflow` at all. Measured, Chromium 151: `contain: paint` clips a 471-pixel
+ * child inside a 200-pixel box (523/200 in the audit's fixture) while `overflow-x`
+ * AND `overflow-y` both compute to `visible`. See `containment()` below.
+ *
+ * `overlay` is absent from both by measurement, not oversight: it computes to
+ * `auto` per css-overflow-3, confirmed again here, so it can never arrive as a
+ * computed value. It was listed for two months and measured as unreachable. A
+ * dead branch in a fail-safe table is worse than a gap, because it reads as
+ * coverage.
  */
-const CONTAINED_OVERFLOW: Readonly<Record<string, true>> = {
-  hidden: true,
-  clip: true,
-  auto: true,
-  scroll: true,
-  // `overlay` is deliberately absent: it computes to `auto` per css-overflow-3,
-  // so it can never arrive here as a computed value. It was listed for two
-  // months and measured as unreachable. A dead branch in a fail-safe table is
-  // worse than a gap, because it reads as coverage.
-};
+const SCROLLING: Readonly<Record<string, true>> = { auto: true, scroll: true };
+const CLIPPING: Readonly<Record<string, true>> = { hidden: true, clip: true };
+
+/**
+ * `contain` keywords that include PAINT containment, and therefore clip while
+ * saying nothing in `overflow`. `contain: size layout` is measured NOT to clip,
+ * which is why this tests keywords rather than "is `contain` set", and
+ * `content` and `strict` are the two shorthands that imply `paint`.
+ */
+const PAINT_CONTAINING = /\b(?:paint|content|strict)\b/;
+
+/**
+ * Does this box let content escape, keep it reachable, or cut it off?
+ *
+ * Module level because `crushed()` needs the same answer for a descendant and
+ * the two must never drift: a crush exemption that disagreed with the port's
+ * own containment answer would be a silent hole exactly where this change is
+ * closing one.
+ */
+function containmentOf(node: HTMLElement): Containment {
+  const declaration = getComputedStyle(node);
+  const { overflowX, overflowY } = declaration;
+  // Reachability wins when the axes disagree: the box IS a scroll container, so
+  // its overflow is reachable on at least one axis and the solver has nothing to
+  // relieve. Measured combinations that reach here: `auto`/`hidden` stays as
+  // spelled, and `clip`/`auto` computes the clipped axis to `hidden`.
+  if (SCROLLING[overflowX] || SCROLLING[overflowY]) return 'scroll';
+  if (CLIPPING[overflowX] || CLIPPING[overflowY]) return 'clip';
+  if (PAINT_CONTAINING.test(declaration.contain)) return 'clip';
+  return 'visible';
+}
 
 export const domMetrics: Metrics<HTMLElement> = {
   box(node: HTMLElement): Box {
@@ -71,20 +116,32 @@ export const domMetrics: Metrics<HTMLElement> = {
    *     report as a crush for the whole container;
    *   - a field. A text control scrolls its own value, so content wider than
    *     its box is the control working, exactly like a scroller;
-   *   - a box that does not overflow visibly. Only `overflow-x: visible` lets
-   *     content escape and paint over a neighbour; `auto` and `scroll` mean it
-   *     scrolls, `hidden` and `clip` mean it is cut off. This is the one
+   *   - a box that does not let content escape. Only a box whose containment is
+   *     `visible` lets content paint over a neighbour; `scroll` means the
+   *     overflow is reachable and `clip` means it is cut off. This is the one
    *     exemption that needs a computed value, so it is resolved lazily, for a
    *     descendant that already failed the geometric test: a settled subtree
    *     costs zero style resolutions and a broken one costs at most one before
    *     this returns.
    *
-   * That last exemption is deliberately wider than the checker's N660, which
-   * also fails clipped content. Both are right for their question. The
-   * checker asks "is anything unreadable", and clipped content is; the solver
-   * asks "can this container settle", and clipping is not something it can
-   * relieve by degrading siblings — chasing it would collapse every action in
-   * a row because a table two levels down is cut off by a flush surface.
+   * That last exemption used to read the `overflow-x` string, and that was a
+   * measured hole rather than a stylistic one: `contain: paint` and
+   * `contain: content` clip while both overflow axes compute to `visible`, so
+   * two real clippers were classified as "content escapes and lands on a
+   * neighbour" and the solver would have tried to relieve them by degrading
+   * siblings — which can never work, because nothing is colliding. It asks
+   * `containment()` now.
+   *
+   * That exemption used to be described here as "deliberately wider than the
+   * checker's N660, which also fails clipped content". That is no longer true,
+   * and the reason is worth keeping: N660 fails clipped content NO MORE, because
+   * "content paints outside its box and lands on a neighbour" is a false claim
+   * about a clipper, and N710 now owns clipped loss with the accurate one. So
+   * the solver and the checker agree on this exemption for the first time —
+   * arrived at from opposite directions. The solver's reason has not changed:
+   * clipping is not something it can relieve by degrading siblings, and chasing
+   * it would collapse every action in a row because a table two levels down is
+   * cut off by a flush surface.
    *
    * Boxless nodes need no exemption. A collapsed or hidden node is
    * `display: none` and a layout-transparent component host is
@@ -99,7 +156,7 @@ export const domMetrics: Metrics<HTMLElement> = {
       if (descendant.hasAttribute('data-overflow-menu')) continue;
       if (descendant.scrollWidth <= descendant.clientWidth + TOLERANCE) continue;
       if (descendant.getAttribute('data-appearance') === 'field') continue;
-      if (CONTAINED_OVERFLOW[getComputedStyle(descendant).overflowX]) continue;
+      if (containmentOf(descendant) !== 'visible') continue;
       return true;
     }
     return false;
@@ -122,6 +179,28 @@ export const domMetrics: Metrics<HTMLElement> = {
       return false;
     }
     return getComputedStyle(node).display !== 'contents';
+  },
+
+  /**
+   * The solver's half of the `content-visibility: auto` blindness, and it is
+   * the same blindness: css-contain-2 states that the skipped contents of an
+   * element never change their size and that the resize observation arrives
+   * only once they become non-skipped, so a `[data-fit]` container inside a
+   * skipped subtree gets no `ResizeObserver` callback and is never re-solved.
+   * Measuring it anyway means solving against geometry that is not the
+   * geometry on screen.
+   *
+   * The signal is the capability disagreement, not a geometry one — see
+   * `Inspector.measurable()` in the diagnostics adapter for the measurement and
+   * for why the geometry disagreement turned out to be fixture-dependent on the
+   * same Chromium build.
+   */
+  measurable(node: HTMLElement): boolean {
+    return !(node.checkVisibility() && !node.checkVisibility({ contentVisibilityAuto: true }));
+  },
+
+  containment(node: HTMLElement): Containment {
+    return containmentOf(node);
   },
 
   style(node: HTMLElement, property: string): string {

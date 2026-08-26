@@ -244,10 +244,28 @@
 
 /* A flush surface holds edge-to-edge content (a table, a list): its own
    padding would double the child's, and the clip is what keeps the child's
-   square corners inside the rounded frame. */
+   square corners inside the rounded frame.
+
+   `clip`, not `hidden`, and the difference is a measured defect rather than a
+   preference. `overflow: hidden` is a scroll container that merely hides its
+   scrollbar, so a clipped descendant that receives focus scrolls it: measured
+   on a table clipped by this exact rule, focusing the last `<th>` moved
+   `scrollLeft` 0 → 414 and displaced the first column 414px permanently
+   outside the clip, with no scrollbar and no wheel to bring it back. The same
+   fixture at `overflow: clip` measured `programmaticallyScrollable: false`.
+   Identical paint, and the trap is gone.
+
+   Deliberately NO `overflow-clip-margin` here, unlike `[data-clip='trim']`.
+   That box trims decoration and wants a couple of pixels of tolerance for a
+   focus ring; this box exists to make the clip EXACT at the rounded corner,
+   so a margin would defeat the only thing it is for.
+
+   This rule no longer decides whether content survives. It clips for shape;
+   `structure.css` derives a scroll region for the child so nothing inside is
+   lost, and N710 reports the shapes the derivation cannot reach. */
 [data-appearance='surface'][data-flush] {
   padding: 0;
-  overflow: hidden;
+  overflow: clip;
 }
 
 /* ── table ───────────────────────────────────────────────────────────────

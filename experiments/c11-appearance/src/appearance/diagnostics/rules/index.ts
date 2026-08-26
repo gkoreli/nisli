@@ -7,12 +7,15 @@
  * adding a check costs one file rather than an argument.
  */
 
+export { clippedLossRule } from './clipped-loss.js';
 export { competingPrimariesRule } from './competing-primaries.js';
 export { contrastRule } from './contrast.js';
 export { crushedRule } from './crushed.js';
+export { directionalOverflowRule } from './directional-overflow.js';
 export { escapedRule } from './escaped.js';
 export { fitStateRule } from './fit-state.js';
 export { hitTargetRule } from './hit-target.js';
+export { multicolumnRule } from './multicolumn.js';
 export { overlapRule } from './overlap.js';
 export { shreddedRule } from './shredded.js';
 export { truncationRule } from './truncation.js';

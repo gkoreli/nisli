@@ -21,6 +21,16 @@
  * The split is the domain rule stated in a signature: **you may only measure
  * what is painted; you may inspect a declaration on anything.**
  *
+ * `declared()` LATER ACQUIRED A SECOND, LOAD-BEARING PURPOSE, and it is worth
+ * stating because it inverts the reading above. `painted()` filters out content
+ * skipped by `content-visibility: auto` — the adapter's `rendered()` answers
+ * false for it — and that filtering is itself a measured false PASS: a skipped
+ * subtree disappears from every measuring rule, nothing throws, and the report
+ * says clean while a child that needs 471 pixels sits inside a 200-pixel box. So
+ * `declared()` is now also the only route to a node the checker CANNOT measure,
+ * and `measurable()` is how a rule asks. The rule then owes an
+ * `out.undecidable()`, never a `continue`.
+ *
  * Geometry is exposed as two named methods rather than one bag, because `Box`
  * and `Bounds` answer different questions and the last run cost five defects to
  * that confusion. See the type comments in contracts.ts.
@@ -30,7 +40,7 @@
  * attribute does not force 200 layout reads.
  */
 
-import type { Bounds, Box, Inspector } from '../contracts.js';
+import type { Backdrop, Bounds, Box, Containment, Inspector, Rgba } from '../contracts.js';
 
 /** One node, seen. The unit every rule reasons over. */
 export interface Observation<TNode> {
@@ -40,8 +50,23 @@ export interface Observation<TNode> {
   readonly subject: string;
   /** Padding box — containment claims. */
   box(): Box;
-  /** Border box — pressability and visual-extent claims. */
+  /** Border box with origin — visual-extent and pressability claims. */
   bounds(): Bounds;
+  /**
+   * Does this node's geometry mean what it says? FALSE for content skipped by
+   * `content-visibility: auto`.
+   *
+   * The one accessor here that must be reached through `declared()` rather than
+   * `painted()`, and the reason is the defect it exists for: `painted()` filters
+   * skipped nodes OUT, because the adapter's `rendered()` answers false for
+   * them. That filtering IS the false PASS — a whole subtree vanishes from every
+   * measuring rule and the run reports clean. A rule that wants to know whether
+   * its subtree contained anything it could not measure has to ask about the
+   * nodes `painted()` refused to hand it.
+   */
+  measurable(): boolean;
+  /** What happens to content that does not fit this box. */
+  containment(): Containment;
   /** A declared attribute, verbatim. `null` when absent. */
   attr(name: string): string | null;
   /** A resolved style value, verbatim. */
@@ -57,8 +82,14 @@ export interface Observation<TNode> {
   px(property: string): number;
   /** Text content, verbatim. */
   text(): string;
-  /** Nearest painted background colour behind this node. */
-  backdrop(): string;
+  /**
+   * A resolved style colour, as the compositor painted it, or `null` when the
+   * value is not a colour. Never parse a colour in a rule: the adapter owns
+   * every syntax, and the one that did not cost 288 of 1188 measured cells.
+   */
+  colour(property: string): Rgba | null;
+  /** Is a contrast claim about this node supportable, and against what? */
+  backdrop(): Backdrop;
   /** Painted descendants matching `selector`. Scopes a measurement. */
   painted(selector: string): readonly Observation<TNode>[];
   /** All descendants matching `selector`, painted or not. Scopes a declaration. */
@@ -80,10 +111,13 @@ function observation<TNode>(inspector: Inspector<TNode>, node: TNode): Observati
     subject: inspector.describe(node),
     box: () => inspector.box(node),
     bounds: () => inspector.bounds(node),
+    measurable: () => inspector.measurable(node),
+    containment: () => inspector.containment(node),
     attr: (name) => inspector.attr(node, name),
     raw: (property) => inspector.style(node, property),
     px: (property) => Number.parseFloat(inspector.style(node, property)) || 0,
     text: () => inspector.text(node),
+    colour: (property) => inspector.colour(node, property),
     backdrop: () => inspector.backdrop(node),
     painted: (selector) =>
       inspector

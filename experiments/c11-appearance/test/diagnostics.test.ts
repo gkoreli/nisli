@@ -12,7 +12,7 @@ import { CODES } from '../src/appearance/diagnostics/codes.js';
 import { DEFAULT_RULES, check } from '../src/appearance/diagnostics/runner.js';
 import { formatFindings, summarize } from '../src/appearance/diagnostics/report.js';
 import { FakeInspector } from './fakes.js';
-import type { InspectWorldSpec } from './fakes.js';
+import type { InspectSpec, InspectWorldSpec } from './fakes.js';
 import type { Finding, Rule } from '../src/appearance/contracts.js';
 
 function ruleFor(code: string): Rule<string> {
@@ -101,6 +101,9 @@ describe('CODES', () => {
       'N680',
       'N690',
       'N700',
+      'N710',
+      'N713',
+      'N715',
     ]);
     for (const [key, entry] of Object.entries(CODES)) expect(entry.code).toBe(key);
   });
@@ -443,22 +446,39 @@ describe('N660 — element crushed', () => {
     expect(findings).toEqual([]);
   });
 
-  it('still fails clipped content, and is not fooled by an unset overflow-x', () => {
-    // The exemption ENUMERATES {auto, scroll, overlay}. Spelling it as
-    // `overflow-x !== 'visible'` would exempt the third node here, because an
-    // unset longhand reads as the empty string — and it would do so silently
-    // in a fake while working in Chromium, which is a false-PASS oracle in
-    // waiting. `hidden` and `clip` are not exempt either: clipped content is
-    // unreadable content, whoever asked for the clipping.
+  it('hands clipped content to N710 and is still not fooled by an unset overflow-x', () => {
+    // THIS TEST ASSERTED THE OPPOSITE UNTIL N710 EXISTED, and the reversal is
+    // the point rather than a detail. It used to be titled "still fails clipped
+    // content", on the argument that clipped content is unreadable content
+    // whoever asked for the clipping. That was right about the DEFECT and wrong
+    // about the CLAIM: N660 says "this box did not get the inline space its
+    // content needs, so the overflow lands on a neighbour", and for a clipper
+    // nothing lands anywhere — the content is deleted. N710 owns clipped loss
+    // now, with the numbers that matter, and reporting one node twice with
+    // contradictory claims is a recorded muting cause.
+    //
+    // The fail-safe polarity it was originally written to protect survives
+    // intact, and that is why `unset` is still here: the exemption ENUMERATES
+    // what is exempt rather than testing `overflow-x !== 'visible'`, so a node
+    // whose overflow reads as the empty string stays IN the check. The negative
+    // spelling would exempt every element and go silently vacuous in a fake
+    // while still working in Chromium — a false-PASS oracle in waiting.
+    //
+    // `contained` is the node that proves the exemption is about CLIPPING and
+    // not about an overflow string. Measured, Chromium 151: `contain: paint`
+    // clips a 471px child inside a 200px box while BOTH overflow axes compute
+    // to `visible`. No fixture can derive that from a property, which is
+    // precisely why the port answers the question itself.
     const findings = run('N660', {
       nodes: [
         { id: 'hidden', styles: { 'overflow-x': 'hidden' }, box: { inline: 40, block: 20, contentInline: 200 } },
         { id: 'clip', styles: { 'overflow-x': 'clip' }, box: { inline: 40, block: 20, contentInline: 200 } },
+        { id: 'contained', containment: 'clip', box: { inline: 40, block: 20, contentInline: 200 } },
         { id: 'unset', box: { inline: 40, block: 20, contentInline: 200 } },
       ],
     });
 
-    expect(findings.map((f) => f.subject)).toEqual(['hidden', 'clip', 'unset']);
+    expect(findings.map((f) => f.subject)).toEqual(['unset']);
   });
 });
 

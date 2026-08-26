@@ -34,12 +34,31 @@ The three questions the assignment asked, answered first, with numbers:
    **opposite sides** (`most-height` → block-start, `normal` → block-end).
    (P2a–P2e.)
 3. **The overflow menu can be completed as pure intent** — one new attribute
-   with three values, six CSS rules, and a *net deletion* of ~35 lines of
-   authored geometry and ~20 lines of TypeScript from the prototype. The
-   browser now supplies open/close, anchored placement, `aria-expanded`,
-   Escape-with-focus-return, and light dismiss for free (all measured). It
-   does **not** supply focus containment, arrow-key roving, or close-on-focus-
-   out; those stay in the engine, authored once. §Proposed vocabulary.
+   with three values, four CSS rules and one container query, and a *net
+   deletion* of ~35 lines of authored geometry and ~20 lines of TypeScript from
+   the prototype. The browser now supplies open/close, anchored placement,
+   `aria-expanded`, Escape-with-focus-return, and light dismiss for free (all
+   measured). It does **not** supply focus containment, arrow-key roving, or
+   close-on-focus-out; those stay in the engine, authored once. The whole table
+   was rendered and measured before it was written down (P18a–P18f), which is
+   how both of its defects were found. §Proposed vocabulary.
+
+**Two findings outrank the coverage count, and neither is about overlays.**
+
+- **Every existing check is blind to overlay content.** N601, N621, N640, N650,
+  N660 and N690 all traverse what is rendered; an overlay is rendered only
+  while open; nothing opens one during a run. Menus, dialogs, hints and
+  everything inside them have never been measured. *The 240-cell matrix has
+  been reporting clean on a document with a closed door in it.* Proposed N726,
+  ranked first of everything here.
+- **`position-try-fallbacks` is an overflow test, so a shrink-to-fit popover
+  never triggers it and wraps its labels instead** — measured: "Reply all" and
+  "Archive" each broken across two line boxes, fixed by
+  `min-inline-size: max-content`. That is F8 reappearing *inside the platform*,
+  for the same reason: the browser's solver asks whether the container
+  overflowed rather than whether the content survived. N690 — written for our
+  own defect — catches the platform's unaltered. §F8, restated inside the
+  browser.
 
 ## The leaks, first
 
@@ -66,7 +85,7 @@ shape of the c11 README's F4/F8 family — a true measurement attached to a box
 that does not exist. It is worse than a missing feature, because the CSS looks
 correct and `getComputedStyle` agrees with it.
 
-**Cheapest honest option.** A diagnostic, not a declaration. **N711** below
+**Cheapest honest option.** A diagnostic, not a declaration. **N721** below
 asserts that no element whose *used* `display` is `contents` carries a
 non-`auto` `z-index`, `isolation`, `transform`, `filter`, `contain` or
 `container-type`. It is cheap, static, and it is precisely the class of bug a
@@ -85,7 +104,7 @@ move it to. If the engine ever needs component-level isolation it must either
 give that component a real box (contradicting host transparency, and
 reopening the F8 crush at exactly the node that produced it —
 `structure.css:45-48`) or refuse the capability. **Recommend refusing it and
-reporting it**: N711 covers it, and no overlay in this slice needs it, because
+reporting it**: N721 covers it, and no overlay in this slice needs it, because
 the top layer makes isolation unnecessary for the one case that mattered.
 
 ### L3 — `container-type` is inert on a `display: contents` host
@@ -102,7 +121,7 @@ convention of hosting everything on boxless custom elements is one careless
 `container-type` away from silently losing the whole context model for a
 subtree. The leak is small; the blast radius is not.
 
-**Cheapest honest option.** Same rule, N711. Cross-referenced to the theme
+**Cheapest honest option.** Same rule, N721. Cross-referenced to the theme
 slice under §Belongs to another slice.
 
 ### L4 — `position: fixed` under a transformed ancestor
@@ -123,7 +142,7 @@ same 4px derived gap (P4c). So **every overlay in the proposed vocabulary is
 already outside this leak.** It survives only for non-promoted fixed
 furniture — a sticky bar, a drag ghost, a scroll affordance. Those are not in
 my slice, but they are in the framework's future, and the fix is the same
-diagnostic family: **N715**, "non-top-layer fixed element with a
+diagnostic family: **N725**, "non-top-layer fixed element with a
 containing-block-establishing ancestor".
 
 ### X1 — raw `anchor()` for tethering that is not a side
@@ -320,7 +339,7 @@ the panel lands at 72.7px on the other side, and every label fits on one line
 with a trigger padded to 171.7px — wider than the content — the same two rules
 size the panel to 171.7px and no flip is needed.
 
-Three consequences, and I think the first is the important one for the bet:
+Four consequences, and the fourth is the one that changes an argument:
 
 1. **The rule the c11 theme learned from F8 — "nothing may shrink below its
    content except where declared" — is not merely a house style. It is a
@@ -332,8 +351,29 @@ Three consequences, and I think the first is the important one for the bet:
    `data-collapse` (P2c), which is the good news in this slice — but it owns it
    only for boxes that refuse to shrink. Handing a mechanism to the platform
    does not remove the obligation to know what the platform measures.
-3. **N690 already exists and would have caught it — if it ever ran on an
-   overlay.** It does not, and that is the gap N716 below closes.
+3. **The blind spot is identical to ours, for the identical reason.** The
+   browser's solver asks *whether the container overflowed* rather than
+   *whether the content survived* — which is, word for word, why F8's
+   `scrollWidth 318 === clientWidth 318` reported "settled" over a collision.
+   Two independent solvers, written by different people for different purposes,
+   reached for the same wrong question. That suggests it is the *natural* wrong
+   question, and that any future tier of this engine will reach for it too
+   unless something stops it.
+4. **This is the strongest available argument against "tier 2 is simply safer
+   than tier 3".** Leaning on a shipped platform feature rather than our own
+   measured pass feels like the conservative choice, and on this evidence it is
+   not: it is the same class of risk relocated somewhere we cannot inspect,
+   patch or self-test. Our solver's blind spot was found by our own proof in
+   one run and fixed in the theme. The platform's is unfixable by us, and the
+   only reason it is not still hiding is that something measured line boxes.
+
+**And the check layer paid for itself here.** N690 — a rule written for *our*
+defect, when the resolution table shredded a word to fit a box it had bounded
+— detects a *platform* defect exactly, with no modification. That is the best
+evidence in this audit that the checker is worth its bytes: a rule authored
+against one's own mistake generalising, unaltered, to catch the browser's. The
+only reason it did not report is that it has never been run on an overlay,
+which is N726.
 
 ### The failure I did not expect
 
@@ -629,44 +669,86 @@ not a placement one, and anchor positioning does not fix it.
 
 ## Proposed diagnostics
 
-Codes start at **N710**: N700 is taken by the competing-primary-actions rule
-landing in parallel, and `codes.ts` is append-only forever
-(`diagnostics/codes.ts:4-12`).
+Codes are **N720-N726, and the block moved once already**. This audit
+originally proposed N710-N716, on the reasoning that N700 was taken by the
+competing-primary-actions rule landing in parallel and N710 was therefore the
+next free number. It was not: N710, N713 and N715 were allocated in the same
+batch to the clipped-loss and scroll family. `codes.ts` is append-only and
+never reuses (`diagnostics/codes.ts:4-12`), so a paper proposal yields to code
+that is landing, and this block moved to N720.
+
+**Two things worth keeping from that, because neither is about this slice.**
+First, the collision was invisible to both authors: two agents each took "the
+next free number" from the same registry at the same time, and nothing
+mechanical objected — the append-only guard protects the registry from
+*renumbering*, not from *concurrent allocation*. Second, the numbers below are
+therefore marked provisional: if N717-N719 are taken before these are
+implemented, only this document needs editing, which is the whole reason the
+proposal names behaviours rather than relying on its numbers.
+
+**One ownership boundary, settled rather than proposed.** N725 ("a
+non-top-layer `position: fixed` element has an ancestor establishing a
+containing block for fixed descendants") includes `contain` and
+`container-type` in its ancestor test, so it will fire on some of the same
+nodes as the clipped-loss rule N710. The ruling, adopted:
+
+> **N710 owns "content was lost to a clip". N725 owns "this box is positioned
+> against the wrong containing block."** Same node sometimes, different claim,
+> different fix.
+
+N725 is deliberately **not** folded into the clipping family: a containing-block
+error is a positioning defect that merely happens to be *visible* as loss, and
+merging the two would give one code two fixes — which is how a hint stops being
+actionable. That is the same failure the round-2 corpus records as a real muting
+cause, arrived at from the other direction: not one defect reported N times, but
+one code meaning N things.
 
 Every entry names the fixture that proves it can fail, per the house rule.
 
 | code | severity | asserts | fixture that proves it can fail |
 |---|---|---|---|
-| **N710** | fail | every `[data-overlay]` that is rendered is in the top layer — `:popover-open`, or an `open` modal `<dialog>` | an element carrying `data-overlay="menu"` with no `popover` attribute: it renders in flow, is measured by the fit solver, and the rule must fire |
-| **N711** | fail | no element whose **used** `display` is `contents` carries a non-initial `z-index`, `isolation`, `transform`, `filter`, `contain` or `container-type` | `<app-host style="z-index:10; isolation:isolate">` around an absolutely positioned child, with a later un-z-indexed sibling — the exact P3a/P3d/P17a fixture, where the later sibling paints on top and the boxed control does not. **This is L1+L2+L3 in one static rule.** |
-| **N712** | fail | every `[data-overlay]` resolving a *named* anchor is attached to a trigger inside its own overlay scope — measured as "the panel's border box is aligned to a `[data-overflow]` that is a descendant of the panel's nearest `[data-fit]`" | two `[data-fit]` subtrees each containing a trigger and a panel, with `anchor-scope` removed: the first panel attaches to the second subtree's trigger and the rule must fire. This is P11a, promoted from a probe to a standing check. |
-| **N713** | fail | a rendered `[data-overlay]`'s **own border box** is inside the viewport | the bottom-edge trigger with a 22-item menu and `position-try-fallbacks: none`: the panel hangs below the fold. Measures the overlay's box, not its container's — N670's deleted first version failed exactly by measuring the container. |
-| **N714** | fail | for a rendered `data-overlay="menu"`: `document.activeElement` is inside the panel, and every `[role="menuitem"]` is focusable and rendered | a menu whose items are `tabindex="-1"` with neither `autofocus` nor a roving handler: the panel opens with focus outside it and no key reaches the items. This is F6's guarantee ("a degradation strategy is only honest if the thing it degrades is still available") extended from *painted and reachable* to *operable*. |
-| **N715** | warn | no `position: fixed` element outside the top layer has an ancestor that establishes a containing block for fixed descendants (`transform`, `filter`, `perspective`, `backdrop-filter`, `contain: layout/paint`, `container-type`) | the P4a fixture: `inset-inline-start: 0` inside `transform: translateX(120px)` resolves to x = 160. Warn, not fail: it is sometimes intended. |
-| **N716** | fail | every `[data-overlay]` in the document has been *observed while open* by the diagnostics run — i.e. the runner opens each overlay, checks it, and closes it, rather than skipping content that is not currently rendered | the P18f fixture: a menu whose labels are broken across two line boxes. **N690 already exists and already detects this, and it currently reports nothing**, because when the run happens the panel is either absent from the DOM or not rendered. The fixture proves the *runner*, not the rule. |
+| **N720** | fail | every `[data-overlay]` that is rendered is in the top layer — `:popover-open`, or an `open` modal `<dialog>` | an element carrying `data-overlay="menu"` with no `popover` attribute: it renders in flow, is measured by the fit solver, and the rule must fire |
+| **N721** | fail | no element whose **used** `display` is `contents` carries a non-initial `z-index`, `isolation`, `transform`, `filter`, `contain` or `container-type` | `<app-host style="z-index:10; isolation:isolate">` around an absolutely positioned child, with a later un-z-indexed sibling — the exact P3a/P3d/P17a fixture, where the later sibling paints on top and the boxed control does not. **This is L1+L2+L3 in one static rule.** |
+| **N722** | fail | every `[data-overlay]` resolving a *named* anchor is attached to a trigger inside its own overlay scope — measured as "the panel's border box is aligned to a `[data-overflow]` that is a descendant of the panel's nearest `[data-fit]`" | two `[data-fit]` subtrees each containing a trigger and a panel, with `anchor-scope` removed: the first panel attaches to the second subtree's trigger and the rule must fire. This is P11a, promoted from a probe to a standing check. |
+| **N723** | fail | a rendered `[data-overlay]`'s **own border box** is inside the viewport | the bottom-edge trigger with a 22-item menu and `position-try-fallbacks: none`: the panel hangs below the fold. Measures the overlay's box, not its container's — N670's deleted first version failed exactly by measuring the container. |
+| **N724** | fail | for a rendered `data-overlay="menu"`: `document.activeElement` is inside the panel, and every `[role="menuitem"]` is focusable and rendered | a menu whose items are `tabindex="-1"` with neither `autofocus` nor a roving handler: the panel opens with focus outside it and no key reaches the items. This is F6's guarantee ("a degradation strategy is only honest if the thing it degrades is still available") extended from *painted and reachable* to *operable*. |
+| **N725** | warn | no `position: fixed` element outside the top layer has an ancestor that establishes a containing block for fixed descendants (`transform`, `filter`, `perspective`, `backdrop-filter`, `contain: layout/paint`, `container-type`) | the P4a fixture: `inset-inline-start: 0` inside `transform: translateX(120px)` resolves to x = 160. Warn, not fail: it is sometimes intended. **Boundary with N710, settled: N710 owns "content was lost to a clip", N725 owns "this box is positioned against the wrong containing block."** Same node sometimes, different claim, different fix — do not merge them, or one code carries two fixes. |
+| **N726** | fail | every `[data-overlay]` in the document has been *observed while open* by the diagnostics run — i.e. the runner opens each overlay, checks it, and closes it, rather than skipping content that is not currently rendered | the P18f fixture: a menu whose labels are broken across two line boxes. **N690 already exists and already detects this, and it currently reports nothing**, because when the run happens the panel is either absent from the DOM or not rendered. The fixture proves the *runner*, not the rule. |
 
-**N716 is the one I would land first, and it is not really a new rule.** It is
-the discovery that **every existing check is blind to overlay content**. N601,
-N640, N650, N660, N690 and N621 all traverse what is rendered; an overlay is
-rendered only while it is open, and it is never open during a run. So the whole
-"the framework checks the UI" claim currently excludes menus, dialogs, hints
-and everything they contain — which is exactly where a 44px hit target, a
-contrast failure against a floating surface, or a shredded label is most likely
-to hide. F4 established that rendered-ness is a precondition of measurement;
-N716 is the corollary nobody drew: *something has to make the transient thing
-rendered, or the precondition silently excludes it.*
+**N726 is ranked first of everything in this slice, and it is not really a new
+rule.** It is the discovery that **every existing check is blind to overlay
+content**. N601, N621, N640, N650, N660 and N690 all traverse what is rendered;
+an overlay is rendered only while it is open; and nothing opens an overlay
+during a run. So menus, dialogs, hints **and everything inside them have never
+been measured** — which is exactly where a 44px hit target, a contrast failure
+against a floating surface, or a shredded label is most likely to hide.
+
+This is not a wrong measurement. It is an entire category of UI that no
+measurement has ever reached, and that makes it worse than a false PASS: a
+false PASS at least fails on a node the checker looked at. Stated the way it
+deserves to be remembered: **the 240-cell matrix has been reporting clean on a
+document with a closed door in it.**
+
+F4 established that rendered-ness is a precondition of measurement. N726 is
+the corollary nobody drew: *something has to make the transient thing rendered,
+or the precondition silently excludes it.*
+
+**Sequencing, deliberate.** It is queued rather than started: it changes
+`proof/geometry-proof.mjs`, and agents mid-flight are using that proof as their
+acceptance gate, so landing it under them would invalidate their runs. It goes
+first once they land.
 
 The mechanism is cheap and it already exists in the vocabulary: the run walks
 `[data-overlay]`, calls the invoker, lets the checks run, and closes it. The
 prototype's own F6 reachability path (README §Fit) already drives a trigger end
-to end, so the runner has done this once by hand for one menu; N716 makes it
+to end, so the runner has done this once by hand for one menu; N726 makes it
 the standing rule for all of them.
 
-**Opportunity noted, not taken.** N712 and N714 are naturally *subtree*
+**Opportunity noted, not taken.** N722 and N724 are naturally *subtree*
 assertions — "one overlay scope" and "one menu" — and the `obs.declared(selector)`
 subtree scoping just added to the lens for N700 fits them better than a global
-selector plus a filter. I am not changing any existing rule's decision; N712
-and N714 are new and should be written against subtree scoping from the start.
+selector plus a filter. I am not changing any existing rule's decision; N722
+and N724 are new and should be written against subtree scoping from the start.
 
 ## Against Apple
 
@@ -674,14 +756,14 @@ and N714 are new and should be written against subtree scoping from the start.
 |---|---|---|
 | overlay placement | `UIMenu`/SwiftUI `Menu` place themselves; the author picks nothing. `NSPopover`/`UIPopoverPresentationController` take `permittedArrowDirections` — an author-chosen *set*, from which the system picks | **matches, and Apple got there a decade earlier.** `position-try-fallbacks` is `permittedArrowDirections` with better spelling. |
 | choosing among candidate placements | the system picks; the objective is undocumented and not selectable | **beats.** `position-try-order: most-height` makes the *objective* declarable, and P2c proves it changes the outcome. Apple gives you "the system knows best" with no way to say what best means. |
-| verifying that placement worked | not machine-checkable. You look at it. | **beats, decisively.** N713 measures the overlay's own border box against the viewport in CI. Apple's equivalent is a designer with a device. This is the honest angle on the whole slice: Apple's system is authored by humans with eyes; ours is *falsifiable*. |
+| verifying that placement worked | not machine-checkable. You look at it. | **beats, decisively.** N723 measures the overlay's own border box against the viewport in CI. Apple's equivalent is a designer with a device. This is the honest angle on the whole slice: Apple's system is authored by humans with eyes; ours is *falsifiable*. |
 | priority-ordered degradation | Auto Layout constraint priorities (1–1000) with a documented solver | **falls short on the solver, matches on the shape.** Auto Layout is a real linear solver over the whole hierarchy; `data-priority` + `position-try-fallbacks` is a greedy ordered walk. F11 already admits this ("priority orders WHEN a strategy is spent, never WHETHER"). What we gain is that the browser now owns the placement half natively, which Auto Layout never did — `position-try-order` *is* a shipped declared-priority solver, and it is the same shape as `data-collapse`. |
 | modality semantics | HIG enumerates sheet, full-screen cover, alert, action sheet, popover, menu, with prose rules about when each is right | **falls short on richness, beats on enforceability.** Apple has ~6 presentations; I propose 3. But HIG is prose — nothing stops an app from using an alert as a menu. `data-overlay="menu|dialog|hint"` is an enumerated axis N610 can police. |
-| making the rest of the UI untouchable | every modal presentation is inert automatically, for every presentation kind | **falls short.** The web gives it for `<dialog>` only; P9b measured that `popover` gives nothing — not focus blocking, not hit-test blocking. We must build it. The compensation is that once built it is checkable (N714) and Apple's is not. |
+| making the rest of the UI untouchable | every modal presentation is inert automatically, for every presentation kind | **falls short.** The web gives it for `<dialog>` only; P9b measured that `popover` gives nothing — not focus blocking, not hit-test blocking. We must build it. The compensation is that once built it is checkable (N724) and Apple's is not. |
 | overlay materials | `UIBlurEffect`, `.regularMaterial`, vibrancy — a curated, context-adaptive material vocabulary | **falls short, clearly.** We have `--s1`, `--line` and one shadow, and the prototype's own comment calls that shadow "the only shadow in the system". `backdrop-filter` exists; the *curation* is the value, and curation is exactly what a resolution table has to author. This is the same gap the c11 README names as "nothing about beauty". |
 | safe areas | `safeAreaInsets` propagate down the view hierarchy; layout guides consume them with no author code, and per-view | **falls short.** `env(safe-area-inset-*)` is a single viewport-level global with no per-container propagation, and it reads `0px` on any non-notched engine (P10a). A sheet nested in a container cannot ask "how much of the notch is mine". |
 | context adaptation across an overlay boundary | trait collections propagate to presented view controllers, including `userInterfaceStyle` and `preferredContentSizeCategory` | **matches — and this is the surprise.** I expected the top layer to be our portal problem and Apple's solved problem. Measured, CSS inheritance *and* size *and* style container queries *and* `cqi` units all cross the boundary unchanged (P1a–P1f). One inherited custom property does what a trait collection does, with no propagation code, and `createContext`'s documented portal-safety is not even needed for appearance. |
-| stacking | view hierarchy order, `zPosition`; no equivalent of a boxless host, so no equivalent of L1/L2 | **falls short.** L1/L2 are self-inflicted: they exist because we chose `display: contents` hosts. Apple has no such hole. N711 converts it from a silent hazard to a reported one, which is the best available answer, not a win. |
+| stacking | view hierarchy order, `zPosition`; no equivalent of a boxless host, so no equivalent of L1/L2 | **falls short.** L1/L2 are self-inflicted: they exist because we chose `display: contents` hosts. Apple has no such hole. N721 converts it from a silent hazard to a reported one, which is the best available answer, not a win. |
 
 Net: derivation **beats** Apple on declared placement objectives, on
 verifiability, and on context crossing an overlay boundary. It **matches** on
@@ -730,7 +812,7 @@ not having invented the boxless-host stacking hole in the first place.
   the fix lives in the theme/context slice. **The whole "top layer keeps its
   container" result depends on `[data-fit]` being a boxed element** — one
   `container-type` moved onto a transparent host and the context model loses a
-  subtree silently. N711 covers it.
+  subtree silently. N721 covers it.
 - **`max-inline-size: min(max(calc(var(--unit) * 60), var(--min-track)), 100cqi)`
   at `theme/states.css:110` is a second live F9.** A container bound derived
   from `--unit`, with a floor bolted on, and the file's own comment concedes
@@ -742,7 +824,7 @@ not having invented the boxless-host stacking hole in the first place.
   layer is the motion slice's problem.
 - **`reading-flow: source-order` is supported** (measured). Relevant to the
   layout slice: it is the property that lets a visually reordered flex/grid
-  container keep a sane focus order, which interacts with N714's "every
+  container keep a sane focus order, which interacts with N724's "every
   menuitem is reachable".
 - **`field-sizing: content` is supported** (measured) — controls/forms slice.
 

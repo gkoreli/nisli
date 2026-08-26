@@ -134,40 +134,243 @@ app-action-group {
   justify-content: space-between;
 }
 
-/* ── A declared scroll region ────────────────────────────────────────────
-   The one honest answer for content that genuinely cannot reflow. A table
-   cell is atomic — a column that rewraps mid-word stops being a column — so a
-   narrow table is the case where neither reflow nor truncation applies, and
-   the choices reduce to scrolling or clipping. Clipping is silent loss: the
-   flush surface's `overflow: hidden` exists to keep square corners inside a
-   rounded frame, and it was quietly eating columns as well.
+/* ══════════════════════════════════════════════════════════════════════════
+   CLIPPING, AND THE SCROLL REGION THAT IS NO LONGER AUTHORED.
+   ══════════════════════════════════════════════════════════════════════════
+   This block replaces `[data-scroll-region]`, which was DELETED along with the
+   declaration at its one call site. Same paint, opposite default, and the
+   vocabulary did not grow: one attribute in, one attribute out.
 
-   `auto`, never `scroll` and never `hidden`. `auto` is what makes the region
-   legitimately exempt from N660 rather than exempt by suppression: scrolling
-   is a promise to the reader that the rest is still reachable, which is the
-   same standard the truncation and field exemptions are held to.
+   WHY THE OLD SPELLING WAS THE DEFECT AND NOT THE FIX. `data-scroll-region`
+   was correct about the mechanism and wrong about who decides. It made
+   "content must stay reachable" a thing an author remembers per call site,
+   while the destructive behaviour — a flush surface's clip — was the DEFAULT
+   and needed no declaration at all. The demo table only survived because its
+   pattern happened to remember; measured on the same fixture with the
+   declaration removed, at 360px: the surface clipped a table of intrinsic
+   width 835px to 358px and destroyed 33 meaningful nodes, 20 of them
+   entirely, worst overhang 475.58px — no scrollbar, no affordance, no
+   finding. A default whose failure mode is silent deletion is the wrong way
+   round however carefully each call site is written.
 
-   Spelled as a boolean attribute rather than a sixth `data-appearance` value
-   because `appearance` is a closed axis in the frozen contracts and a new
-   value would fail N610 on every render. It is structure, not a role: the
-   region paints nothing and only declares how its overflow behaves. */
-[data-scroll-region] {
+   So the direction is inverted. Absence of `data-clip` now means LOSS IS
+   FORBIDDEN, and the only thing an author declares is the rarer, unsafe
+   direction. The failure mode of forgetting is a scrollbar, not deleted data.
+
+   N710 is the other half and neither half works alone: the derivation covers
+   the shape it can measure, and N710 fails loudly on every shape it cannot —
+   including bare markup with no wrapper to promote (below). A derivation that
+   silently declines is the same silent loss wearing a nicer hat. */
+
+/* ── The one new author declaration ──────────────────────────────────────
+   "What overflows this box is decoration, so trimming it destroys nothing."
+   The only legitimate reason to lose content at a box edge, and the reader
+   has to be told which boxes those are because no measurement can tell a
+   900px decorative gradient from a 900px table.
+
+   `clip`, NEVER `hidden`, and this is measured rather than stylistic:
+   `overflow: hidden` is a scroll container that merely hides its scrollbar,
+   so a clipped descendant receiving focus SCROLLS it. Measured on the defect
+   fixture: focusing the last `<th>` moved `scrollLeft` 0 → 414, displacing
+   the first column 414px permanently outside the clip, with no scrollbar and
+   no wheel to bring it back. `overflow: clip` measured
+   `programmaticallyScrollable: false`. Same paint, no trap.
+
+   The clip margin is what keeps a focus ring, a 1px border or a box-shadow on
+   the outermost child from being eaten. Measured to extend paint AND HIT
+   TESTING by exactly its own length: with a 2px margin a point 1px past the
+   edge hit-tests to the child and a point 4px past it to `body`, and with the
+   margin at 0 the edge itself is the boundary.
+
+   `padding-box` IS LOAD-BEARING AND IS NOT DECORATION. `padding-box` is the
+   spec default, so the keyword should be redundant — and omitting it makes the
+   declaration compute to 0 in Chromium, silently. Measured, same version, same
+   element, four spellings:
+
+     overflow-clip-margin: 2px                            -> 2px
+     overflow-clip-margin: var(--unit)                    -> 4px
+     overflow-clip-margin: calc(var(--unit) / 2)          -> 0px   REJECTED
+     overflow-clip-margin: padding-box calc(var(--unit)/2) -> 2px
+
+   `CSS.supports('overflow-clip-margin', 'calc(4px / 2)')` answers **false**,
+   so the grammar `<visual-box> || <length>` mis-parses a lone `calc()` and the
+   keyword is what rescues it. A bare `var()` survives and a `calc()` around it
+   does not, which is the worst possible shape: the value LOOKS derived, the
+   guard sees no literal, and the clip margin is zero. Confirmed by hit test
+   rather than by computed style alone, because a computed `0px` and an unset
+   property are indistinguishable — the keyworded box hit-tests a child 1px
+   past its edge and the bare one does not.
+
+   WHY THIS ONE MATTERS BEYOND THIS DECLARATION, and the reason it is written
+   out at this length instead of being quietly fixed. Every safety net this
+   experiment has is blind to it, and blind in the direction that costs the
+   most:
+
+     - `proof/no-values-guard.mjs` PASSES, because there is no literal to find.
+       The value is genuinely derived from `--unit`; it simply does not arrive.
+     - `tsc` PASSES, because this is CSS.
+     - the 240-cell matrix PASSES, because a clip margin of zero is not a
+       defect anybody declared — nothing on any page asserts that a focus ring
+       survives the edge.
+     - `test/reachability.test.ts` PASSES, because it asks whether a rule's
+       SELECTOR can match something that exists. It has no opinion about
+       whether a DECLARATION can take effect.
+
+   So this is the same shape as the N700 defect — a declaration that reports
+   success by silence — one layer further down, in the resolution table itself,
+   which is the largest single part of the bet. It is also F9's sibling from
+   the other side: F9 was the table stating an IMPOSSIBLE constraint, this is
+   the table stating a REJECTED one, and both were found by measuring the
+   computed value rather than trusting the declaration — which is the one thing
+   the table has never done for itself.
+
+   The missing check follows directly and is deliberately NOT built here: every
+   declaration the table makes should be asserted to compute to something other
+   than its initial value where it was made, or checked through `CSS.supports()`
+   on the generated declaration. That is "the framework checks the table"
+   arriving from a second direction, and it is queued rather than smuggled into
+   this change.
+
+   Until then: this is the only declaration in the table that carries a keyword
+   purely to get itself parsed. If a future Chromium fixes the grammar, the
+   keyword stays harmless; deleting it would reintroduce a silent zero. */
+[data-clip='trim'] {
+  overflow: clip;
+  overflow-clip-margin: padding-box calc(var(--unit) / 2);
+}
+
+/* ── The derived scroll region ───────────────────────────────────────────
+   WHICH BOX. Not the clipper: promoting the flush surface itself releases the
+   rounded-corner clip that is the only reason the surface clips at all. Not
+   the overflowing child either — measured a no-op, because a scroll container
+   whose own inline size is derived from its content scrolls nothing. The
+   scrollport has to be the box that INHERITS THE CLIPPER'S CONSTRAINED WIDTH,
+   which is the clipper's single in-flow child.
+
+   WHY IT IS SPELLED THROUGH ONE `*`. Host transparency again (see §0): nisli
+   renders a component's template inside its host, and the theme makes those
+   hosts `display: contents`, so the flush surface's DOM child is
+   `<app-data-table>` and the box that inherits the width is the
+   `[data-component]` root inside it. `> [data-component]` alone therefore
+   matches nothing in the real app — the same inert-selector trap the no-crush
+   block records — so both depths are spelled. One `*`, not a descendant
+   combinator: `overflow-x: auto` is NOT inert on the wrong element the way
+   `flex` is, and an unbounded reach would turn every `<td>` into a scrollport.
+
+   WHY `[data-component]` IS THE HANDLE. It is written by every nisli
+   component root and only there, so it cannot match a `<th>`, a `<td>` or a
+   raw text node, and a component nested deeper than the clipper's own child
+   is out of reach of a two-level selector. It is not new vocabulary: it
+   already exists on every primitive and pattern, and the diagnostics layer
+   already keys on it.
+
+   FOUR EXCLUSIONS, AND EVERY ONE OF THEM IS A MEASURED CONTROL.
+
+     - `:not([data-clip='trim'])` on the clipper — a 900px decorative gradient
+       in a 358px box is not promoted. Nothing measurable distinguishes it
+       from a table, so the author's declaration is the only available signal.
+     - `:not([data-truncate])` on the candidate — a node the solver has
+       already truncated has a DECLARED degradation with an ellipsis as its
+       receipt. Promoting it would hand the same overflow two contradictory
+       remedies and put a scrollbar under an ellipsis.
+     - `:only-child` — "the clipper's SINGLE in-flow child" is the whole
+       definition of the target box, and without it the selector promotes ANY
+       component root two levels down. Measured on the inbox, whose flush
+       surface holds four message rows: this rule reached none of them only
+       because nisli's `each` inserts an `<each-item>` box that puts the row's
+       `[data-component]` three levels deep instead of two. That is luck in
+       somebody else's template, not a derivation. With `:only-child` the
+       inbox is excluded BY DESIGN — four children means there is no single
+       in-flow child to promote, and an ambiguous case must not be guessed at.
+     - `:not([data-fit])` — a scroll container inside, or as, a fit container
+       blinds the solver completely. Measured: a row containing a scroll
+       region declared `data-grow` reported 358/358 with `overflows()` false
+       AND `crushed()` false, while 248px sat unreachable inside the region —
+       a settled row with a quarter of its content off-screen and no finding
+       of any kind. css-flexbox-1 §4.5 is why ("for main-axis scroll
+       containers the automatic minimum size is zero"), so the region absorbs
+       without limit and the solver stops degrading. If the inbox's rows were
+       ever one level closer, this rule would have promoted a `[data-fit]` row
+       and turned the fit engine off in silence. The derivation refuses; N712
+       reports it if a scrollport ever appears there anyway.
+
+   SPECIFICITY, deliberately, and it is above the no-crush block's
+   `[data-layout] *` at (0,1,0). That matters when a flush surface also
+   declares `data-layout`: the scrollport is then a flex item, and `flex: none`
+   would pin it to its content width — 835px inside a 358px clip, i.e. the
+   defect back with a scrollbar that never appears. The licence below is the
+   same one `[data-truncate]` gets and is earned on the same terms: a truncator
+   may shrink below its content because the ellipsis is the receipt for the
+   loss, and a scrollport may shrink because the scrollbar is the receipt for
+   the displacement. Those are the only two nodes in this table that may.
+
+   NOT LANDED, and recorded because it was measured and is the better answer.
+   Variant A4 — the engine GENERATES the wrapper, so bare markup with no
+   component root inside a flush surface is covered too — measured identically
+   to this one: 0 lost, the full overhang reachable, `scrollLeft` at its
+   maximum, `tabindex="0"`, rounded-corner clip intact. It is deferred because
+   it needs the mutator in `fit/dom.ts` to insert an element, and today that
+   mutator only sets attributes. Until it lands, bare markup inside a flush
+   surface is not derivable and is reported by N710 rather than clipped in
+   silence — which is the whole point of having both halves. */
+[data-appearance='surface'][data-flush]:not([data-clip='trim'])
+  > [data-component]:only-child:not([data-truncate], [data-fit]),
+[data-appearance='surface'][data-flush]:not([data-clip='trim'])
+  > :only-child
+  > [data-component]:only-child:not([data-truncate], [data-fit]) {
+  /* `auto`, never `scroll`: a permanent scrollbar is furniture, and `auto` is
+     what makes the region legitimately exempt from N660 rather than exempt by
+     suppression — scrolling is a promise the rest is still reachable, which is
+     the same standard the truncation and field exemptions are held to. */
   overflow-x: auto;
-  /* MEASURED, and this line prevents a permanent flicker rather than a cosmetic
-     one. A classic (space-consuming) scrollbar changes the container's
-     clientWidth, which is the number the fit solver measures. So the loop can
-     degrade a candidate to make room, lose the scrollbar because the content now
-     fits, un-degrade because there is room again, regain the scrollbar, and
-     oscillate forever. Running the solve loop across a 15px scrollbar window in
-     2px steps: 79 of 91 widths were PERMANENTLY BISTABLE (281/1 → 296/0 →
-     281/1 …). With this declaration: 0 of 91.
+  /* BOTH AXES, SPELLED, because leaving one alone does not leave it alone.
+     css-overflow-3 §3.1: "if the other axis specifies a scrollable value, a
+     specified value of `visible` computes to `auto`" — so omitting the block
+     axis silently produces a two-axis scrollport that nothing in this file
+     asked for.
+
+     THIS LINE SAID `clip` FIRST, AND `clip` IS NOT AVAILABLE HERE. The idea
+     was the single-axis scroll container the same spec paragraph describes:
+     `clip` does not force the other axis, so exactly one scrollport would
+     exist, on the axis that has something to scroll. Measured computed value:
+     `hidden`. The paragraph that grants the single-axis case also says a
+     `clip` value computes to `hidden` when the other axis is scrollable, so
+     the escape only runs the other way — `overflow-x: clip` with a scrollable
+     block axis. Writing `clip` here would have put a declaration in the
+     resolution table that resolves to something else, which is precisely the
+     failure this project keeps paying for.
+
+     So the choice is `hidden` or `auto`, and it is `auto`. `hidden` is not
+     "no scrollport" — it is a scroll container that hides its scrollbar, which
+     is the exact shape of the focus trap recorded on the flush surface in
+     roles.css. The only argument for it is that nothing overflows the block
+     axis here, and that is measured: block overflow 0 with overlay scrollbars
+     AND with classic 15px ones, `scrollTop` unreachable past 0 in both. But
+     that is a fact about today's rows, not a property of the rule, and the
+     rule outlives the content. `auto` is honest in both states — no scrollbar
+     while there is nothing to scroll, a reachable one if there ever is. */
+  overflow-y: auto;
+  /* Earned shrink licence — see the specificity note above. */
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  /* MEASURED, and this line prevents a permanent flicker rather than a
+     cosmetic one. A classic (space-consuming) scrollbar changes the
+     container's clientWidth, which is the number the fit solver measures. So
+     the loop can degrade a candidate to make room, lose the scrollbar because
+     the content now fits, un-degrade because there is room again, regain the
+     scrollbar, and oscillate forever. Running the solve loop across a 15px
+     scrollbar window in 2px steps: 79 of 91 widths were PERMANENTLY BISTABLE
+     (281/1 → 296/0 → 281/1 …). With this declaration: 0 of 91.
 
      It is invisible on the platform the 240-cell matrix runs on, because macOS
      overlay scrollbars consume 0px — which is precisely why it needs to be a
      declaration in the table rather than a thing someone notices on Windows. A
-     solver that measures a viewport the scrollbar is still arguing about cannot
-     terminate, and reserving the gutter removes the argument. */
+     solver that measures a viewport the scrollbar is still arguing about
+     cannot terminate, and reserving the gutter removes the argument. */
   scrollbar-gutter: stable;
+  /* Scroll-chaining out of a nested scroller is never the intent: reaching the
+     end of a table's columns should not start scrolling the page sideways. */
+  overscroll-behavior-inline: contain;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

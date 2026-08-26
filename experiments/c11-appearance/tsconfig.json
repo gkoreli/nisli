@@ -1,0 +1,18 @@
+{
+  "//": "The experiment had NO type gate, and that is how a real type error survived: test/diagnostics.test.ts used a type it never imported, and nothing noticed because vitest transpiles without checking. It was found by an agent running tsc by hand. Deliberately NOT exposed as a `typecheck` script - experiments/* stays invisible to the root gates by defining no standard script names, per experiments/README.md - so `verify` runs it instead. Extends nothing: the root config is for shipping packages and this directory ships nothing. `erasableSyntaxOnly` is omitted on purpose: the experiment imports @nisli/core's TypeScript source directly, core uses a constructor-parameter property at signal.ts:142 that the flag rejects, and an experiment must not impose a stricter dialect on the package it is borrowing.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"]
+}

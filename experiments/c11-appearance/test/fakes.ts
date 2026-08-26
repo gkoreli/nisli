@@ -16,12 +16,15 @@
  * Nodes are plain string ids; the world holds all the state.
  */
 import type {
+  Backdrop,
   Bounds,
   Box,
+  Containment,
   FitState,
   Inspector,
   Metrics,
   Mutator,
+  Rgba,
   Strategy,
 } from '../src/appearance/contracts.js';
 
@@ -42,6 +45,22 @@ export interface ChildSpec {
   readonly text?: string;
   /** Collapsed before solving ever starts, e.g. an inactive tab panel (F4). */
   readonly rendered?: boolean;
+  /**
+   * Geometry that cannot be trusted, because this child or an ancestor is
+   * skipped by `content-visibility: auto`. Defaults to measurable.
+   *
+   * The solver needs this modelled rather than assumed: css-contain-2 states
+   * that skipped contents never change size and that the resize observation is
+   * delivered only once they stop being skipped, so a container inside a skipped
+   * subtree is never re-solved at all.
+   */
+  readonly measurable?: boolean;
+  /**
+   * What happens to this child's own overflow. Defaults to `visible`, which is
+   * the only value that lets content paint over a neighbour and therefore the
+   * only one the crush model reacts to.
+   */
+  readonly containment?: Containment;
 }
 
 export interface WorldSpec {
@@ -58,6 +77,10 @@ export interface WorldSpec {
    */
   readonly trigger?: number;
   readonly crush?: boolean;
+  /** The container's own geometry cannot be trusted. See `ChildSpec.measurable`. */
+  readonly measurable?: boolean;
+  /** What happens to the container's own overflow. Defaults to `visible`. */
+  readonly containment?: Containment;
 }
 
 const BLOCK = 10;
@@ -85,6 +108,8 @@ export class FakeWorld {
   private triggerShown = false;
   private readonly applied = new Map<string, Strategy>();
   private readonly boxes = new Map<string, Box>();
+  private readonly containerMeasurable: boolean;
+  private readonly containerContainment: Containment;
 
   constructor(spec: WorldSpec) {
     this.container = spec.container ?? 'container';
@@ -92,6 +117,8 @@ export class FakeWorld {
     this.crush = spec.crush === true;
     this.trigger = spec.trigger ?? 0;
     this.children = spec.children;
+    this.containerMeasurable = spec.measurable !== false;
+    this.containerContainment = spec.containment ?? 'visible';
     this.layout();
 
     this.metrics = {
@@ -100,18 +127,31 @@ export class FakeWorld {
         const box = this.boxOf(node);
         return box.contentInline > box.inline + 1;
       },
-      // Descendants only, and a node that declared truncation is exempt: it
-      // asked to be clipped, so content wider than its box is intentional.
+      // Descendants only. Three exemptions, mirroring the adapter so a solver
+      // decision is reproducible without a browser: a node that declared
+      // truncation asked to be clipped, and a node whose containment is not
+      // `visible` either scrolls its overflow (reachable) or clips it (deleted)
+      // — neither paints over a neighbour, so neither is something the solver
+      // can relieve by degrading siblings.
       crushed: (node) =>
         node === this.container &&
         this.children.some((child) => {
           if (!this.inFlow(child) || this.applied.get(child.id) === 'truncate') return false;
+          if ((child.containment ?? 'visible') !== 'visible') return false;
           const box = this.boxOf(child.id);
           return box.contentInline > box.inline + 1;
         }),
       rendered: (node) => {
         if (node === this.container) return true;
         return this.inFlow(this.spec(node));
+      },
+      measurable: (node) => {
+        if (node === this.container) return this.containerMeasurable;
+        return this.spec(node).measurable !== false;
+      },
+      containment: (node) => {
+        if (node === this.container) return this.containerContainment;
+        return this.spec(node).containment ?? 'visible';
       },
       style: (node, property) => (property === '--unit' ? '4px' : `${node}:${property}`),
     };
@@ -214,16 +254,64 @@ export interface InspectSpec {
   readonly styles?: Readonly<Record<string, string>>;
   readonly text?: string;
   readonly rendered?: boolean;
+  /**
+   * Content that IS there and whose geometry cannot be trusted, because this
+   * node or an ancestor is skipped by `content-visibility: auto`. Defaults to
+   * measurable.
+   *
+   * Deliberately independent of `rendered`, exactly as the adapter is. A skipped
+   * node is not rendered AND not measurable, and the two answers are needed
+   * separately: `rendered: false` alone is how a rule gets to `continue`, which
+   * is the false PASS. Reach these nodes with `declared()`.
+   */
+  readonly measurable?: boolean;
+  /**
+   * What happens to content that does not fit this node.
+   *
+   * Derived from `styles['overflow-x']` and `styles['overflow-y']` when absent,
+   * because that is what a fixture can honestly know from what it declared, and
+   * because twenty recorded fixtures already spell a scroller that way.
+   *
+   * Declare it explicitly for a clipper that does not spell itself in
+   * `overflow` at all — measured, Chromium 151: `contain: paint` and
+   * `contain: content` clip while BOTH overflow axes compute to `visible`. That
+   * case is exactly why the port answers this question itself instead of letting
+   * each call site read a property, and it is the one case a fixture cannot
+   * derive.
+   */
+  readonly containment?: Containment;
   readonly box?: Partial<Box>;
   /**
-   * Border box. Omitted in almost every fixture on purpose: the default derives
-   * it from `box` plus the declared border longhands, so a fixture that says
-   * nothing about borders gets `bounds === box` and reads the way a reviewer
-   * expects. Set it explicitly only to test a transform or a fractional rect.
+   * Border box AND its origin. Omitted in almost every fixture on purpose: the
+   * default derives the extent from `box` plus the declared border longhands and
+   * puts the origin at 0/0, so a fixture that says nothing about borders gets
+   * `bounds === box` and reads the way a reviewer expects. Set it explicitly to
+   * test a transform, a fractional rect, or a rect-against-rect claim — N713 and
+   * N715 are entirely about where rectangles SIT, so their fixtures always do.
    */
   readonly bounds?: Partial<Bounds>;
-  /** Nearest painted background behind the node. */
+  /** Nearest painted background behind the node, as a colour string. */
   readonly backdrop?: string;
+  /**
+   * Colours already resolved to sRGB, keyed by property. This is how the fake
+   * models the browser adapter, which resolves by painting on a canvas: a
+   * fixture that wants a DERIVED foreground declares
+   * `styles: { color: 'oklab(0.7 0 0)' }` for the message and
+   * `colours: { color: [178, 178, 178, 1] }` for the number. An explicit `null`
+   * models a value the adapter could not resolve at all.
+   */
+  readonly colours?: Readonly<Record<string, Rgba | null>>;
+  /**
+   * `opacity` on this node. Below 1 it fades everything inside it, so no
+   * contrast claim about descendant text is supportable — the shipped disabled
+   * action was reported at 18.85:1 while painting 3.03:1 through exactly this.
+   */
+  readonly opacity?: number;
+  /**
+   * A `background-image` (or "this element paints its own content", for a video
+   * or canvas). Any non-empty value means no single colour is behind the text.
+   */
+  readonly backdropImage?: string;
   readonly children?: readonly InspectSpec[];
 }
 
@@ -233,6 +321,48 @@ export interface InspectWorldSpec {
 }
 
 const ZERO_BOX: Box = { inline: 0, block: 0, contentInline: 0 };
+const ZERO_BOUNDS: Bounds = { inline: 0, block: 0, inlineStart: 0, blockStart: 0 };
+
+/**
+ * Read a colour out of a FIXTURE string. Understands `#rgb`, `#rrggbb`, `rgb()`
+ * and `rgba()` — the two spellings the recorded fixtures already use — and
+ * returns null for everything else.
+ *
+ * THIS IS NOT A MODEL OF THE BROWSER, and the difference is the whole point of
+ * the change it accompanies. The DOM adapter resolves colour by PAINTING on a
+ * 1×1 canvas, because a derived table computes to `oklab(…)` and the parser that
+ * did not know that syntax took 288 of 1188 measured text cells from checked to
+ * undecidable. happy-dom has no 2D canvas context, so a reader here is the only
+ * way a fixture can carry a colour at all — and it deliberately understands
+ * LESS than the browser rather than more. A fixture that wants to model a
+ * derived colour supplies the resolved triple in `colours`, which is exactly
+ * what the compositor hands the adapter; a fixture that supplies `oklab(…)` and
+ * no triple models an adapter that could not resolve it, and gets N680. Both
+ * directions are testable without this pretending to understand colour.
+ */
+function fixtureColour(value: string): Rgba | null {
+  const text = value.trim();
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(text);
+  if (hex) {
+    const digits = hex[1] as string;
+    const pairs =
+      digits.length === 3
+        ? [...digits].map((digit) => digit + digit)
+        : [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 6)];
+    const [red = 0, green = 0, blue = 0] = pairs.map((pair) => Number.parseInt(pair, 16));
+    return [red, green, blue, 1];
+  }
+  const functional = /^rgba?\(([^)]*)\)$/i.exec(text);
+  if (!functional) return null;
+  const numbers = (functional[1] as string)
+    .split(/[\s,/]+/)
+    .filter((part) => part !== '')
+    .map(Number);
+  const [red, green, blue, alpha] = numbers;
+  if (red === undefined || green === undefined || blue === undefined) return null;
+  if (numbers.some(Number.isNaN)) return null;
+  return [red, green, blue, alpha ?? 1];
+}
 
 /* ── A selector engine just wide enough for the rules ───────────────────────
    The rules address the document through tag names, attribute selectors, `*`,
@@ -410,6 +540,30 @@ export class FakeInspector implements Inspector<string> {
     return this.node(node).rendered !== false;
   }
 
+  measurable(node: string): boolean {
+    // Ancestor-aware, like the browser's `checkVisibility()`: skipping is
+    // inherited by the whole subtree, so a fixture declares it once on the
+    // container and every descendant answers false. Declaring it per node would
+    // let a fixture describe a shape the browser cannot produce.
+    for (let up: string | null = node; up !== null; up = this.parents.get(up) ?? null) {
+      if (this.node(up).measurable === false) return false;
+    }
+    return true;
+  }
+
+  containment(node: string): Containment {
+    const spec = this.node(node);
+    if (spec.containment !== undefined) return spec.containment;
+    // Derived from what the fixture declared, with the same polarity and the
+    // same precedence as the adapter: reachability wins over clipping, and an
+    // unknown or absent value fails safe to `visible` so a rule stays LOUD
+    // rather than going vacuously quiet.
+    const axes = [this.style(node, 'overflow-x'), this.style(node, 'overflow-y')];
+    if (axes.some((value) => value === 'auto' || value === 'scroll')) return 'scroll';
+    if (axes.some((value) => value === 'hidden' || value === 'clip')) return 'clip';
+    return 'visible';
+  }
+
   box(node: string): Box {
     return { ...ZERO_BOX, ...this.node(node).box };
   }
@@ -420,7 +574,7 @@ export class FakeInspector implements Inspector<string> {
 
   bounds(node: string): Bounds {
     const declared = this.node(node).bounds;
-    if (declared) return { inline: 0, block: 0, ...declared };
+    if (declared) return { ...ZERO_BOUNDS, ...declared };
     const box = this.box(node);
     return {
       inline:
@@ -431,6 +585,10 @@ export class FakeInspector implements Inspector<string> {
         box.block +
         this.edge(node, 'border-block-start-width') +
         this.edge(node, 'border-block-end-width'),
+      // A fixture that says nothing about position gets the origin the reviewer
+      // expects. Every rect-against-rect fixture declares `bounds` in full.
+      inlineStart: 0,
+      blockStart: 0,
     };
   }
 
@@ -438,8 +596,52 @@ export class FakeInspector implements Inspector<string> {
     return this.node(node).styles?.[property] ?? '';
   }
 
-  backdrop(node: string): string {
-    return this.node(node).backdrop ?? 'rgb(255, 255, 255)';
+  colour(node: string, property: string): Rgba | null {
+    const supplied = this.node(node).colours?.[property];
+    if (supplied !== undefined) return supplied;
+    return fixtureColour(this.style(node, property));
+  }
+
+  backdrop(node: string): Backdrop {
+    // The same walk the DOM adapter performs, over fixture data, in the same
+    // order: anything that fades or covers the stack defeats the claim before
+    // the question of WHICH colour is reached.
+    for (let up: string | null = node; up !== null; up = this.parents.get(up) ?? null) {
+      const spec = this.node(up);
+      if (spec.opacity !== undefined && spec.opacity < 1) {
+        return {
+          kind: 'faded',
+          colour: null,
+          detail: `opacity ${spec.opacity} on ${up} composites the text with what is behind it`,
+        };
+      }
+      if (spec.backdropImage !== undefined && spec.backdropImage !== '') {
+        return {
+          kind: 'image',
+          colour: null,
+          detail: `${up} paints ${spec.backdropImage}, so no single colour is behind this text`,
+        };
+      }
+      if (spec.backdrop === undefined) continue;
+      const painted = fixtureColour(spec.backdrop);
+      if (painted === null) {
+        return {
+          kind: 'unresolvable',
+          colour: null,
+          detail: `cannot resolve ${spec.backdrop || '<empty>'}`,
+        };
+      }
+      if (painted[3] === 0) continue; // paints nothing; keep walking outward
+      if (painted[3] < 1) {
+        return {
+          kind: 'faded',
+          colour: null,
+          detail: `${spec.backdrop} on ${up} is translucent, so the text sits on a composite of two layers`,
+        };
+      }
+      return { kind: 'painted', colour: painted, detail: spec.backdrop };
+    }
+    return { kind: 'painted', colour: [255, 255, 255, 1], detail: 'canvas' };
   }
 
   viewport(): { readonly inline: number; readonly documentInline: number } {

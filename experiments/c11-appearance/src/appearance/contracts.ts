@@ -132,10 +132,126 @@ export interface Box {
  *
  * There is no `contentInline` here on purpose. "What the content wanted" is a
  * containment question, so asking it of `Bounds` is a category error.
+ *
+ * THE ORIGIN WAS ADDED LATER, AND DELIBERATELY HERE RATHER THAN ON `Box`.
+ * Two measured defects need to know not just how big a box is but WHERE it
+ * sits, and neither is expressible without it:
+ *
+ *   - N715: a box reported `scrollHeight 36 === clientHeight 36` while a 45-pixel
+ *     control painted outside it. The control was pinned to the block-end edge,
+ *     so it overflowed towards block-START, and scroll extents are directional
+ *     — they cannot see start-side overflow at all. The only assertion left is
+ *     rect against rect.
+ *   - N713: a multicolumn container held 3 columns of 101.33 pixels carrying 103 pixels
+ *     of content, 6 crushed nodes, container 323/320. A column box is not an
+ *     element, so no per-node predicate can ever reach it; the container's own
+ *     rectangle is the only real box in the picture.
+ *
+ * It belongs to `Bounds` because "where does this paint" is a visual-extent
+ * question, which is exactly what `Bounds` already answers. Putting it on `Box`
+ * would have been the tempting move — these read as containment claims — and it
+ * would have repeated the category error that cost the first run five defects:
+ * a padding-box origin can only be had by adding resolved border longhands to a
+ * rect, which is the precise arithmetic that shipped 710 false failures on the
+ * run where two of those longhands resolved to the empty string. So the
+ * comparison is border box against border box, and the residue is honest and
+ * bounded: a descendant sitting inside its container's border but outside its
+ * padding box is not reported. That under-reports by at most the border width
+ * and never invents a defect.
+ *
+ * Both rectangles come from the same coordinate system in the same frame, so a
+ * four-edge comparison is correct in any writing mode; only the NAMES would
+ * change. `inline`/`block` already assume `horizontal-tb` — they are read from
+ * `rect.width`/`rect.height` — and the origin inherits that assumption rather
+ * than inventing a second one. Recorded because it IS an assumption: this
+ * prototype never rendered a vertical writing mode.
  */
 export interface Bounds {
   readonly inline: number;
   readonly block: number;
+  /** Start edge on the inline axis, in viewport coordinates. */
+  readonly inlineStart: number;
+  /** Start edge on the block axis, in viewport coordinates. */
+  readonly blockStart: number;
+}
+
+/**
+ * What happens to content that does not fit its box. Three values, because the
+ * three consequences are genuinely different and every clip test in this
+ * prototype conflated them by asking one property for the answer.
+ *
+ *   - `visible` — content escapes and paints over whatever is next to it.
+ *   - `scroll`  — content larger than the box stays REACHABLE by scrolling.
+ *   - `clip`    — content larger than the box is cut off and unreachable.
+ *
+ * Measured, Chromium 151: `contain: paint` clips a 471-pixel child inside a 200-pixel
+ * box while `overflow-x` computes to `visible`, and `contain: content` does the
+ * same. Both tables that keyed on the overflow VALUE therefore classified a
+ * clipper as "content paints outside its box and lands on a neighbour" — the
+ * right location with a false claim, and one the solver would try to relieve by
+ * degrading siblings, which can never work because nothing is colliding.
+ * "Does this box clip" is a question about clipping, not about a property.
+ *
+ * ONE SCALAR FOR TWO AXES, with the limit measured rather than assumed.
+ * css-overflow-3 forces a `visible` axis to `auto` when the other axis is not
+ * `visible`, so the common case cannot disagree with itself. The cases that can,
+ * measured: `overflow-x: auto; overflow-y: hidden` computes to exactly that,
+ * and `overflow-x: clip; overflow-y: auto` computes x to `hidden`. There
+ * `scroll` wins, because the box IS a scroll container and its overflow stays
+ * reachable on at least one axis. Per-axis containment is the honest
+ * refinement; no rule needs it yet, and shipping it before one does would be
+ * coverage nobody has measured — the same mistake as the `overlay` entry that
+ * sat in two tables for two months while being provably unreachable.
+ */
+export type Containment = 'visible' | 'scroll' | 'clip';
+
+/**
+ * A colour as the compositor painted it: sRGB channels in 0..255, alpha in
+ * 0..1.
+ *
+ * Never a CSS string on this port, and that is a measured decision. A CSS
+ * colour string is not a colour; it is one of a dozen syntaxes for one, and the
+ * rule that tried to parse them itself went blind the moment the table started
+ * deriving: 288 of 1188 measured text cells became undecidable, 31.8% of
+ * derived cells against 9.1% of authored ones, because a derived foreground
+ * computes to `oklab(…)`. Parsing colour is the adapter's job, and the adapter
+ * does it by painting. See `Inspector.colour()`.
+ */
+export type Rgba = readonly [number, number, number, number];
+
+/**
+ * Why a contrast claim about a node is or is not supportable, and against what.
+ *
+ * A bare colour was the wrong return type: three separate measured defects all
+ * came back as a confident number where no number was supportable, so the
+ * reasons are enumerated instead of collapsed into `null`.
+ *
+ *   - `painted` — an opaque colour is behind this node. `colour` is set.
+ *   - `image` — an ancestor paints a `background-image`, or is a `<video>` or
+ *     `<canvas>`. There is no single colour behind the text. Today the walk
+ *     skipped straight past it and reported the colour BEHIND the image.
+ *   - `faded` — `opacity` below 1, or a translucent background colour, sits
+ *     between the reader and the text. What is on screen is a composite of two
+ *     or more layers that nobody composited. Measured: the shipped disabled
+ *     action (`roles.css:130`, `opacity: 0.45`) was reported at 18.85:1 while
+ *     actually painting 3.03:1 — a six-fold error in the direction of false
+ *     confidence, which survived precisely because WCAG 1.4.3 exempts inactive
+ *     components and so nobody was looking.
+ *   - `unresolvable` — a value the adapter could not resolve to a colour at all.
+ *
+ * `faded` is deliberately not "correct": compositing an opacity chain is real
+ * work and a rushed version would be another confident wrong number. An honest
+ * "I cannot decide" is worth more than a fast wrong answer, and it is the only
+ * verdict the house rule allows.
+ */
+export type BackdropKind = 'painted' | 'image' | 'faded' | 'unresolvable';
+
+export interface Backdrop {
+  readonly kind: BackdropKind;
+  /** The painted colour, set only when `kind` is `painted`. */
+  readonly colour: Rgba | null;
+  /** The node's own description of what defeated the claim, for the finding. */
+  readonly detail: string;
 }
 
 /** Read-only geometry and style access. Implemented by the DOM adapter. */
@@ -147,6 +263,20 @@ export interface Metrics<TNode> {
   crushed(node: TNode): boolean;
   /** Is the node actually rendered? A precondition for every measurement (F4). */
   rendered(node: TNode): boolean;
+  /**
+   * Does this node's geometry mean what it says? See `Inspector.measurable()`
+   * for the measurement and the argument.
+   *
+   * The solver needs the same question for its own reason: css-contain-2 states
+   * that the skipped contents of an element never change size, and that a
+   * resize observation is delivered only once they become non-skipped. So a
+   * `[data-fit]` container inside a skipped subtree receives no
+   * `ResizeObserver` callback at all and is never re-solved. The engine is
+   * blind on exactly the same axis as the checker.
+   */
+  measurable(node: TNode): boolean;
+  /** What happens to content that does not fit this box. */
+  containment(node: TNode): Containment;
   style(node: TNode, property: string): string;
 }
 
@@ -212,13 +342,67 @@ export interface Inspector<TNode> {
   text(node: TNode): string;
   describe(node: TNode): string;
   rendered(node: TNode): boolean;
+  /**
+   * Does this node's geometry mean what it says?
+   *
+   * FALSE when the node or an ancestor is skipped by `content-visibility: auto`.
+   * That case is the reason this member exists, and it is the worst-shaped
+   * defect the checker has produced: a skipped subtree makes a clipper report
+   * `scrollWidth 200 === clientWidth 200` while its child needs 471 pixels, so
+   * `overflows()` returns false, and `rendered()` returns false as well — so
+   * every measuring rule reaches its `continue` and the run is a PASS with zero
+   * findings. Nothing throws, so the runner's `catch` never fires either.
+   *
+   * THE SIGNAL IS A CAPABILITY QUESTION, NOT A GEOMETRY ONE, and that is
+   * measured rather than chosen for tidiness. `checkVisibility()` answers true
+   * for a skipped node while `checkVisibility({ contentVisibilityAuto: true })`
+   * answers false; that disagreement is uniquely the skipped case, since
+   * `display: none` and `content-visibility: hidden` answer false to both and a
+   * `visibility: hidden` node answers true to both. The tempting alternative
+   * was the geometry disagreement recorded in the audit — `getBoundingClientRect()`
+   * reporting 0×0 while `offsetWidth` reported 471 in the same frame — and
+   * re-measuring it on the same Chromium 151 produced DIFFERENT numbers on a
+   * different fixture: rect 471 and a clipper whose scroll extent did see the
+   * content. Which layout API lies is fixture-dependent; that one of them does
+   * is not. So the check asks the API whose answer is stable.
+   *
+   * THIS IS NOT A SECOND RENDERED-NESS TEST, and conflating them would put the
+   * checker right back where it started. `measurable()` is TRUE for a
+   * `display: none` node and for `content-visibility: hidden`: those have no box
+   * at all, they report zero honestly, and `rendered()` is the predicate that
+   * excludes them. It is false only for content that IS there and CANNOT be
+   * measured.
+   *
+   * The honest verdict for a skipped subtree is therefore UNDECIDABLE, never
+   * FAIL. css-contain-2 requires that the skipped contents of an `auto` element
+   * remain available to find-in-page and tab order and stay focusable and
+   * selectable, so the READER loses nothing. Only the PROOF is destroyed.
+   * Rules reach these nodes through `declared()`, not `painted()` — `painted()`
+   * filters them out by construction, which is the mechanism of the false PASS.
+   */
+  measurable(node: TNode): boolean;
   /** Padding box — for containment claims. See `Box`. */
   box(node: TNode): Box;
-  /** Border box — for pressability and visual-extent claims. See `Bounds`. */
+  /** Border box with origin — visual-extent and pressability claims. See `Bounds`. */
   bounds(node: TNode): Bounds;
+  /** What happens to content that does not fit this box. See `Containment`. */
+  containment(node: TNode): Containment;
   style(node: TNode, property: string): string;
-  /** Nearest painted background colour behind this node. */
-  backdrop(node: TNode): string;
+  /**
+   * A resolved style colour, as the compositor painted it. `null` when the
+   * value is not a colour at all.
+   *
+   * The adapter resolves; the rule never parses. That split is the whole point:
+   * a rule that decomposed colour strings itself understood `rgb()` and
+   * `color(srgb …)` and nothing else, so the moment the table derived a
+   * foreground through `color-mix()` or `contrast-color()` — both of which
+   * compute to `oklab(…)` — roughly a third of the contrast surface stopped
+   * reporting anything. Out-of-gamut values are clamped by the compositor, and
+   * clamped is what the reader saw.
+   */
+  colour(node: TNode, property: string): Rgba | null;
+  /** Is a contrast claim about this node supportable, and against what? */
+  backdrop(node: TNode): Backdrop;
   viewport(): { readonly inline: number; readonly documentInline: number };
 }
 
