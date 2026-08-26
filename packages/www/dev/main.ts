@@ -1,5 +1,9 @@
 /** Browser entry for the Vite + Nisli HMR development server. */
 import './styles.css';
+// Second stylesheet, order-critical — see dev/intent.css for why dev loads it
+// unconditionally while the built site links it per-page, and for the one
+// visible dev/prod difference that causes.
+import './intent.css';
 import { html } from '@nisli/core';
 import { AppRouter } from '../src/app-router.js';
 

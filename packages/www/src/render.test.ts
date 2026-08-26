@@ -145,29 +145,60 @@ describe('nisli website', () => {
     expect(page).toContain('bg-chart-1'); // chart palette
   });
 
-  // WWW-13/15: the client runtime (hydrate.js) is injected on EXACTLY the
-  // DocsLayout pages — /ui, /ui/<name>, /docs, /docs/<slug> — because they carry
-  // the sidebar chrome whose mobile drawer needs client JS, AND every preview
-  // there hydrates (derived, no allowlist). Home, /themes, and the 404 render in
-  // SiteShell alone and stay runtime-free: the NEGATIVE assertion keeps the
-  // static-first tenet honest and locks the predicate.
-  it('injects the client runtime on exactly the DocsLayout pages (chrome + previews)', () => {
-    const SCRIPT = '/ui-preview/hydrate.js';
-    const has = (path: string) => readFileSync(built.find((p) => p.path === path)!.filePath, 'utf8').includes(SCRIPT);
-    const isDocsLayout = (path: string) =>
-      path === '/ui' || path.startsWith('/ui/') || path === '/docs' || path.startsWith('/docs/');
+  // WWW-13/15: the client runtime is referenced by EXACTLY the pages that carry
+  // something for it to mount, and intent's stylesheet by EXACTLY the pages that
+  // declare intent's vocabulary. Both are read out of dist/ — the SUBJECT is the
+  // emitted HTML, not a predicate.
+  //
+  // WHAT THIS REPLACED, because the shape mattered more than the coverage. This
+  // test used to hold its own copy of build.ts's `/ui`/`/docs` prefix list and
+  // assert `has(path) === isDocsLayout(path)`. Two hand-written lists compared
+  // to each other: satisfied whenever BOTH said "no", so it agreed most loudly
+  // exactly where a page was missing from the feature. Adding the /intent routes
+  // made both sides answer "no" and this file stayed green while the pages
+  // shipped with no client half at all — and for intent that is not a dead
+  // drawer, it is a measured tier that never measures, which renders as *almost
+  // right*. Nobody files a bug against almost right.
+  //
+  // So the assertion is now the invariant a reader actually cares about, in both
+  // directions: a frame with no runtime is a dead island, and a runtime with no
+  // frame is bytes a static page paid for. The positive block underneath is what
+  // keeps it non-vacuous — an invariant over an empty set is free.
+  it('references the client runtime and intent stylesheet on exactly the pages that need them', () => {
+    const RUNTIME = '/ui-preview/hydrate.js';
+    const INTENT_CSS = '/assets/intent.css';
+    // The two selectors client/hydrate.ts actually mounts, and intent's axis
+    // attributes minus the two @nisli/ui also writes (data-align, data-role) —
+    // the same reasoning build.ts's predicates carry, expressed from the outside.
+    const FRAME = /\bdata-(?:hydrate=|preview\b)/;
+    const VOCABULARY =
+      /\bdata-(?:appearance|layout|text|priority|collapse|grow|clip|density|input|fit|truncate|flush|table|component|theme)[=>\s]/;
 
-    // every DocsLayout page carries the runtime; nothing else does
-    for (const page of built) {
-      expect(has(page.path), `${page.path} runtime injection`).toBe(isDocsLayout(page.path));
+    const pages = built.map((page) => ({ path: page.path, html: readFileSync(page.filePath, 'utf8') }));
+
+    for (const { path, html } of pages) {
+      expect(html.includes(RUNTIME), `${path}: runtime reference must match its hydration frames`)
+        .toBe(FRAME.test(html));
+      expect(html.includes(INTENT_CSS), `${path}: intent stylesheet must match its declared vocabulary`)
+        .toBe(VOCABULARY.test(html));
     }
 
-    // and the docs-shaped pages that must have it, explicitly (chrome-only + preview)
+    // NON-VACUITY: both sides of both invariants must be a non-empty set, or the
+    // loop above is satisfied by a site that ships neither feature.
+    const withRuntime = pages.filter((p) => p.html.includes(RUNTIME)).map((p) => p.path);
+    const withIntent = pages.filter((p) => p.html.includes(INTENT_CSS)).map((p) => p.path);
     for (const path of ['/ui', '/docs', '/docs/signals', '/ui/button']) {
-      expect(has(path), `${path} must inject the runtime`).toBe(true);
+      expect(withRuntime, `${path} carries the sidebar drawer and must reference the runtime`).toContain(path);
     }
     for (const path of ['/', '/themes', '/404.html']) {
-      expect(has(path), `${path} must stay runtime-free`).toBe(false);
+      expect(withRuntime, `${path} has nothing to hydrate and must stay runtime-free`).not.toContain(path);
+      expect(withIntent, `${path} declares no intent vocabulary and must not link intent.css`).not.toContain(path);
+    }
+    // Every intent surface uses the vocabulary (that is what they are for) and
+    // every one of them hosts a measured-tier island, so they are on both lists.
+    for (const path of ['/intent', '/intent/playground', '/intent/comparison']) {
+      expect(withIntent, `${path} must link intent.css`).toContain(path);
+      expect(withRuntime, `${path} hosts a measured-tier island and must reference the runtime`).toContain(path);
     }
   });
 

@@ -16,19 +16,58 @@ import { buildStaticSite } from '@nisli/ssg';
 import { shell, type ShellMeta } from './shell.js';
 import { AppRouter } from './app-router.js';
 
-/**
- * Which pages inject the client runtime (hydrate.js). It is the DocsLayout
- * pages — /ui, /ui/<name>, /docs, /docs/<slug> — because they carry the sidebar
- * chrome whose mobile drawer needs client JS (WWW-13); home/themes/404 render in
- * SiteShell alone (no drawer) and stay runtime-free, keeping the static-first
- * tenet honest. This is a SUPERSET of the interactive-preview pages: WWW-10
- * scoped injection to hydrateSet /ui pages, but WWW-12 added a second hydration
- * consumer (the layout chrome), so the predicate is widened to every DocsLayout
- * route. Preview hydration is a safe no-op on pages with no example (e.g. /docs).
+/*
+ * ── The two per-page shell decisions, DERIVED FROM THE EMITTED HTML ─────────
+ *
+ * These used to be one function, `hydratesPath(path)`, holding a literal list
+ * of `/ui` and `/docs` prefixes. `render.test.ts` held a second copy of the
+ * same list and asserted the two agreed. That is a test with no subject:
+ * `has(path) === isDocsLayout(path)` is satisfied whenever BOTH are false, so
+ * it passed most confidently exactly when a page was most absent from the
+ * feature. Adding a route that needs the runtime made both sides answer "no"
+ * and the suite stayed green while the page shipped without its client half.
+ *
+ * So the question is asked of the ARTIFACT instead. A page needs the runtime
+ * iff it actually contains something for the runtime to mount, and it needs
+ * intent's stylesheet iff it actually declares intent's vocabulary. Both facts
+ * are in the fragment that is about to be wrapped, so a new route cannot forget
+ * to opt in and an old route cannot keep an entitlement it no longer uses.
+ *
+ * TWO PREDICATES, TWO NAMES, ON PURPOSE. They are different questions that
+ * happen to correlate: one is a BUILD decision (does this document reference a
+ * script bundle) and the other is a STYLING decision (does it reference a
+ * stylesheet). They already disagree — /intent renders in SiteShell alone yet
+ * needs both, /ui/button needs the runtime and not the theme. If they ever
+ * converge, keep them separate anyway: a single flag serving two questions is
+ * precisely how the duplicated list got there.
  */
-function hydratesPath(path: string): boolean {
-  return path === '/ui' || path.startsWith('/ui/') || path === '/docs' || path.startsWith('/docs/');
-}
+
+/**
+ * Does this page reference the client runtime (`/ui-preview/hydrate.js`)?
+ *
+ * A hydration frame is `[data-hydrate="<name>"]` (the DocsLayout mobile drawer,
+ * the view-transitions demo island, the intent islands) or `[data-preview]` (a
+ * live @nisli/ui component preview). `client/hydrate.ts` mounts exactly those
+ * two selectors, so this predicate is the same set expressed as a string test —
+ * and a page with neither stays runtime-free, which keeps the static-first
+ * tenet a measured property rather than an intention.
+ */
+const HYDRATION_FRAME = /\bdata-(?:hydrate=|preview\b)/;
+
+/**
+ * Does this page declare @nisli/intent's vocabulary, and therefore need
+ * `/assets/intent.css`?
+ *
+ * The marker set is intent's axis attributes MINUS `data-align` and
+ * `data-role`, which are the only two of intent's 26 that @nisli/ui also
+ * writes (22 and 1 call sites: bubble, message, input-group, lib/floating,
+ * acp-transcript). Including them would load intent's theme onto /ui/message
+ * because a tooltip wrote an animation hook — a false positive that would
+ * re-open the site-wide bleed through the back door. The remaining attributes
+ * are intent's alone, so a match means the page really did declare meaning.
+ */
+const INTENT_VOCABULARY =
+  /\bdata-(?:appearance|layout|text|priority|collapse|grow|clip|density|input|fit|truncate|flush|table|component|theme)[=>\s]/;
 
 const siteDir = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -60,7 +99,13 @@ export async function buildSite(outDir: string = join(siteDir, 'dist')): Promise
   for (const page of result.pages) {
     const meta = metaByPath.get(page.path) ?? { title: 'nisli', description: '' };
     const fragment = readFileSync(page.filePath, 'utf8');
-    writeFileSync(page.filePath, shell(fragment, meta, { hydrate: hydratesPath(page.path) }));
+    writeFileSync(
+      page.filePath,
+      shell(fragment, meta, {
+        hydrate: HYDRATION_FRAME.test(fragment),
+        intentTheme: INTENT_VOCABULARY.test(fragment),
+      }),
+    );
     built.push({ path: page.path, filePath: page.filePath });
   }
   return built;

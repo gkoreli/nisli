@@ -21,11 +21,18 @@
 import { html, type TemplateResult } from '@nisli/core';
 import { defineRouter, route, notFound, type NavInfo } from '@nisli/router';
 import { docPages, docPath } from './pages/docs.js';
+import { INTENT_SURFACES } from './layout/nav-model.js';
 import { components, primitives, getItem, itemPath } from './registry.js';
 
 const allItems = [...components, ...primitives];
 const introDoc = docPages.find((p) => p.slug === '')!;
 const topicDocs = docPages.filter((p) => p.slug);
+
+// The three @nisli/intent surfaces, from the one catalog layout/nav-model.ts
+// also derives their sidebar entries from. Destructured to keep each route's
+// `metadata` beside its `render` in the block below, and indexed rather than
+// searched so a reordered catalog is a type error, not a silent remap.
+const [intentPitch, intentPlayground, intentComparison] = INTENT_SURFACES;
 
 function itemMetadata(name: string) {
   const item = getItem(name);
@@ -140,6 +147,53 @@ export const AppRouter = defineRouter({
       const { SiteShell } = await chrome();
       const { themesPage } = await import('./pages/themes.js');
       return SiteShell(themesPage(), { current: '/themes' });
+    },
+  }),
+
+  // ── @nisli/intent (derived appearance) ────────────────────────────────────
+  // The pitch is marketing-shaped and renders in SiteShell alone, like /themes;
+  // the two study surfaces render in DocsLayout so a reader can move between
+  // them. Neither goes through `docArticle()`: its ~70ch measure is the right
+  // default for prose, and it is the WRONG one here, because these pages exist
+  // to show one surface resolving itself at whatever width it is given. Capping
+  // the column would cap the experiment.
+  //
+  // The `import('./intent/index.js')` calls are the file-wide ADR 0026 §8
+  // exception stated in the module doc, not a local shortcut: the intent pages
+  // pull in `component()`-calling modules, and a static import here would
+  // evaluate them when vite.config.ts imports this router in plain Node.
+  intent: route(intentPitch.href, {
+    metadata: { title: intentPitch.title, meta: { description: intentPitch.description } },
+    render: async () => {
+      const { SiteShell } = await chrome();
+      const { intentPitchPage } = await import('./intent/index.js');
+      return SiteShell(intentPitchPage(), { current: intentPitch.href });
+    },
+  }),
+
+  intentPlayground: route(intentPlayground.href, {
+    metadata: {
+      title: intentPlayground.title,
+      meta: { description: intentPlayground.description },
+    },
+    render: async () => {
+      const { SiteShell, DocsLayout } = await chrome();
+      const { intentPlaygroundPage } = await import('./intent/index.js');
+      const current = intentPlayground.href;
+      return SiteShell(DocsLayout(intentPlaygroundPage(), { current }), { current });
+    },
+  }),
+
+  intentComparison: route(intentComparison.href, {
+    metadata: {
+      title: intentComparison.title,
+      meta: { description: intentComparison.description },
+    },
+    render: async () => {
+      const { SiteShell, DocsLayout } = await chrome();
+      const { intentComparisonPage } = await import('./intent/index.js');
+      const current = intentComparison.href;
+      return SiteShell(DocsLayout(intentComparisonPage(), { current }), { current });
     },
   }),
 

@@ -1,0 +1,40 @@
+/*
+ * styles/intent.css — the second CSS bundle, compiled to dist/assets/intent.css
+ * and linked ONLY by pages that use @nisli/intent's vocabulary (build.ts derives
+ * that from the emitted HTML, not from a path list).
+ *
+ * WHY THIS FILE EXISTS AT ALL. Everything the site paints has lived in one
+ * Tailwind bundle since the beginning, and a second stylesheet is a cost worth
+ * naming. It is here because importing intent's theme into `input.css` was
+ * built and measured, and it changed 5,762 computed properties across 3,584
+ * elements on 9 pages — the full reasoning, the numbers, and the required
+ * upstream fix are recorded beside the absent import in `input.css`. Short
+ * version: intent declares `--radius` on `*`, nisli-ui's theme derives the
+ * whole shadcn radius ramp from `--radius` on `:root`, and a universal
+ * re-declaration shadows an inherited one on every element.
+ *
+ * CASCADE SEMANTICS ARE UNCHANGED BY THE SPLIT, which is the only reason this
+ * is a safe move rather than a reshuffle. Layer order is fixed by FIRST
+ * DECLARATION in document order, and `site.css` is linked before this file, so
+ * the resolved order is exactly what a merged import produced:
+ *
+ *     theme, base, components, utilities   (site.css — Tailwind)
+ *     tokens, structure, roles             (this file — intent)
+ *     unlayered                            (view-transitions.css, states.css)
+ *
+ * intent's layered rules still outrank every Tailwind layer, and `states.css`
+ * is still unlayered so an engine decision still beats any role rule. Verified
+ * in the emitted bundles, not assumed.
+ *
+ * NOTE THE ORDER DEPENDENCY THIS CREATES. `shell.ts` must emit this <link>
+ * AFTER `/assets/site.css`. Swap them and intent's layers are declared first,
+ * which puts Tailwind's `base` — whose preflight carries
+ * `h1..h6 { font-size: inherit; font-weight: inherit }` — after intent's
+ * `roles`, silently rendering every `[data-text]` heading at body size. Layers
+ * make that a source-order bug with no specificity warning.
+ *
+ * There is no `@import "tailwindcss"` here on purpose: intent surfaces carry
+ * zero class names, so a utility corpus for this bundle would be empty by
+ * construction. This file is intent's resolution table and nothing else.
+ */
+@import "@nisli/intent/theme.css";

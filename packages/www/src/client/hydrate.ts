@@ -102,3 +102,29 @@ const listTransitionLoader: ExampleLoader = async () => {
 for (const frame of document.querySelectorAll('[data-hydrate="list-transition"]')) {
   void hydrateFrame(frame, listTransitionLoader);
 }
+
+// The @nisli/intent surfaces — same replace-mount contract, one frame per
+// island. The SSG paints intent's DECLARED tiers (custom properties and
+// container queries, tier 1; the browser's own flex/grid/clamp solvers, tier 2),
+// which is a correct page with JS off; this brings the MEASURED tier alive —
+// `fit()`'s resize observer and its bounded degradation pass over the declared
+// priority list. Until it runs, a container too small for its content shows the
+// flash of unfit, which is the honest cost of having no SSG pre-solve and is
+// what scripts/intent-ssg-proof.mjs measures.
+//
+// The surface id travels on the frame, so this stays name-DERIVED with no
+// allowlist here: the pages own which islands exist, and an id this build does
+// not know THROWS, which leaves hydrateFrame's static baseline standing and
+// warns rather than replacing real content with an empty frame.
+// Dynamic import for the same reason as every loader in this file — the islands
+// are their own chunk, fetched only on the pages that carry a frame — and
+// island.js is deliberately NOT re-exported from src/intent/index.ts, so the
+// router's lazy page import never evaluates `component()` during the static
+// build (ADR 0026 §8).
+const intentLoader = (frame: Element): ExampleLoader => async () => {
+  const { intentSurface } = await import('../intent/island.js');
+  return { default: () => intentSurface(frame.getAttribute('data-intent')) };
+};
+for (const frame of document.querySelectorAll('[data-hydrate="intent"]')) {
+  void hydrateFrame(frame, intentLoader(frame));
+}

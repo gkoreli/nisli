@@ -11,12 +11,29 @@
  * then, matching the existing site-nav behavior).
  */
 import { html, type TemplateResult } from '@nisli/core';
+import { INTENT_SURFACES } from './nav-model.js';
 import { SiteFooter } from '../components/site-footer.js';
 
-const TOP_LINKS: ReadonlyArray<{ href: string; label: string }> = [
+// The top bar. `/intent`'s entry is taken from the surface catalog rather than
+// retyped, because that catalog is what the router expands its routes from — and
+// the pitch page is reachable ONLY from here: it renders in SiteShell alone, so
+// it has no sidebar to appear in, and its two study surfaces are the sidebar
+// leaves. Label is shortened from the catalog's nav label ('Derived appearance'
+// reads as a sentence in a sidebar group and as clutter in a top bar).
+const intentPitch = INTENT_SURFACES.find((surface) => surface.chrome === 'shell')!;
+
+/**
+ * The top bar's links — EXPORTED because `nav-coverage.test.ts` asserts against
+ * them. A top-bar route is one that is real, is NOT a sidebar leaf, and IS
+ * anchored in the chrome of every page; a hand-written copy of this list in the
+ * test could satisfy the first two while the third silently failed, which is
+ * exactly how `/intent` first shipped unreachable from the top bar.
+ */
+export const TOP_LINKS: ReadonlyArray<{ href: string; label: string }> = [
   { href: '/docs', label: 'Docs' },
   { href: '/ui', label: 'Components' },
   { href: '/themes', label: 'Themes' },
+  { href: intentPitch.href, label: 'Intent' },
 ];
 
 function topActive(current: string | undefined, href: string): boolean {

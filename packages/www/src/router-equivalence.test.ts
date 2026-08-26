@@ -47,6 +47,26 @@ const CASES = [
   { url: '/themes', emitted: '/themes', name: 'themes', params: {}, notFound: false },
   { url: '/docs', emitted: '/docs', name: 'docs', params: {}, notFound: false },
   { url: '/docs/signals', emitted: '/docs/signals', name: 'docTopic', params: { topic: 'signals' }, notFound: false },
+  // The intent surfaces are two shapes this table did not previously have: a
+  // one-segment static route with children (`/intent`, which must NOT swallow
+  // `/intent/playground`) and a two-segment STATIC route (unlike `/docs/:topic`,
+  // the only two-segment shape here before, which is dynamic). Both are places a
+  // matcher can disagree with the static build, so both get a representative.
+  { url: '/intent', emitted: '/intent', name: 'intent', params: {}, notFound: false },
+  {
+    url: '/intent/playground',
+    emitted: '/intent/playground',
+    name: 'intentPlayground',
+    params: {},
+    notFound: false,
+  },
+  {
+    url: '/intent/comparison',
+    emitted: '/intent/comparison',
+    name: 'intentComparison',
+    params: {},
+    notFound: false,
+  },
   { url: '/definitely-not-a-page', emitted: '/404.html', name: null, params: {}, notFound: true },
 ] as const;
 

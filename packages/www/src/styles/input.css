@@ -14,6 +14,81 @@
 @source "../../dist/**/*.html";
 @import "../nisli-ui/styles/theme.css";
 
+/* @nisli/intent's theme is DELIBERATELY NOT IMPORTED HERE. It ships as its own
+   bundle (styles/intent.css -> dist/assets/intent.css), linked only by the
+   pages that declare the vocabulary. That is not caution. A site-wide import
+   was written, built and MEASURED twice, and it is still not safe.
+
+   HOW IT WAS MEASURED, because the method decides whether the number means
+   anything. Same dist/, two bundles differing only in this import, every
+   non-custom computed property of every element diffed across all 92 built
+   pages / 44,232 elements, in Chromium at 1280x900. JavaScript DISABLED: this
+   asks what a STYLESHEET changes, and with the preview runtime live, hydrating
+   islands moved between the two loads and manufactured differences that were
+   not the stylesheet's — a first run reported 39 diffs / 17 box changes that a
+   second run reported as 11 / 0. A base-vs-base self-test establishes the
+   noise floor at 1 property + 2 boxes, all of it /ui/spinner's CSS rotation
+   sampled at two phases. Subtract that from any figure below.
+
+   ── ROUND 1: --radius. FIXED AT THE SOURCE, kept here as the argument. ──
+   5,762 changed properties. intent declared six custom properties on `*`
+   (necessarily so — a custom property is substituted where it is DECLARED, so
+   freezing them on :root stops the density axes composing). Five names were
+   intent's alone. `--radius` was not: line 22 of nisli-ui/styles/theme.css
+   declares `--radius: 0.625rem` on :root and lines 197-200 derive the whole
+   shadcn ramp from it, so a universal re-declaration shadowed the inherited
+   value on every element and the ramp collapsed site-wide — sm 6->4, md 8->6,
+   lg 10->8, xl 14->12, on buttons, inputs, cards, PRE, LI and A across every
+   page. Every rounded corner on the site, from one shared token name in one
+   global namespace. @nisli/intent has since namespaced all 31 of its
+   properties to `--intent-*`; re-measured, `--radius` stays `0.625rem`
+   everywhere and this entire class is gone. A library must namespace what it
+   declares, and this is what it costs when it does not.
+
+   ── ROUND 2: [data-align]. NOT FIXED, and the reason this file has no import. ──
+   39 changed properties and 17 changed bounding boxes remain, on exactly three
+   pages: /ui/bubble, /ui/message, /ui/message-scroller. Namespacing custom
+   properties does not touch it, because this is an ATTRIBUTE namespace
+   collision. structure.css:124-135 paints
+   `[data-align='start'|'center'|'end'] { align-items }` in the `structure`
+   layer; cascade layers beat specificity and layer order is fixed by FIRST
+   declaration, so intent's layers land after Tailwind's `utilities` (verified
+   in the emitted bundle: `theme, base, components, utilities` at the top, then
+   `tokens, structure, roles`, then unlayered). @nisli/ui writes those exact
+   three values as a pure animation/variant hook at 22 call sites (bubble,
+   message, input-group, lib/floating) — and intent reads them as a layout
+   instruction that outranks the utility that was meant to win.
+
+   IT IS NOT COSMETIC. On /ui/message-scroller the message rows stop stretching:
+   each row collapses 160px -> 36px (one to 56px) and the scroller itself
+   1152px -> 428px. A 724px collapse on a shipped component page, from an
+   attribute nobody involved intended as layout. That is the whole answer to
+   "is the theme safe to ship site-wide": no.
+
+   Verified inert, both directions: `states.css` really does emit UNLAYERED
+   (8 rules at document depth 0), so an engine decision outranks every Tailwind
+   layer as designed; and of the 26 data-attributes intent's theme addresses,
+   `data-align` and `data-role` are the only two site chrome also writes —
+   intent's `data-role` rules are all compound with `[data-appearance='action']`,
+   which nothing here writes, so that one is a true non-collision.
+
+   `@source`: intent's surfaces carry zero class names, exactly as claimed, so
+   they contribute no utility candidates. The corpus did grow by 874 bytes when
+   the intent pages landed, and all of it comes from the comparison page's
+   hand-written-utilities arm — the control group, which is supposed to be full
+   of class names. Nothing came from a declared surface.
+
+   REJECTED, tested not assumed: `@scope ([data-intent]) { @import ... }`.
+   Tailwind emits it, and it is a trap twice — intent's base tokens live on
+   `:root`, which can never be a DESCENDANT of `[data-intent]`, so every token
+   silently vanishes; and `@scope` is absent from Firefox stable.
+
+   WHEN THIS BECOMES ONE IMPORT AGAIN: when `[data-align]` stops being shared,
+   by a scoped selector or a renamed attribute upstream. Re-run the sweep; if it
+   comes back at the noise floor, this comment, styles/intent.css, dev/intent.css,
+   the `intentTheme` shell option and INTENT_VOCABULARY in build.ts all collapse
+   into a single `@import "@nisli/intent/theme.css"` on the next line. */
+
 /* Unlayered on purpose: the view-transition pseudo-elements must never be
    reordered against Tailwind's utility layers. Kept as its own file because
    /docs/view-transitions renders it verbatim (?raw) — the page documents the

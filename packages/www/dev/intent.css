@@ -1,0 +1,37 @@
+/*
+ * dev/intent.css — the dev-server counterpart of dist/assets/intent.css.
+ *
+ * Production ships @nisli/intent's theme as a SECOND stylesheet, linked only by
+ * the pages that declare the vocabulary (the reason, with numbers, is recorded
+ * in src/styles/input.css beside the deliberately-absent import). The dev server
+ * is one long-lived document with one SPA outlet, so "only some pages" has no
+ * dev equivalent: a stylesheet this document has loaded stays loaded, and making
+ * the load conditional on `location.pathname` would produce styling that depends
+ * on which URL the session happened to start at — a worse failure than a stated
+ * constant difference.
+ *
+ * So dev loads it unconditionally, which makes dev a SUPERSET of production: the
+ * theme is live on /docs and /ui here and not there. Verified that this is now
+ * harmless — `--radius` reads `0.625rem` on a dev page with intent.css loaded,
+ * i.e. the site's own value, intact. It was NOT harmless before @nisli/intent
+ * namespaced its custom properties: its unprefixed `--radius`, declared on `*`,
+ * shadowed the `--radius` nisli-ui derives the whole shadcn ramp from, and every
+ * page's corners tightened 2px (sm 6->4, md 8->6, lg 10->8, xl 14->12). Kept as
+ * a note because it is the failure mode to re-check if intent ever declares an
+ * unprefixed property on `*` again — dev is where it would show up first.
+ *
+ * WHY THE SPLIT STILL EXISTS, since the token collision is fixed: `[data-align]`
+ * is still shared with @nisli/ui, and a site-wide import still costs 39 changed
+ * properties and 17 changed bounding boxes on /ui/bubble, /ui/message and
+ * /ui/message-scroller. The full measurement is in src/styles/input.css. When
+ * that attribute stops being shared, this file, dist/assets/intent.css, the
+ * `intentTheme` shell option and INTENT_VOCABULARY in build.ts all collapse back
+ * into one `@import` in input.css.
+ *
+ * Imported from dev/main.ts immediately AFTER './styles.css' rather than linked
+ * from dev/index.html: in dev both sheets are injected by the module graph, so
+ * import order is what fixes cascade-layer order, and a <link> in <head> would
+ * be declared BEFORE main.ts injects Tailwind's — which is the one ordering that
+ * breaks (see src/styles/intent.css).
+ */
+@import "../src/styles/intent.css";

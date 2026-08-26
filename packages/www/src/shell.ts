@@ -65,6 +65,15 @@ function escapeAttr(value: string): string {
 export interface ShellOptions {
   /** Inject the WWW-10 preview hydration runtime (only /ui pages that hydrate). */
   hydrate?: boolean;
+  /**
+   * Link the second CSS bundle, `/assets/intent.css` (@nisli/intent's
+   * resolution table). Only the pages that use intent's vocabulary get it:
+   * merging it into site.css was measured and regressed every rounded corner
+   * on the site — the numbers and the cause are recorded in
+   * `styles/input.css` beside the deliberately-absent import. `build.ts`
+   * derives this from the emitted HTML, so it cannot drift from the pages.
+   */
+  intentTheme?: boolean;
 }
 
 export function shell(bodyFragment: string, meta: ShellMeta, options: ShellOptions = {}): string {
@@ -73,6 +82,14 @@ export function shell(bodyFragment: string, meta: ShellMeta, options: ShellOptio
   const hydrateScript = options.hydrate
     ? '\n<script type="module" src="/ui-preview/hydrate.js"></script>'
     : '';
+  // AFTER site.css, and that order is load-bearing rather than cosmetic:
+  // cascade-layer order is fixed by first declaration in document order, so
+  // reversing these two links declares intent's `roles` layer BEFORE Tailwind's
+  // `base`, and preflight's `h1..h6 { font-size: inherit }` would then silently
+  // outrank `[data-text='display']`. See styles/intent.css.
+  const intentStylesheet = options.intentTheme
+    ? '\n<link rel="stylesheet" href="/assets/intent.css" />'
+    : '';
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -80,7 +97,7 @@ export function shell(bodyFragment: string, meta: ShellMeta, options: ShellOptio
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${title}</title>
 <meta name="description" content="${description}" />
-<link rel="stylesheet" href="/assets/site.css" />
+<link rel="stylesheet" href="/assets/site.css" />${intentStylesheet}
 ${viewTransitionHead}
 <!-- Prerender-safe eagerly: the theme class is a PAINT decision that has to be
      settled before the activation frame, not an observable side effect. -->
