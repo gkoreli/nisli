@@ -1142,3 +1142,114 @@ proof-of-concept regime.
     "next major" — both now false — and collided with Next.js in mindshare.
     `engine` is the word the thesis already uses: *make the engine do it*. Tag
     prefix `engine-vX.Y.Z`.
+  - **CORRECTION, same day, on evidence: `engine` is the worst of the
+    candidates, not the best.** The package scout ran the collision search and
+    `engine` is already three unrelated nouns in this repository — the router's
+    public API (`NavigationEngine`, `EngineSink`, `createEngine`, and the
+    documented option `defineRouter(catalog, { engine })`), core's own
+    "template engine", and "engine" meaning *browser* engine, including inside
+    a user-visible `N107` throw. `next` has zero code collisions and is wrong
+    only because it means "temporary". Ranked on collision footprint,
+    **`@nisli/intent`** leads: its sole collision is the suffixed
+    `ViewTransitionIntent` type, and it is the only candidate that covers all
+    three charter items, since appearance, attention and declared state space
+    are each a declaration of intent. Mechanically the name is free to change
+    before first publish (git mv, three matrix lines, two README bullets) and
+    impossible after, because npm cannot rename — so it is a now-decision.
+    **Open with the maintainer.**
+- **2026-08-25 · round 11 (the evidence rounds — 13.8k lines, and the thesis
+  survives with three amputations)** — Six prior-art slices into `PRIOR-ART/`
+  and seven CSS-coverage audits into `COVERAGE/`, every one primary-sourced or
+  measured in real Chromium against a static probe.
+
+  **The coverage number, which is the defensible form of "the layout just
+  works":** 278 capabilities classified — **D 133 · T 87 · L 45 · X 13**. So
+  **79.1% is derived automatically or authored once in the table**, 16.2% leaks
+  to a per-callsite decision, 4.7% needs raw CSS. That is the claim, with
+  probes behind it, and it is a count rather than a slogan.
+
+  **Three amputations, all on evidence, all recorded rather than quietly
+  dropped:**
+  1. **Attention is not measurable.** Best published aesthetic predictors
+     ceiling at adj. R²≈.48; the Webby-winner reference class itself spans
+     4.21–6.57 with SD 1.69, so no consistent label exists to train on.
+     Attention survives *only* as declared structure the engine enforces.
+  2. **Hick's law must never be built** — CHI 2020 shows it argues for showing
+     *more* items per page. Building it would ship a confident, cited,
+     backwards rule.
+  3. **APCA is licence-blocked** — patent pending, commercial use prohibited
+     without a signed agreement. 82,583 dl/wk against axe-core's 67.6M.
+
+  **The differentiator narrowed, and that is progress.** Shopify's Polaris Web
+  Components already ship exclusivity *and* derivation — "the CSS can't be
+  altered or overridden", `variant`/`tone` defaulting to `"auto"` meaning
+  determined-by-context, prominence from nesting depth, no `size` prop. So C10
+  is table stakes with a shipped precedent. What Polaris lacks is what is left
+  to own: **author-defined roles, measured fit, and verification.**
+
+  **Two results that make the bet stronger than the sketch claimed:**
+  - **Contrast becomes structurally impossible.** `contrast-color()` over 729
+    surfaces holds min 4.585:1, zero below 4.5; re-verified at 4,913 surfaces.
+    The defect class is deleted rather than detected — and it does not depend
+    on that function shipping, since a pure-CSS WCAG-luminance expression holds
+    the same floor. Costs are real and recorded: no guaranteed *muted*
+    foreground exists, APCA disagrees on a third of the sweep, and it blinds
+    our own contrast checker until colours resolve through a canvas.
+  - **The context model has no portal hole.** A popover through two
+    `display: contents` hosts inherited `--unit`, theme, and *both* container
+    size and style queries, with `100cqi` resolving to the container rather
+    than the viewport. Byte-identical to the in-flow control on seven
+    readings. The whole inheritance-based derivation model survives the top
+    layer, which was the single largest unexamined risk to it.
+
+  **And the browser is further ahead than the design assumed.** Derived overlay
+  placement needs no `anchor-name` at all, and rewriting the overflow menu onto
+  `popover` + `command`/`commandfor` + `position-try-order` is a **net
+  deletion** — ~35 lines of authored geometry and ~20 lines of TypeScript gone,
+  with implicit `aria-expanded`, Escape-plus-focus-restore and light dismiss
+  arriving free. Tier 2 was under-used, exactly as ADR-level suspicion held.
+- **2026-08-25 · round 12 (the checker gets a domain, and lies six ways)** —
+  Refactored diagnostics onto composition: `Box` (padding, containment) split
+  from `Bounds` (border, pressability) so the principle that cost five defects
+  is a type error; a `Lens` whose only route to geometry is `painted()`, making
+  F4's class unreachable; `rule(code, body)` applying severity once instead of
+  eleven times; `out.undecidable()` giving every rule one way to admit defeat.
+  Eleven rules migrated by three parallel agents: **net −46 lines of code while
+  adding ~60 lines of recorded reasoning.**
+
+  **N700, the first attention check**, and the first with a normative source —
+  the GNOME HIG's single suggested-or-destructive button per view, which is
+  unenforceable against `class="bg-blue-600"` because that string names a
+  colour. Scope is *ownership*, not containment, so four sibling cards each
+  owning one primary stay silent while a real collision reports once.
+
+  **The sixth oracle bug, and a new class: N700 shipped DEAD.** Its selector
+  said `[data-surface]`; the vocabulary spells it `[data-appearance="surface"]`.
+  Unit tests passed because fixtures and selector were invented from the same
+  wrong assumption; the 240-cell matrix passed because a rule matching nothing
+  produces no findings; `tsc` passed because a selector is a string. **Silence
+  read as success.** So `AXIS_ATTRS` reifies which attribute declares which
+  axis and `test/reachability.test.ts` asserts every selector addresses an
+  attribute the codebase produces and a value the axis allows — comments
+  stripped first, because the rule files deliberately quote the wrong
+  selectors. Falsified both ways.
+
+  **Four further false-PASSes found by the audits, all silent, none a wrong
+  answer:** `content-visibility: auto` blinds overflow measurement while
+  `rendered()` still answers true; `contain: paint`/`content` clip while
+  `overflow-x` computes `visible`, so both are misattributed as crushes;
+  `scrollHeight`/`scrollWidth` cannot see block-start or inline-start overflow;
+  and a multicolumn column box is not an element, so no per-node predicate can
+  ever see its loss. Plus one self-inflicted: deriving colour returns
+  `oklab(...)`, which our contrast parser cannot read — 31.8% of derived cells
+  versus 9.1% authored.
+
+  **A solver bug this platform structurally cannot see:** with classic
+  space-consuming scrollbars, **79 of 91 widths are permanently bistable** —
+  degrade, lose the scrollbar, un-degrade, regain it, forever. macOS overlay
+  scrollbars consume 0px, which is why 240 cells never caught it.
+  `scrollbar-gutter: stable` → 0 of 91.
+
+  Running total: **six oracle bugs against four page bugs**, and the ratio is
+  the finding rather than an embarrassment — the expensive half of "the
+  framework checks the UI" is the checker's own truthfulness.
