@@ -383,18 +383,45 @@ export interface OpenOverlay {
  * overlay open would put it in the geometry of the next one, and an assertion
  * that measures a document with two menus open in it is measuring a state no
  * user can reach.
+ *
+ * AND FOCUS IS PART OF "the way it was found". Closing a menu deliberately
+ * returns focus to its trigger, which is right for a user and wrong for a
+ * sweep: measured, a sweep over the inbox at the narrow widths left the last
+ * trigger focused with `:focus-visible` matching, so the proof's own screenshots
+ * came out with a focus ring the page never had. A driver that changes what it
+ * came to observe is the same class of defect as an oracle that measures the
+ * wrong box, and it would have quietly rewritten the committed visual record.
  */
 export function sweepOverlays(root: ParentNode, visit: (open: OpenOverlay) => void): number {
+  const focusedBefore = document.activeElement;
   let opened = 0;
-  for (const trigger of root.querySelectorAll<HTMLElement>('[data-overflow][data-shown]')) {
-    trigger.click();
-    const controls = trigger.getAttribute('aria-controls');
-    const panel = controls ? document.getElementById(controls) : null;
-    if (panel) opened += 1;
-    try {
-      visit({ trigger, panel });
-    } finally {
-      if (trigger.getAttribute('aria-expanded') === 'true') trigger.click();
+  try {
+    for (const trigger of root.querySelectorAll<HTMLElement>('[data-overflow][data-shown]')) {
+      trigger.click();
+      const controls = trigger.getAttribute('aria-controls');
+      const panel = controls ? document.getElementById(controls) : null;
+      if (panel) opened += 1;
+      try {
+        visit({ trigger, panel });
+      } finally {
+        if (trigger.getAttribute('aria-expanded') === 'true') trigger.click();
+      }
+    }
+  } finally {
+    if (document.activeElement !== focusedBefore) {
+      // BLUR FIRST, then restore. Asking `document.body` to take focus does
+      // nothing — it is not focusable — so the intuitive "focus whatever was
+      // focused before" leaves the trigger's ring exactly where it was and the
+      // screenshots still differ. Measured, both ways round.
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      if (
+        focusedBefore instanceof HTMLElement &&
+        focusedBefore.isConnected &&
+        focusedBefore !== document.body &&
+        focusedBefore !== document.documentElement
+      ) {
+        focusedBefore.focus();
+      }
     }
   }
   return opened;

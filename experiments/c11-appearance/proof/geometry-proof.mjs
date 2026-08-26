@@ -812,8 +812,20 @@ async function runMatrix(options) {
   }
 
   if (options.shots) {
-    await rm(SHOTS, { recursive: true, force: true });
-    await mkdir(SHOTS, { recursive: true });
+    // Clear the directory only on a FULL run, and this is a defect that was
+    // found the expensive way: `proof/shots/` holds 240 tracked files, nothing
+    // gitignores it whatever the README says, and wiping it before writing the
+    // handful of cells a `--filter` matched deleted 230 of them. A tool that
+    // silently destroys the artefact it exists to produce is the same failure
+    // as an oracle that reports success while deleting functionality, which is
+    // F6. A filtered run now overwrites what it measured and leaves the rest
+    // alone, so the directory is only ever wholly rewritten by a run that
+    // wholly re-measured it.
+    if (options.filter) await mkdir(SHOTS, { recursive: true });
+    else {
+      await rm(SHOTS, { recursive: true, force: true });
+      await mkdir(SHOTS, { recursive: true });
+    }
   }
 
   const { browser, page, errors } = await openHarness(options);

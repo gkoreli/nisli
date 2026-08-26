@@ -40,6 +40,39 @@ import { rule } from '../rule.js';
 const UNSPACED_SCRIPT =
   /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}]/u;
 
+/**
+ * A REAL HOLE, AND A REVERTED FIX. Recorded together because the attempt is
+ * more instructive than the hole.
+ *
+ * The hole: a control's LABEL is not `[data-text]`. A menu item is
+ * `[data-appearance="action"]`, a navigation entry is `nav-item`. So no rule in
+ * this set measures line breaking on any label in the system, open or closed,
+ * and the overlays audit measured the defect that hides there — because
+ * `position-try-fallbacks` is an overflow test, a shrink-to-fit popover never
+ * triggers a fallback and wraps its labels instead ("Reply all" and "Archive"
+ * each broken across two line boxes, in a panel the browser considered fitted).
+ * F8's shape reappearing inside the platform's own solver.
+ *
+ * The fix that does not work: widening this selector to include controls. It
+ * fires on a CLEAN 44-pixel icon button — one word, one line of text, a box
+ * 44 tall, so `box.block / lineHeight` rounds to two lines and the rule reports
+ * a shredded word that does not exist. Caught immediately by the
+ * silent-on-clean fixture, which is the seventh oracle bug this experiment has
+ * produced and the second in this exact family: **a control's box is a hit
+ * TARGET, not a text box.** The slack is the target floor doing its job. It is
+ * N650's mistake wearing different clothes, and the fact that it was written by
+ * the author of the rule that records N650's mistake is the argument for
+ * keeping these paragraphs.
+ *
+ * What closing it soundly needs: the number of line boxes the TEXT occupies,
+ * which is `Range.getClientRects().length` or an equivalent — a text-box
+ * measurement the frozen port does not expose. `Box` is an element geometry and
+ * cannot answer a question about a text run inside a taller element. Deferred
+ * rather than approximated, because an approximate answer here is a false
+ * failure on every icon button in the system, and an oracle that cries wolf
+ * gets muted. Until then the proof asserts label wrapping directly, where
+ * rectangles exist.
+ */
 export function shreddedRule<TNode>(): Rule<TNode> {
   return rule<TNode>('N690', (lens, out) => {
     for (const el of lens.painted('[data-text]')) {

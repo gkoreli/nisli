@@ -26,13 +26,13 @@
  *   node proof/state-sweep.mjs --self-test
  *
  * WHY A SUBSET OF CONTEXTS, AND WHICH ONE. Twenty declared page/state pairs
- * times 240 contexts is 4800 cells for a question that does not need them.
- * Sixty of the 240 contexts differ from a neighbour only in an axis whose
- * interaction with state is nil: `compact` is interior to comfortable and dense
- * on every value the table derives, and 720/480/360 are interior to 1080 and
- * 320 on width. So the pinned axes are taken at their EXTREMES, which is where
- * this experiment's defects have actually lived — F8 at 320, F9 at dense/320,
- * the hit-target floor at touch:
+ * times the matrix's sixty contexts is 1200 cells for a question that does not
+ * obviously need them. Most contexts differ from a neighbour only in an axis
+ * whose interaction with state looked like nil: `compact` is interior to
+ * comfortable and dense on every value the table derives, and 720/480/360 are
+ * interior to 1080 and 320 on width. So four axes are pinned at their EXTREMES,
+ * which is where this experiment's defects have actually lived — F8 at 320, F9
+ * at dense/320, the hit-target floor at touch:
  *
  *   comfortable/pointer/light/1080  the most forgiving cell there is. A failure
  *                                   here is a defect that has nothing to do
@@ -48,11 +48,27 @@
  *                                   whose verdict is a function of theme and
  *                                   nothing else.
  *
- * THE LIMIT THAT BUYS, STATED RATHER THAN HIDDEN: an interior point cannot fail
- * an assertion both endpoints pass unless the derivation is NON-MONOTONIC in
- * that axis. This prototype has one recorded near-miss of that shape (F9's
- * grid track shrinking while its content's floor did not), so the assumption is
- * real and `--full` exists to spend the 5x and check it.
+ * AND THEN A FIFTH, WHICH IS AN INTERIOR POINT, BECAUSE THE ARGUMENT ABOVE WAS
+ * MEASURED AND FOUND WRONG. This paragraph used to read: "an interior point
+ * cannot fail an assertion both endpoints pass unless the derivation is
+ * NON-MONOTONIC in that axis … `--full` exists to spend the 5x and check it."
+ * It is kept rather than deleted because the refutation is the interesting part.
+ * `--full` was run: 1200 cells in 42.8 seconds, and it found FIVE distinct
+ * state-only defects where the four extremes found four. The fifth lives at
+ * width 480 and nowhere near either endpoint — an overflow panel clipped away
+ * while the menu is open, in the hostile state, where the same panel at 1080 has
+ * room and at 320 is already reported by the control. So:
+ *
+ *   comfortable/pointer/light/480   the interior width that empirically caught
+ *                                   a defect both endpoints missed. Extremes
+ *                                   are where THIS prototype's defects have
+ *                                   lived; they are not where defects must live,
+ *                                   and one measurement was enough to show it.
+ *
+ * The honest reading of that number is that the subset argument is weak on its
+ * own merits: `--full` costs forty-three seconds. The subset earns its keep as
+ * the fast loop, not as the trustworthy run, and any reported result should say
+ * which one produced it.
  *
  * WHAT IS ASSERTED PER CELL. The full rule set, through the same
  * `window.__c11.check` the matrix's `check` column and the Run check button
@@ -70,8 +86,10 @@
 import { chromium } from 'playwright';
 
 /**
- * The chosen extremes. `why` is carried into the report because a subset that
- * cannot say why it is a subset is a subset nobody can argue with.
+ * The chosen contexts: four extremes plus one interior point that a `--full`
+ * run proved the extremes could not cover. `why` is carried into the report
+ * because a subset that cannot say why it is a subset is a subset nobody can
+ * argue with.
  */
 const CONTEXTS = [
   {
@@ -93,6 +111,11 @@ const CONTEXTS = [
     label: 'dense-narrow-dark',
     why: 'the same extreme in the other theme, for N640',
     context: { density: 'dense', input: 'pointer', theme: 'dark', width: 320 },
+  },
+  {
+    label: 'mid',
+    why: 'the interior width where --full found a defect both endpoints missed',
+    context: { density: 'comfortable', input: 'pointer', theme: 'light', width: 480 },
   },
 ];
 
@@ -450,16 +473,33 @@ function contextsFor(options) {
  * context, because the whole comparison is "was this already broken on the
  * happy path in this very cell". Measuring the control in a different context
  * would answer a different question.
+ *
+ * `--filter` NEVER REMOVES A CONTROL. The control is machinery, not a cell
+ * anybody asked to see: without it the subtraction has nothing to subtract, and
+ * `--filter inbox/hostile` used to abort on exactly that. Two wrong fixes were
+ * available and both would have been worse than the crash — guessing that a
+ * filtered cell has no control offenders would silently credit this sweep with
+ * the matrix's defects, and reusing a control measured in another context would
+ * compare two different geometries. So the control is measured whenever any
+ * state cell in its page and context survives the filter, and it is measured
+ * there and nowhere else.
  */
 function buildCells(declared, contexts, filter) {
   const cells = [];
   for (const ctx of contexts) {
     for (const { page: id, states } of declared) {
-      const ordered = [CONTROL_STATE, ...states.filter((state) => state !== CONTROL_STATE)];
-      for (const state of ordered) {
-        const label = `${id}/${state}/${ctx.label}`;
-        if (filter && !label.includes(filter)) continue;
-        cells.push({ label, page: id, state, ctx, control: state === CONTROL_STATE });
+      const wanted = states.filter(
+        (state) => state !== CONTROL_STATE && (!filter || `${id}/${state}/${ctx.label}`.includes(filter)),
+      );
+      if (wanted.length === 0) continue;
+      for (const state of [CONTROL_STATE, ...wanted]) {
+        cells.push({
+          label: `${id}/${state}/${ctx.label}`,
+          page: id,
+          state,
+          ctx,
+          control: state === CONTROL_STATE,
+        });
       }
     }
   }
