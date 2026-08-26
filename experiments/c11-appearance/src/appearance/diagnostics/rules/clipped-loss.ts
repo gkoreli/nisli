@@ -122,6 +122,23 @@ const DECLARED_LOSS = '[data-truncate], [data-truncate] *';
 const ESCAPED = '[data-escaped], [data-escaped] *';
 
 /**
+ * A promoted overlay is a DOM descendant of the clipper but is NOT clipped by
+ * it: the top layer has no containing block in the document, so comparing its
+ * rect against these edges answers a question about an ancestor it does not
+ * have. This is the N710/N725 boundary the overlays audit settled — N710 owns
+ * "content was lost to a clip", and nothing in the top layer is; a box
+ * positioned against the wrong containing block is N725's claim.
+ *
+ * `[popover]` rather than `:popover-open`, deliberately. happy-dom has no
+ * popover API at all, so the pseudo-class would make the unit lens and the
+ * browser lens disagree about the same document — a divergence this experiment
+ * has already paid for twice. The attribute is safe because a CLOSED popover is
+ * `display: none` and `painted()` has already dropped it, so this only ever
+ * exempts a panel the browser has actually promoted.
+ */
+const PROMOTED = '[popover]';
+
+/**
  * Elements that are reachable without text: a focusable node carries meaning
  * even when it is empty, because a keyboard user can land on it and a clipped
  * one silently cannot be landed on.
@@ -166,6 +183,7 @@ export function clippedLossRule<TNode>(): Rule<TNode> {
           ...clipper.declared(DECLARED_LOSS),
           ...clipper.declared(ESCAPED),
           ...clipper.declared(`${TRIMMED}, ${TRIMMED} *`),
+          ...clipper.declared(`${PROMOTED}, ${PROMOTED} *`),
         ].map((node) => node.node),
       );
 

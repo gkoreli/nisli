@@ -18,6 +18,7 @@ export { hitTargetRule } from './hit-target.js';
 export { multicolumnRule } from './multicolumn.js';
 export { overlapRule } from './overlap.js';
 export { shreddedRule } from './shredded.js';
+export { spentForNothingRule } from './spent-for-nothing.js';
 export { truncationRule } from './truncation.js';
 export { viewportRule } from './viewport.js';
 export { vocabularyRule } from './vocabulary.js';

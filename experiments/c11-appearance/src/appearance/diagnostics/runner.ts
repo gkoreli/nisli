@@ -29,6 +29,7 @@ import {
   multicolumnRule,
   overlapRule,
   shreddedRule,
+  spentForNothingRule,
   truncationRule,
   viewportRule,
   vocabularyRule,
@@ -53,6 +54,7 @@ export function DEFAULT_RULES<TNode>(): readonly Rule<TNode>[] {
     clippedLossRule<TNode>(),
     multicolumnRule<TNode>(),
     directionalOverflowRule<TNode>(),
+    spentForNothingRule<TNode>(),
   ];
 }
 

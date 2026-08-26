@@ -151,6 +151,20 @@ const REGISTRY = {
       'Content painted above or to the logical start of its container. `scrollHeight`/`scrollWidth` are directional and cannot see it: measured a box reporting scrollHeight 36 === clientHeight 36 with a 45-pixel control sitting outside it.',
     hint: 'Compare rectangles, not scroll extents. Any container whose block-start or inline-start overflow matters needs the rect pass, because the scroll extent is structurally blind to it.',
   },
+  /* ── The table's own strategies ─────────────────────────────────────────
+     F9 was the resolution table stating an IMPOSSIBLE constraint. F11
+     established that priority orders WHEN a strategy is spent and never
+     WHETHER. This is the third direction: a strategy whose IMPLEMENTATION
+     cannot pay out on the content it was applied to, with no channel through
+     which the solver or the author could discover that. */
+  N730: {
+    code: 'N730',
+    title: 'degradation spent for nothing',
+    severity: 'fail',
+    summary:
+      'The solver applied a declared degradation to this element and the element did not get smaller, inside a container that still does not fit. Measured case: a single unbreakable token, where truncation resolves to nowrap plus an ellipsis and nowrap makes the minimum content width equal the whole text — so the strategy was spent and bought zero pixels while the container reported unsatisfiable.',
+    hint: 'The strategy is wrong for this content, not merely insufficient. A token that cannot break needs `hide` or a scroll region; an ellipsis can only clamp text that was already allowed to be narrower than itself.',
+  },
 } as const satisfies Record<string, CodeEntry>;
 
 /**

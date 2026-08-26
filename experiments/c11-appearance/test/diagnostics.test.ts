@@ -104,6 +104,7 @@ describe('CODES', () => {
       'N710',
       'N713',
       'N715',
+      'N730',
     ]);
     for (const [key, entry] of Object.entries(CODES)) expect(entry.code).toBe(key);
   });
