@@ -89,7 +89,7 @@ const CLEAN: InspectWorldSpec = {
               id: 'reply',
               attrs: { 'data-appearance': 'action', 'data-emphasis': 'primary' },
               text: 'Reply',
-              styles: { ...READABLE, '--min-target': '44px' },
+              styles: { ...READABLE, '--intent-min-target': '44px' },
               box: { inline: 44, block: 44, contentInline: 40 },
               bounds: { inline: 44, block: 44, inlineStart: 200, blockStart: 16 },
             },

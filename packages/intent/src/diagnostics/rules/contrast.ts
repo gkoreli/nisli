@@ -2,10 +2,10 @@
  * N640 — text contrast against the nearest painted backdrop.
  *
  * This is finding F3, and it is the moment the thesis worked on its author: the
- * first dark-mode run set `--fg` without painting `--s1` on the same node, and
- * this rule reported 1.10:1 (light text on white) before any human looked at the
- * screen. Nobody wrote that assertion for that component — it is derivable
- * because both colours came out of the resolution table.
+ * first dark-mode run set `--intent-fg` without painting `--intent-s1` on the
+ * same node, and this rule reported 1.10:1 (light text on white) before any
+ * human looked at the screen. Nobody wrote that assertion for that component —
+ * it is derivable because both colours came out of the resolution table.
  *
  * WCAG 2.x relative luminance, floors 4.5:1 normal and 3:1 large text.
  *

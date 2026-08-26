@@ -161,7 +161,7 @@ export class FakeWorld {
         if (node === this.container) return this.containerContainment;
         return this.spec(node).containment ?? 'visible';
       },
-      style: (node, property) => (property === '--unit' ? '4px' : `${node}:${property}`),
+      style: (node, property) => (property === '--intent-unit' ? '4px' : `${node}:${property}`),
     };
 
     this.mutator = {

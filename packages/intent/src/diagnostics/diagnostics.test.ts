@@ -70,7 +70,7 @@ const CLEAN: InspectWorldSpec = {
               id: 'reply',
               attrs: { 'data-appearance': 'action', 'data-emphasis': 'primary' },
               text: 'Reply',
-              styles: { ...READABLE, '--min-target': '44px' },
+              styles: { ...READABLE, '--intent-min-target': '44px' },
               box: { inline: 44, block: 44, contentInline: 40 },
             },
           ],
@@ -275,8 +275,9 @@ describe('N630 — document exceeds viewport', () => {
 
 describe('N640 — text contrast', () => {
   it('fails light text on white — the exact F3 measurement', () => {
-    // The first dark-mode run set `--fg` without painting `--s1`, and the
-    // derived checker reported 1.10:1 before any human looked at the screen.
+    // The first dark-mode run set `--intent-fg` without painting `--intent-s1`,
+    // and the derived checker reported 1.10:1 before any human looked at the
+    // screen.
     const findings = run('N640', {
       nodes: [
         {
@@ -334,7 +335,7 @@ describe('N650 — hit target below the context floor', () => {
         {
           id: 'star',
           attrs: { 'data-appearance': 'action' },
-          styles: { '--min-target': '44px' },
+          styles: { '--intent-min-target': '44px' },
           box: { inline: 24, block: 24, contentInline: 24 },
         },
       ],
@@ -354,14 +355,14 @@ describe('N650 — hit target below the context floor', () => {
         {
           id: 'collapsed-star',
           attrs: { 'data-appearance': 'action' },
-          styles: { '--min-target': '44px' },
+          styles: { '--intent-min-target': '44px' },
           box: { inline: 0, block: 0, contentInline: 0 },
           rendered: false,
         },
         {
           id: 'collapsed-archive',
           attrs: { 'data-appearance': 'nav-item' },
-          styles: { '--min-target': '44px' },
+          styles: { '--intent-min-target': '44px' },
           box: { inline: 0, block: 0, contentInline: 0 },
           rendered: false,
         },

@@ -1,10 +1,10 @@
 /**
  * N650 — hit target below the floor THIS CONTEXT declared for itself.
  *
- * The floor is not a constant in this file: it is `--min-target`, resolved from
- * the context the element sits in, so a touch context raises it and a pointer
- * context may not declare one at all. A rule with a hardcoded 44 would be wrong
- * in three of the four contexts this prototype ships.
+ * The floor is not a constant in this file: it is `--intent-min-target`,
+ * resolved from the context the element sits in, so a touch context raises it
+ * and a pointer context may not declare one at all. A rule with a hardcoded 44
+ * would be wrong in three of the four contexts this prototype ships.
  *
  * THE PRINCIPLE, because it generalises: a check must measure the box its claim
  * is about. A hit target is what a finger presses, so it is the BORDER box. A
@@ -70,7 +70,7 @@ import { rule } from '../rule.js';
 export function hitTargetRule<TNode>(): Rule<TNode> {
   return rule<TNode>('N650', (lens, out) => {
     for (const el of lens.painted('[data-appearance="action"], [data-appearance="nav-item"]')) {
-      const floor = el.px('--min-target');
+      const floor = el.px('--intent-min-target');
       if (!(floor > 0)) continue; // no floor declared: this context makes no promise
       const pressable = el.bounds();
       // Half a pixel of slack: a floor derived from a fractional unit lands on

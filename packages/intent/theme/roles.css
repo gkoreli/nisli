@@ -1,16 +1,16 @@
 /* ══════════════════════════════════════════════════════════════════════════
    LAYER 3 — ROLES: what a declared meaning looks like in the current context.
    ══════════════════════════════════════════════════════════════════════════
-   Every rule below reads the inherited --unit and the inherited colour table
+   Every rule below reads the inherited --intent-unit and the inherited colour table
    and paints. No rule reads a viewport, a class, or an author's opinion — an
    element declares WHAT IT IS (`data-appearance` + `data-role`, `data-text`)
    and this layer resolves that into values.
 
    THE FLOOR INVARIANT — a floor must propagate through every derivation that
    bounds it, not only to the leaf that declares it. `max(unit*9,
-   var(--min-target))` is one expression that is simultaneously the derived
+   var(--intent-min-target))` is one expression that is simultaneously the derived
    size and the asserted minimum, so no context can miss it. But that is only
-   half the rule: anywhere the table derives a CONTAINER bound from --unit,
+   half the rule: anywhere the table derives a CONTAINER bound from --intent-unit,
    that bound must itself be floored by the content floors it will be asked to
    hold, or the table states a constraint it also forbids. See the grid track
    in structure.css for the measured counter-example.
@@ -26,7 +26,7 @@
 /* ── The box model must be known before a floor can mean anything ─────────
    UA styles are inconsistent about box-sizing: <button> is border-box, while
    <a>, <input>, <div> and <span> are content-box. So ONE expression,
-   `max(calc(var(--unit) * 9), var(--min-target))`, resolved to three different
+   `max(calc(var(--intent-unit) * 9), var(--intent-min-target))`, resolved to three different
    boxes: measured in the touch context, action 45px, field 49px, nav-item
    64px — and the comment on the field role claiming a field and a button in
    one row line up was simply false. A resolution table cannot assert a
@@ -48,8 +48,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: calc(var(--unit) * 2);
-  /* 9 units is the derived control height; --min-target is the touch floor
+  gap: calc(var(--intent-unit) * 2);
+  /* 9 units is the derived control height; --intent-min-target is the touch floor
      that the input axis raises to 44px.
 
      The floor is declared TWICE on purpose, and the second one is the one that
@@ -63,57 +63,57 @@
      never stretched — and `align-self: center` is deliberately NOT declared
      here, because in a stack the cross axis is inline and it would collapse
      every full-width stacked control to its label width. */
-  block-size: max(calc(var(--unit) * 9), var(--min-target));
-  min-block-size: max(calc(var(--unit) * 9), var(--min-target));
+  block-size: max(calc(var(--intent-unit) * 9), var(--intent-min-target));
+  min-block-size: max(calc(var(--intent-unit) * 9), var(--intent-min-target));
   /* The inline axis needs the floor too, for icon-only controls: the overflow
      trigger at dense + touch derives 2.5px units, so its padding-inline plus a
      single glyph resolves to about 30px against a 44px target. Text labels are
      wider than the floor and are unaffected. */
-  min-inline-size: var(--min-target);
-  padding-inline: calc(var(--unit) * 4);
+  min-inline-size: var(--intent-min-target);
+  padding-inline: calc(var(--intent-unit) * 4);
   /* `font: inherit` first resets the UA's button font wholesale, then the
      declared size is applied — otherwise the browser's 13px system font wins
      in whichever context forgot to override it. */
   font: inherit;
-  font-size: var(--text);
+  font-size: var(--intent-text);
   font-weight: 500;
   line-height: 1;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--s1);
-  color: var(--fg);
+  border: 1px solid var(--intent-line);
+  border-radius: var(--intent-radius);
+  background: var(--intent-s1);
+  color: var(--intent-fg);
   /* A control is an atom: wrapping its label would make its width a function
      of its own content twice over and defeat the fit solver's measurement. */
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color var(--motion),
-    border-color var(--motion),
-    color var(--motion);
+    background-color var(--intent-motion),
+    border-color var(--intent-motion),
+    color var(--intent-motion);
 }
 
 [data-appearance='action'][data-role='primary'] {
-  background: var(--accent);
-  color: var(--accent-fg);
-  border-color: var(--accent);
+  background: var(--intent-accent);
+  color: var(--intent-accent-fg);
+  border-color: var(--intent-accent);
 }
 
 [data-appearance='action'][data-role='danger'] {
-  background: var(--danger);
-  /* --danger-fg, not white: dark mode's danger is a light red on which white
+  background: var(--intent-danger);
+  /* --intent-danger-fg, not white: dark mode's danger is a light red on which white
      measures 2.79:1. The readable pairing is part of the theme table. */
-  color: var(--danger-fg);
-  border-color: var(--danger);
+  color: var(--intent-danger-fg);
+  border-color: var(--intent-danger);
 }
 
 [data-appearance='action'][data-role='quiet'] {
   background: transparent;
   border-color: transparent;
-  color: var(--fg-muted);
+  color: var(--intent-fg-muted);
 }
 [data-appearance='action'][data-role='quiet']:hover {
-  background: var(--s3);
-  color: var(--fg);
+  background: var(--intent-s3);
+  color: var(--intent-fg);
 }
 
 /* A link-emphasis action keeps the hit target (a thumb does not care that it
@@ -121,10 +121,10 @@
 [data-appearance='action'][data-role='link'] {
   background: transparent;
   border-color: transparent;
-  color: var(--link);
+  color: var(--intent-link);
   padding-inline: 0;
   text-decoration: underline;
-  text-underline-offset: calc(var(--unit) * 0.5);
+  text-underline-offset: calc(var(--intent-unit) * 0.5);
 }
 
 [data-appearance='action'][aria-disabled='true'] {
@@ -140,17 +140,17 @@
   flex: none;
   display: grid;
   place-items: center;
-  inline-size: max(calc(var(--unit) * 8), var(--min-avatar));
-  block-size: max(calc(var(--unit) * 8), var(--min-avatar));
+  inline-size: max(calc(var(--intent-unit) * 8), var(--intent-min-avatar));
+  block-size: max(calc(var(--intent-unit) * 8), var(--intent-min-avatar));
   /* Same reason as the action role: the sizes above are preferred, these are
      the floor. A square role needs both axes, or a squeeze on one turns the
      circle into an ellipse. */
-  min-inline-size: max(calc(var(--unit) * 8), var(--min-avatar));
-  min-block-size: max(calc(var(--unit) * 8), var(--min-avatar));
+  min-inline-size: max(calc(var(--intent-unit) * 8), var(--intent-min-avatar));
+  min-block-size: max(calc(var(--intent-unit) * 8), var(--intent-min-avatar));
   border-radius: 999px;
-  background: var(--s3);
-  color: var(--fg-muted);
-  font-size: max(var(--text-meta), var(--min-text));
+  background: var(--intent-s3);
+  color: var(--intent-fg-muted);
+  font-size: max(var(--intent-text-meta), var(--intent-min-text));
   font-weight: 600;
   /* Initials are a graphic, not text: the box is fixed, so overflow would
      leak outside the circle rather than reflow. */
@@ -166,15 +166,15 @@
      one row line up without either side being told about the other — which is
      only true now that box-sizing is normalised above. Before that this
      comment was false: the button measured 45px and this field 49px. */
-  block-size: max(calc(var(--unit) * 9), var(--min-target));
-  min-block-size: max(calc(var(--unit) * 9), var(--min-target));
-  padding-inline: calc(var(--unit) * 3);
+  block-size: max(calc(var(--intent-unit) * 9), var(--intent-min-target));
+  min-block-size: max(calc(var(--intent-unit) * 9), var(--intent-min-target));
+  padding-inline: calc(var(--intent-unit) * 3);
   font: inherit;
-  font-size: var(--text);
-  color: var(--fg);
-  background: var(--s1);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  font-size: var(--intent-text);
+  color: var(--intent-fg);
+  background: var(--intent-s1);
+  border: 1px solid var(--intent-line);
+  border-radius: var(--intent-radius);
   /* A text input's intrinsic width is its `size` attribute, which is a number
      no author here is allowed to pick; zero lets the layout decide instead.
 
@@ -187,7 +187,7 @@
   min-inline-size: 0;
 }
 [data-appearance='field'][aria-invalid='true'] {
-  border-color: var(--danger);
+  border-color: var(--intent-danger);
 }
 
 /* ── nav-item ────────────────────────────────────────────────────────────── */
@@ -195,51 +195,51 @@
 [data-appearance='nav-item'] {
   display: flex;
   align-items: center;
-  gap: calc(var(--unit) * 2);
-  padding: calc(var(--unit) * 2) calc(var(--unit) * 3);
+  gap: calc(var(--intent-unit) * 2);
+  padding: calc(var(--intent-unit) * 2) calc(var(--intent-unit) * 3);
   /* min- rather than fixed: a nav label is allowed to wrap in a narrow rail,
      and the floor still guarantees the target. */
-  min-block-size: max(calc(var(--unit) * 8), var(--min-target));
-  border-radius: var(--radius);
-  font-size: var(--text);
-  color: var(--fg-muted);
+  min-block-size: max(calc(var(--intent-unit) * 8), var(--intent-min-target));
+  border-radius: var(--intent-radius);
+  font-size: var(--intent-text);
+  color: var(--intent-fg-muted);
   text-decoration: none;
   cursor: pointer;
   transition:
-    background-color var(--motion),
-    color var(--motion);
+    background-color var(--intent-motion),
+    color var(--intent-motion);
 }
 [data-appearance='nav-item']:hover {
-  background: var(--s3);
-  color: var(--fg);
+  background: var(--intent-s3);
+  color: var(--intent-fg);
 }
 /* Current-ness is already declared in ARIA; re-declaring it as a style hook
    would be a second source of truth for the same fact. */
 [data-appearance='nav-item'][aria-current='page'] {
-  background: var(--s3);
-  color: var(--fg);
+  background: var(--intent-s3);
+  color: var(--intent-fg);
   font-weight: 600;
 }
 
 /* ── surface ─────────────────────────────────────────────────────────────── */
 
 [data-appearance='surface'] {
-  background: var(--s1);
-  color: var(--fg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: calc(var(--unit) * 4);
+  background: var(--intent-s1);
+  color: var(--intent-fg);
+  border: 1px solid var(--intent-line);
+  border-radius: var(--intent-radius);
+  padding: calc(var(--intent-unit) * 4);
 }
 
 /* Elevation is derived from nesting depth, so nobody picks a shade. Three
    steps is the whole ramp: a fourth level of nesting is a structural problem,
-   and flattening it back to --s3 makes that visible instead of inventing a
+   and flattening it back to --intent-s3 makes that visible instead of inventing a
    colour to hide it. */
 [data-appearance='surface'] [data-appearance='surface'] {
-  background: var(--s2);
+  background: var(--intent-s2);
 }
 [data-appearance='surface'] [data-appearance='surface'] [data-appearance='surface'] {
-  background: var(--s3);
+  background: var(--intent-s3);
 }
 
 /* A flush surface holds edge-to-edge content (a table, a list): its own
@@ -288,20 +288,20 @@
 [data-appearance='table'] {
   inline-size: 100%;
   border-collapse: collapse;
-  font-size: var(--text);
-  color: var(--fg);
+  font-size: var(--intent-text);
+  color: var(--intent-fg);
 }
 [data-appearance='table'] :is(th, td) {
-  padding: calc(var(--unit) * 2) calc(var(--unit) * 3);
+  padding: calc(var(--intent-unit) * 2) calc(var(--intent-unit) * 3);
   /* Logical `start`, so the table follows writing direction without an axis
      of its own. */
   text-align: start;
-  border-block-end: 1px solid var(--line);
+  border-block-end: 1px solid var(--intent-line);
   white-space: nowrap;
 }
 [data-appearance='table'] th {
-  font-size: max(var(--text-meta), var(--min-text));
-  color: var(--fg-muted);
+  font-size: max(var(--intent-text-meta), var(--intent-min-text));
+  color: var(--intent-fg-muted);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -355,34 +355,34 @@
 }
 
 [data-text='display'] {
-  font-size: var(--text-display);
+  font-size: var(--intent-text-display);
   font-weight: 700;
   /* Large type needs negative tracking and tighter leading to stop reading as
      a scaled-up paragraph. */
   letter-spacing: -0.02em;
   line-height: 1.1;
-  color: var(--fg);
+  color: var(--intent-fg);
 }
 [data-text='title'] {
-  font-size: var(--text-title);
+  font-size: var(--intent-text-title);
   font-weight: 600;
   line-height: 1.25;
-  color: var(--fg);
+  color: var(--intent-fg);
 }
 [data-text='body'] {
-  font-size: var(--text);
+  font-size: var(--intent-text);
   line-height: 1.5;
-  color: var(--fg);
+  color: var(--intent-fg);
 }
-/* Metadata is where the --min-text floor earns its place: at dense the ramp
+/* Metadata is where the --intent-min-text floor earns its place: at dense the ramp
    derives below legibility. */
 [data-text='meta'] {
-  font-size: max(var(--text-meta), var(--min-text));
-  color: var(--fg-muted);
+  font-size: max(var(--intent-text-meta), var(--intent-min-text));
+  color: var(--intent-fg-muted);
 }
 [data-text='label'] {
-  font-size: max(var(--text-meta), var(--min-text));
-  color: var(--fg-muted);
+  font-size: max(var(--intent-text-meta), var(--intent-min-text));
+  color: var(--intent-fg-muted);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -398,6 +398,6 @@
 [data-appearance='field']:focus-visible,
 [data-appearance='nav-item']:focus-visible,
 [data-appearance='table'] :is(th, td):focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: max(calc(var(--unit) * 0.5), 1px);
+  outline: 2px solid var(--intent-accent);
+  outline-offset: max(calc(var(--intent-unit) * 0.5), 1px);
 }

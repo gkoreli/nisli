@@ -3,7 +3,7 @@
    ══════════════════════════════════════════════════════════════════════════
    `data-layout` says how children relate; `data-grow` says which child eats
    the slack; `data-align` says how they line up. Nothing here paints, and
-   every distance is a multiple of the inherited --unit, so rhythm is a
+   every distance is a multiple of the inherited --intent-unit, so rhythm is a
    property of the container's context rather than of the author's memory.
    ══════════════════════════════════════════════════════════════════════════ */
 
@@ -56,7 +56,7 @@ app-action-group {
   display: flex;
   /* Gap is the only spacing primitive: margins would let a child assert its
      own rhythm, which is exactly the decision the author must not make. */
-  gap: calc(var(--unit) * 2);
+  gap: calc(var(--intent-unit) * 2);
   align-items: center;
 }
 
@@ -72,7 +72,7 @@ app-action-group {
 [data-layout='stack'] {
   flex-direction: column;
   align-items: stretch;
-  gap: calc(var(--unit) * 1.5);
+  gap: calc(var(--intent-unit) * 1.5);
 }
 
 [data-layout='wrap'] {
@@ -86,18 +86,18 @@ app-action-group {
    ══════════════════════════════════════════════════════════════════════════
    THE CONTRADICTION THIS RULE USED TO STATE — and the invariant that fixes it.
    ══════════════════════════════════════════════════════════════════════════
-   The minimum used to be `calc(var(--unit) * 44)`, i.e. unit-proportional like
+   The minimum used to be `calc(var(--intent-unit) * 44)`, i.e. unit-proportional like
    everything else. That is wrong in a way F8 was not. F8 was the browser
    resolving an impossible constraint badly; this was the resolution table
    STATING an impossible constraint.
 
    The track shrank as density increased, while everything that has to fit
    inside it did not — because the same table gives those things FLOORS that do
-   not scale: `--min-target` for a control, `max(var(--text-meta),
-   var(--min-text))` for type. Measured at marketing / pointer / light / 320:
+   not scale: `--intent-min-target` for a control, `max(var(--intent-text-meta),
+   var(--intent-min-text))` for type. Measured at marketing / pointer / light / 320:
 
-     comfortable  --unit 4px  -> min track 176px -> ONE column of 320px, clean
-     dense        --unit 2px  -> min track  88px -> THREE columns of 104px,
+     comfortable  --intent-unit 4px  -> min track 176px -> ONE column of 320px, clean
+     dense        --intent-unit 2px  -> min track  88px -> THREE columns of 104px,
                                  five crushes, the worst being a control whose
                                  content needs 76px in a track the same table
                                  sized at 62px of usable space.
@@ -109,7 +109,7 @@ app-action-group {
 
    THE INVARIANT: a floor must propagate through every derivation that BOUNDS
    it, not only to the leaf that declares it. So the track minimum is floored
-   by the widest floor the table will insist on inside it. --min-track is that
+   by the widest floor the table will insist on inside it. --intent-min-track is that
    floor, declared in tokens.css and deliberately not unit-proportional: the
    number of columns is a function of available space, density is a function of
    context, and conflating the two is what produced the contradiction. Density
@@ -117,7 +117,7 @@ app-action-group {
    simply no longer claims a cell can be narrower than its own contents. */
 [data-layout='grid'] {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(max(calc(var(--unit) * 44), var(--min-track)), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(max(calc(var(--intent-unit) * 44), var(--intent-min-track)), 1fr));
   align-items: start;
 }
 
@@ -188,9 +188,9 @@ app-action-group {
    element, four spellings:
 
      overflow-clip-margin: 2px                            -> 2px
-     overflow-clip-margin: var(--unit)                    -> 4px
-     overflow-clip-margin: calc(var(--unit) / 2)          -> 0px   REJECTED
-     overflow-clip-margin: padding-box calc(var(--unit)/2) -> 2px
+     overflow-clip-margin: var(--intent-unit)                    -> 4px
+     overflow-clip-margin: calc(var(--intent-unit) / 2)          -> 0px   REJECTED
+     overflow-clip-margin: padding-box calc(var(--intent-unit)/2) -> 2px
 
    `CSS.supports('overflow-clip-margin', 'calc(4px / 2)')` answers **false**,
    so the grammar `<visual-box> || <length>` mis-parses a lone `calc()` and the
@@ -208,7 +208,7 @@ app-action-group {
 
      - the exclusivity guard (`proof/no-values-guard.mjs`) PASSES, because
        there is no literal to find. The value is genuinely derived from
-       `--unit`; it simply does not arrive.
+       `--intent-unit`; it simply does not arrive.
      - `tsc` PASSES, because this is CSS.
      - the 240-cell matrix PASSES, because a clip margin of zero is not a
        defect anybody declared — nothing on any page asserts that a focus ring

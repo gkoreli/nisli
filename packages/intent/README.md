@@ -156,7 +156,10 @@ where no value was typed by a human.
 ## Limits
 
 A README that hides its counter-evidence is marketing. These are the things this
-package does **not** yet prove.
+package does **not** yet prove — and, last, one defect that is already fixed. It
+stays in this section rather than in the changelog alone because the evidence it
+carries is about how the package was *verified*, not about a version: every gate
+was green while it shipped.
 
 - **No SSG pre-solve.** The static tier *should* resolve at build time; it is
   untested. Measured consequence: the flash of unfit is zero composited frames
@@ -178,6 +181,24 @@ package does **not** yet prove.
   **reports itself** rather than being forbidden, because the industry's
   strictest enforcers carry hundreds of checked-in suppressions. A zero-escape
   claim is a marketing number; a reported escape is an engineering one.
+- **Fixed, and it is the strongest argument in this file: the package used to
+  write into a consumer's global namespace.** Every custom property it declares
+  is now `--intent-` prefixed. Before that, `tokens.css` declared bare
+  `--radius` on the universal selector, so wiring `theme.css` into a real
+  Tailwind + shadcn application shadowed the site's own `--radius: 0.625rem` on
+  **every element** and collapsed its entire derived ramp — `--radius-sm` 6→4,
+  `md` 8→6, `lg` 10→8, `xl` 14→12. Measured: **5,762 changed computed
+  properties across 9 pages and 3,584 elements, with zero bounding-box
+  changes** — which is why nothing screenshot-shaped would have caught it. Six
+  properties were on `*` (`--unit`, `--text`, `--text-meta`, `--text-title`,
+  `--text-display`, `--radius`) and twenty-five more on `:root` and the context
+  scopes, where a consumer declaring `--accent` wins or loses on document
+  order. `--radius` was simply the name this site happened to own; the defect
+  was the missing namespace, not the collision. **It was found only by putting
+  the package in a real application** — 240 of 240 context combinations were
+  clean at the same time, because every one of them measured the package alone.
+  A library cannot see its consumers, so anything it declares into a shared
+  namespace is a collision it has merely not met yet.
 
 ## The resolution table
 
@@ -205,6 +226,14 @@ will ever be written — including ones that do not exist yet.
 **This directory is the only place in the package where a number, a colour or a
 radius may appear.** Every comment in it is a recorded measurement; read them
 before changing a value.
+
+**Every custom property the table declares is `--intent-` prefixed**, all
+thirty-one of them, and a test fails the build if a new one is not. Nothing
+here is a consumer integration point, so the namespace is total rather than
+partial: an author never writes these names, they declare meaning
+(`data-appearance`, `data-role`, `data-density`) and the table resolves it. The
+verbosity is free for exactly that reason — see *Limits* for what it cost when
+the prefix was missing.
 
 ## Requirements
 

@@ -86,7 +86,7 @@ export function explain(el: HTMLElement): Explanation {
   // 0×0 and the resolved sizes below would all read zero.
   const style = getComputedStyle(el);
   const rect = el.getBoundingClientRect();
-  const unit = style.getPropertyValue('--unit').trim();
+  const unit = style.getPropertyValue('--intent-unit').trim();
 
   const appearance = el.getAttribute('data-appearance');
   const emphasis = el.getAttribute('data-role') ?? el.getAttribute('data-emphasis');
@@ -102,14 +102,14 @@ export function explain(el: HTMLElement): Explanation {
     surfaceDepth += 1;
   }
 
-  let rule = `inherited only, --unit=${unit}`;
+  let rule = `inherited only, --intent-unit=${unit}`;
   if (appearance) {
     const emphasisSelector = emphasis ? `[data-role="${emphasis}"]` : '';
-    rule = `theme/roles.css [data-appearance="${appearance}"]${emphasisSelector} × --unit=${unit}`;
+    rule = `theme/roles.css [data-appearance="${appearance}"]${emphasisSelector} × --intent-unit=${unit}`;
   } else if (text) {
-    rule = `theme/roles.css [data-text="${text}"] × --unit=${unit}`;
+    rule = `theme/roles.css [data-text="${text}"] × --intent-unit=${unit}`;
   } else if (layout) {
-    rule = `theme/structure.css [data-layout="${layout}"] × --unit=${unit}`;
+    rule = `theme/structure.css [data-layout="${layout}"] × --intent-unit=${unit}`;
   }
 
   const owner = el.closest('[data-component]')?.getAttribute('data-component');
@@ -136,7 +136,7 @@ export function explain(el: HTMLElement): Explanation {
       theme: el.closest('[data-theme]')?.getAttribute('data-theme') ?? 'light',
       surfaceDepth,
       unit,
-      minTarget: style.getPropertyValue('--min-target').trim(),
+      minTarget: style.getPropertyValue('--intent-min-target').trim(),
     },
     resolved: {
       blockSize: `${Math.round(rect.height)}px`,

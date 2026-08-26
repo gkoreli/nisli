@@ -8,11 +8,11 @@
  * that content has to fit is a COLUMN — a fragmentainer the engine created, with
  * no DOM node, no computed style and nothing to query.
  *
- * The recorded measurement, `columns: calc(var(--unit) * 44)` at 320 pixels with a
- * long label: at dense/pointer the container resolved 3 columns of 101.33 pixels each
- * holding 103 pixels of content, produced 6 crushed nodes, and measured 323 against
- * 320. Dense again, and only dense — the context whose entire job is fitting
- * more in less.
+ * The recorded measurement, `columns: calc(var(--intent-unit) * 44)` at 320 pixels
+ * with a long label: at dense/pointer the container resolved 3 columns of 101.33
+ * pixels each holding 103 pixels of content, produced 6 crushed nodes, and
+ * measured 323 against 320. Dense again, and only dense — the context whose
+ * entire job is fitting more in less.
  *
  * WHY THE 6 CRUSHED NODES ARE NOT THE ANSWER, and this is what makes a separate
  * code honest rather than redundant. The per-node crush predicate saw that cell

@@ -24,7 +24,8 @@ ADR 0032 §7 comes first.
   geometry, declared meaning becoming appearance, and what the engine writes.
   The first three are layered; the last is deliberately unlayered so an engine
   decision outranks any role rule that will ever be written, not merely the ones
-  that happen to tie.
+  that happen to tie. **Every custom property it declares is `--intent-`
+  prefixed** — see the fixed defect below.
 - **The declared vocabulary** — what a thing *is* (`data-appearance`,
   `data-role`, `data-text`), how it *composes* (`data-layout`, `data-grow`,
   `data-align`, `data-clip`), and what matters *least* (`data-priority`,
@@ -53,6 +54,25 @@ ADR 0032 §7 comes first.
 - Contrast above the WCAG floor on 4,913 of 4,913 swept surfaces, minimum
   4.585:1.
 - 141 tests behind a type gate, no browser required.
+
+### Fixed
+
+- **The table declared un-namespaced custom properties and collapsed a
+  consumer's radius ramp.** All thirty-one properties are now `--intent-`
+  prefixed; a test fails the build if a new one is not. `tokens.css` declared
+  bare `--radius` on the universal selector, so importing `theme.css` into a
+  real Tailwind + shadcn application shadowed the site's own
+  `--radius: 0.625rem` on **every element** and collapsed its whole derived
+  ramp (`sm` 6→4, `md` 8→6, `lg` 10→8, `xl` 14→12). Measured: **5,762 changed
+  computed properties across 9 pages and 3,584 elements, zero bounding-box
+  changes** — no screenshot diff would have caught it. Six properties sat on
+  `*` (`--unit`, `--text`, `--text-meta`, `--text-title`, `--text-display`,
+  `--radius`); twenty-five more sat on `:root` and the context scopes, where a
+  consumer declaring `--accent` wins or loses on document order. Found only by
+  putting the package in a real application: the 240-cell matrix was green
+  throughout, because every cell measured the package alone. Rename verified
+  behaviour-preserving by measurement — 2,816 computed-property comparisons
+  across 88 elements and 8 contexts, zero differences before vs. after.
 
 ### Known debts
 
