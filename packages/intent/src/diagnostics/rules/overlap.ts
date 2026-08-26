@@ -64,21 +64,26 @@
  * rule spoke, so the loud false failures of a bad geometry become silent false
  * passes. That is the direction of error that gets a checker deleted, and it is
  * the same confusion that cost five of the first run's nine defects.
+ *
+ * ONE VERDICT MOVES. The escaped exemption this rule had is now the
+ * constructor's, so its own `escaped` set and the query behind it are gone. The
+ * admission it did not have is the seeded case: two children colliding inside
+ * content skipped by `content-visibility: auto` read as a clean page, and is
+ * now N680 against the document — the same subject and the same reason as
+ * N660's, since a collision and the crush that causes it are one physical fact.
  */
 
 import type { Rule } from '../../contracts.js';
 import { isAdmittedFailure } from '../admitted.js';
-import { rule } from '../rule.js';
+import { measuringRule } from '../rule.js';
 
 export function overlapRule<TNode>(): Rule<TNode> {
-  return rule<TNode>('N670', (lens, out) => {
-    const escaped = new Set(lens.declared('[data-escaped], [data-escaped] *').map((el) => el.node));
-
+  return measuringRule<TNode>('N670', (lens, out) => {
     const final = new Set(lens.declared('[data-layout="row"] > *:last-child').map((el) => el.node));
     // `painted()` owns the rendered precondition this loop used to restate by
     // hand: an unpainted child has no box to paint past anything (F4).
-    for (const el of lens.painted('[data-layout="row"] > *')) {
-      if (final.has(el.node) || escaped.has(el.node)) continue;
+    for (const el of lens.painted('[data-layout="row"] > *').items) {
+      if (final.has(el.node)) continue;
       // One root cause, one primary finding: a row that already reported N620
       // does not also get told it collides with its neighbour.
       if (isAdmittedFailure(el)) continue;

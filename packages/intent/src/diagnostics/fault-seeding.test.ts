@@ -102,16 +102,30 @@
  * is this project's most-recorded failure mode.
  *
  * FOUR AXES, because the recurring defect class turned out to be wider than
- * wrong geometry. Three cross-cutting obligations are hand-applied per rule and
+ * wrong geometry. Three cross-cutting obligations were hand-applied per rule and
  * unevenly held, so each is injected in its own right, over the SAME seed table:
  * the defect itself; the defect inside content the checker cannot measure, where
  * the contract is an admission rather than a pass; the defect inside a subtree
  * that declared `data-escaped`; and the defect with the declaration the rule
  * reads made unresolvable, which is where a `px()` coercion turns a check into
- * decoration. All three obligations are modellable in the fake, and the one
- * asymmetry worth naming is that `measurable()` is inherited there while
- * `rendered()` is per node — so a skipped subtree has to be spelled on every
- * node of it, exactly as the recorded browser fixtures spell it.
+ * decoration.
+ *
+ * TWO OF THE THREE WERE MISSED BY NINE RULES EACH WHEN THIS FILE FIRST RAN.
+ * Nine reported a clean page over a defect they could not measure; nine reported
+ * inside an escape hatch, seven of them by omission and two on purpose. Neither
+ * obligation is hand-applied any more: the measuring lens now drops an escaped
+ * subtree and admits an unmeasurable one, so both are structural, and the tables
+ * below are empty of everything except the two declarative rules that report
+ * inside an escape deliberately. That is the shape of every fix this experiment
+ * has kept — the obligation moved into the seam — and the axes stay here because
+ * the NEXT obligation will start out hand-applied too. The fourth axis is still
+ * live at one entry, and its own note says why that one is a defect in the fake
+ * rather than in the rule.
+ *
+ * All three obligations are modellable in the fake, and the one asymmetry worth
+ * naming is that `measurable()` is inherited there while `rendered()` is per node
+ * — so a skipped subtree has to be spelled on every node of it, exactly as the
+ * recorded browser fixtures spell it.
  *
  * WHAT IT PRINTS, AND THE ONE THING IT REFUSES TO PRINT. Rules are named, never
  * scored: the largest published mutation-testing deployment deliberately does
@@ -1093,35 +1107,31 @@ function shroud(nodes: readonly InspectSpec[], bearer: string): readonly Inspect
 }
 
 /**
- * Rules that go silent when their defect is skipped, each with the reason.
+ * Rules that report a clean page over a defect they cannot measure, each with
+ * the reason.
  *
- * THIS TABLE IS THE FINDING, not a configuration. NINE of the sixteen shipped
- * rules report a clean page when the defect they own is inside skipped content,
- * while N710, N713 and N715 — which own the same kind of containment claim —
- * admit. That asymmetry is the defect class N715's own header names: "a fix
- * applied to one rule and not to the rule beside it is its own defect class".
- * The three that admit were written after the skipped-content measurement; the
- * nine below were written before it and were never revisited. Three more —
- * N601, N610 and N700 — are immune by construction, because their claims are
- * about what the author declared and `declared()` reaches skipped nodes.
+ * EMPTY, AND IT WAS NOT EMPTY WHEN THIS SWEEP FIRST RAN. Nine of the sixteen
+ * shipped rules went silent — N620, N621, N640, N650, N660, N670, N690, N730 and
+ * N740 — while N710, N713 and N715, which own the same kind of containment
+ * claim, admitted. Nobody had asked the question of the rule set as a whole:
+ * each of the three admitting rules had been given the arm by hand when its own
+ * defect was measured, and the nine beside them were never revisited. That
+ * asymmetry is the class N715's header names — "a fix applied to one rule and
+ * not to the rule beside it is its own defect class" — and it was invisible
+ * because a silent rule and a clean document are the same green.
  *
- * Recorded rather than repaired, because every rule belongs to another file this
- * round. The assertion is the same polarity as the decoy quarantine: a rule that
- * goes silent and is NOT recorded here fails this file, and a rule that has since
- * learnt to admit is printed as a stale entry to delete. Nothing here excuses a
- * silence; it dates it.
+ * What closed it was not nine hand-applied arms. `painted()` now ROUTES rather
+ * than filters: not-rendered is dropped silently, unmeasurable is dropped AND
+ * admitted as N680, and a rule opts into measuring instead of restating the
+ * precondition. The obligation moved into the seam, which is the same move that
+ * ended the `Box`/`Bounds` confusion — nine chances to omit it became none.
+ *
+ * The mechanism stays for the next obligation that is hand-applied. Its polarity
+ * is deliberate: a rule that goes silent and is NOT recorded here fails this
+ * file, while a rule that has since learnt to admit is printed as a stale entry
+ * to delete. Nothing here ever excused a silence; it dated one.
  */
-const SILENT_WHEN_SKIPPED: Readonly<Record<string, string>> = {
-  N620: 'the trigger is a declaration the mutator wrote, but the selector is painted(), so an unsatisfiable container inside skipped content is never reported',
-  N621: 'no measurable() arm: a truncated value clamped past meaning is unreported while it is skipped',
-  N640: 'no measurable() arm on the SELECTOR — the four undecidable arms are all about colour, so unreadable text inside skipped content is silence rather than an admission',
-  N650: 'no measurable() arm: a control below its floor is unreported while it is skipped',
-  N660: 'no measurable() arm, closed only by accident when N710, N713 or N715 happen to own the same container',
-  N670: 'no measurable() arm: a collision inside skipped content is unreported, and the crush behind it (N660) is silent for the same reason',
-  N690: 'no measurable() arm: a shredded word inside skipped content is unreported',
-  N730: 'no measurable() arm, and no escaped-subtree exemption either',
-  N740: 'no measurable() arm and no escaped-subtree exemption, alone among its three siblings, which have both',
-};
+const SILENT_WHEN_SKIPPED: Readonly<Record<string, string>> = {};
 
 describe('a defect the checker cannot measure must be admitted, never passed', () => {
   const rules = DEFAULT_RULES<string>();
@@ -1188,37 +1198,36 @@ describe('a defect the checker cannot measure must be admitted, never passed', (
    ══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * THE THIRD OBLIGATION, and the one where the rule set contradicts its own
- * registry.
+ * THE THIRD OBLIGATION: which rules honour `data-escaped`, and which report
+ * inside it anyway.
  *
- * `data-escaped` is the opt-out, and N601's registry entry says such a subtree
- * "forfeits the rhythm, fit, contrast and hit-target guarantees". Four rules
- * implement that by building an escaped set and skipping it. The rest do not —
- * including the two the registry names by name, contrast and hit target — so the
- * same seeded defect inside the same escape hatch is exempted by some rules and
- * reported by others.
+ * WHEN THIS SWEEP FIRST RAN THE SPLIT WAS ACCIDENTAL. N601's rule says an
+ * escaped subtree "forfeits the rhythm, fit, contrast and hit-target
+ * guarantees"; five rules implemented that by building an escaped set, and nine
+ * reported inside the hatch regardless — including contrast and hit target, the
+ * two the sentence names. Nothing decided that; each rule had been written
+ * without the one beside it.
  *
- * WHICH ANSWER IS RIGHT IS NOT DECIDED HERE, deliberately: a checker that goes
- * quiet over a third of a page because somebody wrote one attribute is a
- * defensible position, and so is refusing to. What is not defensible is the
- * split being ACCIDENTAL, which is the class N715's header already names — a fix
- * applied to one rule and not to the rule beside it. So the split is recorded as
- * data and this fails when it moves without anybody saying so.
+ * It is a decision now, taken in the seam rather than nine times over: the
+ * measuring lens drops an escaped subtree, so every geometric claim honours the
+ * hatch by construction, and the two rules below report inside it BECAUSE their
+ * claims are not geometric.
+ *
+ * The polarity is unchanged — a rule that reports inside an escape without being
+ * recorded here fails this file, and one that has since learnt to exempt is
+ * printed as a stale entry to delete — so the decision cannot drift back into an
+ * accident.
  */
 const REPORTS_INSIDE_AN_ESCAPE: Readonly<Record<string, true>> = {
-  N620: true,
-  N621: true,
-  N640: true,
-  // Defensible, and the only entry in this table that reads like a decision
-  // somebody would make on purpose: a value outside the vocabulary is illegal as
-  // WRITTEN, and an escape hatch is a promise to style the subtree by hand, not
-  // a licence to feed the resolution table words it does not have.
+  // Both entries are the same argument, and it is the reason the split is a
+  // decision rather than an oversight: an escape hatch buys the subtree its own
+  // STYLING, not a licence to misspell an attribute or to spend the reader's
+  // attention twice. A value outside the vocabulary is illegal as written, and
+  // two actions both claiming priority contradict each other whoever painted
+  // them. Neither claim reads geometry, so neither goes through the measuring
+  // lens that drops the subtree.
   N610: true,
-  N650: true,
-  N690: true,
   N700: true,
-  N730: true,
-  N740: true,
 };
 
 describe('the escape hatch is honoured by some rules and not others', () => {
@@ -1320,7 +1329,7 @@ const DISSOLVED: readonly Dissolved[] = [
     on: 'columns',
     property: 'column-count',
     answer: 'passes',
-    why: 'the multicolumn discriminator maps an unresolvable column-count and column-width onto the same branch as "no multicolumn was requested" and continues, so in an engine that does not resolve them this rule is vacuously silent over the whole document — the shape crushed.ts enumerates its exemptions positively to avoid',
+    why: 'the multicolumn discriminator maps an unresolvable column-count and column-width onto the same branch as "no multicolumn was requested" and continues, so a port that under-resolves makes this rule vacuously silent over a whole document. LEFT OPEN DELIBERATELY, unlike the two above: those floors are custom properties, which genuinely resolve to nothing on a document that ships no theme, while the computed value of a standard longhand is always auto or an integer in a browser. Making this arm loud would emit N680 on every element of every fixture here, because this fake answers the empty string for every property nobody declared — so the honest close is the FAKE resolving standard longhands the way a browser does, in testing.ts, not an admission in the rule',
   },
 ];
 

@@ -5,6 +5,16 @@
  * imports beyond the contracts and the code registry. That is what makes a rule
  * testable with a fake inspector and eight lines of a test file, and it is why
  * adding a check costs one file rather than an argument.
+ *
+ * WHICH KIND OF CLAIM EACH ONE MAKES is answered by the first line of its body
+ * and nowhere else: `rule()` for a claim about what the author WROTE,
+ * `measuringRule()` for a claim about what the browser DID. There is
+ * deliberately no table of the two categories here. A list beside the code goes
+ * stale the moment somebody adds the seventeenth rule, and this repository has
+ * already shipped a vacuous green from exactly that shape — two duplicated
+ * hard-coded path lists that agreed with each other, so a new page made both
+ * say false and the test passed while the feature shipped dead. The constructor
+ * IS the category, it is one grep, and it cannot disagree with itself.
  */
 
 export { clippedLossRule } from './clipped-loss.js';

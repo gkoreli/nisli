@@ -1,5 +1,5 @@
 /**
- * rule.ts — how a rule SPEAKS, and what a rule IS.
+ * rule.ts — how a rule SPEAKS, what a rule IS, and which of two things it is.
  *
  * A rule is a composition, not a class: a code, a lens over the document, and a
  * body that turns observations into findings. There is no base class to extend
@@ -21,12 +21,42 @@
  * quietly returning nothing when the geometry it needed was unavailable. Routing
  * that through one method means every such admission lands as N680 with the
  * asking rule named in it, instead of each rule inventing its own way to shrug.
+ *
+ * ══════════════════════════════════════════════════════════════════════════
+ * TWO CONSTRUCTORS, because there are two kinds of claim.
+ * ══════════════════════════════════════════════════════════════════════════
+ * `rule()` is for a claim about what the author WROTE. Its body gets a `Lens`,
+ * which offers `declared()` and nothing else: no rectangle, no line count, no
+ * resolved property. Three rules are this — the escape hatch, the vocabulary
+ * check, and the competing-primaries check — and all three are true or false
+ * whether or not the document ever rendered.
+ *
+ * `measuringRule()` is for a claim about what the browser DID. Its body gets a
+ * `MeasuringLens`, whose `painted()` has already discharged the three
+ * cross-cutting obligations: it drops what is not rendered, drops what an
+ * escape forfeited, and reports N680 for what is present and cannot be
+ * measured. Thirteen rules are this.
+ *
+ * WHY A CONSTRUCTOR AND NOT A GUARD, in this project's own evidence. The three
+ * obligations used to be applied per rule by hand, so coverage tracked WHEN a
+ * rule was written rather than WHAT it claimed: `measurable()` reached three of
+ * eleven measuring rules, the escape exemption five of eleven, and the
+ * injection harness then proved the cost by seeding real defects — NINE rules
+ * reported a clean page over a defect that was present. The `Box`/`Bounds` type
+ * split had already closed one instance of the same shape and left the
+ * mechanism intact, and N715's own header records the lesson in a sentence
+ * written one rule before the next recurrence: "a fix applied to one rule and
+ * not to the rule beside it is its own defect class". Three times a note in a
+ * header failed to stop it. Once a type did. So the obligation moves into the
+ * constructor for the category, and the choice of constructor at the top of
+ * each file IS the declared-versus-painted decision, made once, visibly,
+ * instead of implicitly at every selector.
  */
 
-import type { Finding, Inspector, Rule } from '../contracts.js';
+import type { CodeEntry, Finding, Inspector, Rule } from '../contracts.js';
 import { codeEntry } from './codes.js';
-import type { Lens } from './observe.js';
-import { observe } from './observe.js';
+import type { Lens, MeasuringLens } from './observe.js';
+import { measure, observe } from './observe.js';
 
 /** The code every rule uses to admit it could not reach a verdict. */
 const UNDECIDABLE = codeEntry('N680');
@@ -45,16 +75,38 @@ export interface Report {
   undecidable(subject: string, detail: string): void;
 }
 
+/** A rule's voice, bound to one code. The shared half of both constructors. */
+function voice(entry: CodeEntry, findings: Finding[]): Report {
+  return {
+    finding(subject, detail) {
+      findings.push({
+        code: entry.code,
+        severity: entry.severity,
+        subject,
+        detail,
+        hint: entry.hint,
+      });
+    },
+    undecidable(subject, detail) {
+      findings.push({
+        code: UNDECIDABLE.code,
+        severity: UNDECIDABLE.severity,
+        subject,
+        detail: `${entry.code}: ${detail}`,
+        hint: UNDECIDABLE.hint,
+      });
+    },
+  };
+}
+
 /**
- * Compose a rule from its code and its inference.
- *
- * The body receives a `Lens` rather than an `Inspector`, so a rule cannot reach
- * an unpainted node's geometry even by accident — the only selectors that yield
- * measurable observations are the painted ones.
+ * The composition both constructors share: a code, a findings buffer, and the
+ * voice that fills it. Factored so the two cannot drift apart, which is the
+ * defect class this whole file exists to remove.
  */
-export function rule<TNode>(
+function composed<TNode>(
   code: string,
-  body: (lens: Lens<TNode>, out: Report) => void,
+  see: (inspector: Inspector<TNode>, out: Report) => void,
 ): Rule<TNode> {
   const entry = codeEntry(code);
   return {
@@ -62,28 +114,49 @@ export function rule<TNode>(
     title: entry.title,
     run(inspector: Inspector<TNode>): readonly Finding[] {
       const findings: Finding[] = [];
-      const out: Report = {
-        finding(subject, detail) {
-          findings.push({
-            code: entry.code,
-            severity: entry.severity,
-            subject,
-            detail,
-            hint: entry.hint,
-          });
-        },
-        undecidable(subject, detail) {
-          findings.push({
-            code: UNDECIDABLE.code,
-            severity: UNDECIDABLE.severity,
-            subject,
-            detail: `${entry.code}: ${detail}`,
-            hint: UNDECIDABLE.hint,
-          });
-        },
-      };
-      body(observe(inspector), out);
+      see(inspector, voice(entry, findings));
       return findings;
     },
   };
+}
+
+/**
+ * Compose a rule whose claim is about a DECLARATION.
+ *
+ * The body receives a `Lens`, which offers `declared()` and nothing else. There
+ * is no geometry on the far end of it — `Declaration` carries no box, no bounds,
+ * no line count and no resolved property — so a rule composed this way cannot
+ * measure anything, by accident or otherwise. If the claim needs a rectangle,
+ * the claim is not a declaration claim and this is the wrong constructor; the
+ * compiler says so at the first `box()`.
+ */
+export function rule<TNode>(
+  code: string,
+  body: (lens: Lens<TNode>, out: Report) => void,
+): Rule<TNode> {
+  return composed<TNode>(code, (inspector, out) => body(observe(inspector), out));
+}
+
+/**
+ * Compose a rule whose claim is about PAINTED OUTPUT.
+ *
+ * The body receives a `MeasuringLens`, and choosing this constructor is what
+ * discharges all three cross-cutting obligations: `painted()` yields only nodes
+ * that render, are not inside a subtree the author took back, and whose
+ * geometry means what it says — and it reports N680 through the `Report` below
+ * for anything in the third category rather than dropping it. The rule cannot
+ * opt out, because the obligations are not parameters and `measurable()` is not
+ * on any type a rule can reach.
+ *
+ * The admission is wired to this rule's own voice, so an N680 raised by the
+ * lens names the asking rule exactly as one raised by the body does. There is
+ * no second way to admit and no way to measure without one.
+ */
+export function measuringRule<TNode>(
+  code: string,
+  body: (lens: MeasuringLens<TNode>, out: Report) => void,
+): Rule<TNode> {
+  return composed<TNode>(code, (inspector, out) => {
+    measure(inspector, out.undecidable, (lens) => body(lens, out));
+  });
 }

@@ -28,7 +28,9 @@
  *     value wider than the box is the field WORKING. This is the only
  *     role-keyed exemption in the set, and it is documented at its source in
  *     theme/roles.css; anything else would be a role buying itself an excuse.
- * Escaped subtrees are excluded because they forfeited the guarantee (N601).
+ * Escaped subtrees are excluded because they forfeited the guarantee (N601),
+ * and the seam excludes them now, so the sentence stays and the selector does
+ * not.
  * A `contain: inline-size` truncator reports zero intrinsic width; that is not
  * an undecidable measurement (never N680), it is a node already exempt above.
  * Measured, correcting the note this comment used to carry: `contain:
@@ -50,11 +52,23 @@
  * are padding-box measures. A border-box geometry would hand every element a
  * free border width of slack and turn this check's loud failures into silent
  * passes, which is the failure direction that gets an oracle deleted.
+ *
+ * ONE VERDICT MOVES, and this rule had four of the five exemptions already. It
+ * had the escaped exemption, spelled out in its own selector; that half now
+ * comes from the constructor and the selector below keeps only the document
+ * furniture, which is this rule's alone. What it did not have was an admission
+ * for content it cannot measure: the injection harness seeded a crush inside
+ * content skipped by `content-visibility: auto` and this rule reported a clean
+ * page, because `content-visibility` does not change computed `contain`, so
+ * such a box is not a clipper and N710 never sees it either. That case is now
+ * N680. It names the document rather than the crushed element, which is the
+ * honest subject: this rule scans every painted box, so what it lost was the
+ * ability to assess part of the page rather than a verdict about one node.
  */
 
 import type { Containment, Rule } from '../../contracts.js';
 import { isAdmittedFailure } from '../admitted.js';
-import { rule } from '../rule.js';
+import { measuringRule } from '../rule.js';
 
 /**
  * A box whose content is legitimately larger than itself, keyed on CONTAINMENT
@@ -92,20 +106,21 @@ const EXEMPT_CONTAINMENT: Readonly<Record<Containment, boolean>> = {
   clip: true,
 };
 
+/**
+ * Document furniture, which is not appearance and has no rhythm to break. The
+ * escaped subtrees this selector used to name as well are gone from it, not
+ * from the rule: `painted()` never hands one over now.
+ */
+const FURNITURE = 'html, head, body, script, style, template, meta, link, title';
+
 export function crushedRule<TNode>(): Rule<TNode> {
-  return rule<TNode>('N660', (lens, out) => {
-    // Ancestry is not on the port, so subtree exclusion is expressed as a
-    // second query and an identity set.
-    const excluded = new Set(
-      lens
-        .declared(
-          'html, head, body, script, style, template, meta, link, title, [data-escaped], [data-escaped] *',
-        )
-        .map((el) => el.node),
-    );
+  return measuringRule<TNode>('N660', (lens, out) => {
+    // A tag-name exclusion, and an identity set rather than a per-node check
+    // because the port answers selectors and not element names.
+    const excluded = new Set(lens.declared(FURNITURE).map((el) => el.node));
     // `painted()` owns the rendered precondition this loop used to restate by
     // hand — measuring an unpainted node is how an oracle invents defects (F4).
-    for (const el of lens.painted('*')) {
+    for (const el of lens.painted('*').items) {
       if (excluded.has(el.node)) continue;
       if (el.attr('data-truncate') !== null) continue;
       if (el.attr('data-appearance') === 'field') continue;

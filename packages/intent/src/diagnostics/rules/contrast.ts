@@ -78,10 +78,26 @@
  * a measurement: a `display: none` node has no painted colours at all, and the
  * backdrop walk above it would report whatever an invisible node happens to
  * inherit. `painted()` is the lens's way of saying that once, in the selector.
+ *
+ * A FIFTH WAY TO LOSE IT, and it is the one this rule shipped without: text
+ * inside content skipped by `content-visibility: auto`. `painted()` dropped
+ * those nodes, so a genuine contrast failure inside a skipped subtree read as a
+ * clean page — the injection harness seeded it and watched this rule say
+ * nothing — and the honest answer is the same N680 the other four branches
+ * give, because the node's colours become measurable again the moment it
+ * scrolls into view. The measuring constructor supplies that admission, so the
+ * fifth branch is not written here; it is the reason this file uses that
+ * constructor.
+ *
+ * AND THE EXEMPTION IT SHIPPED WITHOUT, which was a contradiction rather than a
+ * gap: N601 reports that an escaped subtree forfeits "the rhythm, fit, CONTRAST
+ * and hit-target guarantees", and this rule went on judging contrast inside
+ * escaped subtrees. It no longer does. An author who takes a subtree back owns
+ * its palette, which is most of why anyone escapes.
  */
 
 import type { Rgba, Rule } from '../../contracts.js';
-import { rule } from '../rule.js';
+import { measuringRule } from '../rule.js';
 
 function luminance(colour: Rgba): number {
   const linear = [colour[0], colour[1], colour[2]].map((value) => {
@@ -92,11 +108,11 @@ function luminance(colour: Rgba): number {
 }
 
 export function contrastRule<TNode>(): Rule<TNode> {
-  return rule<TNode>('N640', (lens, out) => {
+  return measuringRule<TNode>('N640', (lens, out) => {
     // F4: an unrendered node has no painted colours at all, and measuring
     // collapsed candidates is what produced the first run's false failures.
     // The seam enforces that now — `painted()` is the only selector here.
-    for (const el of lens.painted('[data-text], [data-appearance="action"]')) {
+    for (const el of lens.painted('[data-text], [data-appearance="action"]').items) {
       if (el.text().trim() === '') continue;
 
       const backdrop = el.backdrop();

@@ -54,6 +54,9 @@ const DEVTOOLS = [
   'DOCS_BASE',
   'observe',
   'rule',
+  // The second constructor. On the surface because a consumer's measuring rule
+  // must be able to inherit the three obligations rather than restate them.
+  'measuringRule',
   'isAdmittedFailure',
   'explain',
 ];

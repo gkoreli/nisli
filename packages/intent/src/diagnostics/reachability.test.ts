@@ -83,6 +83,22 @@ const SRC = join(ROOT, 'src');
 const RULES = join(SRC, 'diagnostics', 'rules');
 
 /**
+ * The seam, scanned as if it were a rule, because it now holds a selector on
+ * behalf of all thirteen measuring rules.
+ *
+ * `[data-escaped]` used to be spelled in six rule files and is now spelled once
+ * in `observe.ts`, which is the whole point of that change — and it moved the
+ * selector out of the only directory this guard reads. The blast radius went the
+ * wrong way at the same time: a typo in one rule used to cost that rule its
+ * exemption, and a typo here costs thirteen rules theirs, silently, in the
+ * direction that reports defects inside subtrees the author took back. So the
+ * file is added to the scanned set rather than trusted. `uses()` strips comments
+ * before extracting, which matters more here than in `rules/`: this file's
+ * header quotes the attribute several times while explaining it.
+ */
+const SEAM = join(SRC, 'diagnostics', 'observe.ts');
+
+/**
  * Everything in this package that gives a declaration meaning: the resolution
  * table that resolves it, and the fit engine that stamps it. See the header for
  * why this is the whole set inside a library and why it is not a weakening.
@@ -115,8 +131,15 @@ interface Use {
   readonly value?: string;
 }
 
-function uses(dir: string): Use[] {
-  return filesUnder(dir)
+/**
+ * Every selector use under `roots`, which may name a directory or a single
+ * file. The seam is one file among the rules' directory, and a guard that could
+ * only be pointed at a directory would have invited moving the seam into
+ * `rules/` — where it does not belong — to stay covered.
+ */
+function uses(...roots: string[]): Use[] {
+  return roots
+    .flatMap((root) => (root.endsWith('.ts') ? [root] : filesUnder(root)))
     .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'))
     .flatMap((file) =>
       [...code(readFileSync(file, 'utf8')).matchAll(ATTR)].map((match) => ({
@@ -170,7 +193,7 @@ function producedSource(): string {
 }
 
 describe('rule selectors are reachable', () => {
-  const ruleUses = uses(RULES);
+  const ruleUses = uses(RULES, SEAM);
   const produced = producedAttributes();
 
   it('finds selectors to check at all, so this guard cannot pass vacuously', () => {
@@ -179,6 +202,16 @@ describe('rule selectors are reachable', () => {
     // so rather than reporting universal success.
     expect(ruleUses.length).toBeGreaterThan(10);
     expect(produced.size).toBeGreaterThan(5);
+  });
+
+  it('covers the one selector the seam holds for every measuring rule', () => {
+    // Widening a scanned root is invisible if nothing from the new root is ever
+    // extracted, which is this file's own failure mode. So the moved selector
+    // is named: the escape hatch must be reached from the seam, and it must be
+    // an attribute the engine gives meaning to like any other.
+    const fromSeam = ruleUses.filter((use) => use.file.endsWith('observe.ts'));
+    expect(fromSeam.map((use) => use.attr)).toContain('data-escaped');
+    expect(produced.has('data-escaped')).toBe(true);
   });
 
   it('selects only attributes this engine gives meaning to', () => {
@@ -259,7 +292,7 @@ describe('rule selectors are reachable', () => {
  * D: a consumer's rendered DOM, or the prototype's proof scripts.
  */
 describe('values outside the vocabulary are reachable too', () => {
-  const ruleUses = uses(RULES);
+  const ruleUses = uses(RULES, SEAM);
   const source = producedSource();
 
   /**

@@ -12,13 +12,21 @@
  * reads `lens.viewport()` and never observes a node. There is nothing to filter
  * for paintedness because there is nothing selected — the two numbers are the
  * measurement.
+ *
+ * `measuringRule` all the same, and the reason is the point of the split rather
+ * than a formality: the two numbers ARE a measurement, and `viewport()` lives on
+ * the measuring lens so that the statement stays total — every geometry in this
+ * package, including the document's own width, is reachable from one constructor
+ * only. None of the three obligations has anything to bite on here, because
+ * nothing was selected: there is no node to be skipped, unrendered, or escaped.
+ * A document is not inside a subtree.
  */
 
 import type { Rule } from '../../contracts.js';
-import { rule } from '../rule.js';
+import { measuringRule } from '../rule.js';
 
 export function viewportRule<TNode>(): Rule<TNode> {
-  return rule<TNode>('N630', (lens, out) => {
+  return measuringRule<TNode>('N630', (lens, out) => {
     const { inline, documentInline } = lens.viewport();
     // One pixel of slack: fractional layout rounds, and a half-pixel of
     // scrollWidth is not a sideways scrollbar.

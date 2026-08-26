@@ -78,7 +78,7 @@
  */
 
 import type { Rule } from '../../contracts.js';
-import { rule } from '../rule.js';
+import { measuringRule } from '../rule.js';
 
 /** Scripts that wrap between characters, where `lines > words` proves nothing. */
 const UNSPACED_SCRIPT =
@@ -126,10 +126,19 @@ const UNSPACED_SCRIPT =
  * explanations, so a confident rewrite on a plausible causal story is its own
  * defect class. Until it is measured, the proof asserts label wrapping
  * directly, where rectangles exist.
+ *
+ * TWO VERDICTS MOVE with the measuring constructor, both in the direction this
+ * rule already argued for elsewhere. A word broken inside itself in content
+ * skipped by `content-visibility: auto` was a silent pass — the injection
+ * harness seeded it and this rule reported a clean page — and is now N680. A
+ * word broken inside an escaped subtree is no longer reported, because rhythm
+ * is the first guarantee N601 says an escape forfeits, and a rule that judged
+ * typography the author explicitly took back was contradicting the registry
+ * entry beside it.
  */
 export function shreddedRule<TNode>(): Rule<TNode> {
-  return rule<TNode>('N690', (lens, out) => {
-    for (const el of lens.painted('[data-text]')) {
+  return measuringRule<TNode>('N690', (lens, out) => {
+    for (const el of lens.painted('[data-text]').items) {
       const text = el.text().trim();
       if (text.length === 0) continue;
       if (UNSPACED_SCRIPT.test(text)) continue;

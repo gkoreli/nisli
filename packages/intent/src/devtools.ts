@@ -66,14 +66,29 @@ export { CODES, codeEntry, DOCS_BASE } from './diagnostics/codes.js';
 
 // ── Authoring a rule ───────────────────────────────────────────────────────
 // A consumer writing their own check gets the same composition the shipped
-// fifteen use: a lens that cannot reach an unpainted node's geometry, and a
-// reporter that applies severity and hint from the registry rather than from the
-// caller. `AXIS_ATTRS` and `VOCABULARY` on the main entry are what make such a
-// rule checkable for dead selectors.
-export type { Lens, Observation } from './diagnostics/observe.js';
+// sixteen use, and the same first decision: `rule` for a claim about what the
+// author wrote, `measuringRule` for a claim about what the browser painted. The
+// second one is not a convenience — its lens has already discharged the three
+// obligations a measuring rule owes (not rendered, not measurable, forfeited by
+// an escape), so a consumer's rule inherits them rather than reimplementing
+// them, which is what nine of this package's own rules failed to do by hand.
+// `AXIS_ATTRS` and `VOCABULARY` on the main entry are what make such a rule
+// checkable for dead selectors.
+//
+// `measure` is deliberately NOT exported. It is the composer that binds the
+// obligations to a report, and handing it out would let a caller build a
+// measuring lens with a different admission — an escape from the obligations,
+// which is the thing this seam exists to remove.
+export type {
+  Declaration,
+  Lens,
+  Measurement,
+  MeasuringLens,
+  Sample,
+} from './diagnostics/observe.js';
 export { observe } from './diagnostics/observe.js';
 export type { Report } from './diagnostics/rule.js';
-export { rule } from './diagnostics/rule.js';
+export { measuringRule, rule } from './diagnostics/rule.js';
 export { isAdmittedFailure } from './diagnostics/admitted.js';
 
 // ── Provenance ─────────────────────────────────────────────────────────────

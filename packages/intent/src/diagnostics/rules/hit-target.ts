@@ -101,14 +101,28 @@
  * declares this one token as a plain length, which is the only reason the
  * deployed rule ever worked. Under `px()` that near-miss was a silent pass;
  * here it is N680.
+ *
+ * THE ESCAPE EXEMPTION IT DID NOT HAVE, and the contradiction is worth naming
+ * because it was in the codebase in writing: N601 reports that an escaped
+ * subtree forfeits "the rhythm, fit, contrast and HIT-TARGET guarantees", and
+ * this rule — the hit-target rule that sentence names — went on judging inside
+ * escaped subtrees anyway. The measuring constructor honours the sentence, so a
+ * control inside a subtree the author took back is no longer reported. The
+ * other moved verdict is the seeded one: a control short of its floor inside
+ * content skipped by `content-visibility: auto` was silence and is now N680,
+ * which is the same answer this rule already gives when its floor will not
+ * resolve — one unreadable input, one admission, whichever input it is.
  */
 
 import type { Rule } from '../../contracts.js';
-import { rule } from '../rule.js';
+import { measuringRule } from '../rule.js';
+
+/** The roles the resolution table promises a readable target floor for. */
+const PRESSABLE = '[data-appearance="action"], [data-appearance="nav-item"]';
 
 export function hitTargetRule<TNode>(): Rule<TNode> {
-  return rule<TNode>('N650', (lens, out) => {
-    for (const el of lens.painted('[data-appearance="action"], [data-appearance="nav-item"]')) {
+  return measuringRule<TNode>('N650', (lens, out) => {
+    for (const el of lens.painted(PRESSABLE).items) {
       // `raw()`, never `px()`: the whole argument is in the header, and the
       // short version is that `px()` turns "nobody declared a floor" into the
       // number zero, every rectangle clears zero, and this rule then reports a

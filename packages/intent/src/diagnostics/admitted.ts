@@ -41,12 +41,12 @@
  * signature rather than promised by a comment.
  */
 
-import type { Observation } from './observe.js';
+import type { Declaration } from './observe.js';
 
 /**
  * Has this element already admitted it cannot fit? Asked of the node under
  * judgement by every rule that would otherwise re-report its geometry.
  */
-export function isAdmittedFailure<TNode>(el: Observation<TNode>): boolean {
+export function isAdmittedFailure<TNode>(el: Declaration<TNode>): boolean {
   return el.attr('data-fit') === 'unsatisfiable';
 }

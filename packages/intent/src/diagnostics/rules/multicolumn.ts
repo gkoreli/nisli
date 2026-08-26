@@ -66,15 +66,34 @@
  * 710 false failures the last time this project tried it. An under-report
  * bounded by the column gap beats a fabricated number.
  *
- * `content-visibility: auto` is handled the same way and for the same reason as
- * in N715: reached through `declared()`, because `painted()` drops skipped nodes
- * and that dropping IS the measured false PASS, and answered with N680 because
- * skipped content stays focusable and findable — the reader loses nothing and
- * only the proof is destroyed.
+ * `content-visibility: auto` used to be handled here, by hand, and the record
+ * of why belongs to the file that now handles it: `painted()` drops skipped
+ * nodes, that dropping IS the measured false PASS, and the answer is N680
+ * because skipped content stays focusable and findable — the reader loses
+ * nothing and only the proof is destroyed. This rule was one of three that
+ * asked for itself. The other eight measuring rules did not, so the question
+ * moved into the constructor and the verdicts here did not move with it: the
+ * seam names the scope it was denied, and this rule's scope was always the
+ * container. The escaped exemption came the same way and lost the same query.
+ *
+ * ONE REMAINING SILENCE IS KNOWN, MEASURED, AND DELIBERATELY LEFT, so nobody
+ * reads the migration as having closed it. The discriminator below folds an
+ * UNRESOLVABLE `column-count` into the same branch as an absent one, so a port
+ * that cannot answer the property passes over the whole document — seeded and
+ * proven by the injection harness, not suspected. It is not the same defect as
+ * N640's and N650's floors, and that is why it is not fixed alongside them: a
+ * custom property genuinely fails to resolve in a browser, whereas the computed
+ * value of a standard longhand is always `auto` or an integer, so the condition
+ * is reachable only through a port that under-resolves. Making the branch loud
+ * would report N680 on every element of every fixture — the fake answers the
+ * empty string for every property nobody declared — which is the false-FAIL
+ * direction on a state the browser cannot produce. Closing it honestly means
+ * the FAKE resolving standard longhands the way a browser does, which is
+ * `testing.ts` and a different owner's file.
  */
 
 import type { Rule } from '../../contracts.js';
-import { rule } from '../rule.js';
+import { measuringRule } from '../rule.js';
 
 /** Same rounding tolerance as the rest of the engine. Layout is fractional. */
 const TOLERANCE = 1;
@@ -102,11 +121,8 @@ const BLOCK_CONTAINER: Readonly<Record<string, true>> = {
 const OUT_OF_FLOW: Readonly<Record<string, true>> = { absolute: true, fixed: true };
 
 export function multicolumnRule<TNode>(): Rule<TNode> {
-  return rule<TNode>('N713', (lens, out) => {
-    const escaped = new Set(lens.declared('[data-escaped], [data-escaped] *').map((el) => el.node));
-
-    for (const container of lens.painted('*')) {
-      if (escaped.has(container.node)) continue;
+  return measuringRule<TNode>('N713', (lens, out) => {
+    for (const container of lens.painted('*').items) {
       // The computed discriminator. Both properties `auto` means no multicolumn
       // formatting context was ever requested, which is almost every element on
       // the page and therefore the branch that has to be cheapest.
@@ -123,27 +139,22 @@ export function multicolumnRule<TNode>(): Rule<TNode> {
         continue;
       }
 
-      // The admission, before any measurement: a subtree holding content the
-      // checker cannot measure cannot support a containment claim about itself.
-      // `declared()`, because `painted()` has already dropped exactly these
-      // nodes and that dropping is the false PASS.
-      const unmeasurable = container.declared('*').filter((item) => !item.measurable());
-      if (unmeasurable.length > 0) {
-        out.undecidable(
-          container.subject,
-          `cannot decide whether this multicolumn box lost content: ${unmeasurable.length} node(s) in its subtree are skipped by content-visibility, so their rectangles are not the rectangles on screen. The reader loses nothing — skipped content stays focusable and findable — but nothing here can be proven`,
-        );
-        continue;
-      }
+      // A subtree holding content the checker cannot measure cannot support a
+      // containment claim about itself. `painted()` raised the N680 when it was
+      // asked; this is the rule declining to put a verdict on top of a subtree
+      // with a hole in it. Asked before the geometry below is read, because
+      // that is where the old hand-written admission sat and the order is what
+      // keeps the verdicts identical.
+      const inside = container.painted('*');
+      if (!inside.whole) continue;
 
       const outer = container.bounds();
       // Outermost-first: once a node is reported, its whole subtree is claimed,
       // so an escaping item and the text inside it are one finding rather than
       // two descriptions of one defect.
       const claimed = new Set<TNode>();
-      for (const item of container.painted('*')) {
+      for (const item of inside.items) {
         if (claimed.has(item.node)) continue;
-        if (escaped.has(item.node)) continue;
         if (OUT_OF_FLOW[item.raw('position')]) continue;
 
         const inner = item.bounds();

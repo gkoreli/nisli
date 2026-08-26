@@ -99,10 +99,24 @@
  * descendants stay in scope because a defect inside an unsatisfiable row is a
  * different defect from the row's own shortfall. N620 names the container and
  * the degradations it spent; this names the element that reflowed and how far.
+ *
+ * THE FOURTH DECLARATION-TRIGGERED RULE, and the one whose omission was named
+ * in advance. Both halves of `SINGLE_LINE` are attributes — `data-fit` from the
+ * mutator, `data-layout` from the author — so the trigger is a source fact
+ * while the claim is a line count, which only exists once text has been laid
+ * out. This rule shipped with the right accessor and the right claim and
+ * NEITHER guard, one file after N715's header wrote down that "a fix applied to
+ * one rule and not to the rule beside it is its own defect class". The
+ * prediction was recorded and the next instance happened anyway, which is why
+ * the guards are now in the constructor rather than in a sentence. Two verdicts
+ * move: a row declared to hold one line whose text reflowed inside content
+ * skipped by `content-visibility: auto` is N680 rather than silence, and a
+ * reflow inside an escaped subtree stops being reported at all, because the
+ * rhythm guarantee is the first one N601 says an escape forfeits.
  */
 
 import type { Rule } from '../../contracts.js';
-import { rule } from '../rule.js';
+import { measuringRule } from '../rule.js';
 
 /**
  * The containers whose claim this is. Both halves are load-bearing: `data-fit`
@@ -115,12 +129,13 @@ const SINGLE_LINE = '[data-fit][data-layout="row"]';
 const PROMOTED = '[data-overflow-menu], [data-overflow-menu] *';
 
 export function reflowedRule<TNode>(): Rule<TNode> {
-  return rule<TNode>('N740', (lens, out) => {
-    for (const row of lens.painted(SINGLE_LINE)) {
+  return measuringRule<TNode>('N740', (lens, out) => {
+    for (const row of lens.painted(SINGLE_LINE).items) {
       // Ancestry is not on the port, so subtree exclusion is a second query and
-      // an identity set — the same shape N660 uses for escaped subtrees.
+      // an identity set — the same shape N660 uses for document furniture. The
+      // escaped subtrees this idiom used to be copied for are the seam's now.
       const promoted = new Set(row.declared(PROMOTED).map((el) => el.node));
-      for (const el of row.painted('*')) {
+      for (const el of row.painted('*').items) {
         if (promoted.has(el.node)) continue;
         if (el.attr('data-truncate') !== null) continue;
         const lines = el.lines();

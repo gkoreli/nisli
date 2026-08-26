@@ -47,10 +47,19 @@
  * muted. Gated this way the rule speaks only where the spend actually mattered:
  * the container came up short, so every strategy that returned nothing is part
  * of the reason.
+ *
+ * BOTH SELECTORS ARE MUTATOR-WRITTEN, so this is the third of the four
+ * declaration-triggered rules that measure, and the most clearly right of them:
+ * the finding is literally a comparison of two numbers, so there is no version
+ * of this claim that survives without geometry. What the measuring constructor
+ * adds is the admission for the case the injection harness seeded — an
+ * exhausted container inside content skipped by `content-visibility: auto`,
+ * where the whole gated pass used to evaporate without a word — and the escape
+ * exemption N601 already promises for the fit family.
  */
 
 import type { Rule } from '../../contracts.js';
-import { rule } from '../rule.js';
+import { measuringRule } from '../rule.js';
 
 /** Containers the solver gave up on. Nothing else can host this defect. */
 const EXHAUSTED = '[data-fit="unsatisfiable"]';
@@ -63,9 +72,9 @@ const EXHAUSTED = '[data-fit="unsatisfiable"]';
 const TRUNCATED = '[data-truncate]';
 
 export function spentForNothingRule<TNode>(): Rule<TNode> {
-  return rule<TNode>('N730', (lens, out) => {
-    for (const container of lens.painted(EXHAUSTED)) {
-      for (const el of container.painted(TRUNCATED)) {
+  return measuringRule<TNode>('N730', (lens, out) => {
+    for (const container of lens.painted(EXHAUSTED).items) {
+      for (const el of container.painted(TRUNCATED).items) {
         const box = el.box();
         // Half a pixel of slack: subpixel layout puts a genuinely clamped box a
         // fraction under its content, and calling that "bought nothing" would

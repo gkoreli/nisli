@@ -56,11 +56,22 @@
  * tab order and remain focusable and selectable, so the READER loses nothing
  * whatsoever. Only the PROOF is destroyed. Reporting a failure there would be
  * the mirror-image lie of the one this rule exists to fix.
+ *
+ * THE ADMISSION IS NO LONGER WRITTEN HERE, and the verdicts are unchanged. This
+ * rule was one of three that asked `measurable()` for itself, which is why the
+ * paragraphs above exist; the seam now asks on behalf of every measuring rule,
+ * so `painted()` reports the N680 and hands back a sample that says whether it
+ * is whole. The subject and the count come out the same, because the seam names
+ * the SCOPE that was denied and this rule's scope was always the container. One
+ * verdict does move, and it is a narrowing: an unmeasurable node inside an
+ * ESCAPED subtree no longer produces an admission, because the escape means no
+ * containment guarantee was in force there and there is nothing to fail to
+ * prove.
  */
 
 import type { Rule } from '../../contracts.js';
-import { rule } from '../rule.js';
-import type { Observation } from '../observe.js';
+import { measuringRule } from '../rule.js';
+import type { Measurement } from '../observe.js';
 
 /** The containers the resolution table sized, and so the ones it promises. */
 const CONTAINERS = '[data-layout], [data-fit]';
@@ -102,30 +113,27 @@ const OUT_OF_FLOW: Readonly<Record<string, true>> = { absolute: true, fixed: tru
 const PROMOTED = '[popover], [popover] *';
 
 export function directionalOverflowRule<TNode>(): Rule<TNode> {
-  return rule<TNode>('N715', (lens, out) => {
-    const escaped = new Set(lens.declared('[data-escaped], [data-escaped] *').map((el) => el.node));
+  return measuringRule<TNode>('N715', (lens, out) => {
     const promoted = new Set(lens.declared(PROMOTED).map((el) => el.node));
-    const containers = lens.painted(CONTAINERS);
+    const containers = lens.painted(CONTAINERS).items;
     const claimed = new Set<TNode>();
 
     // Reverse document order, so a nested container claims its descendants
     // before its ancestors get to see them.
     for (let index = containers.length - 1; index >= 0; index--) {
-      const container = containers[index] as Observation<TNode>;
-      if (escaped.has(container.node)) continue;
+      const container = containers[index] as Measurement<TNode>;
 
-      // The admission, before any measurement: a subtree holding content the
-      // checker cannot measure cannot support a containment claim about itself.
-      // `declared()`, because `painted()` has already dropped exactly these
-      // nodes and that dropping is the false PASS.
-      const unmeasurable = container.declared('*').filter((item) => !item.measurable());
-      if (unmeasurable.length > 0) {
-        out.undecidable(
-          container.subject,
-          `cannot decide whether content paints before this box: ${unmeasurable.length} node(s) in its subtree are skipped by content-visibility, so their geometry is not the geometry on screen. The reader loses nothing — skipped content stays focusable and findable — but nothing here can be proven`,
-        );
-        continue;
-      }
+      // The subtree, asked for BEFORE the containment question and used after
+      // it, which is deliberate rather than clumsy: asking is what raises the
+      // admission for content this container holds and nobody can measure, and
+      // that admission is owed whatever kind of box this turns out to be. A
+      // scroller with a skipped subtree still cannot be cleared.
+      const inside = container.painted('*');
+      // A subtree holding content the checker cannot measure cannot support a
+      // containment claim about itself. `painted()` has already said so as
+      // N680; this is the rule declining to add a verdict on top of it,
+      // because every number below would be drawn from a subtree with a hole.
+      if (!inside.whole) continue;
 
       const containment = container.containment();
       // A scroller moves its own content and the port carries no scroll offset;
@@ -134,10 +142,9 @@ export function directionalOverflowRule<TNode>(): Rule<TNode> {
       if (containment !== 'visible') continue;
 
       const outer = container.bounds();
-      for (const item of container.painted('*')) {
+      for (const item of inside.items) {
         if (claimed.has(item.node)) continue;
         claimed.add(item.node);
-        if (escaped.has(item.node)) continue;
         if (promoted.has(item.node)) continue;
         if (OUT_OF_FLOW[item.raw('position')]) continue;
 

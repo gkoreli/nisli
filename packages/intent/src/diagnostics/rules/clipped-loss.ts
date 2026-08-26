@@ -59,8 +59,8 @@
  *    region, which is worse than silence: it fires on the fix. The port exposes
  *    no ancestry, deliberately, so the reachable set is built the other way
  *    round — every scroller inside the clipper is asked for its own painted
- *    descendants, and those are excluded by identity. Same shape as the escaped
- *    subtree exclusion in N660, and it needs no new port method.
+ *    descendants, and those are excluded by identity. Same shape as N660's
+ *    document-furniture exclusion, and it needs no new port method.
  *
  * 4. MEANINGFUL MEANS TEXT OR FOCUS. A clipped decorative gradient is what
  *    clipping is FOR. Measured control: a 900-pixel gradient in a 358-pixel box, zero
@@ -75,6 +75,16 @@
  *    A clipper whose subtree contains anything unmeasurable reports N680 and
  *    stops; it does not go on to claim the rest is fine.
  *
+ *    WHO SAYS SO HAS CHANGED AND WHAT IS SAID HAS NOT. The admission is the
+ *    seam's now, because eight other measuring rules needed the same one and
+ *    did not have it. The STOPPING is still this rule's, and it is the reason
+ *    `Sample.whole` exists at all: the finding below is an AGGREGATE — a count
+ *    of destroyed nodes, a count of those destroyed entirely, a worst overhang
+ *    — and a count taken over evidence with a hole in it reads to the author as
+ *    complete. A rule that judges each node on its own may speak about the
+ *    nodes it got; this one may not, and it says so in one line instead of
+ *    deriving the hole itself.
+ *
  * ══════════════════════════════════════════════════════════════════════════
  * THE TWO EXEMPTIONS, AND WHY THEY ARE NOT SUPPRESSIONS.
  * ══════════════════════════════════════════════════════════════════════════
@@ -88,7 +98,9 @@
  *     ellipsis on screen as the receipt. Reporting it again would be the
  *     checker refusing to accept a loss the reader was told about. Measured
  *     control: a truncated 507-pixel string in a 358-pixel box, zero findings.
- * An escaped subtree is excluded because it forfeited the guarantee (N601).
+ * An escaped subtree is excluded because it forfeited the guarantee (N601), and
+ * that exclusion is no longer spelled here: `painted()` never offers one. The
+ * exemption did not change, only the number of places it can be forgotten.
  *
  * ══════════════════════════════════════════════════════════════════════════
  * THE GEOMETRY IS `bounds()`, AND THE UNDER-REPORT IS DELIBERATE.
@@ -106,7 +118,7 @@
  */
 
 import type { Rule } from '../../contracts.js';
-import { rule } from '../rule.js';
+import { measuringRule } from '../rule.js';
 
 /**
  * Selectors whose subtrees this rule does not judge, and the one it uses to
@@ -119,7 +131,6 @@ import { rule } from '../rule.js';
  */
 const TRIMMED = '[data-clip="trim"]';
 const DECLARED_LOSS = '[data-truncate], [data-truncate] *';
-const ESCAPED = '[data-escaped], [data-escaped] *';
 
 /**
  * A promoted overlay is a DOM descendant of the clipper but is NOT clipped by
@@ -150,44 +161,40 @@ const PROMOTED = '[popover]';
 const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]';
 
 export function clippedLossRule<TNode>(): Rule<TNode> {
-  return rule<TNode>('N710', (lens, out) => {
-    for (const clipper of lens.painted('*')) {
+  return measuringRule<TNode>('N710', (lens, out) => {
+    for (const clipper of lens.painted('*').items) {
       if (clipper.containment() !== 'clip') continue;
       if (clipper.attr('data-clip') === 'trim') continue;
 
-      /* Undecidability first, and it must be asked through `declared()`:
-         `painted()` drops a skipped subtree, which is the silence this rule
-         exists to break. One admission per clipper, then move on — enumerating
-         every skipped descendant would bury the finding it belongs to. */
-      const unmeasurable = clipper.declared('*').filter((node) => !node.measurable());
-      if (unmeasurable.length > 0) {
-        out.undecidable(
-          clipper.subject,
-          `this box clips and ${unmeasurable.length} descendant(s) are skipped by content-visibility, so their geometry does not mean what it says — a clip over unmeasurable content cannot be cleared`,
-        );
-        continue;
-      }
+      /* The subtree, once. Asking is what raises the admission for content this
+         clipper holds and nobody can measure, and `whole` is how that arrives
+         back here: the count below is an aggregate, so a hole in the evidence
+         has to stop the claim rather than shrink it. One admission per clipper,
+         then move on — enumerating every skipped descendant would bury the
+         finding it belongs to, and the seam aggregates per scope for exactly
+         that reason. */
+      const inside = clipper.painted('*');
+      if (!inside.whole) continue;
 
       /* The reachable set: everything inside a scroller that is itself inside
          this clipper. Built by identity because the port exposes no ancestry —
          and asking each scroller for its own descendants is the same shape as
-         N660's escaped-subtree exclusion. */
+         N660's furniture exclusion. */
       const reachable = new Set<TNode>();
-      for (const candidate of clipper.painted('*')) {
+      for (const candidate of inside.items) {
         if (candidate.containment() !== 'scroll') continue;
-        for (const inside of candidate.painted('*')) reachable.add(inside.node);
+        for (const nested of candidate.painted('*').items) reachable.add(nested.node);
       }
 
       const exempt = new Set(
         [
           ...clipper.declared(DECLARED_LOSS),
-          ...clipper.declared(ESCAPED),
           ...clipper.declared(`${TRIMMED}, ${TRIMMED} *`),
           ...clipper.declared(`${PROMOTED}, ${PROMOTED} *`),
         ].map((node) => node.node),
       );
 
-      const focusable = new Set(clipper.painted(FOCUSABLE).map((node) => node.node));
+      const focusable = new Set(clipper.painted(FOCUSABLE).items.map((node) => node.node));
 
       const edges = clipper.bounds();
       const clipEnd = edges.inlineStart + edges.inline;
@@ -196,7 +203,7 @@ export function clippedLossRule<TNode>(): Rule<TNode> {
       let lost = 0;
       let wholly = 0;
       let worst = 0;
-      for (const node of clipper.painted('*')) {
+      for (const node of inside.items) {
         if (reachable.has(node.node)) continue;
         if (exempt.has(node.node)) continue;
         if (node.text().trim() === '' && !focusable.has(node.node)) continue;
