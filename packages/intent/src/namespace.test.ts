@@ -60,13 +60,27 @@
  * WHAT THIS FILE DOES NOT COVER, named so it is not mistaken for a proof that
  * the package collides with nothing. A custom property is one of two shared
  * namespaces a theme writes into; the other is ATTRIBUTES, and a collision was
- * measured there too. `theme/structure.css` paints
- * `[data-align='start'|'center'|'end']`, `@nisli/ui` writes those same values
- * as an animation hook, and intent's rule therefore reaches `@nisli/ui`
- * elements — one node today across 22 call sites carrying the attribute.
- * Prefixing properties does not touch that, and no prefix could: an attribute
+ * measured there too — then fixed somewhere this file cannot see, which is why
+ * the paragraph stays rather than being deleted with it.
+ *
+ * `theme/structure.css` painted `[data-align='start'|'center'|'end'|'between']`
+ * bare, and `@nisli/ui` writes those same values as a pure animation and
+ * variant hook at 22 call sites. Intent's rule therefore reached elements that
+ * never opted into intent, and won the cascade on them, because layers beat
+ * specificity and intent's layers are declared after the application's:
+ * swept over 92 built pages with scripting disabled, 11 changed properties on 8
+ * elements across 3 pages and ZERO changed bounding boxes, blame-tested to zero
+ * by stripping those four declarations alone. Zero boxes is this defect class's
+ * signature in both namespaces: nothing screenshot-shaped finds it.
+ *
+ * Prefixing properties did not touch it and no prefix could: an attribute
  * selector is a claim about somebody else's markup rather than about a name
- * this package owns. It needs its own decision, not a wider regex here.
+ * this package owns. The fix was to state the rule's real scope —
+ * `[data-layout][data-align='…']` — which removes no capability, since both
+ * properties it resolves into are inert outside a flex or grid box. The
+ * standing consequence for anything added here: this guard quantifies over
+ * PROPERTY names and would have stayed green through the whole collision, so a
+ * new bare `[data-*]` selector in `theme/` is still unchecked by it.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';

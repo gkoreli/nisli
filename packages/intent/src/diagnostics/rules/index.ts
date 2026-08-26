@@ -17,6 +17,7 @@ export { fitStateRule } from './fit-state.js';
 export { hitTargetRule } from './hit-target.js';
 export { multicolumnRule } from './multicolumn.js';
 export { overlapRule } from './overlap.js';
+export { reflowedRule } from './reflowed.js';
 export { shreddedRule } from './shredded.js';
 export { spentForNothingRule } from './spent-for-nothing.js';
 export { truncationRule } from './truncation.js';

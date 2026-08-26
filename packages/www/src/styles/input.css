@@ -45,11 +45,12 @@
    everywhere and this entire class is gone. A library must namespace what it
    declares, and this is what it costs when it does not.
 
-   ── ROUND 2: [data-align]. NOT FIXED, and the reason this file has no import. ──
-   39 changed properties and 17 changed bounding boxes remain, on exactly three
-   pages: /ui/bubble, /ui/message, /ui/message-scroller. Namespacing custom
+   ── ROUND 2: [data-align]. The reason this file has no import. ──
+   11 changed properties and ZERO changed bounding boxes remain, on 8 elements
+   across exactly three pages: /ui/bubble, /ui/message, /ui/message-scroller.
+   Every one is `align-items: normal -> flex-start|flex-end`. Namespacing custom
    properties does not touch it, because this is an ATTRIBUTE namespace
-   collision. structure.css:124-135 paints
+   collision, not a token one. structure.css:124-135 paints
    `[data-align='start'|'center'|'end'] { align-items }` in the `structure`
    layer; cascade layers beat specificity and layer order is fixed by FIRST
    declaration, so intent's layers land after Tailwind's `utilities` (verified
@@ -59,11 +60,34 @@
    message, input-group, lib/floating) — and intent reads them as a layout
    instruction that outranks the utility that was meant to win.
 
-   IT IS NOT COSMETIC. On /ui/message-scroller the message rows stop stretching:
-   each row collapses 160px -> 36px (one to 56px) and the scroller itself
-   1152px -> 428px. A 724px collapse on a shipped component page, from an
-   attribute nobody involved intended as layout. That is the whole answer to
-   "is the theme safe to ship site-wide": no.
+   ATTRIBUTED BY BLAME TEST, not by elimination, because the first attempt got
+   this wrong and the difference matters. Strip ONLY intent's four
+   `[data-align=...]` declarations from the merged bundle — keeping the site's
+   own two, `[data-align=end]{flex-direction:row-reverse}` and
+   `{align-self:flex-end}`, which are nisli-ui's and are in the baseline — and
+   the diff goes to 0 properties / 0 boxes. So these four rules are the sole and
+   complete cause, and a compound `[data-layout][data-align=...]` selector
+   upstream closes it entirely. The competing hypothesis was `[data-layout] *
+   { flex: none }`, which would explain a row collapse far better than
+   align-items can; ruled out by the artifact, because `data-layout` appears
+   ZERO times in all three pages' HTML.
+
+   RETRACTED: an earlier pass through this comment claimed 39 properties, 17
+   boxes, and message rows collapsing 160px -> 36px with the scroller going
+   1152px -> 428px. That is NOT REPRODUCIBLE and it is not caused by
+   `[data-align]`. It came from a sweep against a stale dist/ snapshot paired
+   with freshly built CSS, so the DOM under measurement was not the DOM the
+   stylesheet was built for; element indices differed by ~19 between the two
+   halves. Re-run against a matching dist/ it is 11/0, and the blame test above
+   independently rules the attribute out as a cause of any box change. Kept
+   visible rather than quietly edited, because a wrong number that flatters the
+   finding is worse than no number, and this one was already on its way into a
+   package README and a public page.
+
+   So: is the theme safe to ship site-wide? Still no — 11 real changed
+   properties on shipped component pages is a regression, and `align-items` on
+   a message row is a visible one. But it is a paint-level collision, not the
+   layout catastrophe the retracted figure described.
 
    Verified inert, both directions: `states.css` really does emit UNLAYERED
    (8 rules at document depth 0), so an engine decision outranks every Tailwind

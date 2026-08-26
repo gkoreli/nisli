@@ -156,10 +156,10 @@ where no value was typed by a human.
 ## Limits
 
 A README that hides its counter-evidence is marketing. These are the things this
-package does **not** yet prove — and, last, one defect that is already fixed. It
-stays in this section rather than in the changelog alone because the evidence it
-carries is about how the package was *verified*, not about a version: every gate
-was green while it shipped.
+package does **not** yet prove — and, last, two defects that are already fixed.
+They stay in this section rather than in the changelog alone because the evidence
+they carry is about how the package was *verified*, not about a version: every
+gate was green while both shipped.
 
 - **No SSG pre-solve.** The static tier *should* resolve at build time; it is
   untested. Measured consequence: the flash of unfit is zero composited frames
@@ -199,6 +199,58 @@ was green while it shipped.
   clean at the same time, because every one of them measured the package alone.
   A library cannot see its consumers, so anything it declares into a shared
   namespace is a collision it has merely not met yet.
+- **Fixed, and it is the same defect in the other shared namespace: the package
+  used to match a bare `[data-align]` attribute.** A theme writes into two
+  namespaces its consumer also owns, and a prefix closes only one of them. An
+  attribute selector is a claim about somebody else's *markup* rather than about
+  a name this package owns, so no prefix could have reached this one.
+  `structure.css` painted `[data-align='start'|'center'|'end'|'between']` in the
+  `structure` layer; `@nisli/ui` writes those same values as a pure animation
+  and variant hook at twenty-two call sites, across its bubble, message,
+  input-group and floating-layer parts, and never writes `data-layout`. Intent's
+  rule reached those elements and **won** — cascade layers beat specificity and
+  layer order is fixed by first declaration, so with the application's layers
+  declared first and intent's after them the rule outranked the utility that
+  would otherwise have decided the property, with no specificity warning
+  anywhere. Swept over ninety-two built pages with scripting disabled: **eleven
+  changed properties across eight elements on three pages, and zero changed
+  bounding boxes** — every one of them `align-items` moving from `normal` to
+  `flex-start` or `flex-end`. Zero boxes is the same signature the property
+  collision above had, and it carries the same warning: nothing
+  screenshot-shaped would ever have found this. Attributed by removal rather
+  than by elimination — stripping only these four declarations from the merged
+  bundle and re-measuring gives zero and zero, so they are the sole and complete
+  cause. The strip has to name them exactly, because the bundle carries six
+  `[data-align]` rules and two are the *consumer's* own: the attribute is
+  contested by two libraries painting different properties off the same word,
+  which is the strongest form of the argument for compounding.
+- **The fix for it is a correction rather than a guard, and that distinction is
+  the finding.** `data-align` says how a container lines its children up. It
+  resolves only into `align-items` and `justify-content`, and both are inert
+  outside a flex or grid box — so an alignment declared with no layout container
+  beside it has never done anything in any document, and requiring the
+  container, `[data-layout][data-align='…']`, removes no capability that ever
+  existed. The bad state stops being expressible instead of being watched for,
+  which is the same trade this project made when it deleted the batching API and
+  made move-disconnect impossible. Measured in both directions on a live
+  document, because a rule that silently stops applying is this package's
+  most-recorded defect class: all four collisions gone, all five of intent's own
+  alignment combinations unmoved, and the only rule still reaching a consumer's
+  element is the one that declares custom properties — every one of them
+  prefixed. **The reusable rule: a library shipping global CSS that matches a
+  bare `[data-*]` attribute will collide with a consumer eventually and cannot
+  see the consumer it will collide with; the defence is a selector that
+  expresses the declaration's actual scope.** The table had already set that
+  precedent without noticing — `data-role` is the only other attribute name a
+  consumer was measured to share, every rule keyed on it is compound with
+  `[data-appearance='action']`, and it collided with nothing.
+- **Still open, and it is a type rather than a selector.** The component
+  vocabulary accepts `layout` and `align` as independently optional props, so
+  the *type* admits a combination the table gives no meaning to. Nothing
+  exercises it — every call site in the prototype declares a container beside
+  its alignment — but an `align` that only type-checks on a container would make
+  the compound selector's premise checkable at the authoring seam instead of
+  resting on the table alone.
 
 ## The resolution table
 

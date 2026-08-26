@@ -86,6 +86,69 @@ function containmentOf(node: HTMLElement): Containment {
   return 'visible';
 }
 
+/**
+ * How many line boxes this element's OWN text occupies, counted from the
+ * rectangles the browser produced rather than derived from a line height.
+ *
+ * `Range.getClientRects()` returns one rectangle per line box a run was broken
+ * across, so the count is the measurement and there is no arithmetic to get
+ * wrong. The alternatives were all measured wrong before this: a box height
+ * divided by a line height counts padding as extra lines and reports two lines
+ * for a clean icon button (N690's reverted widening), and `line-height: normal`
+ * is not a length, so half the surface would be undecidable rather than
+ * counted.
+ *
+ * DIRECT TEXT CHILDREN ONLY. Selecting the whole subtree would fold a nested
+ * element's rectangles into this element's answer and count one line twice, so
+ * text sitting inside an inline child is not counted here — it is counted when
+ * the walk reaches that child. The residue is honest and one-directional: a
+ * node whose text is entirely inside a nested element reports zero and stays
+ * silent, which under-reports and never invents.
+ *
+ * The early return is what keeps this affordable on a subtree walk: an element
+ * with no text of its own costs a `childNodes` scan and no layout at all.
+ */
+function lineCount(node: HTMLElement): number {
+  const runs: Text[] = [];
+  for (const child of node.childNodes) {
+    if (child.nodeType !== 3) continue;
+    if ((child.nodeValue ?? '').trim() === '') continue;
+    runs.push(child as Text);
+  }
+  if (runs.length === 0) return 0;
+
+  // One entry per distinct block-start edge: two runs sharing a line box share
+  // an edge, and a run broken across lines contributes one edge per line.
+  const edges = new Set<number>();
+  const range = node.ownerDocument.createRange();
+  for (const run of runs) {
+    range.selectNodeContents(run);
+    for (const rect of range.getClientRects()) {
+      if (rect.width === 0 && rect.height === 0) continue;
+      edges.add(Math.round(rect.top));
+    }
+  }
+  return edges.size;
+}
+
+/**
+ * Did something between `node` and `container` absorb this node's block growth,
+ * so that the container never paid for it?
+ *
+ * Inclusive of `node` and exclusive of `container`: a text run that scrolls its
+ * own overflow answers for itself, and the container's own containment is not
+ * an excuse for its contents — a row that clips is a row whose content is being
+ * deleted, which is N710's claim and not a licence.
+ */
+function absorbed(node: HTMLElement, container: HTMLElement): boolean {
+  for (let up: HTMLElement | null = node; up !== null && up !== container; up = up.parentElement) {
+    if (up.hasAttribute('data-truncate')) return true;
+    if (up.hasAttribute('data-overflow-menu')) return true;
+    if (containmentOf(up) !== 'visible') return true;
+  }
+  return false;
+}
+
 export const domMetrics: Metrics<HTMLElement> = {
   box(node: HTMLElement): Box {
     return {
@@ -157,6 +220,58 @@ export const domMetrics: Metrics<HTMLElement> = {
       if (descendant.scrollWidth <= descendant.clientWidth + TOLERANCE) continue;
       if (descendant.getAttribute('data-appearance') === 'field') continue;
       if (containmentOf(descendant) !== 'visible') continue;
+      return true;
+    }
+    return false;
+  },
+
+  /**
+   * The block-axis half of F8, and the one predicate here that starts by
+   * reading a DECLARATION instead of a rectangle.
+   *
+   * `data-layout="row"` resolves to `flex-flow: row nowrap` — one line — and
+   * `wrap` is the separate value an author writes to ask for a second one. So a
+   * row's block extent is a consequence of how tall its children intrinsically
+   * are, never a place to put content that would not fit inline. Every other
+   * layout value declares the opposite (a stack flows in the block axis, a grid
+   * places rows in it), which is why the gate is the declaration and not a
+   * height: the same ten line boxes are a defect in one container and the whole
+   * point of the next one, and only the author can say which.
+   *
+   * WHAT IT COSTS THE ROW, measured: the grow region collapsed to the width of
+   * the single word "appearance" — which is what min-content means for text
+   * that may wrap — the title reflowed to ten line boxes, and the row stood
+   * over ten times the height it was declared for while reporting
+   * `scrollWidth 346 === clientWidth 346`. Nothing overflowed, so nothing here
+   * saw it; the row simply GREW. That is also why a `scrollHeight` test would
+   * have been just as blind, and blind for a second reason on top of the
+   * directional one N715 records: there is no block overflow to find when the
+   * container absorbs the growth into its own height.
+   *
+   * THE EXEMPTIONS ARE AN UPWARD WALK rather than a test on the descendant,
+   * because every one of them is about what sits BETWEEN the reflowed text and
+   * the row:
+   *   - a node the solver actually truncated. The table resolves truncation to
+   *     `nowrap` plus an ellipsis, so a truncated node cannot wrap at all;
+   *   - the open overflow panel AND ITS CONTENTS. It is out of flow, so its
+   *     block extent is not the row's, and its items are MEANT to reflow —
+   *     measured wrapping to two lines in a 320-unit container with the panel
+   *     open. Exempting the panel element alone and then walking into its
+   *     children is exactly the defect N715 shipped, so the walk covers the
+   *     subtree;
+   *   - any box on the way up that does not let content escape. A scroller
+   *     keeps the growth reachable inside itself and a clipper cuts it off,
+   *     which N710 owns. In neither case did the ROW pay for it, and in neither
+   *     case could the solver relieve it by degrading a sibling.
+   * The walk runs only for a descendant that already failed the line-box test,
+   * so a settled row costs zero style resolutions — the same laziness
+   * `crushed()` applies to `containmentOf` and for the same reason.
+   */
+  wrapped(node: HTMLElement): boolean {
+    if (node.getAttribute('data-layout') !== 'row') return false;
+    for (const descendant of node.querySelectorAll<HTMLElement>('*')) {
+      if (lineCount(descendant) < 2) continue;
+      if (absorbed(descendant, node)) continue;
       return true;
     }
     return false;

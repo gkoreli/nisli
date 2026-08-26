@@ -45,6 +45,15 @@ importers:
         specifier: ^22.0.0
         version: 22.19.17
 
+  packages/intent:
+    devDependencies:
+      '@nisli/core':
+        specifier: workspace:*
+        version: link:../core
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.17
+
   packages/router:
     devDependencies:
       '@nisli/core':
@@ -84,6 +93,9 @@ importers:
       '@nisli/core':
         specifier: workspace:*
         version: link:../core
+      '@nisli/intent':
+        specifier: workspace:*
+        version: link:../intent
       '@nisli/router':
         specifier: workspace:*
         version: link:../router

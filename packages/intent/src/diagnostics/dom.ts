@@ -77,6 +77,45 @@ function describeNode(node: HTMLElement): string {
 }
 
 /**
+ * How many line boxes this element's OWN text occupies.
+ *
+ * Counted from the rectangles the browser produced, never derived from a
+ * height: `Range.getClientRects()` returns one rectangle per line box a run was
+ * broken across, so there is no divisor to get wrong. Every divisor available
+ * here IS wrong somewhere — `line-height: normal` is not a length, a padding
+ * box is not a text box, and a control's box is a hit target whose slack is the
+ * target floor doing its job, which is the trio that made N690's widening fire
+ * on a clean icon button.
+ *
+ * Direct text children only, so a nested element's rectangles are not folded
+ * into this element's answer and counted twice; that child answers for itself.
+ * The early return keeps this affordable on a subtree walk: an element with no
+ * text of its own costs a `childNodes` scan and forces no layout.
+ */
+function lineCount(node: HTMLElement): number {
+  const runs: Text[] = [];
+  for (const child of node.childNodes) {
+    if (child.nodeType !== 3) continue;
+    if ((child.nodeValue ?? '').trim() === '') continue;
+    runs.push(child as Text);
+  }
+  if (runs.length === 0) return 0;
+
+  // One entry per distinct block-start edge: two runs sharing a line box share
+  // an edge, and a run broken across lines contributes one edge per line.
+  const edges = new Set<number>();
+  const range = node.ownerDocument.createRange();
+  for (const run of runs) {
+    range.selectNodeContents(run);
+    for (const rect of range.getClientRects()) {
+      if (rect.width === 0 && rect.height === 0) continue;
+      edges.add(Math.round(rect.top));
+    }
+  }
+  return edges.size;
+}
+
+/**
  * Resolve any CSS colour string to sRGB by PAINTING it, one pixel at a time.
  *
  * This replaces a regex that accepted `rgb…` and `color(srgb …)` and returned
@@ -263,6 +302,10 @@ export function domInspector(root: ParentNode): Inspector<HTMLElement> {
       // invent one; the caller owns its own tolerance.
       const rect = node.getBoundingClientRect();
       return { inline: rect.width, block: rect.height, inlineStart: rect.x, blockStart: rect.y };
+    },
+
+    lines(node: HTMLElement): number {
+      return lineCount(node);
     },
 
     containment(node: HTMLElement): Containment {

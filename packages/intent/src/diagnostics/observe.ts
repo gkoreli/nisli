@@ -53,6 +53,12 @@ export interface Observation<TNode> {
   /** Border box with origin — visual-extent and pressability claims. */
   bounds(): Bounds;
   /**
+   * How many line boxes this node's own text occupies. A measurement, so it is
+   * reachable only through `painted()` like every other one. See
+   * `Inspector.lines` for what it deliberately cannot answer.
+   */
+  lines(): number;
+  /**
    * Does this node's geometry mean what it says? FALSE for content skipped by
    * `content-visibility: auto`.
    *
@@ -111,6 +117,7 @@ function observation<TNode>(inspector: Inspector<TNode>, node: TNode): Observati
     subject: inspector.describe(node),
     box: () => inspector.box(node),
     bounds: () => inspector.bounds(node),
+    lines: () => inspector.lines(node),
     measurable: () => inspector.measurable(node),
     containment: () => inspector.containment(node),
     attr: (name) => inspector.attr(node, name),

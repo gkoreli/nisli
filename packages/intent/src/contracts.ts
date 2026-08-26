@@ -305,6 +305,30 @@ export interface Metrics<TNode> {
   overflows(node: TNode): boolean;
   /** Any descendant painting outside its own box, ignoring declared truncation. */
   crushed(node: TNode): boolean;
+  /**
+   * Did content inside this container escape into the BLOCK axis?
+   *
+   * The third member of F8's family and the reason it needed one. `overflows()`
+   * and `crushed()` are both inline-axis tests, and a text run that cannot fit
+   * horizontally does not overflow — it WRAPS. The inline measurement is then
+   * perfectly satisfied by construction, because the content reflowed to match
+   * the box it was given, and the deficit is paid where nothing was looking.
+   *
+   * Measured: a `data-grow` region inside a row collapsed to the width of its
+   * longest word, the title inside it rendered ten words down a column, the row
+   * stood ten times the height it was declared for, and the container reported
+   * `scrollWidth 346 === clientWidth 346` and settled with nothing collapsed.
+   *
+   * WHICH CONTAINERS THIS IS EVEN A QUESTION ABOUT is a DECLARATION, never a
+   * magnitude, and that is what keeps the predicate discrete. `row` resolves to
+   * `flex-flow: row nowrap`: one line, with `wrap` sitting beside it in the
+   * vocabulary as the value that asks for a second one. A `stack` flows in the
+   * block axis by definition and a `grid` places rows there, so for those the
+   * same geometry is the declaration working. No pixel and no ratio decides
+   * this; the author already did, and a threshold here would be the hand-picked
+   * number this package exists to delete.
+   */
+  wrapped(node: TNode): boolean;
   /** Is the node actually rendered? A precondition for every measurement (F4). */
   rendered(node: TNode): boolean;
   /**
@@ -448,6 +472,49 @@ export interface Inspector<TNode> {
   box(node: TNode): Box;
   /** Border box with origin — visual-extent and pressability claims. See `Bounds`. */
   bounds(node: TNode): Bounds;
+  /**
+   * How many LINE BOXES this node's own text occupies. Zero when the node
+   * carries no text of its own.
+   *
+   * A THIRD GEOMETRY, and it earns that the same way `Bounds` did. `Box` and
+   * `Bounds` are both ELEMENT geometries, and a question about a text run
+   * inside a taller element is not answerable from either: an element's block
+   * size is its text plus its padding plus whatever floor its role imposes, and
+   * no field on either type separates those. Putting a line count on `Box`
+   * would have been the tempting move and it would have repeated the category
+   * error that cost the first run five defects — `Box` answers CONTAINMENT,
+   * "did content fit inside its own box", and "how many times did this text
+   * have to start again" is not that question.
+   *
+   * WHAT IT CANNOT ANSWER, and these are limits rather than todos:
+   *   - WHY the text took that many lines. A deliberate two-line heading and a
+   *     region squeezed to one word wide both report two. The caller supplies
+   *     the intent from a DECLARATION; this member supplies only the count.
+   *   - Anything about text inside a nested element. The count is the node's
+   *     OWN runs, because folding a child's rectangles in would count one line
+   *     twice; the child answers for itself when the caller reaches it.
+   *   - Anything at all about a node that is not painted. It is a measurement,
+   *     so it lives behind the same `painted()` precondition as every other
+   *     one (F4).
+   *
+   * IT IS A COUNT AND NOT A HEIGHT, on purpose, and that is what keeps it from
+   * becoming a SECOND, DISAGREEING WAY TO COUNT LINES. N690 already derives a
+   * line count as `(box.block - padding-block) / line-height`, and every term
+   * of that is load-bearing: the padding subtraction is there because the rule's
+   * first run reported "1 word across 2 lines" for every table header, and the
+   * `line-height` read has to distinguish `normal` from a length because
+   * `normal` makes the derivation undecidable rather than zero. Two counts that
+   * could disagree would be worse than either alone, so this one is defined not
+   * to compete: the adapter reports the line boxes the browser actually
+   * produced, which is the quantity N690's derivation is APPROXIMATING. Where
+   * the two differ, the derivation is the one that is wrong — N690's own header
+   * records the case, a clean icon button whose target floor made one line of
+   * text measure as two — and N690's arithmetic, its padding subtraction and its
+   * undecidable arm all become deletable the day that rule is moved onto this
+   * member. That move is not made here: it is a change to a rule this work does
+   * not own, and it needs its own falsification.
+   */
+  lines(node: TNode): number;
   /** What happens to content that does not fit this box. See `Containment`. */
   containment(node: TNode): Containment;
   style(node: TNode, property: string): string;

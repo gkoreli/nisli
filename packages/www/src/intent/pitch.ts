@@ -135,10 +135,17 @@ export function intentPitchPage(): TemplateResult {
       intent's layers land after Tailwind's ${code('utilities')} and intent wins over any
       ${code('items-*')} utility on the same node. ${code('@nisli/ui')} writes those exact attribute
       values at 22 call sites as a pure animation hook, never as a layout instruction — so an
-      attribute that means nothing on one side is load-bearing on the other. Recorded cost when the
-      table was loaded site-wide: a confirmed hit on ${code('/ui/message')} flipping
-      ${code('align-items')} from ${code('normal')} to ${code('flex-start')}, and a wider reading of
-      39 changed properties and 17 changed bounding boxes across three component pages. The
+      attribute that means nothing on one side is load-bearing on the other. Worse, the merged
+      bundle carries <strong>six</strong> ${code('[data-align]')} rules and two of them are the
+      site's own: the word is contested by two libraries painting different properties off it.
+      Blame-tested cost when the table was loaded site-wide — stripping only intent's four
+      declarations and re-measuring — <strong>11 changed properties on 8 elements across three
+      component pages, and zero changed bounding boxes</strong>, every one of them
+      ${code('align-items')} flipping from ${code('normal')}. A first pass reported this as 39
+      properties and 17 boxes including a collapsed scroller; that was retracted after a blame
+      test, because it paired a stale build with fresh CSS and measured a document the stylesheet
+      was never built for. The retraction is left here on purpose: the mistake was checkable from
+      the declaration alone, since ${code('align-items')} cannot resize a row's block size. The
       resolution is to make the rule compound — ${code("[data-layout][data-align='...']")} — so it
       only reaches nodes that also declared a composition, which nothing in the chrome does. The
       general lesson is the durable part and it is not closed by one selector:

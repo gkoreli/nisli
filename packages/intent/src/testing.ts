@@ -13,13 +13,29 @@
  * can be exercised without a layout engine. happy-dom has no layout: asking it
  * for `scrollWidth` returns 0, so a "DOM" test of the solver would assert
  * nothing at all. These fakes model geometry explicitly instead, which makes
- * the two layout regimes that matter reproducible on demand:
+ * the three layout regimes that matter reproducible on demand:
  *
  *   crush: false — children keep their content width, the container overflows.
  *   crush: true  — children are squeezed below their content width, so the
  *                  container reports no overflow whatsoever while its children
  *                  paint over each other. That is defect F8, and it is simply
  *                  not reachable through a container-only overflow test.
+ *   a child with  — the child SHEDS inline space instead of overflowing, down
+ *   `minimum`      to its own min-content floor, and pays for what it shed in
+ *                  the block axis by reflowing onto more line boxes. The
+ *                  container then reports no overflow AND no crush, because
+ *                  the content made itself exactly as wide as the box it was
+ *                  given, while the row stands many times the height it was
+ *                  declared for. That is the block-axis half of F8, and it is
+ *                  unreachable through EITHER inline predicate.
+ *
+ * The third regime is a property of a CHILD rather than of the world, because
+ * that is where it is a property in the real table: `[data-layout] *` resolves
+ * to `flex: none`, so the only element in a row that may shed inline space at
+ * all is one that declared `data-grow` — and `min-inline-size: 0` is
+ * deliberately NOT granted with it, so the shedding stops at min-content.
+ * min-content for a run of prose is its LONGEST WORD, which is what turns a
+ * "floor" into a licence to reflow a sentence down a one-word column.
  *
  * Nodes are plain string ids; the world holds all the state.
  */
@@ -30,6 +46,7 @@ import type {
   Containment,
   FitState,
   Inspector,
+  LayoutKind,
   Metrics,
   Mutator,
   Rgba,
@@ -50,6 +67,23 @@ export interface ChildSpec {
    * a solver must survive without spinning.
    */
   readonly clamped?: number;
+  /**
+   * Inline size below which this child's CONTENT cannot reflow — its
+   * min-content, which for a run of prose is the width of its longest word.
+   *
+   * Declaring it turns the child into a reflowing one, and that is the third
+   * regime this file exists to make reachable. A reflowing child absorbs the
+   * container's deficit by shedding inline space down to this floor INSTEAD of
+   * overflowing, and pays for every unit it shed in the block axis: its content
+   * is exactly as wide as the box it ended up with, so nothing overflows and
+   * nothing is crushed, and it is correspondingly taller. Omit it and the child
+   * is rigid, which is every fixture written before this existed.
+   *
+   * Squeezed BELOW the floor — only reachable with `crush`, which models the
+   * table granting `min-inline-size: 0` — the content stops reflowing and
+   * starts overflowing again, because there is nowhere left to break.
+   */
+  readonly minimum?: number;
   readonly text?: string;
   /** Collapsed before solving ever starts, e.g. an inactive tab panel (F4). */
   readonly rendered?: boolean;
@@ -76,6 +110,17 @@ export interface WorldSpec {
   /** Inline size the container is given. Never changes. */
   readonly available: number;
   readonly children: readonly ChildSpec[];
+  /**
+   * What the container DECLARED about how its children relate. Defaults to
+   * `row`, which is what every fixture written before this assumed.
+   *
+   * It is here because one predicate is gated on it and must be: block-axis
+   * growth is a defect in a `row`, which resolves to one line of children, and
+   * is the entire purpose of a `stack`. The fake models the declaration rather
+   * than a height so a fixture can prove the distinction is made by the
+   * DECLARATION — the same geometry, twice, with two verdicts.
+   */
+  readonly layout?: LayoutKind;
   /**
    * Inline size the container's overflow trigger occupies once revealed. The
    * `menu` strategy is not free: it removes a child and adds a button, so a
@@ -116,6 +161,8 @@ export class FakeWorld {
   private triggerShown = false;
   private readonly applied = new Map<string, Strategy>();
   private readonly boxes = new Map<string, Box>();
+  private readonly lines = new Map<string, number>();
+  private readonly declaredLayout: LayoutKind;
   private readonly containerMeasurable: boolean;
   private readonly containerContainment: Containment;
 
@@ -127,6 +174,7 @@ export class FakeWorld {
     this.children = spec.children;
     this.containerMeasurable = spec.measurable !== false;
     this.containerContainment = spec.containment ?? 'visible';
+    this.declaredLayout = spec.layout ?? 'row';
     this.layout();
 
     this.metrics = {
@@ -148,6 +196,23 @@ export class FakeWorld {
           if ((child.containment ?? 'visible') !== 'visible') return false;
           const box = this.boxOf(child.id);
           return box.contentInline > box.inline + 1;
+        }),
+      // Gated on the DECLARATION first, exactly as the adapter is: the same
+      // reflowed child is a defect in a `row`, which put its children on one
+      // line, and is unremarkable in a `stack`, which flows down the block axis
+      // on purpose. A fixture proves that by changing one word and nothing else.
+      //
+      // The two exemptions mirror `crushed` above for the same reasons: a
+      // truncated node was clamped to one line by the table and cannot wrap,
+      // and a node whose containment is not `visible` absorbed its own growth,
+      // so the container never paid for it.
+      wrapped: (node) =>
+        node === this.container &&
+        this.declaredLayout === 'row' &&
+        this.children.some((child) => {
+          if (!this.inFlow(child) || this.applied.get(child.id) === 'truncate') return false;
+          if ((child.containment ?? 'visible') !== 'visible') return false;
+          return (this.lines.get(child.id) ?? 1) > 1;
         }),
       rendered: (node) => {
         if (node === this.container) return true;
@@ -217,31 +282,87 @@ export class FakeWorld {
     return Math.min(child.intrinsic, child.clamped ?? child.intrinsic);
   }
 
+  /**
+   * Inline size this child can shed down to without its content overflowing.
+   *
+   * A rigid child cannot shed at all, so its floor IS what it wants. A
+   * reflowing one stops at min-content. Truncation ends the reflow: the table
+   * resolves it to one clamped line with an ellipsis, so a truncated child is
+   * rigid again at its clamped width — which is what makes the strategy pay out
+   * against this defect rather than being spent for nothing.
+   */
+  private floor(child: ChildSpec): number {
+    const wants = this.wants(child);
+    if (child.minimum === undefined) return wants;
+    if (this.applied.get(child.id) === 'truncate') return wants;
+    return Math.min(child.minimum, wants);
+  }
+
   private layout(): void {
     this.boxes.clear();
+    this.lines.clear();
     const inFlow = this.children.filter((c) => this.inFlow(c));
-    let total = this.triggerShown ? this.trigger : 0;
+    const trigger = this.triggerShown ? this.trigger : 0;
+    let total = trigger;
     for (const child of inFlow) total += this.wants(child);
 
-    // The squeeze factor is what the browser applied before the theme forbade
-    // shrinking: everything scales down so the row "fits", regardless of how
-    // much space the content actually needs.
-    const squeeze = this.crush && total > this.available ? this.available / total : 1;
-
-    for (const child of this.children) {
+    // First the shed, because it happens BEFORE anything overflows: a child
+    // that can reflow gives up inline space to relieve the container, in
+    // declaration order and never past its own floor. This is the grow region
+    // absorbing the row's deficit, and the deficit it absorbs is the overflow
+    // the container would otherwise have reported.
+    const given = new Map<string, number>();
+    let deficit = total - this.available;
+    for (const child of inFlow) {
       const wants = this.wants(child);
-      this.boxes.set(
-        child.id,
-        this.inFlow(child)
-          ? { inline: Math.round(wants * squeeze), block: BLOCK, contentInline: wants }
-          : { inline: 0, block: 0, contentInline: 0 },
-      );
+      const shed = deficit > 0 ? Math.min(deficit, wants - this.floor(child)) : 0;
+      deficit -= shed;
+      given.set(child.id, wants - shed);
     }
 
+    let used = trigger;
+    for (const child of inFlow) used += given.get(child.id) ?? 0;
+
+    // Then the squeeze, which is what the browser applied before the theme
+    // forbade shrinking: everything scales down so the row "fits", regardless
+    // of how much space the content actually needs. It stacks on top of the
+    // shed rather than replacing it, because a table that grants
+    // `min-inline-size: 0` takes a reflowing child below its floor too.
+    const squeeze = this.crush && used > this.available ? this.available / used : 1;
+
+    let tallest = BLOCK;
+    for (const child of this.children) {
+      if (!this.inFlow(child)) {
+        this.boxes.set(child.id, { inline: 0, block: 0, contentInline: 0 });
+        this.lines.set(child.id, 0);
+        continue;
+      }
+      const wants = this.wants(child);
+      const inline = Math.round((given.get(child.id) ?? wants) * squeeze);
+      // Content narrower than the box it wanted either reflows or overflows,
+      // and the floor is what decides which. Above the floor the content is
+      // exactly as wide as the box — no overflow, no crush, and one more line
+      // box for every multiple of the box the content would have needed.
+      // Below it there is nothing left to break, so it overflows again and the
+      // inline predicates can see it.
+      const held = Math.max(inline, this.floor(child));
+      const reflowed = held < wants && held > 0;
+      const lines = reflowed ? Math.ceil(wants / held) : 1;
+      this.boxes.set(child.id, {
+        inline,
+        block: BLOCK * lines,
+        contentInline: reflowed ? held : wants,
+      });
+      this.lines.set(child.id, lines);
+      tallest = Math.max(tallest, BLOCK * lines);
+    }
+
+    // A row is as tall as its tallest child, so reflow is what makes the
+    // container itself grow — the measurement the false PASS was hiding.
     this.boxes.set(this.container, {
       inline: this.available,
-      block: BLOCK,
-      contentInline: squeeze === 1 ? total : this.available,
+      block: tallest,
+      contentInline: squeeze === 1 ? used : this.available,
     });
   }
 }
@@ -298,6 +419,18 @@ export interface InspectSpec {
    * N715 are entirely about where rectangles SIT, so their fixtures always do.
    */
   readonly bounds?: Partial<Bounds>;
+  /**
+   * How many line boxes this node's own text occupies. Defaults to 0 — no text
+   * of its own — which is what a bare fixture node is.
+   *
+   * DECLARED, never derived from `box` and a line height, and the difference is
+   * the point: deriving it here would make the fake agree with the arithmetic
+   * N690 uses precisely where that arithmetic is known to be wrong (a padded
+   * box, a hit-target floor, `line-height: normal`), so every fixture would
+   * confirm the approximation instead of the browser. The adapter counts
+   * rectangles; a fixture states the count it wants to model.
+   */
+  readonly lines?: number;
   /** Nearest painted background behind the node, as a colour string. */
   readonly backdrop?: string;
   /**
@@ -598,6 +731,10 @@ export class FakeInspector implements Inspector<string> {
       inlineStart: 0,
       blockStart: 0,
     };
+  }
+
+  lines(node: string): number {
+    return this.node(node).lines ?? 0;
   }
 
   style(node: string, property: string): string {

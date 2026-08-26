@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { solveFit } from './solver.js';
-import { FakeWorld } from '../testing.js';
+import { FakeWorld, type WorldSpec } from '../testing.js';
 import type { Candidate, Priority, Strategy } from '../contracts.js';
 
 function candidate(node: string, priority: Priority, strategy: Strategy): Candidate<string> {
@@ -267,6 +267,141 @@ describe('solveFit — F8: a crushed child inside a container that measures as f
 
     expect(outcome.state).toBe('settled');
     expect(world.outcome()).toEqual({ excerpt: 'truncate', time: 'none' });
+  });
+});
+
+/**
+ * The measured case, reproduced in the fakes because that is the cheapest place
+ * to be certain. Numbers scaled to the fake's ten-unit line: the grow region
+ * lands on 86 — the width of the single word "appearance" — the title reflows
+ * to ten line boxes, and the row stands ten times the height one line would
+ * have taken, which is the ratio the browser measured (371 where 36 was
+ * intended).
+ */
+function measuredRow(overrides: Partial<WorldSpec> = {}): FakeWorld {
+  return new FakeWorld({
+    available: 346,
+    children: [
+      { id: 'mark', intrinsic: 36 },
+      // The grow region: it may shed inline space down to its longest word, and
+      // it pays for every unit it sheds in the block axis.
+      { id: 'title', intrinsic: 860, clamped: 60, minimum: 86 },
+      { id: 'time', intrinsic: 40 },
+      { id: 'actions', intrinsic: 184 },
+    ],
+    ...overrides,
+  });
+}
+
+describe('solveFit — the block axis: content that escaped where nothing was measuring', () => {
+  it('sees a row whose text reflowed, though it neither overflows nor crushes', () => {
+    const world = measuredRow();
+
+    // The precondition, and the whole defect: every inline instrument agrees the
+    // row is fine. The content reflowed to exactly the width it was given, so
+    // there is nothing for either inline predicate to find.
+    expect(world.metrics.overflows(world.container)).toBe(false);
+    expect(world.metrics.crushed(world.container)).toBe(false);
+    expect(world.metrics.box('title').inline).toBe(86);
+    expect(world.metrics.box('title').contentInline).toBe(86);
+
+    // And the row is ten times the height one line would have taken.
+    expect(world.metrics.box(world.container).block).toBe(100);
+    expect(world.metrics.box('mark').block).toBe(10);
+
+    expect(world.metrics.wrapped(world.container)).toBe(true);
+  });
+
+  it('spends the declared truncation and puts the row back on one line', () => {
+    const world = measuredRow();
+
+    const outcome = solveFit(
+      world.container,
+      [candidate('title', 3, 'truncate')],
+      world.metrics,
+      world.mutator,
+    );
+
+    // Before the predicate saw the block axis this returned `settled` having
+    // spent nothing at all, with the row still ten lines tall.
+    expect(outcome.applied).toEqual([{ node: 'title', strategy: 'truncate' }]);
+    expect(outcome.state).toBe('settled');
+    expect(world.metrics.box(world.container).block).toBe(10);
+    expect(world.metrics.wrapped(world.container)).toBe(false);
+  });
+
+  it('leaves the identical geometry alone when the container declared a stack', () => {
+    // The distinction is the DECLARATION and nothing else. Same children, same
+    // sizes, same ten line boxes — and in a container that flows down the block
+    // axis on purpose, that is the layout working. A magnitude test could not
+    // tell these two apart; this one changes one word.
+    const world = measuredRow({ layout: 'stack' });
+
+    expect(world.metrics.box(world.container).block).toBe(100);
+    expect(world.metrics.wrapped(world.container)).toBe(false);
+
+    const outcome = solveFit(
+      world.container,
+      [candidate('title', 3, 'truncate')],
+      world.metrics,
+      world.mutator,
+    );
+
+    expect(outcome.applied).toEqual([]);
+    expect(outcome.state).toBe('settled');
+  });
+
+  it('leaves a reflowing child alone when the child absorbs its own growth', () => {
+    // A scroller keeps its overflow reachable inside itself, so the row never
+    // paid for the growth and degrading a sibling could not relieve it.
+    const world = measuredRow({
+      children: [
+        { id: 'mark', intrinsic: 36 },
+        { id: 'title', intrinsic: 860, clamped: 60, minimum: 86, containment: 'scroll' },
+        { id: 'time', intrinsic: 40 },
+        { id: 'actions', intrinsic: 184 },
+      ],
+    });
+
+    expect(world.metrics.wrapped(world.container)).toBe(false);
+  });
+
+  it('spends each candidate once when the degradation cannot unwrap the text', () => {
+    // Termination, against the widened predicate. Truncation that buys nothing
+    // (`clamped` equal to `intrinsic`) ends the reflow and turns the row into an
+    // honest overflow instead of relieving it. The loop must consume that
+    // candidate exactly once and stop, never reconsider it, and never spin
+    // between the two shapes of the same shortfall.
+    const world = measuredRow({
+      children: [
+        { id: 'mark', intrinsic: 36 },
+        { id: 'title', intrinsic: 860, minimum: 86 },
+        { id: 'time', intrinsic: 40 },
+        { id: 'actions', intrinsic: 184 },
+      ],
+    });
+
+    const outcome = solveFit(
+      world.container,
+      [candidate('title', 3, 'truncate')],
+      world.metrics,
+      world.mutator,
+    );
+
+    expect(outcome.passes).toBe(1);
+    expect(outcome.state).toBe('unsatisfiable');
+    expect(world.metrics.wrapped(world.container)).toBe(false);
+    expect(world.metrics.overflows(world.container)).toBe(true);
+  });
+
+  it('reports unsatisfiable rather than settled when a wrapping row has nothing to spend', () => {
+    const world = measuredRow();
+
+    const outcome = solveFit(world.container, [], world.metrics, world.mutator);
+
+    expect(outcome.passes).toBe(0);
+    expect(outcome.state).toBe('unsatisfiable');
+    expect(world.marks[0]).toEqual({ state: 'unsatisfiable', collapsed: 0 });
   });
 });
 

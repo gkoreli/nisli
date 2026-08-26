@@ -121,16 +121,114 @@ app-action-group {
   align-items: start;
 }
 
-[data-align='start'] {
+/* ── Cross-axis alignment, and why `[data-layout]` is part of the selector ─
+   ══════════════════════════════════════════════════════════════════════════
+   AN ATTRIBUTE IS THE SECOND SHARED NAMESPACE A THEME WRITES INTO, and this
+   block is where the collision in it was measured. Prefixing fixed the first
+   namespace — every custom property this package declares is `--intent-` — and
+   no prefix can fix this one, because an attribute selector is a claim about
+   somebody else's markup rather than about a name this package owns.
+
+   These four rules used to be spelled bare, as `[data-align='start']`, and a
+   bare attribute selector reaches every element in a consumer's document that
+   happens to use the same word. Measured wiring this theme into an application
+   that also uses `@nisli/ui`: that library writes the same values as a pure
+   animation and variant hook, at twenty-two call sites across its bubble,
+   message, input-group and floating-layer parts, and never writes
+   `data-layout`. Intent's rule reached those elements and WON, because cascade
+   layers beat specificity and layer order is fixed by first declaration — the
+   emitted bundle declares the application's layers first and intent's after
+   them, so this rule outranked the utility that would otherwise have decided
+   the property, with no specificity warning anywhere.
+
+   THE COST, BLAME-TESTED RATHER THAN ATTRIBUTED. Swept against 92 built pages
+   with scripting disabled: 11 changed properties across 8 elements on three
+   pages, and ZERO changed bounding boxes — every one of them `align-items`
+   moving from `normal` to `flex-start` or `flex-end`. Zero boxes is the same
+   signature the property-namespace collision had, and it carries the same
+   warning: nothing screenshot-shaped would ever have found this. Attribution
+   is by removal, not by elimination: stripping ONLY these four declarations
+   from the merged bundle and re-measuring gives 0 properties and 0 boxes, so
+   they are the sole and complete cause. The strip has to name them exactly,
+   because the merged bundle carries six `[data-align]` rules and two are the
+   CONSUMER's own — the attribute is genuinely contested by two libraries
+   painting different properties off the same word, which is the strongest
+   form of the argument for compounding.
+
+   An earlier figure of 39 properties and 17 boxes, with a row collapse, was
+   retracted at source: it came from pairing a stale build snapshot with freshly
+   built CSS, so the measured document was not the document the stylesheet was
+   built for. It is recorded here because the shape of the mistake is worth more
+   than the number was — `align-items` cannot resize a row, so a collapse was
+   never a thing this rule could cause, and that is checkable from the
+   declaration alone before anyone re-measures anything.
+
+   THE FIX IS NOT A GUARD, IT IS THE RULE STATED CORRECTLY. `data-align` says
+   how a container lines its children up. It resolves into `align-items` and
+   `justify-content`, and both are inert outside a flex or grid box, so an
+   alignment declared with no layout declared beside it has never done anything
+   in any document. Requiring the container attribute removes no capability
+   that ever existed — it makes the selector say what the rule was already
+   doing, and the collision goes away as a consequence of being more faithful
+   rather than as a dodge. It is also the precedent this table had already set
+   without noticing: `data-role` is the only other attribute name a consumer
+   was measured to share, every rule keyed on it is compound with
+   `[data-appearance='action']`, and it produced no collisions.
+
+   VERIFIED ON A LIVE DOCUMENT, IN BOTH DIRECTIONS, because a rule that
+   silently stops applying is this project's most-recorded defect class and
+   reading a selector is exactly how that class survives review. Real
+   `@nisli/ui` markup shapes and intent's own vocabulary in one document, with
+   the consumer's layer declared first as the shipped bundle declares it,
+   asking `element.matches()` once per rule the theme ships and then reading
+   the computed value:
+
+     ui message row              align-items      flex-start    -> normal
+     ui bubble                   align-items      flex-end      -> normal
+     ui floating content         align-items      center        -> normal
+     ui reactions strip          justify-content  space-between -> normal
+     intent row, align center    align-items      center        -> center
+     intent stack, align start   align-items      flex-start    -> flex-start
+     intent stack, align end     align-items      flex-end      -> flex-end
+     intent row, align between   justify-content  space-between -> space-between
+     intent grid, align end      align-items      flex-end      -> flex-end
+
+   The compound was checked against every call site the vocabulary has before
+   it landed, because a selector that quietly stops matching is worse than the
+   collision it was fixing: all eight in the prototype declare a layout
+   container beside their alignment. `Region` and `Surface` accept `layout` and
+   `align` as independently optional props, so the TYPE still admits a
+   combination this table gives no meaning to. That is the remaining half and
+   it belongs to the vocabulary rather than to this file.
+
+   THE TWO ALTERNATIVES, RECORDED SO NOBODY RE-ARGUES THEM FROM SCRATCH. A
+   root marker — an opt-in attribute on an ancestor — defends the same surface
+   but with a blast radius nobody can hold in their head, and the top layer is
+   where it gets subtle: a promoted popover keeps its DOM ancestry, so a
+   descendant selector still matches inside it, which means the defence holds
+   there for a reason that is one word away from being wrong. Renaming the
+   attribute defends it absolutely and spends the vocabulary's whole ergonomic
+   claim, since an author writes these names by hand. Both are heavier than
+   saying what the rule means.
+
+   THE RULE THIS FORCES, and it is larger than these four declarations: a
+   library that ships global CSS matching a bare `[data-*]` selector will
+   collide with a consumer eventually, and by construction cannot see the
+   consumer it will collide with. The defence is a selector that expresses the
+   declaration's actual scope. The other wide-reaching selector in this file,
+   `[data-layout] *` in the no-crush block, passes that test on the same
+   evidence: measured on a document with no layout container in it, it matched
+   nothing at all. */
+[data-layout][data-align='start'] {
   align-items: flex-start;
 }
-[data-align='center'] {
+[data-layout][data-align='center'] {
   align-items: center;
 }
-[data-align='end'] {
+[data-layout][data-align='end'] {
   align-items: flex-end;
 }
-[data-align='between'] {
+[data-layout][data-align='between'] {
   justify-content: space-between;
 }
 

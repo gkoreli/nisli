@@ -28,6 +28,7 @@ import {
   hitTargetRule,
   multicolumnRule,
   overlapRule,
+  reflowedRule,
   shreddedRule,
   spentForNothingRule,
   truncationRule,
@@ -55,6 +56,7 @@ export function DEFAULT_RULES<TNode>(): readonly Rule<TNode>[] {
     multicolumnRule<TNode>(),
     directionalOverflowRule<TNode>(),
     spentForNothingRule<TNode>(),
+    reflowedRule<TNode>(),
   ];
 }
 

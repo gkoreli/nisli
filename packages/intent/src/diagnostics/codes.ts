@@ -99,8 +99,8 @@ const REGISTRY = {
     title: 'text contrast below floor',
     severity: 'fail',
     summary:
-      'Text fails the WCAG 2.x contrast floor against the nearest painted backdrop (4.5:1 normal, 3:1 large).',
-    hint: 'A context axis that sets a foreground colour must paint its own backdrop on the same node; inheriting one from an ancestor of the other theme is how this happens.',
+      'Text fails the contrast floor this context declared against the nearest painted backdrop.',
+    hint: 'A context axis that sets a foreground colour must paint its own backdrop on the same node; inheriting one from an ancestor of the other theme is how this happens. The floor itself comes from the context (`--intent-min-contrast`, or `--intent-min-contrast-large` for large text), not from this rule — so raising the bar is a theme edit, and a document that declares neither gets N680 rather than a verdict.',
   },
   N650: {
     code: 'N650',
@@ -192,6 +192,21 @@ const REGISTRY = {
     summary:
       'The solver applied a declared degradation to this element and the element did not get smaller, inside a container that still does not fit. Measured case: a single unbreakable token, where truncation resolves to nowrap plus an ellipsis and nowrap makes the minimum content width equal the whole text — so the strategy was spent and bought zero pixels while the container reported unsatisfiable.',
     hint: 'The strategy is wrong for this content, not merely insufficient. A token that cannot break needs `hide` or a scroll region; an ellipsis can only clamp text that was already allowed to be narrower than itself.',
+  },
+  /* ── The axis nothing was measuring ─────────────────────────────────────
+     F8 was a container reporting `settled` while its children were crushed,
+     because a container-only overflow test cannot see a child's crush. This is
+     the same sentence with one word changed: a container reports `settled`
+     while its content grows without bound in the BLOCK axis, because an
+     inline-axis test cannot see block-axis growth. Both were false PASSes, and
+     the second one survived every rule above it. */
+  N740: {
+    code: 'N740',
+    title: 'content reflowed inside a single-line container',
+    severity: 'fail',
+    summary:
+      'Text inside a container declared as a row was broken onto more than one line box. A row puts its children on one line — `wrap` is the value that asks for a second — so the inline space this text needed and did not get was paid for in the block axis, where no overflow and no crush can see it. Measured case: a grow region collapsed to the width of one word, ten words rendered down a column, a row over ten times its declared height, and the container reporting scrollWidth 346 === clientWidth 346 with a settled fit and nothing collapsed.',
+    hint: 'Reflow is not a fit. Either declare a degradation the solver can spend on this content (`data-collapse="truncate"` clamps it to one line, `hide` removes it), or say that a second line is wanted by declaring `data-layout="wrap"` instead of `row`. A grow region absorbs slack on the INLINE axis only; it was never granted the block axis to spend.',
   },
 } as const satisfies Record<string, CodeEntry>;
 

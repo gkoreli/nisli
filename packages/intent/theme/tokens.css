@@ -69,9 +69,31 @@
      floored the same way. */
   --intent-min-track: 176px;
 
-  /* Contrast floor for the derived checker (N640). Declared here so the
-     threshold is part of the theme, not hard-coded in the rule. */
+  /* Contrast floors for the derived checker (N640), and the reason there are
+     TWO of them: WCAG 2.x sets a lower threshold for large text, so one number
+     cannot express the contract. The rule decides WHICH branch an element is in
+     — it reads the computed font size and weight, and the reasoning for those
+     thresholds lives with them — and then reads the floor for that branch from
+     here. It holds no ratio of its own.
+
+     This comment used to claim the threshold was part of the theme "not
+     hard-coded in the rule" while the rule held both numbers as literals and
+     nothing read the token. It was the smallest false claim in the package and
+     therefore the most expensive one: a checkable claim that turns out wrong is
+     the reason to distrust the unchecked ones. It is now true, and the
+     capability it always promised is real — raise these two and every N640
+     verdict moves with them, which is how a consumer adopts the AAA floors:
+     edit a theme, not a rule. They are read PER ELEMENT and they inherit like
+     any other custom property, so a subtree can demand more than the document
+     does without the rule knowing that subtrees exist.
+
+     A consumer who does not load this file declares no floor at all, and the
+     rule refuses a verdict rather than inventing one — the argument is in
+     contrast.ts, next to the code that acts on it. That makes these two
+     declarations load-bearing rather than advisory: deleting one does not
+     relax the check, it stops the check and says so. */
   --intent-min-contrast: 4.5;
+  --intent-min-contrast-large: 3;
 
   /* The default (light) colour table lives in :root so a document that
      declares no theme is complete rather than half-resolved. It MUST be

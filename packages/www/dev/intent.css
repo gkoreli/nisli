@@ -21,10 +21,13 @@
  * unprefixed property on `*` again — dev is where it would show up first.
  *
  * WHY THE SPLIT STILL EXISTS, since the token collision is fixed: `[data-align]`
- * is still shared with @nisli/ui, and a site-wide import still costs 39 changed
- * properties and 17 changed bounding boxes on /ui/bubble, /ui/message and
- * /ui/message-scroller. The full measurement is in src/styles/input.css. When
- * that attribute stops being shared, this file, dist/assets/intent.css, the
+ * is still shared with @nisli/ui, and a site-wide import still costs 11 changed
+ * properties (all of them `align-items`) across 8 elements on /ui/bubble,
+ * /ui/message and /ui/message-scroller, with zero changed bounding boxes.
+ * Attributed by blame test — stripping only intent's four `[data-align=...]`
+ * declarations takes it to 0/0. The full measurement, and a retracted earlier
+ * figure that was measured against a stale dist/, are in src/styles/input.css.
+ * When that attribute stops being shared, this file, dist/assets/intent.css, the
  * `intentTheme` shell option and INTENT_VOCABULARY in build.ts all collapse back
  * into one `@import` in input.css.
  *

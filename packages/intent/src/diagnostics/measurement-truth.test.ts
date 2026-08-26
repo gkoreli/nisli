@@ -43,11 +43,17 @@ function run(rule: Rule<string>, spec: InspectWorldSpec): readonly Finding[] {
   return rule.run(new FakeInspector(spec));
 }
 
+// `--intent-min-contrast` is here for the same reason every other property is:
+// it is what the checker would see. N640's floor is the theme's now, read off
+// the element, so a node with no declared floor is undecidable rather than
+// clean. A browser inherits the token from `:root`; this fake resolves per node
+// with no inheritance, so every node that wants a verdict declares it.
 const READABLE = {
   color: 'rgb(24, 24, 27)',
   'font-size': '14px',
   'font-weight': '400',
   'line-height': '18px',
+  '--intent-min-contrast': '4.5',
 };
 
 /**
@@ -570,6 +576,7 @@ const DERIVED_LOW_CONTRAST: InspectWorldSpec = {
         color: 'oklab(0.696745 0.000843457 -0.00287951)',
         'font-size': '12px',
         'font-weight': '400',
+        '--intent-min-contrast': '4.5',
       },
       colours: { color: [157, 157, 159, 1] },
       backdrop: '#ffffff',

@@ -27,11 +27,19 @@ function run(code: string, spec: InspectWorldSpec): readonly Finding[] {
 
 // A computed line-height is always a length or the keyword `normal` in a real
 // browser; N690 derives its line count from it, so the fixture carries one.
+//
+// It carries `--intent-min-contrast` for the same reason and it is the fixture
+// catching up with reality, not an assertion being relaxed: N640's floor is the
+// theme's, read off the element, so a document with readable text but no
+// declared floor is genuinely undecidable now. A browser inherits the token
+// from `:root`; this fake resolves styles per node with no inheritance, so
+// every node that wants a verdict declares it.
 const READABLE = {
   color: 'rgb(24, 24, 27)',
   'font-size': '14px',
   'font-weight': '400',
   'line-height': '18px',
+  '--intent-min-contrast': '4.5',
 };
 
 /**
@@ -105,6 +113,7 @@ describe('CODES', () => {
       'N713',
       'N715',
       'N730',
+      'N740',
     ]);
     for (const [key, entry] of Object.entries(CODES)) expect(entry.code).toBe(key);
   });
@@ -284,7 +293,12 @@ describe('N640 — text contrast', () => {
           id: 'title',
           attrs: { 'data-text': 'title' },
           text: 'Inbox',
-          styles: { color: 'rgb(244, 244, 245)', 'font-size': '14px', 'font-weight': '400' },
+          styles: {
+            color: 'rgb(244, 244, 245)',
+            'font-size': '14px',
+            'font-weight': '400',
+            '--intent-min-contrast': '4.5',
+          },
           backdrop: 'rgb(255, 255, 255)',
         },
       ],
@@ -325,6 +339,116 @@ describe('N640 — text contrast', () => {
     });
 
     expect(findings).toEqual([]);
+  });
+
+  // 3.50:1 on white sits ABOVE the large-text floor and BELOW the normal-text
+  // one, so the two verdicts below differ only by which floor the branch chose.
+  // That is the measurement that proves the floors are still the floors after
+  // they moved out of the rule and into the theme.
+  const MID = { color: 'rgb(137, 137, 137)', 'font-weight': '400' };
+
+  it('holds normal text to the theme\u2019s normal-text floor', () => {
+    const findings = run('N640', {
+      nodes: [
+        {
+          id: 'meta',
+          attrs: { 'data-text': 'meta' },
+          text: 'Updated 4 minutes ago',
+          styles: { ...MID, 'font-size': '14px', '--intent-min-contrast': '4.5' },
+          backdrop: 'rgb(255, 255, 255)',
+        },
+      ],
+    });
+
+    expect(findings.map((f) => f.code)).toEqual(['N640']);
+    expect(findings[0]?.detail).toContain('below the 4.5:1 floor for normal text');
+  });
+
+  it('holds large text to the theme\u2019s large-text floor', () => {
+    // The same colour on the same backdrop, one branch over: silence, where the
+    // normal branch above failed. Silence is a real verdict here — had the large
+    // floor not resolved, this would be N680 rather than nothing.
+    const cleared = run('N640', {
+      nodes: [
+        {
+          id: 'headline',
+          attrs: { 'data-text': 'display' },
+          text: 'Derived appearance',
+          styles: { ...MID, 'font-size': '32px', '--intent-min-contrast-large': '3' },
+          backdrop: 'rgb(255, 255, 255)',
+        },
+      ],
+    });
+
+    expect(cleared).toEqual([]);
+
+    // And the other direction, so the NUMBER is asserted and not only the
+    // branch: darker grey at the same size fails, and the finding names the
+    // large-text floor the theme declared.
+    const failed = run('N640', {
+      nodes: [
+        {
+          id: 'headline',
+          attrs: { 'data-text': 'display' },
+          text: 'Derived appearance',
+          styles: {
+            color: 'rgb(157, 157, 159)',
+            'font-size': '32px',
+            'font-weight': '400',
+            '--intent-min-contrast-large': '3',
+          },
+          backdrop: 'rgb(255, 255, 255)',
+        },
+      ],
+    });
+
+    expect(failed.map((f) => f.code)).toEqual(['N640']);
+    expect(failed[0]?.detail).toContain('below the 3:1 floor for large text');
+  });
+
+  it('moves its verdict when the theme raises the floor', () => {
+    // The capability the tokens exist for: 5.10:1 clears AA and not AAA, and
+    // nothing but the declaration changed. A consumer adopting the stricter
+    // floor edits a theme; this rule holds no ratio to fork.
+    const styles = { color: 'rgb(110, 110, 110)', 'font-size': '14px', 'font-weight': '400' };
+    const node = {
+      id: 'meta',
+      attrs: { 'data-text': 'meta' },
+      text: 'Updated 4 minutes ago',
+      backdrop: 'rgb(255, 255, 255)',
+    };
+
+    expect(
+      run('N640', { nodes: [{ ...node, styles: { ...styles, '--intent-min-contrast': '4.5' } }] }),
+    ).toEqual([]);
+
+    const stricter = run('N640', {
+      nodes: [{ ...node, styles: { ...styles, '--intent-min-contrast': '7' } }],
+    });
+    expect(stricter.map((f) => f.code)).toEqual(['N640']);
+    expect(stricter[0]?.detail).toContain('below the 7:1 floor for normal text');
+  });
+
+  it('refuses a verdict when no theme declared a floor', () => {
+    // The fourth way to lose the claim, and the reason it is a claim lost rather
+    // than a claim passed: `px()` would have coerced the absent property to
+    // zero, every ratio clears zero, and the check would have reported clean on
+    // a document it never measured against anything. Loud beats silent.
+    const findings = run('N640', {
+      nodes: [
+        {
+          id: 'title',
+          attrs: { 'data-text': 'title' },
+          text: 'Inbox',
+          styles: { color: 'rgb(244, 244, 245)', 'font-size': '14px', 'font-weight': '400' },
+          backdrop: 'rgb(255, 255, 255)',
+        },
+      ],
+    });
+
+    expect(findings.map((f) => f.code)).toEqual(['N680']);
+    expect(findings[0]?.severity).toBe('incomplete');
+    expect(findings[0]?.detail).toContain('--intent-min-contrast resolves to <empty>');
   });
 });
 
