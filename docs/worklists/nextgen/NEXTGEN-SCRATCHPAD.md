@@ -1253,3 +1253,94 @@ proof-of-concept regime.
   Running total: **six oracle bugs against four page bugs**, and the ratio is
   the finding rather than an embarrassment — the expensive half of "the
   framework checks the UI" is the checker's own truthfulness.
+- **2026-08-25 · round 13 (the charter tested, and the negative half is the
+  finding)** — All three charter items got a number instead of an argument.
+
+  **A — appearance derives and checks: CONFIRMED.** 240/240 across seven
+  assertion paths, 79.1% of 278 CSS capabilities derived or authored once, and
+  the exclusivity guard passing over 53 files while still matching 119 length
+  literals inside the theme so it cannot pass vacuously.
+
+  **B — declared attention is decidable: CONFIRMED, narrowly.** N700 shipped
+  and was falsified in a real browser: 0 findings, inject a `danger` beside an
+  existing `primary`, 1 finding naming both, remove it, 0 again. The normative
+  source is the GNOME HIG's single suggested-or-destructive button per view,
+  which is unenforceable against a class string that names a colour. Scope is
+  *ownership* rather than containment, so four sibling cards each owning one
+  primary stay silent while a real collision reports once — verified against
+  the real marketing page, which has exactly that shape.
+
+  **C — state enumeration: PARTIALLY confirmed, and the refutation is the
+  valuable half.** Five distinct defects the 240-cell context sweep does not
+  find, each verified silent on the ready state in the same context, 100 cells
+  in 3.4 seconds. But **every one came from hostile CONTENT, and lifecycle
+  states found ZERO** — loading 0, error 0, empty 0, single 0, many 0, across
+  100 cells and again across 1,200. The states this scratchpad named as "where
+  UI rots because nobody looks" were clean in every single cell. So: keep the
+  hostile corpus, drop the lifecycle sweep as a standing gate at this surface
+  size, and keep the *declaration* regardless — rendering the lifecycle states
+  produced three findings about what the vocabulary cannot say, which no sweep
+  of any size could have produced.
+
+  **The best finding is a third limit on the thesis, now N730.**
+  `data-collapse="truncate"` is a **no-op on a single unbreakable token**: the
+  table resolves it to `nowrap` plus an ellipsis, and `nowrap` makes min-content
+  equal the whole text, so the strategy is spent for zero pixels while the
+  container honestly reports unsatisfiable at 433 needed in 318. F9 was the
+  table stating an *impossible* constraint; F11 established that priority
+  orders WHEN a strategy is spent and never WHETHER; this is a strategy whose
+  *implementation* returns zero on the content it was applied to, with no
+  channel through which the solver or the author could discover it. Unlike the
+  other two it is detectable from the finished document, as a contradiction
+  between a declaration and a measurement.
+- **2026-08-25 · round 14 (the closed door, and a bug in a self-test)** — The
+  overlay-blindness hypothesis was confirmed spectacularly and it cost +0.3
+  seconds to test.
+
+  Every check traversed only what was rendered; an overlay is rendered only
+  while open; nothing opened one. So **the matrix had been reporting a clean
+  document with a closed door in it.** Opening every overlay in every cell
+  turned 240/240 into **216/240 — 24 cells, 44 offenders**. The overflow panel
+  was `position: absolute` inside the flush surface's `overflow: clip`, so on
+  the lower message rows it was **clipped away entirely**: click the ellipsis,
+  focus moves into the menu, nothing appears on screen. The three actions
+  inside were Mark read, Archive and **Reply** — the action this prototype's
+  headline claim says always survives collapse. At touch/320 it survived into a
+  menu that rendered nothing.
+
+  Fixed by promotion to the top layer, with **nothing authored**:
+  `position-area` computed `end span-start`, `anchor-name: none`,
+  `position-anchor: auto`, and the gap computed to one `--unit` per axis for
+  free. Back to 240/240 with 110 overlays opened per run.
+
+  **Two honest corrections against our own claims.** The audit's promised net
+  deletion of ~35 and ~20 lines did not materialise — actual was three lines
+  each, because only the menu shipped and it needed declarations and a
+  `beforetoggle` seam the audit never budgeted. What moved was **ownership, not
+  volume**: four behaviours left the file. And `aria-expanded` turns out to be
+  implicit in the AX tree *only*, so the attribute stays authored — the one
+  promised deletion that was simply unavailable.
+
+  **Two more oracle bugs, bringing the tally to seven against four page bugs.**
+  Widening N690 to cover control labels — a real hole, since no rule measures
+  line breaking on any label — fired on a clean 44-pixel icon button, because a
+  control's box is a hit *target* and the slack is the target floor doing its
+  job. N650's mistake in different clothes, reverted rather than approximated.
+  And the worse one: `overlay/boxless` could no longer inject its defect, since
+  a top-layer element is absolutely positioned and therefore blockified, so
+  `display: contents !important` computes to `block`. **The harness reported the
+  CHECK as blind when the truth was that the INJECTION had failed** — a
+  distinction a self-test must be able to make, or it will eventually retire a
+  working check.
+
+  **And two guards that did not exist this morning.** The table now verifies its
+  own declarations (286 checked, falsified 7/7, catching both the silently
+  rejected `calc()` and the `clip`→`hidden` coercion), and the checker verifies
+  its own selectors. The second one immediately caught a rule the *first* agent
+  wrote using a vocabulary value that does not exist — the N700 shape, caught
+  four hours after the guard was written for exactly it.
+
+  Residual, and it is the same shape one level up: **four legal vocabulary
+  values match nothing in the app**, so the matrix has never exercised
+  `wrap`, `align: start`, `align: end` or `data-clip="trim"`. 240/240 is
+  silent about a third of the layout vocabulary. Under repair.
