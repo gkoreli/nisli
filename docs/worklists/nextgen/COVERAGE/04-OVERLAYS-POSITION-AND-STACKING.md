@@ -195,9 +195,9 @@ invoker-opened overlay *has* an implicit anchor. So the shipping path declares
 **no `anchor-name`, no `anchor-scope` and no `position-anchor`** — the overlay
 is anchored to whatever invoked it. Measured on the proposed table with both
 triggers live in one scope: the menu attached to its own trigger,
-`attachedToHintTriggerInstead: false`, gap 4px, and
-`min-inline-size: anchor-size(self-inline)` resolved to **63.6719px** — the
-trigger's exact width, with no length authored (P18a).
+`attachedToHintTriggerInstead: false`, and a gap of 4px — with a second
+`[data-overflow]` trigger live in the same subtree, which is precisely the
+configuration a shared name collapses (P18a).
 
 The named+scoped pair survives only as the documented fallback for an overlay
 the engine opens without an invoker (see open question 2), and that is where
@@ -215,7 +215,7 @@ the engine opens without an invoker (see open question 2), and that is where
 | naming an anchor | `anchor-name` | **T** | — | **fallback path only.** One rule, and it **must** be paired with `anchor-scope`; unpaired it collapses every overlay onto the last anchor in the document (P11a) |
 | scoping an anchor name | `anchor-scope` | **T** | — | **fallback path only.** Works on a boxless host (P11b) — the one property in this slice that is not box-dependent, and the exception to L1/L2/L3. Does **not** disambiguate two triggers in one scope (P18a's motivation) |
 | default anchor, invoker-linked | `position-anchor` initial | **D** | — | **the shipping path.** Implicit anchor from `command`/`popovertarget`/`interestfor`; no name, no scope, no `position-anchor`. Initial value computes to `normal`, and `showPopover()` establishes **no** implicit anchor — only invoker activation does (P2a, P18a) |
-| sizing the panel from its trigger | `anchor-size(self-inline)` | **D** | — | resolved to 63.6719px = the trigger's exact width, no length authored (P18a) |
+| sizing the panel from its trigger | `anchor-size(self-inline)` | **D** | — | `inline-size: anchor-size(self-inline)` + `min-inline-size: max-content` gives width = max(trigger, content), no length authored. Measured both ways: a 63.7px trigger with wider content → 72.7px panel; a 171.7px padded trigger with narrower content → 171.7px panel (P18a/P18f) |
 | geometric tethering (carets, connectors) | `anchor()` in `calc()` | **X** | `data-escaped` | reports **N601**; `justify-self: anchor-center` covers the common caret without arithmetic |
 | which side, which alignment | `position-area` | **T** | — | one rule per overlay kind; the author declares the *relationship*, never a side |
 | what to try when it does not fit | `position-try-fallbacks` | **T** | — | one rule; `flip-block` flips the margin with the axis, so the gap is authored once (P2d). **Caveat, measured: it is an OVERFLOW test, so a shrink-to-fit panel never triggers it** — see "F8, restated inside the browser" |
@@ -252,17 +252,17 @@ the engine opens without an invoker (see open question 2), and that is where
 ## Measured probes
 
 **Probe**: `experiments/coverage/04-overlays.html` — plain HTML + CSS + one
-inline script, no npm, no dependencies, no build. **43 recorded claims**, each
-with an explicit paired control, plus five driver-level measurements
-(real pointer dwell, real Tab/Escape keystrokes, real outside click, and an
-accessibility-tree snapshot) that a page script cannot synthesise.
+inline script, no npm, no dependencies, no build. **45 recorded claims** plus
+one support-matrix record, each claim with an explicit paired control, and five
+driver-level measurements (real 1.2s pointer dwell, real Tab and Escape
+keystrokes, a real outside click, and an accessibility-tree snapshot) that a
+page script cannot synthesise.
 **Engine**: Chromium **151.0.0.0** (headless, `dpr 1.25`), viewport
 **800×600**, loaded over `file://`.
-**Result**: every claim behaves as designed. The remaining `NO` verdicts are
-**exactly the six genuine findings**, each with a `YES` paired control proving
-the check can distinguish: `P17a` (L3), `P11a` (the shared-name collapse),
-`P3a` (L1), `P3d` (L2), `P4a` (L4), `P9b` (no popover focus containment).
-Everything else — 37 claims — is YES.
+**Result**: **39 YES, 6 NO**, and the six are exactly the genuine findings —
+each with a `YES` paired control proving the check can distinguish:
+`P17a` (L3), `P11a` (the shared-name collapse), `P3a` (L1), `P3d` (L2),
+`P4a` (L4), `P9b` (no popover focus containment). No claim is unresolved.
 
 Headline numbers, all from the run:
 
@@ -597,7 +597,7 @@ replacement was rendered as P18 before this table was written.
 |---|---|---|
 | `[data-overflow-anchor] { position: relative }` | `theme/states.css:77-79` | the top layer needs no positioned ancestor |
 | `position: absolute; z-index: 1; inset-inline-end: 0; inset-block-start: calc(100% + var(--unit))` | `theme/states.css:89-107` | `position-area` + `margin-block-start`, and the gap survives a flip (P2d) |
-| `max-inline-size: min(max(calc(var(--unit) * 60), var(--min-track)), 100cqi)` | `theme/states.css:110` | **this is an F9-class hazard** — a container bound derived from `--unit` with a floor bolted on, and the file's own comment says "it happens to fit today". Replaced by `min-inline-size: anchor-size(self-inline)` plus the browser's overflow-driven fallback: the bound stops being unit-derived at all. |
+| `max-inline-size: min(max(calc(var(--unit) * 60), var(--min-track)), 100cqi)` | `theme/states.css:110` | **this is an F9-class hazard** — a container bound derived from `--unit` with a floor bolted on, and the file's own comment says "it happens to fit today". Replaced by `inline-size: anchor-size(self-inline)` + `min-inline-size: max-content`: the bound stops being unit-derived at all, and it is what makes the browser's fallback able to see an overflow (P18f). Note that P1d makes removing the `100cqi` clamp *optional* rather than forced — `cqi` does still resolve against `fitbox` from the top layer. |
 | `display: none` / `[data-shown] { display: block }` on the panel | `theme/states.css:89-90,120-122` | `popover` owns showing; `:popover-open` is the state selector |
 | `document` `pointerdown` listener | `overflow-menu.ts:233-237` | UA light dismiss, measured with a real outside click |
 | Escape branch | `overflow-menu.ts:248-251` | UA closes **and** restores focus to the invoker, measured |
@@ -643,6 +643,24 @@ Every entry names the fixture that proves it can fail, per the house rule.
 | **N713** | fail | a rendered `[data-overlay]`'s **own border box** is inside the viewport | the bottom-edge trigger with a 22-item menu and `position-try-fallbacks: none`: the panel hangs below the fold. Measures the overlay's box, not its container's — N670's deleted first version failed exactly by measuring the container. |
 | **N714** | fail | for a rendered `data-overlay="menu"`: `document.activeElement` is inside the panel, and every `[role="menuitem"]` is focusable and rendered | a menu whose items are `tabindex="-1"` with neither `autofocus` nor a roving handler: the panel opens with focus outside it and no key reaches the items. This is F6's guarantee ("a degradation strategy is only honest if the thing it degrades is still available") extended from *painted and reachable* to *operable*. |
 | **N715** | warn | no `position: fixed` element outside the top layer has an ancestor that establishes a containing block for fixed descendants (`transform`, `filter`, `perspective`, `backdrop-filter`, `contain: layout/paint`, `container-type`) | the P4a fixture: `inset-inline-start: 0` inside `transform: translateX(120px)` resolves to x = 160. Warn, not fail: it is sometimes intended. |
+| **N716** | fail | every `[data-overlay]` in the document has been *observed while open* by the diagnostics run — i.e. the runner opens each overlay, checks it, and closes it, rather than skipping content that is not currently rendered | the P18f fixture: a menu whose labels are broken across two line boxes. **N690 already exists and already detects this, and it currently reports nothing**, because when the run happens the panel is either absent from the DOM or not rendered. The fixture proves the *runner*, not the rule. |
+
+**N716 is the one I would land first, and it is not really a new rule.** It is
+the discovery that **every existing check is blind to overlay content**. N601,
+N640, N650, N660, N690 and N621 all traverse what is rendered; an overlay is
+rendered only while it is open, and it is never open during a run. So the whole
+"the framework checks the UI" claim currently excludes menus, dialogs, hints
+and everything they contain — which is exactly where a 44px hit target, a
+contrast failure against a floating surface, or a shredded label is most likely
+to hide. F4 established that rendered-ness is a precondition of measurement;
+N716 is the corollary nobody drew: *something has to make the transient thing
+rendered, or the precondition silently excludes it.*
+
+The mechanism is cheap and it already exists in the vocabulary: the run walks
+`[data-overlay]`, calls the invoker, lets the checks run, and closes it. The
+prototype's own F6 reachability path (README §Fit) already drives a trigger end
+to end, so the runner has done this once by hand for one menu; N716 makes it
+the standing rule for all of them.
 
 **Opportunity noted, not taken.** N712 and N714 are naturally *subtree*
 assertions — "one overlay scope" and "one menu" — and the `obs.declared(selector)`
