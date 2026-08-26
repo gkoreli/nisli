@@ -527,8 +527,12 @@ for (const name of names) {
           if (box.right <= deviceWidth + 1 && box.width <= deviceWidth + 1) continue;
           over.push({ el, box });
         }
-        // An offender containing another offender is a container, not the cause.
-        const causes = over.filter(({ el }) => !over.some((other) => other.el !== el && el.contains(other.el)));
+        // OUTERMOST, not innermost: the offender whose ancestors all still fit is
+        // where the width originates, and it is the element a fix is applied to.
+        // Corrected after the innermost version blamed a leaf paragraph for a grid
+        // blowout — the real subject was the card two levels up, whose 1fr track
+        // was floored at its own min-content while every ancestor measured fine.
+        const causes = over.filter(({ el }) => !over.some((other) => other.el !== el && other.el.contains(el)));
         for (const { el, box } of (causes.length ? causes : over).slice(0, 3)) {
           const id = el.getAttribute('data-slot') || el.getAttribute('data-preview') ||
             (el.className || '').toString().split(/\s+/).slice(0, 2).join('.') || '';
