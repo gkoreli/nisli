@@ -6,10 +6,18 @@
 import { html, type TemplateResult } from '@nisli/core';
 import { components, primitives, itemPath, type RegistryItem } from '../registry.js';
 
+/**
+ * `min-w-0` on the card is load-bearing. A grid track of `1fr` is really
+ * `minmax(auto, 1fr)`, so it cannot go below the item's min-content width —
+ * and `line-clamp` renders as a `-webkit-box`, whose min-content is the WHOLE
+ * description on one line. The track was floored at that: measured 570px cards
+ * inside a 390px phone, widening the page to 619px while every ancestor still
+ * reported fitting, which is why the blame for it landed on a leaf paragraph.
+ */
 function ItemCard(item: RegistryItem): TemplateResult {
   return html`<a
     href="${itemPath(item.name)}"
-    class="group flex flex-col rounded-xl border bg-card p-5 transition-colors hover:border-foreground/30 hover:bg-accent/40"
+    class="group flex min-w-0 flex-col rounded-xl border bg-card p-5 transition-colors hover:border-foreground/30 hover:bg-accent/40"
   >
     <div class="flex items-center justify-between">
       <span class="font-medium tracking-tight">${item.name}</span>

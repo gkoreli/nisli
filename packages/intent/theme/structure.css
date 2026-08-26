@@ -536,6 +536,33 @@ app-action-group {
   flex: 0 1 auto;
 }
 
+/* A THIRD KIND MAY SHRINK: a container that is itself inside a container.
+
+   `flex: none` above is `flex: 0 0 auto`, so a nested container is rigid at its
+   MAX-content width. A `wrap` row inside a `wrap` row therefore cannot wrap —
+   it holds its widest possible line and paints past the page instead, which is
+   the one degradation this file exists to prevent, arriving through the rule
+   that prevents it.
+
+   Measured on two shipped pages at a 390px device width: a switcher row of six
+   unbreakable buttons held 435px and widened the whole document, and Chromium's
+   shrink-to-fit then hid it from every relative overflow test.
+
+   `flex-shrink` ALONE, and only for the nested case. `min-width` stays `auto`,
+   so the floor is the container's own min-content — for a wrap row, its widest
+   child — and shrinking to that floor is exactly reflow, never a crush. The
+   guarantee above is unchanged: no element is ever squeezed below its content.
+
+   ONE PROPERTY, NOT THE `flex` SHORTHAND, and that is what keeps this sound.
+   `[data-layout] [data-layout]` is specificity (0,2,0) and would OUTRANK
+   `[data-grow]` at (0,1,0), which wins over `flex: none` by declaration order
+   alone — so a shorthand here would silently un-grow every nested region that
+   asked to absorb slack. Setting only `flex-shrink: 1` cannot: `[data-grow]`
+   already declares shrink 1, so the two agree wherever both apply. */
+[data-layout] [data-layout] {
+  flex-shrink: 1;
+}
+
 /* ── The shrink licence, and why min-inline-size is NOT granted to data-grow
    ────────────────────────────────────────────────────────────────────────
    `min-inline-size: 0` is the switch that disables flexbox's automatic
