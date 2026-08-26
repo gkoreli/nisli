@@ -24,6 +24,7 @@ import {
   fitStateRule,
   hitTargetRule,
   overlapRule,
+  shreddedRule,
   truncationRule,
   viewportRule,
   vocabularyRule,
@@ -43,6 +44,7 @@ export function DEFAULT_RULES<TNode>(): readonly Rule<TNode>[] {
     hitTargetRule<TNode>(),
     crushedRule<TNode>(),
     overlapRule<TNode>(),
+    shreddedRule<TNode>(),
   ];
 }
 

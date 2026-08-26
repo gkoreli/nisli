@@ -106,6 +106,14 @@ const REGISTRY = {
       'A rule could not reach a verdict — it threw, or the geometry it needed was undecidable.',
     hint: 'Incomplete is a real answer, not a pass. Read the rule and the message: a genuinely undecidable node needs a human, a throwing rule needs a fix.',
   },
+  N690: {
+    code: 'N690',
+    title: 'word shredded to fit its box',
+    severity: 'warn',
+    summary:
+      'A word was broken inside itself so the text would fit a box that could not hold it. The geometry is satisfied and the prose is damaged.',
+    hint: "Floor the bound instead of shredding the content: a box that cannot hold its own minimum is the defect, and `overflow-wrap: anywhere` only hides it. This is N621's sibling — one covers the solver destroying a value, this covers the table doing it.",
+  },
 } as const satisfies Record<string, CodeEntry>;
 
 /**

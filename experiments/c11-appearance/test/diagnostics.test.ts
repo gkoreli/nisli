@@ -25,7 +25,14 @@ function run(code: string, spec: InspectWorldSpec): readonly Finding[] {
   return ruleFor(code).run(new FakeInspector(spec));
 }
 
-const READABLE = { color: 'rgb(24, 24, 27)', 'font-size': '14px', 'font-weight': '400' };
+// A computed line-height is always a length or the keyword `normal` in a real
+// browser; N690 derives its line count from it, so the fixture carries one.
+const READABLE = {
+  color: 'rgb(24, 24, 27)',
+  'font-size': '14px',
+  'font-weight': '400',
+  'line-height': '18px',
+};
 
 /**
  * A document with nothing wrong with it: legal vocabulary, a settled row, one
@@ -92,6 +99,7 @@ describe('CODES', () => {
       'N660',
       'N670',
       'N680',
+      'N690',
     ]);
     for (const [key, entry] of Object.entries(CODES)) expect(entry.code).toBe(key);
   });
@@ -560,6 +568,83 @@ const ADMITTED: InspectWorldSpec = {
     },
   ],
 };
+
+/**
+ * N690's world. A "word" cannot occupy more lines than there are words unless it
+ * was broken inside itself, so the line count is the witness. The three nodes
+ * are: a single word rendered over three lines (shredded), ordinary prose
+ * wrapped at its spaces (fine), and an unspaced script where the inference does
+ * not hold at all (must decline).
+ */
+const WRAPPING: InspectWorldSpec = {
+  nodes: [
+    {
+      id: 'cards',
+      attrs: { 'data-layout': 'grid' },
+      box: { inline: 320, block: 200, contentInline: 320 },
+      children: [
+        {
+          id: 'shredded-title',
+          attrs: { 'data-text': 'title' },
+          text: 'Comfortable',
+          styles: { ...READABLE, 'line-height': '18px' },
+          box: { inline: 40, block: 54, contentInline: 40 },
+        },
+        {
+          id: 'wrapped-prose',
+          attrs: { 'data-text': 'body' },
+          text: 'A larger hit target arrives with the input mode',
+          styles: { ...READABLE, 'line-height': '18px' },
+          box: { inline: 120, block: 54, contentInline: 120 },
+        },
+        {
+          id: 'unspaced',
+          attrs: { 'data-text': 'body' },
+          text: '快速的棕色狐狸跳过了那只懒狗',
+          styles: { ...READABLE, 'line-height': '18px' },
+          box: { inline: 40, block: 90, contentInline: 40 },
+        },
+      ],
+    },
+  ],
+};
+
+describe('N690 — word shredded to fit its box', () => {
+  it('shredded-single-word: fires when one word occupies more lines than there are words', () => {
+    const subjects = run('N690', WRAPPING).map((finding) => finding.subject);
+    expect(subjects).toContain('shredded-title');
+  });
+
+  it('wrapped-prose-is-silent: prose breaking at its spaces is not a defect', () => {
+    const subjects = run('N690', WRAPPING).map((finding) => finding.subject);
+    expect(subjects).not.toContain('wrapped-prose');
+  });
+
+  it('unspaced-script-declines: the lines>words inference does not hold without word spaces', () => {
+    const subjects = run('N690', WRAPPING).map((finding) => finding.subject);
+    expect(subjects).not.toContain('unspaced');
+  });
+
+  it('undecidable-line-height: reports incomplete rather than guessing a line count', () => {
+    const findings = run('N690', {
+      nodes: [
+        {
+          id: 'keyword-line-height',
+          attrs: { 'data-text': 'body' },
+          text: 'Comfortable',
+          styles: { ...READABLE, 'line-height': 'normal' },
+          box: { inline: 40, block: 54, contentInline: 40 },
+        },
+      ],
+    });
+    expect(findings.map((finding) => finding.code)).toEqual(['N680']);
+    expect(findings[0]?.severity).toBe('incomplete');
+  });
+
+  it('stays silent on the clean document', () => {
+    expect(run('N690', CLEAN)).toEqual([]);
+  });
+});
 
 describe('an admitted failure', () => {
   it('admitted-container-reports-once: N620 and nothing else about the container', () => {

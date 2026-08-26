@@ -13,6 +13,7 @@ export { escapedRule } from './escaped.js';
 export { fitStateRule } from './fit-state.js';
 export { hitTargetRule } from './hit-target.js';
 export { overlapRule } from './overlap.js';
+export { shreddedRule } from './shredded.js';
 export { truncationRule } from './truncation.js';
 export { viewportRule } from './viewport.js';
 export { vocabularyRule } from './vocabulary.js';

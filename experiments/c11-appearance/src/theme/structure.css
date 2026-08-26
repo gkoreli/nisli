@@ -134,6 +134,27 @@ app-action-group {
   justify-content: space-between;
 }
 
+/* ── A declared scroll region ────────────────────────────────────────────
+   The one honest answer for content that genuinely cannot reflow. A table
+   cell is atomic — a column that rewraps mid-word stops being a column — so a
+   narrow table is the case where neither reflow nor truncation applies, and
+   the choices reduce to scrolling or clipping. Clipping is silent loss: the
+   flush surface's `overflow: hidden` exists to keep square corners inside a
+   rounded frame, and it was quietly eating columns as well.
+
+   `auto`, never `scroll` and never `hidden`. `auto` is what makes the region
+   legitimately exempt from N660 rather than exempt by suppression: scrolling
+   is a promise to the reader that the rest is still reachable, which is the
+   same standard the truncation and field exemptions are held to.
+
+   Spelled as a boolean attribute rather than a sixth `data-appearance` value
+   because `appearance` is a closed axis in the frozen contracts and a new
+   value would fail N610 on every render. It is structure, not a role: the
+   region paints nothing and only declares how its overflow behaves. */
+[data-scroll-region] {
+  overflow-x: auto;
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    2. F8 — THE NO-CRUSH BLOCK. Content-sized children must not be crushable.
    ══════════════════════════════════════════════════════════════════════════

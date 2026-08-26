@@ -1,4 +1,4 @@
-# c11-appearance — derived appearance, in real nisli components
+# c11-appearance — appearance derived from meaning and context
 
 **Throwaway prototype. Nothing here ships.** Parent record:
 [`docs/worklists/nextgen/`](../../docs/worklists/nextgen/) (candidate C11).
@@ -9,28 +9,47 @@
 > pixel values, zero colours and zero breakpoints in component source — for
 > components the framework has never seen?
 
+## Current answer
+
+**Yes, at prototype scale, and the cost is in the checker rather than the
+components.** 240 of 240 context combinations pass seven independent assertion
+paths in real Chromium, with a proof that self-tests: all seven paths are
+verified capable of failing before the run is trusted.
+
+```
+PASS — 240/240 combinations clean, 0 assertion failures, 0 incomplete findings, 0 page errors
+```
+
+The honest headline from building it: **five of the defects found were in the
+oracle, not the page** (§Findings). An appearance checker is easy to write and
+hard to make truthful, and every one of those five was silent or misattributed
+until something measured it three different ways.
+
 ## Run it
 
 ```sh
-pnpm --filter @nisli/experiment-c11-appearance dev   # http://127.0.0.1:5199
+pnpm --filter @nisli/experiment-c11-appearance dev          # http://127.0.0.1:5199
+pnpm --filter @nisli/experiment-c11-appearance verify       # 78 domain tests, no browser
+node proof/geometry-proof.mjs                               # 240 cells in Chromium
+node proof/geometry-proof.mjs --self-test                   # prove the proof can fail
+node proof/no-values-guard.mjs                              # the exclusivity invariant
 ```
 
-The page has four real pages (inbox, settings, data, marketing) and four context
-switches (density, input, theme, width) plus a **`nisli check`** button that runs
-the derived verification over whatever is currently on screen.
+Four pages (inbox, settings, data, marketing), four context axes (density,
+input, theme, width), and a **Run check** button that runs the derived checks
+over whatever is on screen.
 
 ## The claim, checkable in one command
 
 ```sh
-grep -nE '[0-9]+(px|rem|em)|#[0-9a-fA-F]{3,6}|@media' src/components.ts src/app.ts
+node proof/no-values-guard.mjs
+# PASS — 45 files carry no length, no colour, no media query, no className and
+#        no size prop. Every value in the rendered UI comes from src/theme/.
 ```
 
-Three matches, all accounted for: two are the deliberate `Escaped` component
-(the escape hatch — it exists to be raw, and reports itself as `N601`), and one
-is an English sentence in demo copy. **No component styles itself.** Every value
-in the rendered UI comes from [`src/theme.css`](./src/theme.css) — the resolution
-table — as a function of one inherited `--unit` plus the element's declared role.
-The components declare only:
+The guard also proves it is not passing vacuously: it matches 90 length literals
+and 34 colour literals inside `src/theme/`, where they belong. Components
+declare only:
 
 | declaration | meaning |
 |---|---|
@@ -38,23 +57,36 @@ The components declare only:
 | `data-layout` / `data-grow` / `data-align` | how it **composes** |
 | `data-priority` / `data-collapse` | what matters **least**, and what to do when space runs out |
 
-There is no `size` prop and **no `className` prop** anywhere in
-[`src/components.ts`](./src/components.ts): the caller cannot make an appearance
-decision because no channel exists through which to make one.
+No `size` prop and no class-name prop exists anywhere in `src/ui/`. That
+exclusivity is not tidiness — it is what makes derivation, checking, consistency
+and provenance possible at all.
 
-## Layout
+## Architecture
 
-| path | role | share of the bet |
-|---|---|---|
-| [`src/theme.css`](./src/theme.css) | the resolution table — the only place any number, colour or radius exists | ~40% |
-| [`src/components.ts`](./src/components.ts) | real `@nisli/core` components; no `className`, no sizes | ~45% (exclusivity + vocabulary) |
-| [`src/appearance.ts`](./src/appearance.ts) | `solve()`/`fit()` (measured tier, ~35 lines), `check()` (verification byproduct), `explain()` (provenance) | ~15% |
-| [`src/app.ts`](./src/app.ts) | four pages plus the context harness | — |
+Ports and adapters, so the domain can graduate into `@nisli/core` unchanged if
+the bet survives, and so the solver and every check are testable without a
+browser.
+
+```
+src/appearance/contracts.ts        FROZEN seam: vocabulary, Box, Metrics, Mutator, Inspector, Rule
+src/appearance/fit/                candidates · strategies · solver   (pure domain)
+                                   dom                                (the only DOM reader/writer)
+                                   observe                            (nisli lifecycle binding)
+src/appearance/diagnostics/        10 rules as pure generic factories over Inspector
+                                   codes (append-only) · runner · report · admitted · dom
+src/appearance/explain.ts          provenance: why is this element this size
+src/theme/                         tokens → structure → roles → states   (THE resolution table)
+src/ui/                            8 primitives + 5 patterns, one file each
+src/app/                           4 pages + the context harness
+test/                              78 domain tests via fakes
+proof/                             240-cell Chromium matrix + self-test + values guard
+```
+
+Weighting, so the demo is not mistaken for the bet: the resolution table is
+~40% of the idea, exclusivity ~25%, the vocabulary ~20%, verification ~10%, and
+the measured fit pass — the only novel runtime code, ~35 lines — is ~5%.
 
 ## Measured results
-
-Twelve context combinations, headless Chromium, measured with
-`getComputedStyle` / `getBoundingClientRect`.
 
 ### Derivation — one inherited variable produces every value
 
@@ -63,106 +95,148 @@ Twelve context combinations, headless Chromium, measured with
 | comfortable | 4px | 36px | 16px | 14px |
 | compact | 3px | 27px | 12px | 13px |
 | dense | 2px | 18px | 8px | 12px |
-| touch | 5px | 45px | 20px | 14px |
+| touch | 4px × 1.25 | 45px | 20px | 14px |
+| dense + touch | 2px × 1.25 | 44px (floor) | — | — |
 
-Same component source in every row. Compare the shipped
-`packages/ui/registry/default/ui/button.ts`, where those four results need four
-hand-written class sets **and a caller who picked one by looking at a design**.
+Axes compose. Same component source in every row.
 
-### Fit — settled everywhere, no breakpoints anywhere
+### Fit — 240 cells, seven assertion paths
 
-| context | fit state / collapsed groups | overflow menus shown | canvas overflow | document overflow | findings |
-|---|---|---|---|---|---|
-| inbox / comfortable / 1080 | settled ×5 / 0 | 0 | 0px | 0px | none |
-| inbox / comfortable / 480 | settled ×5 / 1 each row | 4 | 0px | 0px | none |
-| inbox / comfortable / 320 | settled ×5 / 1–2 | 5 | 0px | 0px | none |
-| inbox / dense / 320 | settled ×5 / 1 | 4 | 0px | 0px | none |
-| inbox / touch / 360 | settled ×5 / 1–2 | 5 | 0px | 0px | none |
-| inbox / dark / 720 | settled ×5 / 0 | 0 | 0px | 0px | none |
-| settings / compact / 720 | settled / 0 | 0 | 0px | 0px | 1 × N601 (intentional escape) |
-| settings / touch / 360 | settled / 1 | 1 | 0px | 0px | 1 × N601 (intentional escape) |
-| data / comfortable / 720 | settled / 0 | 0 | 0px | 0px | none |
-| data / dense / dark / 480 | settled / 0 | 0 | 0px | 0px | none |
-| marketing / comfortable / 1080 | settled / 0 | 0 | 0px | 0px | none |
-| marketing / comfortable / 320 | settled / 0 | 0 | 0px | 0px | none |
+4 pages × 3 densities × 2 inputs × 2 themes × 5 widths (1080/720/480/360/320):
 
-**Zero overflow in twelve contexts with no media query in the codebase.** The
-only finding is the escape hatch reporting itself, which is the escape hatch
-working.
+| assertion | what it proves | result |
+|---|---|---|
+| `declared` | every appearance declaration sits on an element that owns a box | 240/240 |
+| `fit` | every `[data-fit]` container reports `settled` | 240/240 |
+| `afford` | a collapsed group's trigger is painted and reachable | 240/240 |
+| `crush` | nothing paints outside its own box | 240/240 |
+| `overlap` | no two rendered siblings' boxes intersect | 240/240 |
+| `document` | the page never exceeds the viewport | 240/240 |
+| `check` | the derived rules report no failures | 240/240 |
+
+Plus F6 reachability driven end to end: trigger painted, `aria-haspopup`,
+`aria-expanded` flipping, `aria-controls` naming the panel, menu items
+reachable, focus moved, Escape returning focus.
 
 ### Visual record
 
 | context | file |
 |---|---|
 | inbox, 1080 | [`proof/inbox-1080.webp`](./proof/inbox-1080.webp) |
-| inbox, 320 (Star/Archive → `⋯`, excerpt + time truncated, Reply survives) | [`proof/inbox-320.png`](./proof/inbox-320.png) |
-| inbox, touch, 360 (everything larger, same source) | [`proof/inbox-touch-360.png`](./proof/inbox-touch-360.png) |
+| inbox, 320 — toolbar and row actions collapsed, timestamps hidden, excerpts truncated, Reply survives | [`proof/inbox-320.png`](./proof/inbox-320.png) |
+| inbox, touch, 360 — same source, everything larger | [`proof/inbox-touch-360.webp`](./proof/inbox-touch-360.webp) |
 | inbox, dark, 720 | [`proof/inbox-dark-720.webp`](./proof/inbox-dark-720.webp) |
-| data, dense (same table twice, two contexts) | [`proof/data-dense-720.webp`](./proof/data-dense-720.webp) |
-| settings, compact | [`proof/settings-compact-720.webp`](./proof/settings-compact-720.webp) |
-| marketing | [`proof/marketing-1080.webp`](./proof/marketing-1080.webp) |
+| data, dense — same table twice, two contexts | [`proof/data-dense-720.webp`](./proof/data-dense-720.webp) |
+| settings, compact — including the escape hatch reporting itself | [`proof/settings-compact-720.webp`](./proof/settings-compact-720.webp) |
+| marketing, 1080 | [`proof/marketing-1080.webp`](./proof/marketing-1080.webp) |
+| marketing, dense, 320 — the F9 case after the fix: one column, words intact, four visibly different derived button sizes | [`proof/marketing-dense-320.webp`](./proof/marketing-dense-320.webp) |
 
 ## Findings
+
+### About the idea
 
 **F1 — Derivation holds inside real components, with zero runtime cost.** Values
 resolve through `@nisli/core` component boundaries and layout-transparent hosts
 via inherited custom properties. No JavaScript participates.
 
-**F2 — The measured tier is genuinely small.** `solve()` + `fit()` is ~35 lines
-including lifecycle. Registering it in a component is one line: `fit(host)`.
+**F2 — The measured tier is genuinely small.** `solve()` plus `fit()` is ~35
+lines including lifecycle; registering it in a component is one line.
 
-**F3 — A colour-changing context must paint its own backdrop.** The first run
-switched `--fg` for dark mode without setting a background on the same node, and
-the derived checker immediately reported `contrast 1.10:1 (rgb(244,244,245) on
-rgb(255,255,255))` — light text on white, which I had not noticed. Rule added to
-`theme.css`: any context axis touching `--fg` also owns `--s1`. **This is the
-thesis working on its author: a real appearance bug, caught by a check nobody
-wrote, before any human looked.**
+**F9 — Derivation from one unit is NOT automatically self-consistent.** The
+sharpest finding, and a limit on the thesis rather than a bug.
+`[data-layout=grid]` derived its minimum track from `--unit`, so the track shrank
+with density, while the content inside it had floors the same table declares and
+those do not shrink. At dense/320 the table sized a track at 62px of usable space
+and simultaneously demanded a 76px control inside it — and dense, the context
+whose whole job is fitting more in less, was the only context that overflowed.
+F8 was the browser resolving an impossible constraint badly; **F9 is the
+resolution table stating one.** The rule it forces: *a floor must propagate
+through every derivation that bounds it, not only to the leaf that declares it.*
+Consequence for the bet: the table needs its own static consistency check, so
+"the framework checks the UI" grows a second half — "the framework checks the
+table".
 
-**F4 — A checker must assert rendered-ness before measuring.** The same run
-produced ten false `N650` hit-target failures by measuring *collapsed*
-(`display: none`) candidates as `0×0`. Matches the round-2 corpus finding
-"the oracle itself was wrong" (three recorded instances). Fixed with
-`checkVisibility()` as a precondition on every measurement.
+**F10 — A solver must measure the world it creates.** The solver declared a row
+`unsatisfiable` while a declared strategy was unspent. The missing 2-3px was its
+own overflow trigger, revealed after the loop and therefore never in the geometry
+any pass measured. Now revealed on the first `menu` degradation, and asserted by
+a standing proof path (`afford`).
 
-**F5 — `truncate` is the wrong strategy for short atomic values.** At 320px the
-timestamps degraded to `1…`, `Y…`, `M` — technically fitting, visually useless.
-The engine did what it was told; the author chose the wrong strategy. Two
-consequences: the strategy set needs `hide` alongside `truncate` and `menu`, and
-the checker can derive a warning ("truncated below N characters — prefer hide"),
-which is authoring feedback no framework currently gives.
+**F11 — Priority orders WHEN a strategy is spent, never WHETHER.**
+`unsatisfiable` means every declared strategy is spent and it still does not fit
+— nothing weaker.
 
-**F6 — nisli's own diagnostics debugged this experiment.** `onCleanup()` inside
-an `onMount()` callback threw `N402` with an exact message, stamped
-`data-nisli-error` on the host, and dispatched a `nisli-error` event carrying
-`{tag, phase, code, message}` — which is how the bug was found in one step. ADR
-0030.2 T6, doing its job on the author.
+### About the checker — five oracle bugs, which is the real cost signal
 
-**F7 — The escape hatch behaves as designed.** `app-escaped` raw-styles a
-subtree; it is outlined in the UI, reported once as `N601`, and excluded from the
-guarantees. Possible, explicit, counted.
+**F4 — Measuring unrendered nodes.** Collapsed (`display: none`) candidates
+measured 0×0 and produced ten false hit-target failures. Rendered-ness is now a
+precondition of every measurement.
+
+**F8 — A container-only overflow test cannot see a crush.** Flex children default
+to shrinking, so a row measured `scrollWidth 318 === clientWidth 318` — "settled"
+— while a child sat at 32/71 and painted over its neighbour. **Buttons visibly
+overlapped while the oracle reported success.** The fit test is now
+`overflows(container) || crushed(container)`, the theme forbids shrinking except
+where declared, and N660 exists so this class can never be silent again.
+
+**N670's first version was anti-correlated with its own defect.** The
+sum-of-children comparison fired when children escaped an overflowing row (where
+nothing collides) and was silent at 318/318 when children were crushed to fit
+(the actual collision). Deleted on evidence: a container measurement cannot see a
+collision between its children; only the children can.
+
+**N650 measured the wrong box.** 710 findings across the matrix were the padding
+box — every border box cleared the 44px floor, and 45 − 2px of border = 43. A hit
+target is what a finger presses, so it is the border box; a crush is content
+against its container, so it is the padding box.
+
+**N690 repeated the same mistake in the rule written to prevent it.** The
+shredded-word check divided the *padded* box height by the line height, so every
+padded table header reported "1 word across 2 lines". Caught by the matrix on its
+first run, within minutes of being added.
+
+**The principle all five share, now stated in the code rather than in a chat
+log: a check must measure the box its claim is about.** And the corollary that
+matters for the bet: five oracle bugs to four page bugs means the expensive half
+of "the framework checks the UI" is the checker's own truthfulness — which is
+exactly the kill criterion this experiment was built to test.
+
+### About agents building this
+
+**Three correct measurements produced three wrong causal stories** — a
+"genuinely unsatisfiable" row that was really the solver's unrevealed
+affordance, a "single word cannot wrap" claim that missed `overflow-wrap:
+anywhere` releasing min-content, and a "cross-axis squeeze" that was really the
+oracle reading the padding box. Every wrong *why* came from an agent; every
+right *where* came from a measurement. A derived oracle that reports a location
+and a magnitude is far more trustworthy than the narrative anyone wraps around
+it.
 
 ## What this does NOT prove
 
-- **No SSG pre-solve.** The static tier should be resolvable at build time
-  (`@nisli/ssg`); untested here.
-- **No byte budget.** `solve()`/`fit()` were not measured min+gzip against the
+- **No SSG pre-solve.** The static tier should resolve at build time; untested.
+- **No byte budget.** `solve()`/`fit()` were never measured min+gzip against the
   10KB core ceiling.
 - **No flash-of-unfit measurement.** The first paint before the measured pass is
-  the real UX risk; not quantified.
-- **Overflow menus are stubs.** No popover, no keyboard, no ARIA — the collapsed
-  actions become unreachable, which in a real implementation is a blocker.
-- **Chromium only**, and the vocabulary is small on purpose: four pages exercised
-  it, not a whole product.
+  the real UX risk and is not quantified here.
+- **Chromium only.** No Firefox or WebKit run.
+- **Small surface.** Four pages exercised the vocabulary, not a product.
 - **Nothing about beauty.** The table produces consistency. Whether an authored
-  table can be made genuinely beautiful is the open question F5 hints at and
-  §7.16 of the scratchpad names.
+  table can be made genuinely beautiful is still the open question, and F9 shows
+  the table can even be internally contradictory while every value in it looks
+  reasonable.
+- **One deliberate open item:** the flush surface clips a wide table rather than
+  scrolling it (silent loss); the scroll-region fix was specified and is not
+  fully landed.
 
-## Packaging note
+## Packaging
 
-This is a workspace package (`experiments/*` is in `pnpm-workspace.yaml`) so it
-can link `@nisli/core` and its own vite. It defines **only** a `dev` script, and
-`pnpm -r <script>` skips packages that do not define that script — so
-`pnpm build`, `pnpm test` and `pnpm typecheck` at the root never touch it.
-Nothing in `packages/*` references it, and deleting this directory affects
-nothing.
+`experiments/*` is in `pnpm-workspace.yaml` so a prototype can link
+`@nisli/core` and its own tooling. It defines only `dev`, `verify`, `proof` and
+`lint:values` — never `build`, `test` or `typecheck` — and `pnpm -r <script>`
+skips packages that do not define the script, so the root gates never see it.
+`pnpm typecheck` reports "Scope: 6 of 7 workspace projects". Nothing in
+`packages/*` references this directory; deleting it is a no-op.
+
+`proof/shots/` is gitignored: a run writes 240 screenshots that are stale
+immediately. The committed visual record is the hand-picked set above.
