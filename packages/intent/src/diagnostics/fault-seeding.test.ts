@@ -1238,7 +1238,7 @@ describe('the escape hatch is honoured by some rules and not others', () => {
         // rather than quietly dropped, because "the transform did not apply" and
         // "the rule said nothing" are the two answers this whole file exists to
         // keep apart.
-        notApplicable.push(`${seed.code}: this fixture has no single un-escaped subtree to opt out`);
+        notApplicable.push(seed.code);
         continue;
       }
       const escaped = { ...root, attrs: { ...root.attrs, 'data-escaped': 'vendor subtree' } };
@@ -1251,9 +1251,11 @@ describe('the escape hatch is honoured by some rules and not others', () => {
 
     const unrecorded = reports.filter((code) => REPORTS_INSIDE_AN_ESCAPE[code] !== true);
     const stale = Object.keys(REPORTS_INSIDE_AN_ESCAPE).filter((code) => !reports.includes(code));
+    const named = (codes: readonly string[]): string => [...new Set(codes)].join(', ') || 'none';
     console.log(
-      `fault seeding inside an escape hatch — exempt the subtree: ${exempts.join(', ') || 'none'}; ` +
-        `report anyway: ${reports.join(', ') || 'none'}; not applicable: ${notApplicable.length}` +
+      `fault seeding inside an escape hatch — exempt the subtree: ${named(exempts)}; ` +
+        `report anyway: ${named(reports)}; ` +
+        `no single un-escaped subtree to opt out: ${named(notApplicable)}` +
         (stale.length > 0 ? `; DELETE these repaired entries: ${stale.join(', ')}` : ''),
     );
     expect(
