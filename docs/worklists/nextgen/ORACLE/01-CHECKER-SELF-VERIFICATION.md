@@ -133,3 +133,230 @@ Three further anti-bless properties:
 - **Blessing is documented as requiring human reading**: "*You normally generate these files with the `--bless` CLI option, and then inspect them manually to verify they contain what you expect*" (`ui.md:54-56`).
 
 The honest summary: rustc's protection against blessing wrongness is **one machine-checked redundant assertion plus code review**. That is more than a comment, and less than a type.
+
+### 4. axe-core — the closest system to this project, and the most instructive
+
+**Fixture shape.** Per rule, an HTML file and a JSON file of expectations, generated into a test suite by `build/generate-integration-tests.js`. The README's last line is the closed-world assertion: "*The JSON file should have at least one of the `violations`, `passes`, or `incomplete` arrays. Inapplicable results are not listed as the test will fail if any node is found in one of the 3 arrays that is not explicitly listed.*" (dequelabs/axe-core `test/integration/rules/README.md`).
+
+**Coverage, measured.** Of eighty-four rule directories: eighty-one declare a passing case, seventy-four declare a violation, twenty-five declare an incomplete. The ten with no violation fixture are `aria-braille-equivalent`, `audio-caption`, `duplicate-id-aria`, `form-field-multiple-labels`, `frame-title-unique`, `hidden-content`, `identical-links-same-purpose`, `server-side-image-map`, `th-has-data-cells`, `video-caption`. Three of those ten (`aria-braille-equivalent`, `duplicate-id-aria`, `frame-title-unique`) are `reviewOnFail` rules that *structurally cannot* produce a violation — `lib/core/base/rule.js:272-287` rewrites every `false` check result to `undefined`. So the true "never proven to fire" set is seven of eighty-four, about eight percent, and it is not zero.
+
+**The undecidable class, in detail.** `target-size-evaluate.js` — the rule whose claim is ours — is worth reading whole. It returns `undefined` from five places, each with a reason:
+
+```js
+if (overflowingContent.length && (fullyObscuringElms.length || !hasMinimumSize(nodeRect))) {
+    this.data({ minSize, messageKey: 'contentOverflow' });
+    …
+    return undefined;
+}
+…
+// Check cannot fail if the target is not in the tab order
+const negativeOutcome = isInTabOrder(vNode) ? false : undefined;
+…
+if (!largestInnerRect) {
+    this.data({ minSize, messageKey: 'tooManyRects' });
+    return undefined;
+}
+```
+— `lib/checks/mobile/target-size-evaluate.js:35-74`
+
+Note `negativeOutcome`: **a target that is not in the tab order can never fail this rule, only be reviewed.** That is a claim-scoping decision expressed as a value, and it is exactly the kind of thing our N690-widening episode got wrong by widening.
+
+And `tooManyRects` is an explicit computational-budget surrender: `splitRects` throws `new Error('splitRects: Too many rects')` (`lib/commons/math/split-rects.js:21`), the caller catches it and returns `null`, and the rule becomes undecidable rather than guessing.
+
+**Which box?** `target-size` reads `vNode.boundingClientRect` — border box, in viewport coordinates — everywhere: for the target, for overlap (`lib/commons/math/has-visual-overlap.js:11-22`), for enclosure (`isEnclosedRect`), and for the obscuring rects. The one exception is deliberate and recorded in the changelog: "*determine offset using clientRects if target is `display:inline`*" (issue five thousand and twelve), implemented as `display === 'inline' ? obscuredNode.clientRects : obscuredNode.boundingClientRect`. **Deque independently reached our conclusion that a pressability claim is a border-box claim** — and reached it, on the evidence of the changelog, by shipping fixes rather than by typing.
+
+**Overlap is measured on children, not on the container.** `findNearbyElms(vNode)` enumerates neighbours, `filterByElmsOverlap` sorts them into fully- and partially-obscuring, and `getLargestUnobscuredArea` splits the target rect by the obscuring rects and takes the largest remainder. This is the correct construction for F8 and for the N670 v1 defect, arrived at independently, and it is about one hundred lines.
+
+**One place where copying axe would be the wrong move**, flagged by AccessorSweep and worth stating so this file is not read as a mandate. axe's overlap test is a *visual-extent* claim — do these two rectangles intersect, and which one paints on top — and a border box is the right measurement for it. N670's sentence is a *containment* claim — did this box get the inline space its content needs, so that the overflow lands on the following sibling — and a padding box is the right measurement for that. The two accessors disagree because the two claims disagree, which is the whole thesis of the `Box`/`Bounds` split. What transfers from axe is the *construction* (enumerate the neighbours and measure the child, rather than measuring the container and inferring), not the accessor.
+
+**An instrument tolerance, named and centralised.**
+
+```js
+const roundingMargin = 0.05;
+
+export default function rectHasMinimumSize(minSize, { width, height }) {
+  return (
+    width + roundingMargin >= minSize && height + roundingMargin >= minSize
+  );
+}
+```
+— `lib/commons/math/rect-has-minimum-size.js`. One constant, one function; every size comparison in the rule goes through it. Compare our per-rule inline comparisons.
+
+**Contrast's incomplete registry.** `color-contrast-evaluate.js` carries a mutable `incompleteData` store keyed by *what is missing* — `colorParse`, `bgColor`, `equalRatio`, `shortTextContent` — and the surrender is commented in plain English:
+
+```js
+// We don't know, so we'll put it into Can't Tell
+if (
+  fgColor === null ||
+  bgColor === null ||
+  equalRatio ||
+  (shortTextContent && !ignoreLength && !isValid)
+) {
+  missing = null;
+  incompleteData.clear();
+  this.relatedNodes(bgNodes);
+  return undefined;
+}
+```
+— `lib/checks/color/color-contrast-evaluate.js:166-176`
+
+**`failureSummary`** is generated, not authored: `lib/core/utils/publish-metadata.js` composes per-check messages from `metadata.messages.{pass,fail,incomplete}` in each check's JSON, falling back to `incompleteFallbackMessage()` when a reason key is missing (`:31-62`). Messages live in the same JSON as the check and are localised; there is no free-text detail string produced at the call site. Ours are free text.
+
+### 5. stylelint, Biome, semgrep
+
+**stylelint** (`jest-preset-stylelint`). `testRule({ ruleName, config, accept, reject })`. Accepted code must produce zero warnings, zero parse errors and zero invalid-option warnings (`getTestRule.js:52-54`); if `fix` is declared, accepted code must be **unchanged by the fixer** (`:58-64`). Rejected code must produce exactly the declared number of warnings (`:89`), each must carry a `message` — enforced by a custom matcher whose failure text is *"Expected \"reject\" test case to have a \"message\" property"* (`:165-168`) — and if the rule is fixable, every reject case must declare `fixed` or `unfixable`, thrown at runtime:
+
+```js
+throw new Error(
+    'If using { fix: true } in test schema, all reject cases must have { fixed: .. }',
+);
+```
+— `getTestRule.js:123-127`
+
+Then the fixed output must **differ** from the input (`expect(fixedCode).not.toBe(testCase.code)`, `:137`) and re-linting the fixed code must yield the same warnings as the fix run and no parse errors (`:147-157`) — an idempotence-and-no-new-findings check. But `setupTestCases` is `if (cases && cases.length)` (`:190`): an absent `reject` silently tests nothing. Convention carries it — one hundred and fifty of one hundred and fifty core rule test files declare `reject`.
+
+**Biome** is the strongest mechanism in the survey, because it fuses documentation and falsification. A rule's doc comment contains code blocks; `xtask/rules_check` parses and *runs* them:
+
+```rust
+} else if test.expect_diagnostic {
+    // ...or if the analysis does not return exactly one diagnostic...
+    if diagnostics.all_diagnostics.len() != 1 {
+        diagnostics.print_all_diagnostics()?;
+        bail!("… returned N diagnostics, but a single diagnostic was expected.");
+    }
+} else if test.expect_diff {
+    if diagnostics.action_count == 0 {
+        bail!("… returned no diff where one was expected.");
+    }
+} else if !diagnostics.all_diagnostics.is_empty() {
+    // ...or if the analysis returns a diagnostic when none are expected.
+    bail!("… returned an unexpected diagnostic.");
+}
+```
+— biomejs/biome `xtask/rules_check/src/lib.rs:276-298` (message strings abridged; the comments are verbatim)
+
+So: every documented example is a fixture, every undecorated example is a *negative* fixture, and a rule that fires twice where the docs promised once fails the build. It still does not require that at least one block be `expect_diagnostic` — four hundred and thirty-four of four hundred and forty-two JS rules have one, eight do not (`no_vue_data_object_declaration`, `use_import_extensions`, `no_undeclared_classes`, `no_restricted_types`, `use_filenaming_convention`, `no_document_import_in_page`, `no_head_import_in_document`, `no_undeclared_env_vars`). Separately, `rules_check` is a genuine lint-on-lints over rule *metadata*: it rejects `type Options = ()`, rejects a non-nursery rule carrying an issue number ("*The presence of an issue number indicates that the rule is not yet completed*"), and enforces a severity-per-group matrix (`:68-146`).
+
+**semgrep.** Fixtures are the target language itself with inline annotations — `# ruleid: <id>` for an expected finding, `# ok: <id>` for an expected silence, plus `todoruleid`/`todook` for known-failing expectations that are subtracted from both sides rather than deleted (semgrep/semgrep `cli/src/semgrep/test.py:54-58`, `:229-236`). The output names both failure directions explicitly: `missed lines` and `incorrect lines` (`:262-268`) — the second being false positives. And a dangling annotation is fatal:
+
+> "*Failing due to rule id mismatch. There is a test denoted with 'ruleid: <rule name>' where the rule name does not exist or is not expected in the test file.*"
+> — `cli/src/semgrep/test.py:142-146`
+
+The `semgrep-rules` repo runs `semgrep validate .` and `semgrep test .` in CI (`.github/workflows/semgrep-rules-test.yml`), and separately runs twenty-two semgrep rules **over the rule files themselves** (`.github/workflows/semgrep-rule-lints.yaml`), including `duplicate-id`, `empty-message`, `missing-message-field`, `missing-language-field` and `unsatisfiable`. One thousand nine hundred and fifty-one of one thousand nine hundred and sixty-four rule files have a companion test file.
+
+### 6. Visual and geometric checkers — how they separate a regression from an artefact
+
+Nobody in this tier does what this project did. The universal answer is **tolerance**, applied to the *comparison*, not agreement between instruments.
+
+- **BackstopJS**: `misMatchThreshold` (default zero point one percent of pixels) plus `requireSameDimensions` (default true — "*any change in selector size will trigger a test failure*"). The README even documents the threshold's own noise floor: Resemble's `misMatchPercentage` "*only detects mismatches above 0.01%*", requiring `usePreciseMatching` below that (garris/BackstopJS `README.md:197-198, 496-502, 1009`). Repo last pushed 2024-09-07 — the tool is effectively frozen.
+- **Chromatic**: a *colour-distance* threshold in YIQ space, default zero point zero six three, "*which balances high visual accuracy with low false positives (for example, from artifacts like anti-aliasing)*", plus explicit anti-aliased-pixel detection which is on by default and overridable with `diffIncludeAntiAliasing` (chromatic.com/docs/threshold). Chromatic's docs then name the failure mode of the approach: "*a threshold of `0.8` may prevent Chromatic from detecting positioning changes*". A tolerance tuned for colour noise blinds you to geometry.
+- **Percy**: removes the instrument instead of tolerating it, by capturing DOM and re-rendering server-side in controlled browsers, so the comparison is not against a developer's GPU. Diff-tolerance semantics `[UNVERIFIED]` — the renderer is closed-source and I found no primary source stating them.
+- **pa11y** is the one that faces the disagreement problem directly, and it resolves it in the opposite direction to ours. It can run **two independent instruments in one pass** — `pa11y https://example.com --runner axe --runner htmlcs` — and unions their findings. It also **demotes** uncertainty rather than escalating it: `--level-cap-when-needs-review <level>` "*(axe-only) cap severity of any issue requiring manual review to: error (default), warning, notice*" (pa11y/pa11y `README.md:65, 71, 91-100, 465`). And it offers `--threshold <number>` to "*permit this number of errors, warnings, or notices*".
+- **Lighthouse** does not have an instrument-disagreement mechanism; it has a *result-class* mechanism. `SCORING_MODES` enumerates `NUMERIC`, `METRIC_SAVINGS`, `BINARY`, `MANUAL`, `INFORMATIVE`, `NOT_APPLICABLE`, `ERROR` (`core/audits/audit.js:50-58`) and `generateAuditResult` promotes a product into `ERROR` if it carries an `errorMessage`, or `NOT_APPLICABLE` if it says so (`:428-437`). `MANUAL` is the interesting one: an audit that admits a human must decide, permanently.
+
+---
+
+## Ideas worth stealing
+
+1. **The empty fixture as a false-positive regression test.** clang-tidy's `expect_no_diagnosis`: a fixture with zero expectations asserts the rule stays silent. Every one of our six measurement defects produced a concrete page that should not have fired. Each is one silent fixture. Cost: near zero.
+2. **Closed-world assertions.** `-implicit-check-not` / compiletest's `unexpected` / Biome's *"unexpected diagnostic"* / axe's "*will fail if any node is found … that is not explicitly listed*". A fixture should declare the complete finding set for a page, not a subset. Four independent projects, one mechanism.
+3. **Reason keys instead of prose for undecidable.** axe's `messageKey` enum per check plus a shared fallback. Turns `undecidable()` from a log line into something a coverage guard can count and a sweep can enumerate — directly relevant to AccessorSweep's finding that N713 is *vacuously* silent, which no prose detail string would ever have surfaced.
+4. **A rule metadata lint that runs in the gate.** Biome's `rules_check` and semgrep's `semgrep-rule-lints` are both *the project's own analyzer pointed at its own rules*. We already have a coverage guard and a namespace guard; a rules-check is the same shape.
+5. **The non-blessable second assertion.** rustc's `//~ ERROR` beside the `.stderr` snapshot, with the annotations *stripped* from the snapshot during normalization so the two cannot contaminate each other. If any recorded number in `experiments/` ever becomes machine-compared, it needs a hand-written companion that regeneration cannot touch.
+6. **One centralised tolerance function.** axe's `rectHasMinimumSize` with a single named `roundingMargin`. Every size comparison in every rule routes through one place, so the instrument's precision is a single reviewable fact.
+7. **Claim-scoping as a value.** axe's `const negativeOutcome = isInTabOrder(vNode) ? false : undefined` — "this rule may not *fail* on this subject, only review it". Cheaper and more honest than either firing or excluding.
+8. **Known-failing tracked, not deleted.** semgrep's `todoruleid`/`todook`. A defect you have not fixed stays in the fixture, annotated, subtracted from both expected and reported — visible instead of absent.
+
+---
+
+## Where the prior art says we are wrong
+
+1. **"Every rule needs an invalid case" is our invention, not an inherited standard — and the industry's *implemented* version of it is weaker than ours.** ESLint accepts `invalid: []` (proven by execution, above). stylelint's harness no-ops on a missing `reject`. axe's README requires "at least one of" three arrays. Biome requires nothing. If we state that our falsification fixture matches ESLint's, the claim is false. What *is* true, and is the stronger claim: measured coverage in these projects is ninety-two to one hundred percent by convention, and the residue is real (seven axe rules, eight Biome rules). **A gate would be a genuine contribution, not catching up.**
+2. **We are missing the mechanism that actually catches this bug class, and four projects independently converged on it.** Every one of our six measurement defects was a **false positive** — a rule firing on clean input. Positive fixtures do not catch false positives; closed-world negative assertions do. clang-tidy has had this since the `lit` era; rustc, Biome and axe all have it. We have the weaker half of the standard practice, not the stronger half.
+3. **Undecidability is the *last* remedy in LLVM's playbook, not the first.** "*There are two primary mechanisms for managing false positives: supporting a code pattern which allows the programmer to silence the diagnostic in an ad hoc manner and check configuration options to control the behavior of the check*" (`Contributing.rst:429-432`). Neither is undecidability. axe's `target-size` also carries a `minSize` option and an `enabled` flag before it ever reaches `undefined`. Our answer to a rule that cannot decide is always N680; the prior art's first answers are **suppression** and **configuration**, and we have neither.
+4. **Treating instrument disagreement as the failure is unshared.** pa11y is the one shipping tool that runs two independent appearance instruments over the same page, and it **unions** their findings and **demotes** the uncertain ones (`--level-cap-when-needs-review` defaults to capping at `error`, and can cap to `notice`). Chromatic, BackstopJS and Percy all absorb instrument variation into a tolerance and never surface it. Nobody found does what we did. That is either genuinely novel or a category error, and the prior art gives no support for the second instrument being a *check* rather than a *supplement*.
+5. **A geometric hit-target rule may not be worth having at the tier we are attempting it.** Google removed `tap-targets` from Lighthouse (`changelog.md:1143`) and delegated to axe; axe ships `target-size` disabled; the rule needed one hundred-odd lines of rect-splitting, five undecidable branches, a shared rounding margin and fifteen changelog fixes to become trustworthy. Our N650/N670/N690 family attempts the same claim with less machinery — and AccessorSweep has just found two of the three still wrong. The prior art's verdict on this specific rule is *hard, expensive, and off by default*.
+6. **A snapshot's protection is a second hand-written assertion, and our recorded numbers do not have one.** rustc's dev guide names the exact risk we have — "*the `.stderr` files are usually auto-generated*" — and answers it with `//~ ERROR`: machine-checked, snapshot-stripped, un-blessable. Numbers recorded in rule header comments are checked by nothing. They are documentation, and this project's own history says documentation does not stop recurrence.
+7. **Free-text detail on `undecidable()` will not scale.** axe generates every message from per-check JSON with reason keys and a localised fallback; Lighthouse makes the class part of the audit type. A prose string cannot be counted, cannot be swept, and cannot be asserted against. `[INFERENCE]` — no source says this about *our* API; the inference is from four systems having independently chosen enums.
+
+---
+
+## The recurrence question
+
+**Direct answer: partially. Type-level constraints across all rules exist and are shipping. Accessor-to-claim binding does not exist anywhere I could find.**
+
+Three tiers of evidence, weakest to strongest.
+
+**Tier one — a lint on the lints. Common, boring, well adopted.**
+`eslint-plugin-eslint-plugin` (four hundred and twenty-five thousand downloads a week) ships forty-one rules over rule source and rule tests, and ESLint itself uses it on `lib/rules/*.js` via `extends: ["eslint-plugin/rules-recommended"]` and on `tests/lib/rules/*.js` via `extends: ["eslint-plugin/tests-recommended"]` (eslint/eslint `eslint.config.js:125-199`), alongside its own `tools/internal-rules` (`no-invalid-meta.js`, `multiline-comment-style.js`). The catalogue is instructive because of what it *is*: metadata hygiene (`require-meta-schema`, `require-meta-docs-url`, `require-meta-fixable`), dead-diagnostic detection (`no-unused-message-ids` — "*The messageId … is never used.*"), test hygiene (`consistent-output`, `no-identical-tests`, `unique-test-case-names`, `no-only-tests`, `require-test-error-positions`). Biome's `xtask/rules_check` and semgrep's twenty-two self-hosted rule-lints are the same tier.
+
+**Tier two — a restricted API surface rules must code against. Exists, narrow.**
+ESLint's `RuleTester` monkey-patches `SourceCode.prototype` so that `applyInlineConfig`, `applyLanguageOptions` and `finalize` throw when a rule calls them (`rule-tester.js:147-152, 303-320, 1295-1301`). Three lifecycle methods. Nothing about measurement.
+
+The nearest thing to our problem in this tier is `eslint-plugin/no-property-in-node`: "*disallow using `in` to narrow node types instead of looking at properties*", implemented with the TypeScript type checker — it resolves the type of the right operand of `in` and reports if it is a known ESTree/TSESTree node type (`lib/rules/no-property-in-node.ts:32-47, 96-110`). This is genuinely *"a lint that enforces rules use the right way of asking a question about a node"*. It is also `recommended: false` and `requiresTypeChecking: true`, i.e. opt-in and expensive — and ESLint does not enable it on its own rules.
+
+**Tier three — a type-level constraint tying a rule's claim to its evidence. Exists, in two compilers, at coarse grain.**
+
+```rust
+pub trait Rule: RuleMeta + Sized {
+    /// The type of AstNode this rule is interested in
+    type Query: Queryable;
+    …
+    fn phase() -> Phases {
+        <<<Self as Rule>::Query as Queryable>::Services as Phase>::phase()
+    }
+```
+— biomejs/biome `crates/biome_analyze/src/rule.rs:1323-1339`, with `pub trait Queryable { type Input; type Output; type Language; type Services: FromServices + Phase; }` at `crates/biome_analyze/src/query.rs:8-13`
+
+A rule does not *choose* which analysis phase it runs in, and therefore which services it can read; the phase is **derived from the query type**. A syntax-only rule cannot reach semantic information because its `Services` type does not carry it. rustc has the same idea at coarser grain: the `EarlyLintPass` / `LateLintPass` split makes "this lint has type information" a property of the trait implemented, not a runtime check.
+
+**What none of them have.** Both of those constrain *what class of evidence is available*. Neither constrains *which of two structurally identical measurements of the same subject a given claim must use*. There is no project in this survey where a rule asserting pressability is prevented, by type, from reading a padding box; the compilers' constraint is "you may not see types here", not "you may not measure this quantity for that claim".
+
+axe-core is the strongest counter-example to our novelty, and it still is not a counter-example. It reached the same conclusion — pressability is a border-box claim, overlap is measured on enumerated neighbours — but it reached it by **convention plus fifteen changelog fixes**, and enforces it with **nothing**. `vNode.boundingClientRect` and `vNode.clientRects` are both plain properties on the same object; `getComputedStylePropertyValue` sits beside them. A new axe check confusing them would compile.
+
+**Therefore:** the `Box`/`Bounds` split, as a *domain-specific* type-level constraint that makes a measurement/claim mismatch a compile error, is **not present in any of the ten systems surveyed**. The generic pattern it instantiates — encode the analysis capability in the rule's type — is proven and shipping in Biome and rustc, which is exactly the evidence needed to argue it is a sound design rather than a clever one-off. The honest framing is: *the shape is precedented, the instance is ours, and the enforcement gap it leaves — nothing yet asserts each rule uses the accessor its claim requires — is the same gap axe-core has, which is why axe-core keeps fixing that rule.*
+
+**A corollary the sweep supplied.** `Box`/`Bounds` closes the *wrong-box* mistake and closes nothing else. AccessorSweep reports two rules still wrong for reasons the types cannot see: N650 coerces an unresolvable custom property to zero and then silently passes forever, and N690 reads an element box for a text claim through arithmetic the types permit. Both are the *coercion* hazard, not the *box* hazard — a lossy accessor that turns "unknown" into a plausible number. That is precisely what axe refuses by returning `undefined` with a reason key instead of a default, and precisely what clang-tidy's silent fixture would have caught. Two of the eight ideas above target it directly.
+
+---
+
+## Open questions
+
+- Does ESLint's monorepo or CI have an out-of-band check that a core rule's test file declares non-empty `invalid`? I found none in `eslint.config.js`, `tools/` or the plugin catalogue, but I did not read every CI workflow. `[UNVERIFIED]`
+- Percy's diff semantics. No primary source found; the renderer is closed. `[UNVERIFIED]`
+- axe-core's aggregate false-positive rate. Deque publishes no figure. The ACT rules mapping in `doc/rule-descriptions.md` is the closest thing to external validation, and it is per-rule conformance, not defect rate. `[UNVERIFIED]`
+- Whether Biome's `rules_check` runs in the merge gate or only in a codegen check job. I read the implementation, not the workflow wiring.
+- semgrep's real adoption. The npm package is a shim at three thousand four hundred and sixty-five a week; distribution is pip and brew. pypistats returned no parseable body when queried. `[UNVERIFIED]`
+- Whether `eslint-plugin/no-property-in-node` was ever proposed for `rules-recommended` and rejected on cost. That discussion would bear directly on whether a domain accessor lint is affordable for us.
+
+---
+
+## Sources
+
+**Cloned and read under `/tmp/librarian-*` on 2026-08-26** (removed after reading):
+
+- eslint/eslint v10.9.1 — `lib/rule-tester/rule-tester.js`, `eslint.config.js`, `tools/internal-rules/`
+- eslint-community/eslint-plugin-eslint-plugin v7.6.2 — `lib/rules/` (forty-one rules), `no-property-in-node.ts`, `no-unused-message-ids.ts`, `consistent-output.ts`, `require-test-error-positions.ts`
+- dequelabs/axe-core v4.13.0 — `lib/checks/mobile/target-size-evaluate.js`, `lib/checks/mobile/target-size.json`, `lib/checks/color/color-contrast-evaluate.js`, `lib/commons/math/rect-has-minimum-size.js`, `has-visual-overlap.js`, `split-rects.js`, `lib/core/base/rule.js`, `lib/core/utils/publish-metadata.js`, `lib/rules/*.json` (one hundred and five), `test/integration/rules/` (eighty-four directories), `doc/rule-descriptions.md`, `CHANGELOG.md`
+- stylelint/stylelint v17.14.1 — `lib/rules/*/__tests__/index.mjs` (one hundred and fifty)
+- stylelint/jest-preset-stylelint v9.2.0 — `getTestRule.js`
+- biomejs/biome (main) — `xtask/rules_check/src/lib.rs`, `crates/biome_analyze/src/rule.rs`, `crates/biome_analyze/src/query.rs`, `crates/biome_js_analyze/src/lint/` (four hundred and forty-two rules), `crates/biome_js_analyze/tests/specs/`
+- semgrep/semgrep-rules — `.github/workflows/semgrep-rule-lints.yaml`, `.github/workflows/semgrep-rules-test.yml`, `yaml/semgrep/unsatisfiable.yaml`, one thousand nine hundred and sixty-four rule files
+- GoogleChrome/lighthouse v13.4.1 — `core/audits/audit.js`, `changelog.md`
+
+**Fetched from canonical raw URLs:**
+
+- <https://raw.githubusercontent.com/llvm/llvm-project/main/clang-tools-extra/test/clang-tidy/check_clang_tidy.py>
+- <https://raw.githubusercontent.com/llvm/llvm-project/main/clang-tools-extra/docs/clang-tidy/Contributing.rst>
+- <https://raw.githubusercontent.com/rust-lang/rustc-dev-guide/master/src/tests/ui.md>
+- <https://raw.githubusercontent.com/rust-lang/rust/master/src/tools/compiletest/src/runtest.rs>
+- <https://raw.githubusercontent.com/semgrep/semgrep/develop/cli/src/semgrep/test.py>
+- <https://raw.githubusercontent.com/garris/BackstopJS/master/README.md>
+- <https://raw.githubusercontent.com/pa11y/pa11y/main/README.md>
+- <https://www.chromatic.com/docs/threshold/>
+- <https://github.com/GoogleChrome/lighthouse/issues/13719> — false positives in `tap-targets` from a missing viewport declaration
+- <https://github.com/GoogleChrome/lighthouse/issues/7365> — `tap-targets` ignoring absolutely positioned elements to avoid false positives, and thereby missing real failures
+
+**Adoption data:** npm registry `https://api.npmjs.org/downloads/point/last-week/<pkg>` and `https://api.github.com/repos/<owner>/<repo>`, both queried 2026-08-26.
+
+**This repository, for comparison:** `packages/intent/src/contracts.ts:154` (`Box`), `:213` (`Bounds`), `:517` (`lines()`), `:412` (`Severity`); `packages/intent/src/diagnostics/rule.ts:18-45` (`undecidable()`); `packages/intent/src/diagnostics/rules/shredded.ts:56-59` (the third recurrence, recorded in prose).
