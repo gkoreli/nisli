@@ -1088,3 +1088,57 @@ proof-of-concept regime.
   checker is debuggable. Second-order finding worth keeping: three correct
   measurements produced three wrong causal stories, and every wrong *why* came
   from an agent while every right *where* came from a measurement.
+- **2026-08-25 · round 9 (the package, and a reframe that changes its shape)** —
+  Six prior-art passes commissioned into `PRIOR-ART/` (constraint/intent layout,
+  semantic vocabularies, priority/attention adaptive UI, agent-native emission,
+  attention-economy decidability, package mechanics). Two decisions taken with
+  the maintainer, one question at a time:
+  - **Boundary** — engine importable, components copy-in. Confirmed as house
+    precedent, not invention: `@nisli/ui` already ships `registry/` in `files`,
+    compiles only `dist/cli.js`, and exports the CLI alone. Verified the other
+    half is genuinely absent — `data-appearance`, `data-priority`,
+    `data-collapse` and `--ui-unit` have **zero hits across all of
+    `packages/`**. The engine exists only in `experiments/`, outside every gate.
+  - **`@nisli/next` is an INCUBATOR, not a product line.** The maintainer's
+    framing, and it supersedes the "fifth public package" reading: primitives
+    "need to deserve their place in `nisli/core`", and `next` is where they are
+    built and proven until they earn the move. This is the load-bearing reframe
+    of the round, because it makes core's constraints the *entry* requirement
+    rather than a later concern: zero runtime deps, no build policy, no CSS, and
+    the ADR 0030.2 sub-10KB ceiling. It also splits C11 by destination rather
+    than moving it wholesale — `fit/` and `contracts.ts` are core-shaped,
+    `diagnostics/` and `explain()` are dev-only bytes for a devtools subpath,
+    and `theme/` is CSS which core does not ship at all, so the resolution table
+    can never live there. Routed to the package scout mid-flight.
+  - **Recorded tension, parked not resolved**: `@nisli/ui`'s registry is
+    Tailwind-class authored (`cv('inline-flex shrink-0 items-center …')`) — the
+    exact hand-picked-pixel authoring this thesis deletes. Two registries with
+    opposed philosophies coexisting is a roadmap decision, not an oversight.
+  - **Open, asked**: the graduation contract. An incubator's failure mode is
+    becoming a graveyard, so the question is whether entries carry an expiry
+    that forces a decision (the origin-trial model) or graduate on evidence
+    alone.
+- **2026-08-25 · round 10 (the reframe that names the product)** — Two prior
+  framings retired by the maintainer in one turn, and the second one is the
+  architecture:
+  - **Not an incubator, and nothing expires.** Things can be permanently stable
+    in the new package. My expiry proposal was rejected outright — it solved a
+    waiting-room problem for something that is a destination. Graduating a
+    primitive into core stays *possible*; it is not the package's purpose.
+  - **Core is the barebones kernel; the new package is the framework.** Verbatim:
+    "the core is the barebones... nisli/core can be used as is, it can be a
+    barebone framework, but nisli/next or we could call it nisli/engine instead,
+    it is everything that is going to make sure that nisli becomes a defacto UI
+    framework that everyone uses in a year or so". Core keeps its ADR 0019
+    minimalism and stays independently usable. The new package carries the
+    ambition.
+  - **The dependency is bidirectional by design.** Core may be *changed* to
+    expose seams that let the engine do more. This is the opposite of the
+    one-way graduation pipe I had assumed, and it makes "what seam does core
+    lack?" a first-class design question rather than a workaround hunt. The C11
+    prototype hand-rolled `ResizeObserver` wiring and a `[data-fit]` host walk;
+    under this framing those are missing core hooks, not prototype scaffolding.
+  - **Name: `@nisli/engine`, not `@nisli/next`.** `next` implied temporary or
+    "next major" — both now false — and collided with Next.js in mindshare.
+    `engine` is the word the thesis already uses: *make the engine do it*. Tag
+    prefix `engine-vX.Y.Z`.
