@@ -36,6 +36,33 @@ export const TOP_LINKS: ReadonlyArray<{ href: string; label: string }> = [
   { href: intentPitch.href, label: 'Intent' },
 ];
 
+/**
+ * The main nav's class, named because two of its utilities are load-bearing
+ * rather than styling and a future tidy-up would otherwise drop them.
+ *
+ * `min-w-0` and `overflow-x-auto`: a flex item defaults to `min-width: auto`,
+ * so without these the nav cannot shrink below the min-content width of its
+ * labels — every one a single unbreakable word — and the overflow escapes the
+ * row to WIDEN THE DOCUMENT. Under mobile emulation that produces no
+ * scrollbar; Chromium shrinks to fit, handing the phone a zoomed-out page
+ * while `scrollWidth <= innerWidth` still holds. `preview-sweep.mjs` catches it
+ * only through its absolute `innerWidth !== 390` check, which is why that check
+ * exists alongside the relative one.
+ *
+ * MEASURED at 390px against the built stylesheet: the header row needed 368px
+ * inside a 358px content box, so slack was already -10px and survived only by
+ * spilling into its own padding. Adding one top-bar link spent the remainder,
+ * and CI — whose font metrics are wider than macOS's — went to 407px on every
+ * phone page at once while every local check passed. Emulating +0.4px/char
+ * reproduces it at 399px, +0.8px at 413px.
+ *
+ * Deliberately NOT `overflow-x-clip` and NOT an `sm:`-only visibility rule:
+ * both would trade a widened page for a silently unreachable link. Shrinking
+ * and scrolling keeps every link focusable at any width, and makes the fit
+ * independent of the font the runner happens to have.
+ */
+const MAIN_NAV_CLASS = 'flex min-w-0 items-center gap-4 overflow-x-auto text-sm sm:gap-5';
+
 function topActive(current: string | undefined, href: string): boolean {
   if (!current) return false;
   return href === '/' ? current === '/' : current.startsWith(href);
@@ -70,7 +97,7 @@ export function SiteShell(
           >
           nisli
         </a>
-        <nav aria-label="Main" class="flex items-center gap-4 text-sm sm:gap-5">
+        <nav aria-label="Main" class="${MAIN_NAV_CLASS}">
           ${TOP_LINKS.map((link) => {
             const active = topActive(current, link.href);
             return html`<a

@@ -506,11 +506,39 @@ for (const name of names) {
   let upgrade = 'NO-FRAME', hydrated = 'n/a', fit = 'FAIL', touch = 'n/a';
   try {
     await page.goto(`${base}/ui/${name}`, { waitUntil: 'networkidle', timeout: 20000 });
-    const widths = await page.evaluate(() => ({
-      scroll: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
-      viewport: window.innerWidth,
-    }));
-    fit = phoneFit(widths.scroll, widths.viewport);
+    const widths = await page.evaluate((deviceWidth) => {
+      const scroll = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
+      const viewport = window.innerWidth;
+      // Attribution, collected ONLY when the fit is already wrong. `fit=FAIL(407/407)`
+      // names a number and no cause, and a number without a cause costs a CI round
+      // trip per hypothesis — two of mine were wrong before this existed.
+      //
+      // MEASURED AGAINST THE DEVICE WIDTH, NOT `innerWidth`, and that is the whole
+      // subtlety: shrink-to-fit has ALREADY widened the layout viewport by the time
+      // this runs, so relative to `innerWidth` nothing is ever too wide and the
+      // blame list comes back empty on a page that plainly failed. Verified: the
+      // first version of this reported no cause for a 485px home page.
+      const blame = [];
+      if (scroll > viewport + 1 || viewport !== deviceWidth) {
+        const over = [];
+        for (const el of document.querySelectorAll('body *')) {
+          const box = el.getBoundingClientRect();
+          if (box.width < 1) continue;
+          if (box.right <= deviceWidth + 1 && box.width <= deviceWidth + 1) continue;
+          over.push({ el, box });
+        }
+        // An offender containing another offender is a container, not the cause.
+        const causes = over.filter(({ el }) => !over.some((other) => other.el !== el && el.contains(other.el)));
+        for (const { el, box } of (causes.length ? causes : over).slice(0, 3)) {
+          const id = el.getAttribute('data-slot') || el.getAttribute('data-preview') ||
+            (el.className || '').toString().split(/\s+/).slice(0, 2).join('.') || '';
+          const text = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 18);
+          blame.push(`${el.tagName.toLowerCase()}${id ? `[${id}]` : ''}=${Math.round(box.width)}w@${Math.round(box.right)}r${text ? `"${text}"` : ''}`);
+        }
+      }
+      return { scroll, viewport, blame };
+    }, 390);
+    fit = phoneFit(widths.scroll, widths.viewport, 390, widths.blame);
     const frame = page.locator(`[data-preview="${name}"]`).first();
     if (!(await frame.count())) {
       const primitive = await page.getByText('Primitive', { exact: true }).count() > 0;
