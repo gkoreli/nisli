@@ -4,31 +4,64 @@
  * The escape hatch is on this page on purpose: the honest version of "no
  * component styles itself" has to include the door out, and the door has to be
  * countable. It reports itself as N601 and forfeits every guarantee below it.
+ *
+ * THE FORM IS DATA NOW, so the hostile state puts an unbreakable compound, a
+ * right-to-left string and a mixed-script hint through the same `Field` the
+ * happy path uses, rather than through a second call site written to look
+ * broken. The danger zone and the escape hatch stay in every state: a
+ * destructive action does not stop existing because a form is loading, and the
+ * hatch is the page's own confession, not content.
+ *
+ * This page declares no `empty`, `single` or `many` in `state.ts`. A settings
+ * form has a fixed set of controls — there is no corpus to be empty or plural —
+ * and sweeping states a page cannot be in would pad the cell count with cells
+ * that prove nothing.
  */
 
-import { html, type TemplateResult } from '@nisli/core';
+import { computed, each, html, type ReadonlySignal, type TemplateResult } from '@nisli/core';
 import { Button, Escaped, Field, Region, Surface, Text, Toolbar } from '../../ui/index.js';
+import { delivery, fields, retry } from '../state.js';
+import { StatePanel } from './states.js';
+
+function settingsForm(): ReadonlySignal<TemplateResult> {
+  return computed((): TemplateResult => {
+    if (delivery.value === 'loading') {
+      return StatePanel({
+        kind: 'loading',
+        headline: 'Loading settings',
+        what: 'This account has been requested and has not arrived yet.',
+      });
+    }
+    if (delivery.value === 'error') {
+      return StatePanel({
+        kind: 'error',
+        headline: 'Settings unavailable',
+        what: 'This account could not be loaded, so editing it now would overwrite values nobody has read.',
+        action: Button({ role: 'primary', children: 'Try again', onClick: retry }),
+      });
+    }
+    return Surface({
+      layout: 'grid',
+      children: html`${each(
+        fields,
+        (field) => field.label,
+        (field) => html`${Field({
+          label: computed(() => field.value.label),
+          value: computed(() => field.value.value),
+          placeholder: computed(() => field.value.placeholder),
+          hint: computed(() => field.value.hint),
+          invalid: computed(() => field.value.invalid ?? false),
+        })}`,
+      )}`,
+    });
+  });
+}
 
 export function SettingsPage(): TemplateResult {
   return Region({
     layout: 'stack',
     children: html`
-      ${Toolbar({ title: 'Settings' })}
-      ${Surface({
-        layout: 'grid',
-        children: html`
-          ${Field({ label: 'Display name', value: 'Ada Lovelace' })}
-          ${Field({ label: 'Email', value: 'ada@analytical.engine', hint: 'Used for sign-in.' })}
-          ${Field({ label: 'Organisation', value: 'Analytical Society' })}
-          ${Field({
-            label: 'Recovery code',
-            value: '',
-            placeholder: 'XXXX-XXXX',
-            invalid: true,
-            hint: 'Required before enabling two-factor sign-in.',
-          })}
-        `,
-      })}
+      ${Toolbar({ title: 'Settings' })} ${settingsForm()}
       ${Surface({
         layout: 'stack',
         children: html`

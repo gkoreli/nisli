@@ -8,12 +8,19 @@
  * Each Save sits in a row rather than directly in the cell's stack: a stack
  * stretches its children, and four buttons stretched to the same width would
  * hide the very difference the grid exists to show.
+ *
+ * MARKETING DECLARES ONLY `ready` AND `hostile` in `state.ts`. There is no
+ * corpus here to be empty, singular or plural, and a static page has nothing to
+ * load or fail to load. What it does have is the app's only `display`-level
+ * text, which is the widest type the table derives — so an unbreakable compound
+ * belongs in this headline more than anywhere else in the app, and the copy is
+ * read from the state rather than written at the call site.
  */
 
-import { html, type TemplateResult } from '@nisli/core';
+import { computed, html, type TemplateResult } from '@nisli/core';
 import type { Density, InputMode } from '../../appearance/contracts.js';
 import { Button, Hero, Region, Surface, Text } from '../../ui/index.js';
-import { setContext } from '../state.js';
+import { hero, setContext } from '../state.js';
 
 interface ContextCell {
   title: string;
@@ -56,8 +63,8 @@ export function MarketingPage(): TemplateResult {
     children: html`
       ${Surface({
         children: Hero({
-          headline: 'Declare what it is. Not how big it is.',
-          sub: 'Every value on this page was derived from context. No component in this app contains a pixel value, a colour, or a breakpoint.',
+          headline: computed(() => hero.value.headline),
+          sub: computed(() => hero.value.sub),
           primaryAction: {
             id: 'start',
             label: 'Get started',

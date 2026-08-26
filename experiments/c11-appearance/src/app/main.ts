@@ -8,17 +8,36 @@
  * real geometry without a test-only code path inside the app. Everything on it
  * is the same function the UI itself calls, which is the point — if the proof
  * passes, the thing the proof exercised is the thing a user gets.
+ *
+ * `check()` grew an `overlays` option, because the closed document turned out
+ * not to be the whole document: an overlay is rendered only while open, every
+ * rule traverses what is rendered, and nothing opened one during a run — so the
+ * matrix was reporting a clean document with a closed door in it. The option is
+ * off by default and both callers ask for it explicitly, so the geometry proof
+ * and the Run check button see the same thing and neither changed meaning
+ * behind anyone's back. `checkNow` itself lives in `shell.ts`, next to the
+ * button that calls it; this file only puts it on the surface, because two
+ * implementations of "what did we check" is how a checker acquires two
+ * definitions of clean.
  */
 
 import { html } from '@nisli/core';
 import type { Finding } from '../appearance/contracts.js';
-import { domInspector } from '../appearance/diagnostics/dom.js';
-import { check } from '../appearance/diagnostics/runner.js';
 import { explain, type Explanation } from '../appearance/explain.js';
 import { solveAll } from '../appearance/fit/observe.js';
+import { type OpenOverlay, sweepOverlays } from '../ui/patterns/overflow-menu.js';
 import '../theme/index.css';
-import { CANVAS_ID, harnessElement, Shell, VIEWPORT_ID } from './shell.js';
+import {
+  CANVAS_ID,
+  checkNow,
+  type CheckOptions,
+  harnessElement,
+  Shell,
+  VIEWPORT_ID,
+} from './shell.js';
 import { findings, setContext, type ContextPatch } from './state.js';
+
+export type { CheckOptions };
 
 export interface AutomationSurface {
   /** Write any subset of the context axes, plus the harness viewport width. */
@@ -30,8 +49,24 @@ export interface AutomationSurface {
   settled(): Promise<void>;
   /** Re-solve every `[data-fit]` container under `root` (default: document). */
   solveAll(root?: ParentNode): void;
-  /** Run every default rule over `root` (default: the canvas). */
-  check(root?: ParentNode): Finding[];
+  /**
+   * Run every default rule over `root` (default: the canvas). Pass
+   * `{ overlays: true }` to include the state behind every closed overlay.
+   */
+  check(root?: ParentNode, options?: CheckOptions): Finding[];
+  /**
+   * Invoke every revealed overflow trigger under `root`, hand the open panel to
+   * `visit`, close it again, and answer how many were opened.
+   *
+   * Exposed because the proof's in-page audit runs the SAME open/close dance
+   * that `checkNow({ overlays: true })` runs. Two implementations of "open the
+   * door" would be two definitions of what was measured, and this repository's
+   * whole cost signal is that the checker's own truthfulness is the expensive
+   * half. The proof drives this directly rather than through `check` because it
+   * also runs seven geometric assertions per open state and needs them in their
+   * own column rather than merged into a finding list.
+   */
+  sweepOverlays(root: ParentNode, visit: (open: OpenOverlay) => void): number;
   /** Provenance for one element: which declaration produced which value. */
   explain(element: HTMLElement): Explanation;
   /** Snapshot of what the Run check button last rendered; empty before a run. */
@@ -80,7 +115,8 @@ window.__c11 = {
   setContext,
   settled,
   solveAll,
-  check: (root = harnessElement(CANVAS_ID)) => check(domInspector(root)),
+  check: (root = harnessElement(CANVAS_ID), options) => checkNow(root, options),
+  sweepOverlays,
   explain,
   findings: () => findings.value ?? [],
   get viewport() {

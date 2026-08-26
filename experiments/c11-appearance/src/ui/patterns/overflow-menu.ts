@@ -27,6 +27,14 @@
  * scope (provided by the pattern on its own host) and the menu reads the scope
  * back. The scope is the seam: the menu never reaches into a group's markup, and
  * a group never knows a menu exists.
+ *
+ * It also owns the only way in from outside: `sweepOverlays` at the bottom of
+ * the file. The promise above is that a collapsed action is still REACHABLE, and
+ * for two rounds nothing checked the state in which it is reached — the panel is
+ * rendered only while open, every rule traverses what is rendered, and no run
+ * ever opened one. The driver lives here rather than in the checker because
+ * "how is this overlay invoked and dismissed" is this pattern's contract, and a
+ * checker that reimplemented it would be measuring a panel the user cannot get.
  */
 
 import {
@@ -324,3 +332,70 @@ export const OverflowMenu = component<OverflowMenuProps, typeof overflowMenuAttr
   },
   { attrs: overflowMenuAttrs },
 );
+
+/* ── Opening the door: how anything outside this file reaches the panel ──── */
+
+/** One overlay, held open for the duration of a `sweepOverlays` visit. */
+export interface OpenOverlay {
+  /** The `[data-overflow]` control that was invoked. */
+  readonly trigger: HTMLElement;
+  /**
+   * The panel the trigger named through `aria-controls`, or `null` when the
+   * invocation revealed nothing. `null` is a finding, not a skip: the solver
+   * only paints a trigger once it has moved a group into the menu, so a painted
+   * trigger that opens nothing means those actions are gone.
+   */
+  readonly panel: HTMLElement | null;
+}
+
+/**
+ * Invoke every revealed overflow trigger under `root`, one at a time, hand the
+ * open panel to `visit`, and put the document back the way it was found.
+ * Returns how many overlays were actually opened.
+ *
+ * WHY THIS EXISTS, and it is the largest hole the checker had: every rule in
+ * `appearance/diagnostics` traverses what is RENDERED, an overlay is rendered
+ * only while it is open, and until this function existed nothing opened one
+ * during a run. So the panel, the menu items and every label in them had never
+ * been measured by any check — the context matrix was reporting a clean
+ * document with a closed door in it. F4 established that rendered-ness is a
+ * precondition of measurement; this is the corollary nobody drew, that
+ * something has to make the transient thing rendered or the precondition
+ * silently excludes it.
+ *
+ * Three details are load-bearing.
+ *
+ * A REAL CLICK, not a signal write and not a synthetic open. `show()` is the
+ * only code that knows the panel's contents — it reads the action scope for the
+ * groups the solver actually collapsed — so anything that renders a panel
+ * without going through the trigger's own handler measures a panel the user
+ * would never see. It is also why this is synchronous: `show()` flushes, which
+ * is what lets focus move into the panel in the same gesture, and it is what
+ * lets a caller measure in the same turn.
+ *
+ * `aria-controls` RESOLVES THE PANEL, rather than a walk to the anchor's only
+ * child. The trigger's own declaration of which panel is its own is the thing a
+ * screen reader follows, so resolving through it means a broken wiring surfaces
+ * as "this trigger opened nothing" instead of being quietly repaired by the
+ * driver — the shape of false pass this repository has recorded six times.
+ *
+ * CLOSE ON `aria-expanded`, not on whether a panel was found. Leaving one
+ * overlay open would put it in the geometry of the next one, and an assertion
+ * that measures a document with two menus open in it is measuring a state no
+ * user can reach.
+ */
+export function sweepOverlays(root: ParentNode, visit: (open: OpenOverlay) => void): number {
+  let opened = 0;
+  for (const trigger of root.querySelectorAll<HTMLElement>('[data-overflow][data-shown]')) {
+    trigger.click();
+    const controls = trigger.getAttribute('aria-controls');
+    const panel = controls ? document.getElementById(controls) : null;
+    if (panel) opened += 1;
+    try {
+      visit({ trigger, panel });
+    } finally {
+      if (trigger.getAttribute('aria-expanded') === 'true') trigger.click();
+    }
+  }
+  return opened;
+}
