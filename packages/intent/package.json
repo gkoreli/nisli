@@ -1,0 +1,53 @@
+{
+  "name": "@nisli/intent",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Appearance derived from declared meaning and context. Components declare what a thing is; the engine derives every value, and checks the result.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gkoreli/nisli.git",
+    "directory": "packages/intent"
+  },
+  "keywords": [
+    "nisli",
+    "web-components",
+    "design-system",
+    "container-queries",
+    "accessibility",
+    "layout"
+  ],
+  "peerDependencies": {
+    "@nisli/core": ">=0.55.0"
+  },
+  "devDependencies": {
+    "@nisli/core": "workspace:*",
+    "@types/node": "^22.0.0"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./devtools": "./src/devtools.ts",
+    "./theme.css": "./theme/index.css"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./devtools": {
+        "types": "./dist/devtools.d.ts",
+        "default": "./dist/devtools.js"
+      },
+      "./theme.css": "./theme/index.css"
+    }
+  },
+  "files": ["dist", "theme", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  }
+}

@@ -1156,7 +1156,12 @@ proof-of-concept regime.
     are each a declaration of intent. Mechanically the name is free to change
     before first publish (git mv, three matrix lines, two README bullets) and
     impossible after, because npm cannot rename — so it is a now-decision.
-    **Open with the maintainer.**
+    **SETTLED 2026-08-26: `@nisli/intent`.** The maintainer took the
+    evidence-backed recommendation over their own earlier proposal, which is
+    the whole reason the collision search was run. Package created at
+    `packages/intent/`, `private: true`, so the name stays free until
+    publishing is a deliberate act — removing that flag is the irreversible
+    step, not creating the directory.
 - **2026-08-25 · round 11 (the evidence rounds — 13.8k lines, and the thesis
   survives with three amputations)** — Six prior-art slices into `PRIOR-ART/`
   and seven CSS-coverage audits into `COVERAGE/`, every one primary-sourced or

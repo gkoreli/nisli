@@ -283,25 +283,30 @@ core's table. **Allocate the peer range in core's registry and renumber before
 anything publishes.** The prototype's own registry calls recycling a number
 "worse than a gap"; the same standard applies to squatting one.
 
-### 8. The name is an open decision, and it is a now-decision
+### 8. The name is `@nisli/intent`
 
-`@nisli/engine` was chosen and then **overturned by its own collision search**:
-`engine` is already three unrelated nouns in this repository — the router's
-public API (`NavigationEngine`, `EngineSink`, `createEngine`, and the documented
-option `defineRouter(catalog, { engine })`), core's own "template engine", and
-"engine" meaning *browser* engine, including inside a user-visible `N107` throw.
-`@nisli/next` has zero code collisions and is wrong only because it implies
-temporary.
+**Decided.** The package lives at `packages/intent/` and is `private: true`
+until publishing is a deliberate, sequenced act.
 
-Ranked on collision footprint, **`@nisli/intent`** leads: its sole collision is
-the suffixed `ViewTransitionIntent` type, and it is the only candidate covering
-all three charter items, since appearance, attention and declared state space
-are each a declaration of intent.
+`@nisli/engine` was proposed and then **overturned by its own collision
+search**: `engine` is already three unrelated nouns in this repository — the
+router's public API (`NavigationEngine`, `EngineSink`, `createEngine`, and the
+documented option `defineRouter(catalog, { engine })`), core's own "template
+engine", and "engine" meaning *browser* engine, including inside a user-visible
+`N107` throw. `@nisli/next` has zero code collisions and was wrong only because
+it implies temporary, which the permanent-peer framing makes false.
 
-Mechanically the name is free to change before first publish (a `git mv`, three
-matrix lines in `auto-tag.yml`, two README bullets) and impossible after,
-because npm cannot rename. `trusted-publisher: false` or `private: true` is the
-instrument that buys time to decide.
+`@nisli/intent` has one collision, the suffixed `ViewTransitionIntent` type, and
+it is the only candidate that covers all three charter items — appearance,
+attention and declared state space are each a declaration of intent. It also
+names the author's side of the seam rather than the machinery's, which is the
+right emphasis for a package whose entire pitch is that you declare meaning and
+stop choosing values.
+
+Recorded because it will be asked: the name was free to change until first
+publish and is impossible after, since npm cannot rename. `private: true` is
+what keeps it free while the API settles, and removing that flag is the
+irreversible step — not creating the directory.
 
 ## Invariants
 

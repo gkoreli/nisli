@@ -1,0 +1,91 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   THE RESOLUTION TABLE — the ~40% of the C11 bet.
+   ══════════════════════════════════════════════════════════════════════════
+   THIS DIRECTORY IS THE ONLY PLACE IN THE PACKAGE WHERE A NUMBER, A COLOUR
+   OR A RADIUS MAY APPEAR. Nothing under `src/` contains one, and nothing in
+   a consumer's component source may either. In the C11 prototype this was
+   enforced mechanically by `proof/no-values-guard.mjs`, which also reported
+   that it still matched 120 length and 34 colour literals inside the theme so
+   it could not pass vacuously; the same guard is the gate this package owes
+   its consumers. The deliberate escape hatch is the single documented
+   exception (it reports itself as N601).
+
+   Read it as a set of rules, not a stylesheet: a context declares one unit,
+   and every value in the rendered UI is a function of that unit plus the
+   element's declared meaning.
+
+   THIS DIRECTORY IS ALSO LOAD-BEARING FOR THE REACHABILITY GUARD, which is
+   new in the package and not in the prototype. A library cannot see its
+   consumers, so the set of attributes a rule selector is allowed to address
+   is produced by exactly two places: this directory and the fit mutator
+   (`src/fit/`). `src/diagnostics/reachability.test.ts` asserts that every
+   rule selector addresses an attribute one of them produces, and a value the
+   axis allows. Deleting or renaming an attribute selector here therefore
+   fails that test rather than quietly turning a rule into decoration — which
+   is the N700 defect exactly: a selector spelled a word the vocabulary does
+   not contain, matched nothing, reported a clean page, and every gate agreed.
+
+   THE LAYERING RULE — the four files below are a dependency direction. Each
+   layer may read what earlier layers declared and may override what earlier
+   layers painted; never the reverse.
+
+     1. tokens     the context axes: density, input, theme. Declares values,
+                   paints nothing.
+     2. structure  declared composition becomes geometry. Consumes the unit;
+                   knows nothing about colour or role.
+     3. roles      declared meaning becomes appearance. Consumes tokens and
+                   assumes structure; the only layer that paints a component.
+     4. states     what the engine writes, never an author. Last, because an
+                   engine decision must be able to beat a role.
+
+   ══════════════════════════════════════════════════════════════════════════
+   WHY THIS IS `@layer` AND NOT SOURCE ORDER. The claim that used to stand
+   here was FALSE, and it was false in the silent direction.
+   ══════════════════════════════════════════════════════════════════════════
+   It read: "because CSS resolves ties by source order, the sequence below is
+   load-bearing — moving states above roles would let a role's `display`
+   override the solver's decision to remove a node from flow." Source order
+   only decides TIES. Between two rules of different specificity it decides
+   nothing at all, so the ordering protected engine decisions from roles of
+   EQUAL specificity and from nothing else — which is approximately never the
+   interesting case, because a role rule is normally the more specific one.
+
+   Measured (audit 01 §1, rows C and D, in
+   `docs/worklists/nextgen/COVERAGE/01-TEXT-AND-TYPOGRAPHY.md`).
+   `text-wrap` is a shorthand for `text-wrap-mode` + `text-wrap-style`, and
+   `white-space` is a shorthand that
+   INCLUDES `text-wrap-mode`. So one role-layer typography rule —
+   `[data-text='meta'] { text-wrap: pretty }`, specificity (0,3,0) — silently
+   cancels the mutator's `[data-truncate] { white-space: nowrap }` at (0,1,0),
+   from three files later in the source order:
+
+     row C, unlayered:  white-space: normal   text-wrap-mode: wrap    ← lost
+     row D, layered:    white-space: nowrap   text-wrap-mode: nowrap  ← honoured
+
+   The consequence in row C was 64 characters rendered into a 19px column
+   across 30 lines, clipped, with no ellipsis — while the enclosing row
+   reported 320/320 `settled` and the crush check stayed silent, because
+   `data-truncate` nodes are crush-exempt BY DESIGN (the ellipsis is the
+   receipt for the loss). Three independent mechanisms all reported success.
+   That is the shape of every expensive defect in the C11 prototype: a correct
+   measurement of the wrong thing.
+
+   The fix is the two lines below. `states.css` is deliberately left
+   UNLAYERED, because unlayered styles beat every layered style regardless of
+   specificity — so an engine decision now outranks any role rule that will
+   ever be written, not merely the ones that happen to tie. That is what the
+   comment above always claimed and is now true. It also generalises past
+   text: it protects every attribute the mutator writes, including ones that
+   do not exist yet.
+
+   `!important` in states.css stays as it is. It is a stronger claim than
+   layering — an unlayered `!important` beats a LAYERED `!important` too — and
+   the two rules that carry it (removal from flow) need exactly that.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@layer tokens, structure, roles;
+
+@import './tokens.css' layer(tokens);
+@import './structure.css' layer(structure);
+@import './roles.css' layer(roles);
+@import './states.css';

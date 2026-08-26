@@ -1,0 +1,296 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   LAYER 4 — STATES: what the ENGINE writes, never an author.
+   ══════════════════════════════════════════════════════════════════════════
+   Every attribute in this file is produced by machinery, not by a component:
+   the fit solver's mutator writes data-truncate / data-hidden / data-collapsed
+   / data-fit / data-shown, nisli writes data-nisli-error, and the escape
+   hatch writes data-escaped about itself. An author declaring one of these by
+   hand is a bug, and the diagnostics layer is what says so.
+
+   This is the only layer permitted to use `!important`, and only for the two
+   rules that remove a node from flow: a role legitimately declares
+   `display: inline-flex`, an engine decision that the node is not to be
+   rendered at all must beat it unconditionally, and "unconditionally" cannot
+   be expressed by specificity when a future role may be more specific.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Removal from flow: two different facts, deliberately two rules ─────── */
+
+/* strategy `menu` — the node did not fit and its content was MOVED into the
+   overflow affordance. Reachable: an affordance exists (see data-overflow
+   below), and the solver counts it in data-collapsed-count. Removing it from
+   flow rather than hiding it visually is what makes the row measure honestly
+   on the next pass. */
+[data-collapsed] {
+  display: none !important;
+}
+
+/* strategy `hide` — F5. The node did not fit and there is NO affordance: the
+   author declared this information genuinely optional. This exists because
+   `truncate` was the only non-menu strategy in the first run, and applying it
+   to short atomic values degraded timestamps to `1…`, `Y…`, `M` — technically
+   fitting, informationally worthless. An atomic value cannot be shortened, so
+   the honest degradation is absence.
+
+   It is a separate rule from data-collapsed and not an alias for it: collapsed
+   promises the content is still reachable, hidden promises the opposite. The
+   diagnostics layer relies on that distinction (a collapsed node with no
+   affordance is a defect; a hidden node with no affordance is correct). */
+[data-hidden] {
+  display: none !important;
+}
+
+/* ── Truncation ──────────────────────────────────────────────────────────
+   strategy `truncate`. Written by the mutator, which makes it the shrink
+   licence structure.css keys on (F8): the ellipsis is the visible receipt
+   that the loss was intended, so this is one of only two elements allowed to
+   flex below its content width. N621 warns when the surviving text is too
+   short for the truncation to have been worth it. */
+[data-truncate] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-inline-size: 0;
+}
+
+/* ── The overflow affordance ─────────────────────────────────────────────
+   Hidden by default and revealed only when the solver actually collapsed
+   something, so the trigger can never be an empty promise. */
+
+[data-overflow] {
+  display: none;
+}
+[data-overflow][data-shown] {
+  display: inline-flex;
+}
+
+/* F6 — collapsed actions must be REACHABLE. The first run shipped the trigger
+   as a stub with no menu, no keyboard and no ARIA, which made every collapsed
+   action unreachable. The markup for the real thing lives in the UI layer;
+   what used to live here was "the geometry, because a popover needs an offset
+   and a z-index and those are numbers".
+
+   IT NO LONGER DOES, AND THAT SENTENCE WAS THE DEFECT. The panel was
+   `position: absolute` inside `[data-overflow-anchor] { position: relative }`,
+   which sits inside the flush surface's `overflow: clip` (roles.css), so on the
+   lower message rows at narrow widths the panel was clipped away ENTIRELY.
+   Measured worst case at inbox/comfortable/touch/light/320: the clipper ended
+   at y 371.1 and the panel sat at 56,374.4 sized 300 by 147 — four nodes
+   destroyed, 150.23 of overhang, with "Mark read", "Archive" and "Reply" inside
+   it. 24 of 240 cells failed N710 the instant anything opened the door. "Reply
+   never leaves" was false in exactly the context the degradation exists to
+   serve, and nobody noticed for a session, because a closed overlay is in no
+   geometry at all.
+
+   THE FIX IS PROMOTION TO THE TOP LAYER, and it is a net deletion. The panel is
+   a `popover`, opened by its own trigger through `command`/`commandfor`. The
+   top layer has no containing block in the document: no ancestor can clip it,
+   no ancestor's transform can move it, and it paints above everything with
+   `z-index: auto`. So the offset, the `z-index`, the positioned ancestor and
+   the `display: none` / `[data-shown]` pair are all gone — the browser owns
+   showing, and `:popover-open` is the state selector if this file ever needs
+   one.
+
+   PLACEMENT IS DERIVED, NEVER AUTHORED. Not one side, not one offset, not one
+   anchor name, not one id. `position-anchor` is left at its initial value,
+   which resolves to the IMPLICIT anchor — whichever invoker opened this panel.
+   That makes the worst hazard in this area structurally impossible rather than
+   merely avoided: with a shared `anchor-name` every overlay in the document
+   attaches to the LAST anchor in DOM order (css-anchor-position-1 §2.1), which
+   in a single-instance demo is indistinguishable from correct, and
+   `anchor-scope` cannot separate two `[data-overflow]` triggers inside one
+   `[data-fit]` scope. The spec hands over the escape in the same section:
+   `anchor-scope` "has no effect on implicit anchor elements". There is no name
+   here to collide, so a document full of triggers needs no per-callsite wiring
+   to keep them apart.
+
+   `position-area` declares the PREFERENCE, `position-try-fallbacks` declares
+   what may be traded away, `position-try-order` picks between them. The theme
+   states the relationship; the browser derives the side. Measured on this
+   Chromium with these declarations and nothing else: a trigger at its
+   container's inline start flipped INLINE, a trigger near the block end flipped
+   BLOCK, both landed wholly inside the viewport, and the gap was one --unit on
+   every instance including the flipped ones — because `flip-block` flips the
+   margin with the axis. One gap, authored once, re-derived per density for
+   free. */
+[data-overflow-menu] {
+  position: fixed;
+  /* The two UA popover declarations that fight a derived placement: `inset: 0`
+     pins all four sides and `margin: auto` centres it. Both must be undone
+     before `position-area` has anything left to decide. */
+  inset: auto;
+  margin: 0;
+  position-area: block-end span-inline-start;
+  position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+  position-try-order: most-height;
+  /* THE ONLY GEOMETRY IN THIS RULE, and it is a relationship rather than a
+     position: one --unit between the control and the surface it revealed. */
+  margin-block-start: var(--unit);
+  /* A block bound derived from the position-area box instead of chosen, so a
+     long menu is bounded by the space the placement actually found — and
+     `overflow: auto` because a derived bound that cannot scroll is just another
+     clip, which is the entire subject of this block. */
+  max-block-size: stretch;
+  overflow: auto;
+  /* Inline size: two declarations, no length, and the pair is load-bearing in
+     both directions.
+
+     `max-content` REFUSES TO SHRINK, and that is not a style preference. The UA
+     stylesheet sets `width: fit-content` on every popover, and a fit-content
+     panel shrinks INTO whatever region `position-area` offered it — so it never
+     overflows, `position-try-fallbacks` is an OVERFLOW test, the browser never
+     tries a single fallback, and the labels are damaged instead. The overlays
+     audit measured exactly that: "Reply all" and "Archive" each broken across
+     two line boxes inside a panel the browser considered fitted. That is F8's
+     own shape — a container satisfied while its content is destroyed —
+     reappearing inside the platform's solver, for the identical reason: it asks
+     whether the box overflowed rather than whether the content survived. So the
+     rule this table learned from F8 is a PRECONDITION for the browser's
+     derivation and not a house style: anchor positioning cannot rescue a box
+     that has already agreed to be crushed. Measured here: with `max-content` a
+     trigger at its container's inline start makes the panel overflow the region
+     it was offered, the browser sees it, `flip-inline` fires, and every label
+     stays on one line box.
+
+     `max-inline-size` is THE VIEWPORT, and it replaces the one bound in this
+     table that admitted it was luck. That was
+     `min(max(calc(var(--unit) * 60), var(--min-track)), 100cqi)`, whose own
+     comment said it "happens to fit today" — a container bound derived from
+     --unit with a content floor bolted on, F9's exact shape, and the overlay
+     sweep measured it BINDING in 38 of 110 opened panels, clamping by up to
+     147.1 below what the content asked for. It is deleted rather than
+     re-derived, and the promotion above is what licenses that: a panel in the
+     top layer is no longer inside the fit container, so `100cqi` would clamp it
+     to a box it escaped. The viewport is the only thing left that can cut it
+     off, and one --unit of clearance per side is the same gap declared above.
+
+     It is also the one bound whose FAILURE mode is honest, and the failure was
+     measured in situ rather than argued. Driven on the real page at
+     inbox/comfortable/touch/light with the browser viewport itself at 320, so
+     the cap resolves to 310 = 320 - 2 x --unit:
+
+       - as shipped the cap is NOT binding at all (panel 125.02 wide), where the
+         bound it replaces was binding in 38 of 110 opened panels;
+       - given a five-word label longer than the viewport the cap binds exactly,
+         the panel spans 0..310, and the label wraps to TWO line boxes for FIVE
+         words. 2 <= 5, so no word was broken inside itself — that is a wrap,
+         which the item rule below licenses, and not a shred;
+       - given a single unbreakable token longer than the viewport the token IS
+         broken inside itself (1 word, 2 line boxes). That residue is
+         unavoidable — a token wider than the viewport must be broken, clipped
+         or painted off-screen, and breaking is the only one of the three that
+         keeps it readable — and it is LOUD, because the overlay pass's shred
+         assertion is exactly `lines > words` and reports it.
+
+     Which is the whole argument against a --unit-derived cap in one number: it
+     makes no such promise, because it can land below a single WORD. The bound
+     it replaces was `--unit * 60` — 240 at comfortable and 120 at dense — so
+     the threshold for shredding a label moved from about a hundred pixels to
+     the entire viewport. */
+  inline-size: max-content;
+  max-inline-size: calc(100dvi - var(--unit) * 2);
+  padding: var(--unit);
+  background: var(--s1);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  /* The only shadow in the system: it is not decoration, it is the signal
+     that this layer floats above the one the solver measured. */
+  box-shadow: 0 calc(var(--unit) * 0.5) calc(var(--unit) * 3) rgb(0 0 0 / 0.14);
+}
+
+/* An anchor whose trigger is not shown is still a zero-width flex child, and a
+   zero-width flex child still costs the row one `gap` — which the solver would
+   have to degrade something real in order to pay for. Collapse it entirely so
+   an unused affordance costs nothing.
+
+   This is now the ONLY rule this element carries. It also used to declare
+   `position: relative`, purely to be the panel's containing block, and that
+   declaration was half of the clipping defect above: it is what put the panel
+   inside the clip. The top layer needs no positioned ancestor. */
+[data-overflow-anchor]:not(:has([data-overflow][data-shown])) {
+  display: none;
+}
+
+/* Menu items are a list, not a row: full width so the whole strip is the hit
+   target, start-aligned so labels scan vertically. Declared here rather than
+   in the UI so the menu's children need no appearance decision of their own.
+
+   A menu item is also the one action that may WRAP, and after the promotion
+   above that licence is reached in exactly one situation instead of routinely:
+   the panel is now `max-content` wide, so a label wraps only where the VIEWPORT
+   cap engages. Bounding a box whose content cannot reflow is precisely how F8
+   happened, so a bound is only honest where reflow is available — and this is
+   the reflow that makes the viewport the honest cap.
+   `overflow-wrap: anywhere` closes the last hole — a single unbreakable token
+   longer than the whole viewport would otherwise still paint outside its box.
+   It is also the declaration that makes a --unit-derived cap dangerous, which
+   is why there is no longer one: a cap that lands below a single word turns
+   this licence from a wrap into a shred, and N690 exists because that has
+   already happened once here. */
+[data-overflow-menu] [data-appearance='action'] {
+  inline-size: 100%;
+  min-inline-size: 0;
+  justify-content: flex-start;
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  block-size: auto;
+  min-block-size: max(calc(var(--unit) * 9), var(--min-target));
+  padding-block: calc(var(--unit) * 1.5);
+  line-height: 1.3;
+}
+
+/* ── Solver verdict ──────────────────────────────────────────────────────
+   `unsatisfiable` means the solver exhausted every declared degradation and
+   the content still does not fit. That is an authoring defect, so it is
+   marked in the UI rather than silently tolerated: the same philosophy as
+   data-escaped — possible, explicit, and visibly unverified. */
+[data-fit='unsatisfiable'] {
+  outline: 2px dashed var(--danger);
+  outline-offset: calc(var(--unit) * 0.75);
+}
+
+/* ── Unverified regions ──────────────────────────────────────────────────
+   F7. The escape hatch is allowed to exist, but a subtree that styles itself
+   raw is outside every guarantee this theme makes, so it is drawn as such and
+   reported once as N601. */
+[data-escaped] {
+  outline: 1px dashed var(--danger);
+  outline-offset: calc(var(--unit) * 0.5);
+}
+
+/* nisli stamps this on a HOST whose lifecycle threw (ADR 0030.2 T6 — it is how
+   the N402 in the first run of the C11 prototype was found in one step). Solid
+   rather than dashed so a framework error never reads as an intentional
+   escape, and `display: block` because structure.css makes every host boxless:
+   a `display: contents` element has no box to draw an outline on, so the one
+   state that must be visible on a host has to give the host back its box. */
+[data-nisli-error] {
+  display: block;
+  outline: 2px solid var(--danger);
+  outline-offset: calc(var(--unit) * 0.5);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Container context: the axis, legible by name.
+   ══════════════════════════════════════════════════════════════════════════
+   Every fit container is also a query container, so descendants can resolve
+   against the space they were actually given rather than against the
+   viewport — which is the structural reason this package has no media
+   queries at all. */
+[data-fit] {
+  container-type: inline-size;
+  container-name: fitbox;
+}
+
+/* A style query reads the context by NAME (--density-name is set by the
+   density axis in tokens.css), not by re-deriving it from a measurement. This
+   one rule says "inside a dense fit container, controls lose their borders" —
+   once, for every control that will ever exist, including ones not written
+   yet. That is the whole claim of the package expressed in four lines. */
+@container fitbox style(--density-name: dense) {
+  [data-appearance='action'] {
+    border-color: transparent;
+  }
+}
