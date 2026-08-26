@@ -5,7 +5,7 @@
 **Depends on**: [0032-derived-appearance-package](./0032-derived-appearance-package.md)
 **Evidence**: [`docs/worklists/nextgen/ORACLE/`](../worklists/nextgen/ORACLE/) —
 prior art on checker self-verification, the test-oracle literature, an accessor
-sweep of all fifteen rules, and a systematic injection harness
+sweep of all sixteen rules, and a systematic injection harness
 
 ## Context
 
@@ -14,6 +14,39 @@ that the check is the differentiator. That bet has a dependency nobody stated:
 the checker has to be right. This ADR is about the one number that measures
 whether it is, and about the fact that number was being reported in a way that
 flattered the project.
+
+### Correction, on evidence, to two claims this ADR made in its first draft
+
+**It is sixteen rules, not fifteen.** Sixteen ship
+(N601/610/620/621/630/640/650/660/670/690/700/710/713/715/730/740); N680 is
+registered with no rule by design, because it is how any rule admits it could
+not decide.
+
+**And the oracle taxonomy claim was wrong.** The first draft asserted that these
+rules are *derived* oracles over a *specified* substrate, and called that an
+unusually favourable position. They are not. In Barr, Harman, McMinn, Shahbaz
+and Yoo's survey a **derived** oracle needs a second artefact to differ
+against — another implementation, another execution, another version — and a
+rule like N670 has none: it fires on one rendering of one document. What it
+actually relies on is *"general, implicit knowledge"* that overlapping siblings
+are nearly always wrong. That is the **implicit** oracle, the survey's third
+category, and it is the weakest of the three.
+
+This matters because it changes what can be claimed. An implicit oracle cannot
+be argued into soundness from its substrate; its only evidence is that it fires
+on defects somebody manufactured on purpose. So the injection harness in §3 is
+not a nice-to-have that raises confidence — **it is the only evidence this
+checker can ever have**, and every guarantee in ADR 0032 rests on it.
+
+The precedent is exact and it is a warning. **ReDeCheck** (ISSTA 2017) is a
+published responsive-layout checker detecting element collision, element
+protrusion, viewport protrusion, small-range layouts and incongruous wrapping —
+five of these sixteen rules under different names, over the same DOM geometry.
+Its authors' own closing appraisal: *"Our appraisal of the prototype tool does
+not include the possibility of false negatives: We do not know if, for the pages
+studied, ReDeCheck missed failures."* They had no way to manufacture a known
+defect and confirm the rule caught it. That is the argument for §3, made by the
+people best placed to make it, as an admission rather than a proposal.
 
 ### The number, and why the framing was wrong
 
@@ -137,11 +170,31 @@ asserts silence. Requirements, each derived from a recorded failure:
   silence.
 - **"Could not inject" and "could not detect" are different results.** Conflating
   them is exactly how a self-test reported a working check as blind. The harness
-  must distinguish them and say which.
-- **Non-vacuity is printed.** Classes injected, rules exercised. A harness that
-  silently stops injecting is the failure mode it exists to catch.
+  must distinguish them and say which — and it must assert the injected
+  condition actually holds before asserting the rule fires. LAVA's answer to
+  this hazard is that seeded bugs are *"always triggerable"* because they sit on
+  a known-feasible path; two assertions, two failure messages.
+- **Non-vacuity is printed, and NO RATIO IS COMPUTED.** Classes injected and
+  rules exercised, by name. Not a score. Google's mutation-testing deployment —
+  more than 24,000 developers, more than 1,000 projects, 14,730,562 mutants over
+  six years — deliberately does not compute the mutant-detection ratio, because
+  *"it is neither concrete nor actionable, and it does not guide testing."* This
+  ADR retires one flattering metric in §1 and must not accept another in §3.
+- **Suppression, not generation.** One injection per defect class, aimed at a
+  node the rule can reach. The same deployment found developers initially
+  classified **85% of reported mutants as unproductive**, and suppression — only
+  changed and covered lines, at most one mutant per line, over a hundred curated
+  exclusion rules — took that to **11%**. A harness that emits many
+  uninteresting injections gets muted, and muting is this project's
+  most-recorded failure mode.
 - **It runs without a browser**, on the fake `Inspector`, so it is a gate rather
   than a nightly job.
+- **The shape to copy is the boring one.** `axe-core` — a rule-based DOM checker
+  sharing this architecture almost line for line, at 67.9 million downloads a
+  week — ships 86 per-rule fixtures asserting 2,262 individual node verdicts.
+  ReDeCheck, with the better theoretical fit to this problem, has 17 stars and
+  last saw a commit in 2023. A folder of fixtures with expected verdicts is what
+  survives contact with users.
 
 ### 4. A rule earns build authority by proving it can fail
 
