@@ -1068,3 +1068,23 @@ proof-of-concept regime.
   *whether*), floors were declared as sizes rather than minimums so a parent
   could squeeze a 44px target to 43, and prose text that could not reflow
   crushed 21px outside its box in a stack the solver never inspects.
+- **2026-08-25 · round 8 (settled)** — Every routed fix landed and the matrix is
+  **240/240 clean across seven assertion paths** (declared, fit, afford, crush,
+  overlap, document, check), with the proof self-testing: all seven verified
+  capable of failing before the run is trusted. 78 domain tests green, the
+  exclusivity guard PASS over 45 files while still matching 90 length and 34
+  colour literals inside the theme, so it bites. **The cost signal is the
+  finding, not the green run: five of the nine defects were in the ORACLE, not
+  the page** — measuring unrendered nodes (F4), a container-only overflow test
+  that cannot see a crush (F8, the one that let buttons overlap while reporting
+  success), an N670 pass anti-correlated with its own defect, N650 measuring the
+  padding box when a hit target is the border box (710 findings), and N690
+  repeating that exact mistake inside the rule written to prevent it. One
+  principle now stated in code rather than in a chat log: **a check must measure
+  the box its claim is about.** Implication for the bet: the expensive half of
+  "the framework checks the UI" is the checker's own truthfulness, which is
+  precisely the kill criterion (§6) this experiment was built to test — and the
+  answer is that it is affordable but not cheap, and only affordable because the
+  checker is debuggable. Second-order finding worth keeping: three correct
+  measurements produced three wrong causal stories, and every wrong *why* came
+  from an agent while every right *where* came from a measurement.
