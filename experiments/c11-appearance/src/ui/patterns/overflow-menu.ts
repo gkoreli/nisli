@@ -28,10 +28,33 @@
  * back. The scope is the seam: the menu never reaches into a group's markup, and
  * a group never knows a menu exists.
  *
+ * THE PANEL IS IN THE TOP LAYER, and half of this file is what that deleted.
+ * It is a `popover`, opened by its own trigger through `command`/`commandfor`,
+ * so the browser owns open/close, light dismiss, Escape-with-focus-return,
+ * `aria-expanded` in the accessibility tree, Tab order and initial focus via
+ * `autofocus`. Every hand-rolled version of those is gone rather than left
+ * beside the platform's: a document `pointerdown` listener, an `Escape` branch,
+ * a `Tab` branch, a `flush()`+`focus()` dance and a `close(returnFocus)`
+ * boolean. What the browser does NOT give a non-modal popover is measured and
+ * enumerated at the three numbered comments in the setup below — focus and the
+ * panel living and dying together, the resize invalidation, and arrow/Home/End
+ * roving, because ARIA roles carry no behaviour.
+ *
+ * That promotion is also THE FIX for a shipped defect, and the defect is why
+ * the panel could not stay where it was. `position: absolute` inside
+ * `[data-overflow-anchor] { position: relative }` put the panel inside the
+ * flush surface's `overflow: clip`, and on the lower message rows at narrow
+ * widths the clip destroyed it outright: at
+ * inbox/comfortable/touch/light/320 the clipper ended at y 371.1 and the panel
+ * sat below it, four nodes gone, with "Mark read", "Archive" and "Reply" inside.
+ * The trigger painted, the click registered, the screen did not change and
+ * focus went into an invisible menu. The top layer has no containing block in
+ * the document, so no ancestor can clip it and none can move it.
+ *
  * It also owns the only way in from outside: `sweepOverlays` at the bottom of
  * the file. The promise above is that a collapsed action is still REACHABLE, and
- * for two rounds nothing checked the state in which it is reached — the panel is
- * rendered only while open, every rule traverses what is rendered, and no run
+ * for two rounds nothing checked the state in which it is reached — a closed
+ * panel is `display: none` and every rule traverses what is PAINTED, and no run
  * ever opened one. The driver lives here rather than in the checker because
  * "how is this overlay invoked and dismissed" is this pattern's contract, and a
  * checker that reimplemented it would be measuring a panel the user cannot get.
@@ -49,7 +72,6 @@ import {
   ref,
   signal,
   useHostEvent,
-  when,
 } from '@nisli/core';
 import type { Emphasis, Priority } from '../../appearance/contracts.js';
 
@@ -182,7 +204,9 @@ export interface OverflowMenuProps {
 
 const overflowMenuAttrs = { label: 'string' } satisfies ComponentAttrs<OverflowMenuProps>;
 
-/** Per-instance id source, so `aria-controls` names one panel and not all of them. */
+/** Per-instance id source, so `aria-controls` and `commandfor` each name one
+ *  panel and not all of them. The one id in the pattern, and the only reason
+ *  there is one: an invoker relationship needs a target to point at. */
 let panelSeq = 0;
 
 export const OverflowMenu = component<OverflowMenuProps, typeof overflowMenuAttrs>(
@@ -199,28 +223,53 @@ export const OverflowMenu = component<OverflowMenuProps, typeof overflowMenuAttr
     const menuItems = (): HTMLElement[] =>
       panel.current ? [...panel.current.querySelectorAll<HTMLElement>('[role="menuitem"]')] : [];
 
-    function close(returnFocus: boolean): void {
-      if (!open.value) return;
-      open.value = false;
-      // The panel is torn down by this flush, so focus has to be placed after
-      // it: a closed menu that leaves focus on a removed node drops the user
-      // back at the top of the document.
-      flush();
-      if (returnFocus) trigger.current?.focus();
+    /**
+     * Ask the BROWSER to close. It restores focus to the invoker when focus is
+     * inside the panel and leaves it alone when it is not, which is exactly the
+     * split the hand-rolled `close(returnFocus)` used to take a boolean for.
+     */
+    function dismiss(): void {
+      if (open.value) panel.current?.hidePopover();
     }
 
-    function show(): void {
+    /**
+     * The seam between the browser's open/close and this component's contents,
+     * and the only place the two meet.
+     *
+     * `beforetoggle` and not `toggle`, for a measured reason: `beforetoggle` is
+     * dispatched SYNCHRONOUSLY inside the invoker's activation, while `toggle`
+     * is queued as a task. `sweepOverlays` below — and every caller that opens a
+     * menu and measures it in the same turn — reads `aria-expanded` immediately
+     * after the click, so state derived from the async event would still say
+     * `false` on a panel that is open. Measured both ways on this Chromium.
+     *
+     * Filling here rather than after the fact is what lets the panel be laid
+     * out, anchored, sized and autofocused exactly once, with its real content
+     * already in it.
+     */
+    function synchronise(event: ToggleEvent): void {
+      if (event.newState !== 'open') {
+        open.value = false;
+        // Deliberately NOT clearing `items`: the browser returns focus during
+        // the hide it is in the middle of, and removing the focused menu item
+        // first drops the user at the top of the document instead.
+        flush();
+        return;
+      }
       const collapsed = scope.collapsed();
-      // Nothing was collapsed, so there is nothing to reveal. An empty
-      // `role="menu"` is a dead end for a screen reader, and the trigger is not
-      // painted in this state anyway.
-      if (collapsed.length === 0) return;
+      // Nothing was collapsed, so there is nothing to reveal, and an empty
+      // `role="menu"` is a dead end for a screen reader and an "actions the
+      // solver moved here cannot be pressed" finding for the overlay pass. The
+      // show is CANCELLED rather than reversed: `beforetoggle` is cancelable on
+      // the opening edge (measured; it is not on the closing edge), so the panel
+      // never reaches the top layer at all.
+      if (collapsed.length === 0) {
+        event.preventDefault();
+        return;
+      }
       items.value = collapsed;
       open.value = true;
-      // Render the panel now so focus can move into it in the same gesture,
-      // rather than a microtask later with focus still on the trigger.
       flush();
-      menuItems()[0]?.focus();
     }
 
     function moveFocus(step: number): void {
@@ -234,29 +283,36 @@ export const OverflowMenu = component<OverflowMenuProps, typeof overflowMenuAttr
       list[next]?.focus();
     }
 
-    // Every listener below is registered during setup and disposed with the
-    // component. A menu that leaks a document listener re-opens ghosts on the
-    // next page, and one that registers on mount instead has a window in which
-    // Escape does nothing.
-    useHostEvent<PointerEvent>(document, 'pointerdown', (event) => {
-      const target = event.target;
-      if (target instanceof Node && host.contains(target)) return;
-      close(false);
+    // ── What the browser does NOT give a non-modal popover ─────────────────
+    // Measured in the overlays audit, each with a paired control: light
+    // dismiss, Escape-with-focus-return, implicit expanded state and Tab order
+    // all arrive free, so the hand-rolled versions are gone. These three do
+    // not arrive, so they stay — one rule each, authored once, never per
+    // callsite.
+
+    // 1. FOCUS AND THE PANEL LIVE AND DIE TOGETHER. A popover contains nothing:
+    //    an outside `focus()` succeeds and the menu stays open behind it. This
+    //    replaces the old `Tab` key branch, which missed Shift+Tab and every
+    //    focus move made by script — `focusout` sees all three, and its
+    //    `relatedTarget` is the whole test.
+    useHostEvent<FocusEvent>(host, 'focusout', (event) => {
+      const next = event.relatedTarget;
+      if (next instanceof Node && host.contains(next)) return;
+      dismiss();
     });
 
-    // A resize re-solves the container, which changes WHICH groups are
-    // collapsed — so an open panel is showing a stale answer. Closing also
-    // keeps an absolutely-positioned panel out of the geometry the solver and
-    // the diagnostics are about to measure.
-    useHostEvent(window, 'resize', () => close(false));
+    // 2. A resize re-solves the container, which changes WHICH groups are
+    //    collapsed — so an open panel is showing a stale answer. This is a fit
+    //    concern rather than a placement one: anchor positioning re-derives the
+    //    panel's position for free, and re-deriving the position of a stale
+    //    answer is still a stale answer.
+    useHostEvent(window, 'resize', dismiss);
 
+    // 3. ARIA roles carry no behaviour: `ArrowDown` inside a `role="menu"`
+    //    moves nothing at all. Escape and Tab are the UA's; the roving is ours.
     useHostEvent<KeyboardEvent>(host, 'keydown', (event) => {
       if (!open.value) return;
       switch (event.key) {
-        case 'Escape':
-          event.preventDefault();
-          close(true);
-          return;
         case 'ArrowDown':
           event.preventDefault();
           moveFocus(1);
@@ -275,15 +331,24 @@ export const OverflowMenu = component<OverflowMenuProps, typeof overflowMenuAttr
           list[list.length - 1]?.focus();
           return;
         }
-        case 'Tab':
-          // Focus is leaving the menu: it must not stay open behind the user.
-          close(false);
-          return;
         default:
           return;
       }
     });
 
+    // THE PANEL IS IN THE DOM FROM THE START and not conditionally rendered,
+    // and the invoker relationship forces that: `commandfor` has to resolve a
+    // target at click time, and the implicit anchor is established by that
+    // activation. A panel that appeared only after the click would have nothing
+    // to be invoked, and `showPopover()` — the only alternative — establishes no
+    // implicit anchor at all, so the panel would land at its static position.
+    //
+    // `role` is therefore bound to the open state, exactly like `aria-controls`
+    // and for the same reason. `items` is read from the action scope when the
+    // panel opens, so a CLOSED panel holds no menu items whatsoever: declaring
+    // `role="menu"` on it would put one empty menu per row into the
+    // accessibility tree, which is the dead end this component already refuses
+    // to open. The element declares itself a menu exactly while it contains one.
     return html`<span data-component="app-overflow-menu" data-overflow-anchor>
       <button
         ref=${trigger}
@@ -291,43 +356,44 @@ export const OverflowMenu = component<OverflowMenuProps, typeof overflowMenuAttr
         data-role="quiet"
         data-overflow
         type="button"
+        command="toggle-popover"
+        commandfor=${panelId}
         aria-haspopup="menu"
         aria-expanded=${computed(() => (open.value ? 'true' : 'false'))}
         aria-controls=${computed(() => (open.value ? panelId : undefined))}
         aria-label=${name}
-        @click=${() => (open.value ? close(true) : show())}
       >⋯</button>
 
-      ${when(
-        open,
-        () => html`<div
-          ref=${panel}
-          id=${panelId}
-          role="menu"
-          data-overflow-menu
-          data-shown
-          data-layout="stack"
-          aria-label=${name}
-        >${each(
-          items,
-          (action) => action.id,
-          (action) =>
-            html`<button
-              role="menuitem"
-              data-appearance="action"
-              data-role="quiet"
-              type="button"
-              @click=${() => {
-                const chosen = action.value;
-                // Close first: the action may re-render the subtree this menu
-                // item lives in, and running it with the panel still mounted
-                // leaves focus on a node that is about to be removed.
-                close(true);
-                chosen.onSelect?.();
-              }}
-            >${computed(() => action.value.label)}</button>`,
-        )}</div>`,
-      )}
+      <div
+        ref=${panel}
+        id=${panelId}
+        popover="auto"
+        role=${computed(() => (open.value ? 'menu' : undefined))}
+        data-overflow-menu
+        data-layout="stack"
+        aria-label=${name}
+        @beforetoggle=${synchronise}
+      >${each(
+        items,
+        (action) => action.id,
+        (action, index) =>
+          html`<button
+            role="menuitem"
+            tabindex="-1"
+            autofocus=${computed(() => (index.value === 0 ? '' : undefined))}
+            data-appearance="action"
+            data-role="quiet"
+            type="button"
+            @click=${() => {
+              const chosen = action.value;
+              // Close first: the action may re-render the subtree this menu
+              // item lives in, and running it with the panel still open leaves
+              // focus on a node that is about to be removed.
+              dismiss();
+              chosen.onSelect?.();
+            }}
+          >${computed(() => action.value.label)}</button>`,
+      )}</div>
     </span>`;
   },
   { attrs: overflowMenuAttrs },
@@ -354,24 +420,32 @@ export interface OpenOverlay {
  * Returns how many overlays were actually opened.
  *
  * WHY THIS EXISTS, and it is the largest hole the checker had: every rule in
- * `appearance/diagnostics` traverses what is RENDERED, an overlay is rendered
- * only while it is open, and until this function existed nothing opened one
- * during a run. So the panel, the menu items and every label in them had never
- * been measured by any check — the context matrix was reporting a clean
- * document with a closed door in it. F4 established that rendered-ness is a
- * precondition of measurement; this is the corollary nobody drew, that
- * something has to make the transient thing rendered or the precondition
- * silently excludes it.
+ * `appearance/diagnostics` traverses what is RENDERED, a closed overlay is
+ * `display: none`, and until this function existed nothing opened one during a
+ * run. So the panel, the menu items and every label in them had never been
+ * measured by any check — the context matrix was reporting a clean document
+ * with a closed door in it, and behind that door was a panel the flush
+ * surface's clip had been destroying for a whole session. F4 established that
+ * rendered-ness is a precondition of measurement; this is the corollary nobody
+ * drew, that something has to make the transient thing rendered or the
+ * precondition silently excludes it.
  *
  * Three details are load-bearing.
  *
- * A REAL CLICK, not a signal write and not a synthetic open. `show()` is the
- * only code that knows the panel's contents — it reads the action scope for the
- * groups the solver actually collapsed — so anything that renders a panel
- * without going through the trigger's own handler measures a panel the user
- * would never see. It is also why this is synchronous: `show()` flushes, which
- * is what lets focus move into the panel in the same gesture, and it is what
- * lets a caller measure in the same turn.
+ * A REAL CLICK ON THE INVOKER, never `showPopover()`. This was already true for
+ * one reason and is now true for two, and the second one is not obvious.
+ * `beforetoggle` is where the panel learns its contents — it reads the action
+ * scope for the groups the solver actually collapsed — so an open that does not
+ * come through the trigger measures a panel the user would never see. AND: the
+ * panel has no `anchor-name`, no `anchor-scope` and no `position-anchor`,
+ * because it is placed against its IMPLICIT anchor — and an implicit anchor is
+ * established by invoker ACTIVATION, not by the popover being shown.
+ * `showPopover()` establishes none, so a synthetic open lands the panel at its
+ * static position and every measurement of its placement is fiction. Measured:
+ * a synthetic `trigger.click()` anchors correctly with a gap of exactly one
+ * `--unit`, which is why this stays a click. It is also why this is
+ * synchronous: `beforetoggle` is dispatched inside the activation and flushes,
+ * so a caller can measure in the same turn.
  *
  * `aria-controls` RESOLVES THE PANEL, rather than a walk to the anchor's only
  * child. The trigger's own declaration of which panel is its own is the thing a

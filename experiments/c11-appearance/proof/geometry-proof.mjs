@@ -1147,7 +1147,27 @@ const INJECTIONS = [
       // it has no geometry at all. This is the exact false PASS the round-2
       // corpus recorded, so the pass has to refuse to measure rather than
       // report a 0-by-0 panel as fine.
-      style.textContent = '[data-overflow-menu] { display: contents !important; }';
+      //
+      // THE SPELLING MOVED, AND THE REASON IS A PLATFORM FACT rather than a
+      // weakening of this row. `display: contents !important` no longer works on
+      // this panel: an element in the TOP LAYER is absolutely positioned and
+      // therefore BLOCKIFIED, so the declaration computes to `block` — measured
+      // on Chromium 149, along with `position: static !important` and
+      // `position: relative !important` beside it, both of which compute to
+      // `absolute`. There is no author spelling that returns a promoted panel to
+      // boxlessness. It is the exact inverse of the overlays audit's L1/L2/L3:
+      // there, box-dependent properties are inert on a boxless host; here,
+      // boxlessness itself is inert in the top layer.
+      //
+      // Worth recording what this cost, because it is a defect in a SELF-TEST
+      // and therefore the most expensive kind: the injection silently failed and
+      // the harness reported the CHECK as blind. A self-test that cannot tell
+      // "I could not create the defect" from "the check cannot see the defect"
+      // will eventually retire a working check. The claim is unchanged — present,
+      // named, visible, no geometry — so only its spelling moves: starve the box
+      // of every source of size instead of removing the box.
+      style.textContent =
+        '[data-overflow-menu] { inline-size: 0 !important; min-inline-size: 0 !important; max-inline-size: 0 !important; block-size: 0 !important; max-block-size: 0 !important; padding: 0 !important; border-width: 0 !important; overflow: clip !important; }';
       document.head.append(style);
       return true;
     },

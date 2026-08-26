@@ -262,7 +262,20 @@
 
    This rule no longer decides whether content survives. It clips for shape;
    `structure.css` derives a scroll region for the child so nothing inside is
-   lost, and N710 reports the shapes the derivation cannot reach. */
+   lost, and N710 reports the shapes the derivation cannot reach.
+
+   AND IT DOES NOT REACH AN OVERLAY REVEALED FROM INSIDE IT, which is worth
+   recording here because for a session it did, silently. The overflow panel was
+   `position: absolute` inside this box, so on the lower message rows at narrow
+   widths this clip destroyed the panel outright — measured at
+   inbox/comfortable/touch/light/320: clip end y 371.1, panel 56,374.4 sized 300
+   by 147, four nodes gone. Nothing here was wrong and nothing here changed: the
+   fix was to promote the panel to the TOP LAYER (`states.css`,
+   `[data-overflow-menu]`), which has no containing block in the document and is
+   therefore outside every ancestor clip and every ancestor transform. So the
+   rule for anything that must escape this box is promotion, never a relaxation
+   of the clip — this rule exists to make the rounded corner exact, and the one
+   thing that used to need an exception no longer does. */
 [data-appearance='surface'][data-flush] {
   padding: 0;
   overflow: clip;
