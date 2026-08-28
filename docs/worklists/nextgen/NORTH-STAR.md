@@ -3,7 +3,7 @@
 **Date**: 2026-08-25 · **Status**: north star, pre-ADR · **Owner**: Goga
 **Parent**: [`NEXTGEN-SCRATCHPAD.md`](./NEXTGEN-SCRATCHPAD.md) · evidence in
 [`PRIOR-ART/`](./PRIOR-ART/) · measured prototype in
-[`experiments/c11-appearance`](../../../experiments/c11-appearance/)
+[`experiments/c11-appearance`](https://github.com/gkoreli/nisli/tree/0a6dfed/experiments/c11-appearance)
 
 ## The promise
 

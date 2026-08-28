@@ -9,5 +9,3 @@ dist/
 .hmr-build-test-*/
 
 # 240 screenshots per proof run, stale the moment the theme changes. The
-# committed visual record is the hand-picked set in experiments/*/proof/*.webp.
-experiments/*/proof/shots/

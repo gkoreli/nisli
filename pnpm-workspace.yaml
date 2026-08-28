@@ -1,6 +1,2 @@
 packages:
   - "packages/*"
-  # Throwaway prototypes. Workspace membership exists only so they can link
-  # workspace deps and their own tooling; they define no build/test/typecheck
-  # script, so `pnpm -r <gate>` skips them entirely. See experiments/README.md.
-  - "experiments/*"

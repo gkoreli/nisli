@@ -96,7 +96,7 @@ correct with scripting disabled and correct in pre-rendered output.
 ## The measured evidence
 
 Every number here comes from the C11 prototype
-([`experiments/c11-appearance`](https://github.com/gkoreli/nisli/tree/main/experiments/c11-appearance))
+([`experiments/c11-appearance`](https://github.com/gkoreli/nisli/tree/0a6dfed/experiments/c11-appearance))
 or from the coverage audits behind ADR 0032. Nothing is a projection.
 
 - **240 of 240 context combinations clean** in real Chromium — four pages, three
@@ -329,6 +329,6 @@ delays core's, router's, ssg's and ui's releases too.
 
 - [ADR 0032](https://github.com/gkoreli/nisli/blob/main/docs/adr/0032-derived-appearance-package.md)
   — the decision, the invariants, the counter-evidence and the open questions.
-- [`experiments/c11-appearance`](https://github.com/gkoreli/nisli/tree/main/experiments/c11-appearance)
+- [`experiments/c11-appearance`](https://github.com/gkoreli/nisli/tree/0a6dfed/experiments/c11-appearance)
   — the prototype this package is ported from, kept as the committed evidence:
   the proof scripts, the findings by number, and the visual record.

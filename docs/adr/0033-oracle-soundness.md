@@ -270,6 +270,6 @@ which the retired one did not.
   the oracle-bug table this ADR decomposes.
 - [`docs/worklists/nextgen/ORACLE/`](../worklists/nextgen/ORACLE/) — the
   supporting research and sweeps.
-- [`experiments/c11-appearance/README.md`](../../experiments/c11-appearance/README.md)
+- [`experiments/c11-appearance/README.md`](https://github.com/gkoreli/nisli/tree/0a6dfed/experiments/c11-appearance/README.md)
   — the measured record, findings F4 and F8 through F13, and the four
   self-testing proof scripts.

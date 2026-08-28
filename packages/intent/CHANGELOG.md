@@ -151,7 +151,7 @@ testing."*
 ## 0.0.0 — unreleased
 
 Initial port of the C11 prototype
-([`experiments/c11-appearance`](../../experiments/c11-appearance/)) into a real
+([`experiments/c11-appearance`](https://github.com/gkoreli/nisli/tree/0a6dfed/experiments/c11-appearance)) into a real
 package, under [ADR 0032](../../docs/adr/0032-derived-appearance-package.md).
 Behaviour, findings and severities are carried over unchanged; the prototype
 stays in the tree as the committed evidence.

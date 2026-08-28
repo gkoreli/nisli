@@ -5,7 +5,7 @@
 **Depends on**: [0019-minimal-runtime-and-native-platform-alignment](./0019-minimal-runtime-and-native-platform-alignment.md), [0022-nisli-ui-component-library](./0022-nisli-ui-component-library.md), [0029-agent-native-ui-strategy](./0029-agent-native-ui-strategy.md), [0030-agent-native-authoring](./0030-agent-native-authoring.md), [0030.2-agent-native-core-ergonomics](./0030.2-agent-native-core-ergonomics.md)
 **Evidence**: [`docs/worklists/nextgen/`](../worklists/nextgen/) — 13k lines of
 primary-sourced prior art and measured coverage audits; working prototype in
-[`experiments/c11-appearance`](../../experiments/c11-appearance/)
+[`experiments/c11-appearance`](https://github.com/gkoreli/nisli/tree/0a6dfed/experiments/c11-appearance)
 
 ## Context
 
@@ -378,7 +378,7 @@ distribution precedent; 0029's surfaces become where this renders.
   [`COVERAGE/`](../worklists/nextgen/COVERAGE/) (7 audits),
   [`NEXTGEN-SCRATCHPAD.md`](../worklists/nextgen/NEXTGEN-SCRATCHPAD.md)
   (iteration log, candidates C1–C11, kill criteria).
-- Prototype: [`experiments/c11-appearance`](../../experiments/c11-appearance/).
+- Prototype: [`experiments/c11-appearance`](https://github.com/gkoreli/nisli/tree/0a6dfed/experiments/c11-appearance).
 - Related: [0029](./0029-agent-native-ui-strategy.md) (where agentic UI runs),
   [0030](./0030-agent-native-authoring.md) (agents as the author),
   [0030.2](./0030.2-agent-native-core-ergonomics.md) (core ergonomics and the
