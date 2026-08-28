@@ -1059,6 +1059,6 @@ All npm figures from the npm registry downloads point API, `last-week`, fetched 
 
 ### In-repo cross-references
 
-- `docs/worklists/nextgen/NEXTGEN-SCRATCHPAD.md` §4 C10/C11, §5.4 (weighting), §5.2 R3 (zero-authoring + regime), §7.17–7.20
-- `docs/worklists/nextgen/C11-EXCLUSIVITY-AND-DERIVATION.md` §2 (exclusivity), §2.3 (escape ratio as a countable metric)
+- `docs/research/nextgen/NEXTGEN-SCRATCHPAD.md` §4 C10/C11, §5.4 (weighting), §5.2 R3 (zero-authoring + regime), §7.17–7.20
+- `docs/research/nextgen/C11-EXCLUSIVITY-AND-DERIVATION.md` §2 (exclusivity), §2.3 (escape ratio as a countable metric)
 - `experiments/c11-appearance/README.md` — F9 (the table can state an impossible constraint), F10 (a solver must measure the world it creates), F11 (priority orders *when* a strategy is spent, never *whether*), and the round-5 group/tie-break corrections

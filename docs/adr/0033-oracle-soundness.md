@@ -1,9 +1,9 @@
 # 0033. Oracle Soundness — How the Checker Earns the Right to Be Believed
 
 **Date**: 2026-08-26
-**Status**: Proposed
+**Status**: **Withdrawn** (2026-08-27) — the checker it governs was withdrawn with ADR 0032. The code lives on the `intent-archive` branch; the reasoning is in [`docs/research/nextgen/AUDIT-2026-08-27.md`](../research/nextgen/AUDIT-2026-08-27.md). Kept so the number is not reused.
 **Depends on**: [0032-derived-appearance-package](./0032-derived-appearance-package.md)
-**Evidence**: [`docs/worklists/nextgen/ORACLE/`](../worklists/nextgen/ORACLE/) —
+**Evidence**: [`docs/research/nextgen/ORACLE/`](../research/nextgen/ORACLE/) —
 prior art on checker self-verification, the test-oracle literature, an accessor
 sweep of all sixteen rules, and a systematic injection harness
 
@@ -268,7 +268,7 @@ which the retired one did not.
 
 - [0032](./0032-derived-appearance-package.md) §5 — earned build authority, and
   the oracle-bug table this ADR decomposes.
-- [`docs/worklists/nextgen/ORACLE/`](../worklists/nextgen/ORACLE/) — the
+- [`docs/research/nextgen/ORACLE/`](../research/nextgen/ORACLE/) — the
   supporting research and sweeps.
 - [`experiments/c11-appearance/README.md`](../../experiments/c11-appearance/README.md)
   — the measured record, findings F4 and F8 through F13, and the four

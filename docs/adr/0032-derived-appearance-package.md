@@ -1,9 +1,9 @@
 # 0032. Derived Appearance — A Fifth Package for Intent-Declared UI
 
 **Date**: 2026-08-25
-**Status**: Proposed
+**Status**: **Withdrawn** (2026-08-27) — the package it decided was withdrawn from main on 2026-08-27. The code lives on the `intent-archive` branch; the reasoning is in [`docs/research/nextgen/AUDIT-2026-08-27.md`](../research/nextgen/AUDIT-2026-08-27.md). Kept so the number is not reused.
 **Depends on**: [0019-minimal-runtime-and-native-platform-alignment](./0019-minimal-runtime-and-native-platform-alignment.md), [0022-nisli-ui-component-library](./0022-nisli-ui-component-library.md), [0029-agent-native-ui-strategy](./0029-agent-native-ui-strategy.md), [0030-agent-native-authoring](./0030-agent-native-authoring.md), [0030.2-agent-native-core-ergonomics](./0030.2-agent-native-core-ergonomics.md)
-**Evidence**: [`docs/worklists/nextgen/`](../worklists/nextgen/) — 13k lines of
+**Evidence**: [`docs/research/nextgen/`](../research/nextgen/) — 13k lines of
 primary-sourced prior art and measured coverage audits; working prototype in
 [`experiments/c11-appearance`](../../experiments/c11-appearance/)
 
@@ -372,11 +372,11 @@ distribution precedent; 0029's surfaces become where this renders.
 
 ## References
 
-- Evidence: [`docs/worklists/nextgen/`](../worklists/nextgen/) —
-  [`NORTH-STAR.md`](../worklists/nextgen/NORTH-STAR.md),
-  [`PRIOR-ART/`](../worklists/nextgen/PRIOR-ART/) (6 slices),
-  [`COVERAGE/`](../worklists/nextgen/COVERAGE/) (7 audits),
-  [`NEXTGEN-SCRATCHPAD.md`](../worklists/nextgen/NEXTGEN-SCRATCHPAD.md)
+- Evidence: [`docs/research/nextgen/`](../research/nextgen/) —
+  [`NORTH-STAR.md`](../research/nextgen/NORTH-STAR.md),
+  [`PRIOR-ART/`](../research/nextgen/PRIOR-ART/) (6 slices),
+  [`COVERAGE/`](../research/nextgen/COVERAGE/) (7 audits),
+  [`NEXTGEN-SCRATCHPAD.md`](../research/nextgen/NEXTGEN-SCRATCHPAD.md)
   (iteration log, candidates C1–C11, kill criteria).
 - Prototype: [`experiments/c11-appearance`](../../experiments/c11-appearance/).
 - Related: [0029](./0029-agent-native-ui-strategy.md) (where agentic UI runs),

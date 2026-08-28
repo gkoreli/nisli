@@ -52,7 +52,7 @@ core directly, and worked around there with a load-bearing comment.
 ## Why it matters
 
 1. **Silent.** An empty list is the "Potemkin interface" failure class this repo
-   has already paid for five times (`docs/worklists/nextgen/ROUND2-EVIDENCE-defect-corpus.md`
+   has already paid for five times (`docs/research/nextgen/ROUND2-EVIDENCE-defect-corpus.md`
    rank 2): rendering as inert nothing, with no diagnostic.
 2. **The natural spelling is the broken one.** `each(rows, key, (row) => Row({ ... }))`
    is what an author — human or agent — writes first, because factory

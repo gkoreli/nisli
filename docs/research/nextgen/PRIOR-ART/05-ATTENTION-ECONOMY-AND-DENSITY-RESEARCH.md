@@ -366,7 +366,7 @@ Simon's formulation is the framing for the whole slice and should be quoted, not
 
 - `experiments/c11-appearance/src/appearance/diagnostics/codes.ts` — the live registry: N601, N610, N620, N621, N630, N640, N650, N660, N670, N680, N690
 - `experiments/c11-appearance/README.md` — the seven proof assertion paths (`declared`, `fit`, `afford`, `crush`, `overlap`, `document`, `check`); F1–F11
-- `docs/worklists/nextgen/NEXTGEN-SCRATCHPAD.md` — §3 bug classes, §5.4 weighting, §7.10 regime, §7.13 vocabulary, §7.20 art direction, §7.21 table consistency, §8 rounds 5–8
+- `docs/research/nextgen/NEXTGEN-SCRATCHPAD.md` — §3 bug classes, §5.4 weighting, §7.10 regime, §7.13 vocabulary, §7.20 art direction, §7.21 table consistency, §8 rounds 5–8
 
 ---
 
