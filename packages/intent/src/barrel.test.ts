@@ -40,6 +40,13 @@ const RUNTIME = [
   'fit',
   'solveAll',
   'solveFit',
+  // The engine (thing #1).
+  'allocate',
+  'declareItem',
+  'declareTrigger',
+  'planOf',
+  'Row',
+  'RowContext',
 ];
 
 /** The checker. Dev-only weight, reachable only through the subpath. */

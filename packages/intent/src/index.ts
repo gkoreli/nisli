@@ -69,3 +69,12 @@ export { AXIS_ATTRS, STRATEGIES, VOCABULARY } from './contracts.js';
 export { discoverCandidates, domMetrics, domMutator, fitContainers } from './fit/dom.js';
 export { fit, solveAll } from './fit/observe.js';
 export { solveFit } from './fit/solver.js';
+
+// ── The engine ─────────────────────────────────────────────────────────────
+// Thing #1: the engine decides one Row. `allocate` is the pure decision;
+// `Row` is the typed building block that owns it; `declareItem` and
+// `declareTrigger` are how a child says how it may give way — a typed call,
+// never an attribute. `planOf` reads the decision back.
+export type { ItemDeclaration, RowAction, RowDecision, RowInput, RowItem, RowPlan, RowProps, RowScope } from './engine/row.js';
+export { allocate } from './engine/allocate.js';
+export { declareItem, declareTrigger, planOf, Row, RowContext } from './engine/row.js';

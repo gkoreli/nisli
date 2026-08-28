@@ -138,6 +138,10 @@ export function reflowedRule<TNode>(): Rule<TNode> {
       for (const el of row.painted('*').items) {
         if (promoted.has(el.node)) continue;
         if (el.attr('data-truncate') !== null) continue;
+        // The engine's receipt for a deliberate reflow (engine/row.ts): the
+        // block-axis growth was DECIDED, with the item's floor measured, so
+        // it is the plan working rather than the deficit hiding.
+        if (el.attr('data-reflow') !== null) continue;
         const lines = el.lines();
         if (lines < 2) continue;
         if (el.containment() !== 'visible') continue;

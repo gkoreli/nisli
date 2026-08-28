@@ -7,6 +7,7 @@
 import { onCleanup, onMount } from '@nisli/core';
 import { discoverCandidates, domMetrics, domMutator, fitContainers } from './dom.js';
 import { solveFit } from './solver.js';
+import { planOf } from '../engine/row.js';
 
 /** The domain solver, wired to the document. Three call sites need it identical. */
 function solveContainer(container: HTMLElement): void {
@@ -46,5 +47,12 @@ export function fit(host: HTMLElement): void {
  * but the resolved values have changed.
  */
 export function solveAll(root: ParentNode = document): void {
-  for (const container of root.querySelectorAll<HTMLElement>('[data-fit]')) solveContainer(container);
+  for (const container of root.querySelectorAll<HTMLElement>('[data-fit]')) {
+    // A row the engine owns (engine/row.ts) has a plan; it is solved in
+    // TypeScript and re-solves itself. Two solvers on one container disagree
+    // — measured: this loop stamped `unsatisfiable` over a settled plan
+    // because it read the engine's deliberate reflow as a defect.
+    if (planOf(container)) continue;
+    solveContainer(container);
+  }
 }
