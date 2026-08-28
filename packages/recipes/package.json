@@ -1,0 +1,21 @@
+{
+  "name": "@nisli/recipes",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Demo application built on @nisli/intent: a recipe book whose components declare meaning and never a value.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --configLoader runner",
+    "build": "vite build --configLoader runner",
+    "typecheck": "tsc --noEmit",
+    "lint:values": "node scripts/no-values-guard.mjs",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@nisli/core": "workspace:*",
+    "@nisli/intent": "workspace:*",
+    "@nisli/router": "workspace:*",
+    "@types/node": "^22.0.0",
+    "vite": "^7.1.5"
+  }
+}
