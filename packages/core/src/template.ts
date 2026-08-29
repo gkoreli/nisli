@@ -1194,10 +1194,41 @@ interface EachEntry<T> {
  * )}</ul>`
  * ```
  */
+/**
+ * Adapt whatever a template callback returned into a mountable TemplateResult.
+ * Factory descriptors (the value `component()` factories actually return) are
+ * mounted through the same path every other slot uses (issue 0021).
+ */
+function asTemplateResult(result: unknown): TemplateResult {
+  if (result && typeof result === 'object' && '__templateResult' in result) {
+    return result as TemplateResult;
+  }
+  if (result && typeof result === 'object' && (result as any).__type === 'factory') {
+    let mounted: { element: HTMLElement; dispose: () => void } | null = null;
+    return {
+      __templateResult: true as const,
+      mount(host: HTMLElement) {
+        mounted = mountFactoryResult(result as any);
+        host.appendChild(mounted.element);
+      },
+      dispose() {
+        mounted?.dispose();
+        mounted?.element.remove();
+        mounted = null;
+      },
+    };
+  }
+  throw new TypeError(
+    `each(): template callback must return a TemplateResult or a component factory result, got ${
+      result === null ? 'null' : typeof result
+    }`,
+  );
+}
+
 export function each<T>(
   items: ReadonlySignal<T[]>,
   keyFn: (item: T, index: number) => string | number,
-  templateFn: (item: ReadonlySignal<T>, index: ReadonlySignal<number>) => TemplateResult,
+  templateFn: (item: ReadonlySignal<T>, index: ReadonlySignal<number>) => TemplateResult | { __type: 'factory' },
 ): TemplateResult {
   let startMarker: Comment;
   let endMarker: Comment;
@@ -1285,7 +1316,7 @@ export function each<T>(
         const indexSignal = signal(index);
         const wrapper = document.createElement('each-item');
         wrapper.style.display = 'contents';
-        const templateResult = templateFn(itemSignal, indexSignal);
+        const templateResult = asTemplateResult(templateFn(itemSignal, indexSignal));
         templateResult.mount(wrapper);
         newEntries.push({ key, itemSignal, indexSignal, templateResult, wrapper });
       }

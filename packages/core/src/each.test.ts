@@ -604,3 +604,31 @@ describe('each() with reactive computed content', () => {
     expect(spans2[1].textContent).toContain('Fifth');
   });
 });
+
+describe('each() accepts component factory results (issue 0021)', () => {
+  it('mounts, updates, and removes items whose callback returns a factory', async () => {
+    const { component } = await import('./component.js');
+    const Tag = component<{ label: string }>('x-each-factory-item', (props) =>
+      html`<span>${props.label}</span>`,
+    );
+    const items = signal([{ id: 1, label: 'a' }, { id: 2, label: 'b' }]);
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const tpl = each(items, (i) => i.id, (item) =>
+      Tag({ label: computed(() => item.value.label) }),
+    );
+    tpl.mount(host);
+    flushEffects();
+    expect(host.querySelectorAll('x-each-factory-item').length).toBe(2);
+    expect(host.textContent).toBe('ab');
+
+    items.value = [{ id: 2, label: 'B' }];
+    flushEffects();
+    expect(host.querySelectorAll('x-each-factory-item').length).toBe(1);
+    expect(host.textContent).toBe('B');
+
+    tpl.dispose();
+    expect(host.querySelectorAll('x-each-factory-item').length).toBe(0);
+  });
+
+});

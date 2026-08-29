@@ -1,6 +1,6 @@
 # 0021 — `each()` is the only template consumer that rejects factory results
 
-**Status**: open
+**Status**: fixed (2026-08-27) — option 1, plus `each()`'s callback type now admits the factory shape
 **Priority**: P1
 **Area**: `@nisli/core` — template engine
 **Found**: 2026-08-25, while building `experiments/c11-appearance` (an agent
