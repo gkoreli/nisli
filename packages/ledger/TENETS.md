@@ -89,3 +89,14 @@ A feature ships with its proof: width tests for layout, an end-to-end run for
 every money-moving flow (import, sync, edit, delete, restore), and zero
 console errors across all routes at five widths. Screenshots are for looking,
 not for correctness.
+
+## 11. Intelligence without a chat box
+
+Ledger is agent-friendly and AI-assisted, and it has no chat interface. The
+intelligence is ambient: a transaction already filed, a subscription already
+noticed, a "safe to spend" already computed, an alert already raised — each
+shown in place, with its reasoning one tap away (tenet 5), reversible (tenet
+3). Nothing asks the user to type a prompt, and nothing pretends to converse.
+The same discipline that keeps the UI free of visual decisions keeps it free
+of conversational ones: agents act through the app's typed intents and the
+engine's blocks, never through a text box.
