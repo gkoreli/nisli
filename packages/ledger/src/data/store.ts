@@ -1,5 +1,7 @@
 import { signal, computed, type ReadonlySignal } from '@nisli/core';
 import { UNCATEGORIZED, type Account, type Budget, type Category, type Ledger, type Rule, type Settings, type Transaction } from './model.js';
+import { notify } from '@nisli/engine';
+import * as api from './api.js';
 import { seed } from './seed.js';
 
 const KEY = 'ledger.v1';
@@ -20,19 +22,121 @@ function migrate(raw: Partial<Ledger>): Ledger {
   return l;
 }
 
-function load(): Ledger {
+const readCache = (): Ledger | undefined => {
   try {
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(KEY) : null;
     if (raw) return migrate(JSON.parse(raw) as Partial<Ledger>);
-  } catch { /* fall through to seed */ }
-  return seed();
+  } catch { /* no usable cache */ }
+  return undefined;
+};
+const writeCache = (l: Ledger) => { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch { /* storage unavailable */ } };
+
+const state = signal<Ledger>(readCache() ?? seed());
+let version = 0;
+let pending: { timer: ReturnType<typeof setTimeout> | undefined; retry: number; inflight: boolean; dirty: boolean } =
+  { timer: undefined, retry: 0, inflight: false, dirty: false };
+
+const DEBOUNCE = 400;
+const BACKOFF = [2000, 4000, 8000, 16000, 30000];
+
+const _syncState = signal<'saved' | 'saving' | 'offline' | 'conflict'>('saved');
+const _lastSavedAt = signal<string | undefined>(undefined);
+/** Where the browser stands against the server. */
+export const syncState: ReadonlySignal<'saved' | 'saving' | 'offline' | 'conflict'> = _syncState;
+export const lastSavedAt: ReadonlySignal<string | undefined> = _lastSavedAt;
+
+/** Take the server's state as truth (after a 409 or a reload). */
+const adopt = (l: Ledger, v: number) => {
+  state.value = migrate(l);
+  version = v;
+  pending.dirty = false;
+  writeCache(state.value);
+};
+
+async function flush(): Promise<void> {
+  if (pending.inflight) { pending.dirty = true; return; }
+  pending.inflight = true;
+  pending.dirty = false;
+  _syncState.value = 'saving';
+  const snapshot = state.value;
+  try {
+    const { version: v } = await api.putLedger(version, snapshot);
+    version = v;
+    pending.retry = 0;
+    writeCache(snapshot);
+    _lastSavedAt.value = new Date().toISOString();
+    _syncState.value = 'saved';
+    pending.inflight = false;
+    if (pending.dirty) schedule();
+  } catch (e) {
+    pending.inflight = false;
+    if (e instanceof api.ConflictError) {
+      pending.retry = 0;
+      if (e.ledger) adopt(e.ledger, e.version); else version = e.version;
+      _syncState.value = 'conflict';
+      notify('Reloaded newer data from the server', 'warning');
+      return;
+    }
+    _syncState.value = 'offline';
+    const wait = BACKOFF[Math.min(pending.retry, BACKOFF.length - 1)]!;
+    pending.retry++;
+    clearTimeout(pending.timer);
+    pending.timer = setTimeout(() => { void flush(); }, wait);
+  }
 }
 
-const state = signal<Ledger>(load());
+const schedule = () => {
+  clearTimeout(pending.timer);
+  pending.timer = setTimeout(() => { void flush(); }, DEBOUNCE);
+};
+
+/** Apply locally at once; the server catches up. */
 const persist = (next: Ledger) => {
   state.value = next;
-  try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* storage unavailable */ }
+  schedule();
 };
+
+async function boot(): Promise<void> {
+  try {
+    const { version: v, ledger } = await api.getLedger();
+    if (ledger) { adopt(ledger, v); return; }
+    const cached = readCache();
+    const first = cached ?? seed();
+    state.value = first;
+    version = v;
+    try {
+      const r = await api.putLedger(v, first);
+      version = r.version;
+      writeCache(first);
+      _lastSavedAt.value = new Date().toISOString();
+    } catch (e) {
+      if (e instanceof api.ConflictError) { if (e.ledger) adopt(e.ledger, e.version); return; }
+      _syncState.value = 'offline';
+      schedule();
+    }
+  } catch {
+    // Server unreachable: run from the cache and keep trying once something changes.
+    _syncState.value = 'offline';
+  }
+}
+
+/** Resolves once the boot load (and any one-time migration) has finished. */
+export const ready: Promise<void> = boot();
+
+/** Drop local state for the server's. */
+export const reloadFromServer = async (): Promise<void> => {
+  const { version: v, ledger } = await api.getLedger();
+  if (ledger) adopt(ledger, v); else version = v;
+  _syncState.value = 'saved';
+};
+
+/** Adopt a ledger the server just restored from a backup. */
+export const applyRestored = (ledger: Ledger, v: number): void => {
+  adopt(ledger, v);
+  _lastSavedAt.value = new Date().toISOString();
+  _syncState.value = 'saved';
+};
+
 const patch = (p: Partial<Ledger>) => persist({ ...state.value, ...p });
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const byDateDesc = (a: Transaction, b: Transaction) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
