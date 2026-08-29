@@ -1,0 +1,23 @@
+{
+  "name": "@nisli/ledger",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ledger \u2014 a personal-finance app built with @nisli/engine, with no visual decisions in app code.",
+  "type": "module",
+  "license": "MIT",
+  "devDependencies": {
+    "@nisli/core": "workspace:*",
+    "@nisli/engine": "workspace:*",
+    "@nisli/router": "workspace:*",
+    "@types/node": "^22.0.0",
+    "vite": "^7.1.5"
+  },
+  "scripts": {
+    "dev": "vite --configLoader runner",
+    "build": "vite build --configLoader runner",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --typecheck",
+    "server": "node server/index.mjs",
+    "dev:all": "node server/index.mjs & vite --configLoader runner"
+  }
+}
