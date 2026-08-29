@@ -15,7 +15,7 @@ export { Section, type SectionProps } from './blocks/section.js';
 export { Grid, type GridProps } from './blocks/grid.js';
 export { Stat, type StatProps } from './blocks/stat.js';
 export { Table, type Column, type Sort, type TableProps, type CellValue } from './blocks/table.js';
-export { Form, type Field, type FieldKind, type FormProps } from './blocks/form.js';
+export { Form, type Field, type Option, type FieldKind, type FormProps, type FormHandle } from './blocks/form.js';
 export { Dialog, type DialogProps } from './blocks/dialog.js';
 export { Meter, type MeterProps } from './blocks/meter.js';
 export { Bars, type BarsProps, type BarItem } from './blocks/bars.js';

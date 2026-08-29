@@ -1,6 +1,6 @@
 # 0022 — `Form` has no conditional fields and cannot reset a file input
 
-**Status**: open
+**Status**: resolved — 2026-08-29, by [ADR 0037](../adr/0037-engine-form-intent-capture-domain.md)
 **Priority**: P1
 **Area**: `@nisli/engine` — `blocks/form.ts`
 **Found**: 2026-08-28, building the Ledger CSV import wizard (`packages/ledger/src/screens/import.ts`)
@@ -40,3 +40,17 @@ to delete.
    validation and omitted from the grid (the column count re-solves).
 2. `disabled?: (draft: T) => boolean` for the softer case.
 3. Clear file inputs when their draft value is set to `undefined`.
+
+## Resolution (2026-08-29)
+
+ADR 0037 rebuilt `Form` as a domain (`packages/engine/src/blocks/form/schema.ts`,
+`form/draft.ts`, `form.ts`). Option 1 landed as `when?: (draft: Partial<T>) =>
+boolean` — hidden fields are not rendered, not validated and omitted on submit
+(rule 1, `form.test.ts` › rule 1 — presence). Option 2 landed as `readOnly`
+(rule 8). Option 3 landed as the owned draft: `initial` + `key`; a new key
+resets, and a file input remounts on the draft's `generation` (rule 5,
+`form.test.ts` › *draft = initial on mount and whenever key changes; a file
+input remounts*). Controlled-mode `value` tolerates `undefined` (read as `{}`),
+so the `Signal<T | undefined>` cast is gone. The import wizard
+(`packages/ledger/src/screens/import.ts`) now says `amountShape` + `when:` and
+`key: fileKey.value` instead of hint prose and a remount-by-key.

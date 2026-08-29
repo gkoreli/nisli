@@ -37,7 +37,7 @@ export type TextPart =
 /** Control — things a person operates. */
 export type ControlPart =
   | 'button' | 'button.primary' | 'button.plain' | 'button.quiet' | 'button.danger' | 'button.busy'
-  | 'input' | 'input.invalid';
+  | 'input' | 'input.invalid' | 'input.readonly';
 /** Navigation — how a person moves between screens. */
 export type NavigationPart =
   | 'nav.link' | 'nav.link.active' | 'bar'
@@ -61,7 +61,7 @@ export const PARTS: readonly Part[] = [
   'text', 'text.muted', 'text.faint', 'text.code', 'text.heading', 'text.title', 'text.display', 'text.label',
   'tone.positive', 'tone.negative', 'tone.warning', 'tone.neutral', 'brand', 'link',
   // Control
-  'button', 'button.primary', 'button.plain', 'button.quiet', 'button.danger', 'button.busy', 'input', 'input.invalid',
+  'button', 'button.primary', 'button.plain', 'button.quiet', 'button.danger', 'button.busy', 'input', 'input.invalid', 'input.readonly',
   // Navigation
   'nav.link', 'nav.link.active', 'bar', 'menu', 'menu.item', 'menu.item.danger',
   // Data

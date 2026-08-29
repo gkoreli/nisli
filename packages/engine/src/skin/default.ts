@@ -87,6 +87,7 @@ export function partsOf(c: Palette): Record<Part, StyleRecord> {
     'button.busy': { opacity: 0.6, cursor: 'progress' },
     input: { border: `1px solid ${c.border}`, borderRadius: radius, background: c.raised, color: c.text, outline: 'none', fontSize: 14 },
     'input.invalid': { borderColor: c.negative },
+    'input.readonly': { background: c.sunken, color: c.textMuted },
 
     // Navigation
     'nav.link': { fontWeight: 500, color: c.text, borderRadius: radius, textDecoration: 'none' },

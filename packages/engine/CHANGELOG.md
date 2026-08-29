@@ -4,6 +4,27 @@ All notable changes to `@nisli/engine`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Unreleased until the first
 publish.
 
+## Unreleased
+
+- **Form domain.** `Form` is rebuilt as a small domain — `blocks/form/schema.ts`
+  (intent: `Field`, `Option`, `FieldKind`; pure `visibleFields`, `optionsOf`,
+  `validateField`) and `blocks/form/draft.ts` (`createDraft`: dirty, touched,
+  errors over signals, no DOM) under the rendering block. New intent on
+  `Field`: `when` (presence), dependent `options(draft)`, `readOnly`,
+  `validate`, `min`/`max`/`step`, `group`, `long`. New engine rules, each a
+  test: a hidden field leaves the submitted object and its errors; a choice no
+  longer offered is cleared; validation runs on blur and submit, never on a
+  first keystroke, with `aria-invalid`/`aria-describedby` and a
+  `role="alert"` "N fields need attention." summary; 2–3 options render as a
+  segmented `radiogroup`, 4+ as a native select; groups become a `fieldset`
+  with a legend spanning the row; bounds reach the native control (money
+  steps 0.01). Draft ownership: controlled (`value`, as before) or owned by
+  the engine (`initial` + `key`; a new key resets, a file input remounts,
+  cancelling a dirty draft asks "Discard changes?" first, a successful submit
+  clears dirty). `FormHandle` (`reset`/`submit`) via `ref`. Skin part
+  `input.readonly`. DOM shape: a field is a `div` (label, control, note),
+  not a wrapping `label`. Closes issue 0022.
+
 ## 0.1.0 — 2026-08-29
 
 In order of landing, 2026-08-27 → 2026-08-29:

@@ -10,7 +10,7 @@ type Draft = { categoryId: string; limit: number | undefined };
 export const BudgetsScreen = component('ledger-budgets', () => {
   const editing = signal<Budget | undefined>(undefined);
   const open = signal(false);
-  const draft = signal<Draft>({ categoryId: '', limit: undefined });
+  const opens = signal(0); // one draft per opening: the engine resets on a new key
 
   const rows = computed<Row[]>(() =>
     budgets.value.map((b) => {
@@ -24,9 +24,9 @@ export const BudgetsScreen = component('ledger-budgets', () => {
 
   const fields = computed<Field<Draft>[]>(() => [
     { key: 'categoryId', label: 'Category', kind: 'select', required: true, options: categories.value.filter((c) => !c.income && c.id !== 'transfer').map((c) => ({ value: c.id, label: c.name })) },
-    { key: 'limit', label: 'Monthly limit', kind: 'money', required: true },
+    { key: 'limit', label: 'Monthly limit', kind: 'money', required: true, min: 0 },
   ]);
-  const edit = (b?: Budget) => { editing.value = b; draft.value = { categoryId: b?.categoryId ?? '', limit: b ? b.limit / 100 : undefined }; open.value = true; };
+  const edit = (b?: Budget) => { editing.value = b; opens.value++; open.value = true; };
 
   const columns: Column<Row>[] = [
     { id: 'category', header: 'Category', cell: (r) => r.category, priority: 'primary' },
@@ -57,7 +57,9 @@ export const BudgetsScreen = component('ledger-budgets', () => {
         open, onClose: () => { open.value = false; },
         children: computed(() => [
           Form<Draft>({
-            fields: fields.value, value: draft, onChange: (v) => { draft.value = v; },
+            fields,
+            initial: { categoryId: editing.value?.categoryId ?? '', limit: editing.value ? editing.value.limit / 100 : undefined },
+            key: editing.value?.id ?? `new-${opens.value}`,
             onSubmit: (d) => { saveBudget({ id: editing.value?.id, categoryId: d.categoryId, limit: Math.round((d.limit ?? 0) * 100) }); open.value = false; notify(editing.value ? 'Budget saved' : 'Budget added', 'positive'); },
             submitLabel: editing.value ? 'Save changes' : 'Add budget', onCancel: () => { open.value = false; },
             destructive: editing.value ? { id: 'delete', label: 'Delete budget', destructive: true, onSelect: async () => {

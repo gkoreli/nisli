@@ -12,9 +12,10 @@ type CategoryDraft = { name: string; income: boolean };
 export const RulesScreen = component('ledger-rules', () => {
   const editing = signal<Rule | undefined>(undefined);
   const ruleOpen = signal(false);
-  const ruleDraft = signal<RuleDraft>({ match: '', categoryId: '' });
+  const ruleOpens = signal(0); // one draft per opening: the engine resets on a new key
+  const prefill = signal('');
   const categoryOpen = signal(false);
-  const categoryDraft = signal<CategoryDraft>({ name: '', income: false });
+  const categoryOpens = signal(0);
 
   const uncategorized = computed(() => transactions.value.filter((t) => t.categoryId === UNCATEGORIZED));
 
@@ -48,7 +49,8 @@ export const RulesScreen = component('ledger-rules', () => {
 
   const editRule = (r?: Rule, match = '') => {
     editing.value = r;
-    ruleDraft.value = { match: r?.match ?? match, categoryId: r?.categoryId ?? '' };
+    prefill.value = match;
+    ruleOpens.value++;
     ruleOpen.value = true;
   };
   const apply = () => {
@@ -72,7 +74,7 @@ export const RulesScreen = component('ledger-rules', () => {
     actions: [
       { id: 'add', label: 'Add rule', priority: 'primary', onSelect: () => editRule() },
       { id: 'apply', label: 'Apply to uncategorized', priority: 'secondary', onSelect: apply },
-      { id: 'category', label: 'Add category', priority: 'tertiary', onSelect: () => { categoryDraft.value = { name: '', income: false }; categoryOpen.value = true; } },
+      { id: 'category', label: 'Add category', priority: 'tertiary', onSelect: () => { categoryOpens.value++; categoryOpen.value = true; } },
     ],
     children: [
       Grid({
@@ -96,9 +98,9 @@ export const RulesScreen = component('ledger-rules', () => {
         onClose: () => { ruleOpen.value = false; },
         children: computed(() => [
           Form<RuleDraft>({
-            fields: ruleFields.value,
-            value: ruleDraft,
-            onChange: (v) => { ruleDraft.value = v; },
+            fields: ruleFields,
+            initial: { match: editing.value?.match ?? prefill.value, categoryId: editing.value?.categoryId ?? '' },
+            key: editing.value?.id ?? `new-${ruleOpens.value}`,
             onSubmit: (d) => {
               saveRule({ id: editing.value?.id, match: d.match.trim(), categoryId: d.categoryId });
               ruleOpen.value = false;
@@ -126,11 +128,11 @@ export const RulesScreen = component('ledger-rules', () => {
         title: 'Add category',
         open: categoryOpen,
         onClose: () => { categoryOpen.value = false; },
-        children: [
+        children: computed(() => [
           Form<CategoryDraft>({
             fields: categoryFields,
-            value: categoryDraft,
-            onChange: (v) => { categoryDraft.value = v; },
+            initial: { name: '', income: false },
+            key: categoryOpens.value,
             onSubmit: (d) => {
               addCategory(d.name.trim(), d.income);
               categoryOpen.value = false;
@@ -139,7 +141,7 @@ export const RulesScreen = component('ledger-rules', () => {
             submitLabel: 'Add category',
             onCancel: () => { categoryOpen.value = false; },
           }),
-        ],
+        ]),
       }),
     ],
   });

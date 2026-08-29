@@ -96,8 +96,13 @@ Each is one line in code; each is provable at width with `setMeasurer`.
   20 }`: the title truncates (to `minTitle`) before a primary action leaves.
   `blocks/toolbar.ts`.
 - **Columns from width** — `columnsFor(width, count, minColumn, gap)` for Grid
-  (`minColumn` 220) and Form (`minField` 240); a textarea spans all.
-  `engine/columns.ts`, `blocks/grid.ts`, `blocks/form.ts`.
+  (`minColumn` 220) and Form (`minField` 240, visible fields only; a textarea
+  or `long` field spans all). `engine/columns.ts`, `blocks/grid.ts`,
+  `blocks/form.ts`.
+- **Form rules** — presence (`when`), dependent options, validation timing,
+  choice rendering (≤ 3 options segmented), draft lifecycle, bounds,
+  read-only, live mode, busy: ten rules, each a named test, recorded in
+  [0037](./0037-engine-form-intent-capture-domain.md). `blocks/form/*`.
 - **Shell shape** — sidebar iff `width ≥ sidebarWidth + contentMin`
   (232 + 560); otherwise a top bar with a menu sheet. `blocks/app.ts`.
 - **Dialog shape** — a full-height sheet below `dialogMin` (640), else a
@@ -148,8 +153,9 @@ inconsistently. This ADR records that rule so the question need not be re-argued
   (`toolbar.test.ts`, `table.test.ts`, `layout.test.ts`, `status.test.ts`).
   Screenshots are looked at because one wants to, not because correctness
   depends on it.
-- **Known gaps**, tracked as issues: Form has no conditional fields or file
-  reset ([0022](../issues/0022-form-conditional-fields-and-reset.md)); dialogs
+- **Known gaps**, tracked as issues: Form's conditional fields and file reset
+  ([0022](../issues/0022-form-conditional-fields-and-reset.md), resolved by
+  [0037](./0037-engine-form-intent-capture-domain.md)); dialogs
   have no action row ([0023](../issues/0023-actions-block-for-dialogs.md));
   `prove()` is parked ([0024](../issues/0024-prove-harness-parked.md)); a Vite
   proxy hang is unexplained ([0025](../issues/0025-vite-proxy-accept-header-hang.md)).

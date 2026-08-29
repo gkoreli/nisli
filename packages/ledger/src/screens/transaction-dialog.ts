@@ -35,20 +35,24 @@ const toDraft = (t: Transaction | undefined, accountId?: string): Draft => ({
 });
 
 export const TransactionDialog = component<TransactionDialogProps>('ledger-transaction-dialog', (props) => {
-  const draft = signal<Draft>(toDraft(undefined));
-  // Re-seed the draft whenever the dialog opens.
-  computed(() => { if (props.open.value) draft.value = toDraft(props.transaction.value, props.accountId.value); }).value;
-  const reseed = computed(() => props.open.value && props.transaction.value);
-  reseed.subscribe(() => { if (props.open.value) draft.value = toDraft(props.transaction.value, props.accountId.value); });
+  // The engine owns the draft; a new key starts it over from `initial`.
+  // Editing: the transaction id. Adding: one key per opening, so a closed-and-reopened dialog is blank.
+  const opens = signal(0);
+  props.open.subscribe((open) => { if (open) opens.value++; });
+  const draftKey = computed(() => props.transaction.value?.id ?? `new-${opens.value}`);
 
   const fields = computed<Field<Draft>[]>(() => [
     { key: 'date', label: 'Date', kind: 'date', required: true },
     { key: 'kind', label: 'Type', kind: 'select', required: true, options: [{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }] },
-    { key: 'amount', label: 'Amount', kind: 'money', required: true, placeholder: '0.00' },
+    { key: 'amount', label: 'Amount', kind: 'money', required: true, placeholder: '0.00', min: 0, step: 0.01 },
     { key: 'payee', label: 'Payee', kind: 'text', required: true, placeholder: 'Who was paid' },
     { key: 'accountId', label: 'Account', kind: 'select', required: true, options: accounts.value.map((a) => ({ value: a.id, label: a.name })) },
-    { key: 'categoryId', label: 'Category', kind: 'select', options: categories.value.map((c) => ({ value: c.id, label: c.name })), hint: 'Left blank, a matching rule decides; otherwise Uncategorized.' },
-    { key: 'note', label: 'Note', kind: 'textarea', placeholder: 'Optional' },
+    {
+      key: 'categoryId', label: 'Category', kind: 'select',
+      options: (d) => categories.value.filter((c) => c.id === 'transfer' || !!c.income === (d.kind === 'income')).map((c) => ({ value: c.id, label: c.name })),
+      hint: 'Left blank, a matching rule decides; otherwise Uncategorized.',
+    },
+    { key: 'note', label: 'Note', kind: 'textarea', placeholder: 'Optional', long: true },
   ]);
 
   const submit = (d: Draft) => {
@@ -66,9 +70,9 @@ export const TransactionDialog = component<TransactionDialogProps>('ledger-trans
     onClose: props.onClose,
     children: computed(() => [
       Form<Draft>({
-        fields: fields.value,
-        value: draft,
-        onChange: (v) => { draft.value = v; },
+        fields,
+        initial: toDraft(props.transaction.value, props.accountId.value),
+        key: draftKey.value,
         onSubmit: submit,
         submitLabel: props.transaction.value ? 'Save changes' : 'Add transaction',
         onCancel: () => props.onClose.value(),

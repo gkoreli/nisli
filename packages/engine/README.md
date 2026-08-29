@@ -76,8 +76,19 @@ prop in app code — that is the one place the contract erodes.
    (`setMeasurer`) so the block is proven in a unit test at any width.
 4. Every visual value comes from the installed skin. No stylesheet exists.
 
+## Blocks
+
+`App`, `Page`, `Toolbar`, `Section`, `Grid`, `Stat`, `Table`, `Form`,
+`Dialog`, `Meter`, `Bars`, `Columns`, `Empty`, `Text`, `Link`; plus
+`notify()` and `confirm()`.
+
+- **Form** — a schema of fields (`when`, dependent `options`, `readOnly`,
+  `validate`, bounds, `group`, `long`); the engine decides presence, columns
+  at width, segmented group vs. select, validation timing and announcement,
+  and — when given `initial`/`key` instead of `value` — owns the draft,
+  its dirtiness and its reset. Domain in `src/blocks/form/`.
+
 ## Status
 
-One block. The next block is added only after this one has been used in an
-app. See `docs/research/nextgen/AUDIT-2026-08-27.md` for why breadth-first
+Blocks are added only after the previous ones have been used in an app. See `docs/research/nextgen/AUDIT-2026-08-27.md` for why breadth-first
 was the mistake this package exists to not repeat.
