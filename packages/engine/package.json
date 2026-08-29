@@ -1,0 +1,47 @@
+{
+  "name": "@nisli/engine",
+  "version": "0.1.0",
+  "description": "Typed UI blocks decided by an engine \u2014 no CSS, no classes, no visual decisions in app code.",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gkoreli/nisli.git",
+    "directory": "packages/engine"
+  },
+  "peerDependencies": {
+    "@nisli/core": ">=0.55.0"
+  },
+  "devDependencies": {
+    "@nisli/core": "workspace:*",
+    "@types/node": "^22.0.0"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./test": "./src/test/prove.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./test": {
+        "types": "./dist/test/prove.d.ts",
+        "default": "./dist/test/prove.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run --typecheck",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  }
+}

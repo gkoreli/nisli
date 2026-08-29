@@ -27,6 +27,36 @@ importers:
         specifier: ^22.0.0
         version: 22.19.17
 
+  packages/engine:
+    devDependencies:
+      '@nisli/core':
+        specifier: workspace:*
+        version: link:../core
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.17
+      vite:
+        specifier: ^7.1.5
+        version: 7.3.6(@types/node@22.19.17)(jiti@2.7.0)(lightningcss@1.32.0)
+
+  packages/ledger:
+    devDependencies:
+      '@nisli/core':
+        specifier: workspace:*
+        version: link:../core
+      '@nisli/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@nisli/router':
+        specifier: workspace:*
+        version: link:../router
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.17
+      vite:
+        specifier: ^7.1.5
+        version: 7.3.6(@types/node@22.19.17)(jiti@2.7.0)(lightningcss@1.32.0)
+
   packages/router:
     devDependencies:
       '@nisli/core':
