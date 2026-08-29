@@ -1,8 +1,8 @@
 {
   "name": "@nisli/ledger",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Ledger — a personal-finance app built with @nisli/engine, with no visual decisions in app code.",
+  "description": "Ledger \u2014 a personal-finance app built with @nisli/engine, with no visual decisions in app code.",
   "type": "module",
   "license": "MIT",
   "devDependencies": {

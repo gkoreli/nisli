@@ -4,7 +4,7 @@ All notable changes to `@nisli/engine`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Unreleased until the first
 publish.
 
-## Unreleased
+## 0.2.0 — 2026-08-29
 
 - **Form domain.** `Form` is rebuilt as a small domain — `blocks/form/schema.ts`
   (intent: `Field`, `Option`, `FieldKind`; pure `visibleFields`, `optionsOf`,

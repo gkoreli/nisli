@@ -3,7 +3,7 @@
 All notable changes to `@nisli/ledger`. Keep-a-changelog-lite — one section
 per version, human-readable highlights.
 
-## Unreleased
+## 0.2.0 — 2026-08-29
 
 - The server is the system of record: the ledger is a versioned JSON
   document at `server/data/ledger.json`, written atomically and refused when
