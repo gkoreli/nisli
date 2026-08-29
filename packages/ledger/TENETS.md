@@ -100,3 +100,13 @@ shown in place, with its reasoning one tap away (tenet 5), reversible (tenet
 The same discipline that keeps the UI free of visual decisions keeps it free
 of conversational ones: agents act through the app's typed intents and the
 engine's blocks, never through a text box.
+
+## 12. Intent is captured visually
+
+The app learns what the user wants through the interface itself — a tap on
+a row, a budget dragged to a new limit, a category chosen, a bill marked
+recurring, a transaction split — never through a text box asking what they
+meant. Every intent has a visual control and a visible result; text fields
+exist for data (a payee, a note, an amount), not for instructions. What the
+user does in the UI *is* the instruction, and the intelligence (tenet 11)
+reads it from there.
