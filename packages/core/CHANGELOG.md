@@ -4,8 +4,12 @@ All notable changes to `@nisli/core`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
-## Unreleased
+## 0.56.0 — 2026-08-29
 
+- `each()` accepts component factory results (issue 0021). The natural
+  spelling `each(rows, key, (row) => Row({ … }))` used to render nothing and
+  say nothing; it now mounts through the same path every other slot uses, and
+  a callback returning neither shape throws a typed error instead.
 - `setDevMode()` is exported. The diagnostics gate has always been probed
   automatically, and its own documentation named tests and buildless
   production pages as the cases the probe cannot get right — but the override
