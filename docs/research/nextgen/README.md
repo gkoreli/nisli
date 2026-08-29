@@ -12,6 +12,14 @@ goal became that build and what survives. The code is on the `intent-archive`
 branch (tag `main-before-rewind` marks the old tip); `main` was rewound to the
 commit before the programme opened and the unrelated work re-applied.
 
+**What happened next.** The rebuild started from zero on 2026-08-27 with one
+typed block and an engine under it, and grew as a real application demanded.
+It is [`packages/engine`](../../../packages/engine) with
+[`packages/ledger`](../../../packages/ledger) as its first consumer; the
+architecture is recorded in [ADR 0034](../../adr/0034-engine-typed-blocks-decided-by-an-engine.md)
+and its visual layer in [ADR 0035](../../adr/0035-engine-appearance-layer.md).
+The withdrawn ADRs 0032/0033 keep their numbers.
+
 Kept because the evidence outlives the code:
 
 | where | what | why it still matters |

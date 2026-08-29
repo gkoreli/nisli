@@ -38,5 +38,7 @@ They moved with the framework when `@nisli/core` became a standalone package.
 - [0030.1. Agent-Native Authoring — Gap Audit and Work Plan](./0030.1-agent-native-gap-audit.md) - Proposed - 2026-08-09
 - [0030.2. Agent-Native Core Ergonomics — Primitive Audit, Certified Invariants, and Sidestep Decisions](./0030.2-agent-native-core-ergonomics.md) - Proposed - 2026-08-09
 - [0031. Atomic DOM Moves — `moveBefore()` Grounded in the Spec, the Engines, and Measurement](./0031-atomic-dom-moves.md) - Proposed - 2026-08-25
-- [0032. Derived Appearance — A Fifth Package for Intent-Declared UI](./0032-derived-appearance-package.md) - Proposed - 2026-08-25
-- [0033. Oracle Soundness — How the Checker Earns the Right to Be Believed](./0033-oracle-soundness.md) - Proposed - 2026-08-26
+- [0032. Derived Appearance — A Fifth Package for Intent-Declared UI](./0032-derived-appearance-package.md) - Withdrawn - 2026-08-27
+- [0033. Oracle Soundness — How the Checker Earns the Right to Be Believed](./0033-oracle-soundness.md) - Withdrawn - 2026-08-27
+- [0034. `@nisli/engine` — Typed Blocks Decided by an Engine](./0034-engine-typed-blocks-decided-by-an-engine.md) - Accepted - 2026-08-29
+- [0035. Engine Appearance Layer — Visual-less Core, Skins, Parts and Axes](./0035-engine-appearance-layer.md) - Accepted - 2026-08-29
