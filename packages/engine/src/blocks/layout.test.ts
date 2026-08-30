@@ -85,7 +85,7 @@ describe('Form', () => {
     expect(grid(360).style.gridTemplateColumns).toBe('repeat(1, minmax(0, 1fr))');
     expect(grid(800).style.gridTemplateColumns).toBe('repeat(3, minmax(0, 1fr))');
     // A field is a div wrapper (label caption, control, note); the wrapper carries the span.
-    expect(grid(800).querySelector<HTMLElement>('label[for=f-n]')!.parentElement!.style.gridColumn).toBe('1 / -1');
+    expect(grid(800).querySelector<HTMLElement>('label[for$="-n"]')!.parentElement!.style.gridColumn).toBe('1 / -1');
   });
   it('refuses to submit with a required field empty and says which', () => {
     let submitted = 0;

@@ -12,6 +12,9 @@ import { __notices } from './notice.js';
 import { Form, type Field, type FormHandle } from './form.js';
 
 let width = 800;
+/** The mounted form's id prefix: field ids are `${F}-<key>` (per instance, so two forms never share an id). */
+let F = 'f1';
+const fidOf = (e: Element) => e.querySelector('form')!.id;
 beforeEach(() => { document.body.innerHTML = ''; document.body.style.overflow = ''; __notices.value = []; setMeasurer(() => width); });
 afterEach(() => setMeasurer(null));
 
@@ -21,14 +24,15 @@ const make = (props: Record<string, unknown>, w = 800) => {
   for (const [k, v] of Object.entries({ onSubmit: () => {}, ...props })) (e as any)._setProp(k, v);
   document.body.appendChild(e);
   flushEffects();
+  F = fidOf(e);
   return e;
 };
 const owned = (fields: readonly Field<any>[], initial: Record<string, unknown> = {}, extra: Record<string, unknown> = {}, w = 800) =>
   make({ fields, owned: true, initial, key: 1, ...extra }, w);
 const submit = (e: HTMLElement) => { e.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true })); flushEffects(); };
-const type = (e: HTMLElement, key: string, v: string) => { const i = e.querySelector<HTMLInputElement>(`#f-${key}`)!; i.value = v; i.dispatchEvent(new Event('input')); flushEffects(); };
-const blur = (e: HTMLElement, key: string) => { e.querySelector(`#f-${key}`)!.dispatchEvent(new Event('blur')); flushEffects(); };
-const choose = (e: HTMLElement, key: string, v: string) => { const s = e.querySelector<HTMLSelectElement>(`select#f-${key}`)!; s.value = v; s.dispatchEvent(new Event('change')); flushEffects(); };
+const type = (e: HTMLElement, key: string, v: string) => { const i = e.querySelector<HTMLInputElement>(`#${F}-${key}`)!; i.value = v; i.dispatchEvent(new Event('input')); flushEffects(); };
+const blur = (e: HTMLElement, key: string) => { e.querySelector(`#${F}-${key}`)!.dispatchEvent(new Event('blur')); flushEffects(); };
+const choose = (e: HTMLElement, key: string, v: string) => { const s = e.querySelector<HTMLSelectElement>(`select#${F}-${key}`)!; s.value = v; s.dispatchEvent(new Event('change')); flushEffects(); };
 const settle = async () => { for (let i = 0; i < 4; i++) await Promise.resolve(); flushEffects(); };
 
 describe('rule 1 — presence', () => {
@@ -39,11 +43,11 @@ describe('rule 1 — presence', () => {
   it('a field whose when() is false is not rendered, is omitted on submit, and its error is cleared', () => {
     const got: unknown[] = [];
     const e = owned(fields, { kind: 'a', amount: 5 }, { onSubmit: (v: unknown) => { got.push(v); } });
-    expect(e.querySelector('#f-amount')).not.toBeNull();
+    expect(e.querySelector(`#${F}-amount`)).not.toBeNull();
     type(e, 'amount', ''); submit(e);
     expect(e.textContent).toContain('Amount is required.');
     choose(e, 'kind', 'b');
-    expect(e.querySelector('#f-amount')).toBeNull();
+    expect(e.querySelector(`#${F}-amount`)).toBeNull();
     expect(e.textContent).not.toContain('Amount is required.');
     submit(e);
     expect(got).toEqual([{ kind: 'b' }]);
@@ -58,11 +62,11 @@ describe('rule 2 — dependent options', () => {
     ];
     const seen: unknown[] = [];
     const e = owned(fields, { country: 'ge', city: 'batumi' }, { onChange: (v: unknown) => seen.push(v) });
-    expect([...e.querySelectorAll<HTMLOptionElement>('select#f-city option')].map((o) => o.value)).toEqual(['', 'tbilisi', 'batumi', 'kutaisi', 'gori']);
+    expect([...e.querySelectorAll<HTMLOptionElement>(`select#${F}-city option`)].map((o) => o.value)).toEqual(['', 'tbilisi', 'batumi', 'kutaisi', 'gori']);
     choose(e, 'country', 'fr');
-    expect([...e.querySelectorAll<HTMLOptionElement>('select#f-city option')].map((o) => o.value)).toEqual(['', 'paris', 'lyon', 'nice', 'lille']);
+    expect([...e.querySelectorAll<HTMLOptionElement>(`select#${F}-city option`)].map((o) => o.value)).toEqual(['', 'paris', 'lyon', 'nice', 'lille']);
     expect(seen.at(-1)).toEqual({ country: 'fr', city: undefined });
-    expect(e.querySelector<HTMLSelectElement>('select#f-city')!.querySelector('option[selected]')).toBeNull();
+    expect(e.querySelector<HTMLSelectElement>(`select#${F}-city`)!.querySelector('option[selected]')).toBeNull();
   });
 });
 
@@ -75,15 +79,15 @@ describe('rule 3 — validation timing and announcement', () => {
     const e = owned(fields);
     type(e, 'payee', 'a'); type(e, 'payee', '');
     expect(e.textContent).not.toContain('Payee is required.');
-    expect(e.querySelector('#f-payee')!.getAttribute('aria-invalid')).toBeNull();
+    expect(e.querySelector(`#${F}-payee`)!.getAttribute('aria-invalid')).toBeNull();
     blur(e, 'payee');
     expect(e.textContent).toContain('Payee is required.');
-    expect(e.querySelector('#f-payee')!.getAttribute('aria-invalid')).toBe('true');
-    expect(e.querySelector('#f-payee')!.getAttribute('aria-describedby')).toBe('f-payee-note');
-    expect(e.querySelector('#f-payee-note')!.textContent).toBe('Payee is required.');
+    expect(e.querySelector(`#${F}-payee`)!.getAttribute('aria-invalid')).toBe('true');
+    expect(e.querySelector(`#${F}-payee`)!.getAttribute('aria-describedby')).toBe(`${F}-payee-note`);
+    expect(e.querySelector(`#${F}-payee-note`)!.textContent).toBe('Payee is required.');
     type(e, 'payee', 'Chase');
-    expect(e.querySelector('#f-payee-note')!.textContent).toBe('Who was paid');
-    expect(e.querySelector('#f-payee')!.getAttribute('aria-invalid')).toBeNull();
+    expect(e.querySelector(`#${F}-payee-note`)!.textContent).toBe('Who was paid');
+    expect(e.querySelector(`#${F}-payee`)!.getAttribute('aria-invalid')).toBeNull();
   });
   it('on submit with 2+ errors: an alert summary, every field marked, focus on the first invalid', () => {
     let submitted = 0;
@@ -91,8 +95,8 @@ describe('rule 3 — validation timing and announcement', () => {
     submit(e);
     expect(submitted).toBe(0);
     expect(e.querySelector('[role=alert]')!.textContent).toBe('2 fields need attention.');
-    expect(e.querySelector('#f-amount')!.getAttribute('aria-invalid')).toBe('true');
-    expect(document.activeElement).toBe(e.querySelector('#f-payee'));
+    expect(e.querySelector(`#${F}-amount`)!.getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement).toBe(e.querySelector(`#${F}-payee`));
     type(e, 'payee', 'x');
     expect(e.querySelector('[role=alert]')).toBeNull();
   });
@@ -102,19 +106,19 @@ describe('rule 4 — choice rendering', () => {
   const opts = (n: number) => Array.from({ length: n }, (_, i) => ({ value: `v${i}`, label: `V${i}` }));
   it('2–3 options: a segmented radio group; 4+: a native select; intent stays kind:select', () => {
     const e = owned([{ key: 'two', label: 'Two', kind: 'select', options: opts(2) }, { key: 'three', label: 'Three', kind: 'select', options: opts(3) }, { key: 'four', label: 'Four', kind: 'select', options: opts(4) }], { three: 'v1' });
-    const three = e.querySelector<HTMLElement>('#f-three')!;
-    expect(e.querySelector('#f-two')!.getAttribute('role')).toBe('radiogroup');
+    const three = e.querySelector<HTMLElement>(`#${F}-three`)!;
+    expect(e.querySelector(`#${F}-two`)!.getAttribute('role')).toBe('radiogroup');
     expect(three.getAttribute('role')).toBe('radiogroup');
-    expect(three.getAttribute('aria-labelledby')).toBe('f-three-label');
+    expect(three.getAttribute('aria-labelledby')).toBe(`${F}-three-label`);
     expect([...three.querySelectorAll('button[role=radio]')].map((b) => b.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false']);
-    expect(e.querySelector('#f-four')!.tagName).toBe('SELECT');
+    expect(e.querySelector(`#${F}-four`)!.tagName).toBe('SELECT');
   });
   it('clicking a segment selects it and the draft changes', () => {
     const seen: unknown[] = [];
     const e = owned([{ key: 'two', label: 'Two', kind: 'select', options: opts(2) }], {}, { onChange: (v: unknown) => seen.push(v) });
-    e.querySelectorAll<HTMLButtonElement>('#f-two button')[1]!.click(); flushEffects();
+    e.querySelectorAll<HTMLButtonElement>(`#${F}-two button`)[1]!.click(); flushEffects();
     expect(seen).toEqual([{ two: 'v1' }]);
-    expect(e.querySelectorAll('#f-two button')[1]!.getAttribute('aria-checked')).toBe('true');
+    expect(e.querySelectorAll(`#${F}-two button`)[1]!.getAttribute('aria-checked')).toBe('true');
   });
 });
 
@@ -123,11 +127,11 @@ describe('rule 5 — draft lifecycle (uncontrolled)', () => {
   it('draft = initial on mount and whenever key changes; a file input remounts', () => {
     const e = owned(fields, { name: 'a' });
     type(e, 'name', 'b');
-    const file = e.querySelector('#f-doc');
-    expect(e.querySelector<HTMLInputElement>('#f-name')!.value).toBe('b');
+    const file = e.querySelector(`#${F}-doc`);
+    expect(e.querySelector<HTMLInputElement>(`#${F}-name`)!.value).toBe('b');
     (e as any)._setProp('key', 2); flushEffects();
-    expect(e.querySelector<HTMLInputElement>('#f-name')!.value).toBe('a');
-    expect(e.querySelector('#f-doc')).not.toBe(file);
+    expect(e.querySelector<HTMLInputElement>(`#${F}-name`)!.value).toBe('a');
+    expect(e.querySelector(`#${F}-doc`)).not.toBe(file);
   });
   it('cancelling a dirty form asks first; Discard calls onCancel, a clean form does not ask', async () => {
     let cancelled = 0;
@@ -159,9 +163,10 @@ describe('rule 5 — draft lifecycle (uncontrolled)', () => {
     const tpl = el('div', {}, [Form<{ name: string }>({ fields: [{ key: 'name', label: 'Name', kind: 'text' }], initial: { name: 'a' }, onSubmit: (v) => { got.push(v); }, ref: (h) => { handle = h; } })]);
     tpl.mount(document.body); flushEffects();
     const e = document.querySelector<HTMLElement>('nisli-form')!;
+    F = fidOf(e);
     type(e, 'name', 'b');
     handle.reset(); flushEffects();
-    expect(e.querySelector<HTMLInputElement>('#f-name')!.value).toBe('a');
+    expect(e.querySelector<HTMLInputElement>(`#${F}-name`)!.value).toBe('a');
     handle.submit(); flushEffects();
     expect(got).toEqual([{ name: 'a' }]);
   });
@@ -181,10 +186,10 @@ describe('rule 6 — layout', () => {
   it('columns from the visible count only; long and textarea fields span the row', () => {
     const e = owned(fields, {}, {}, 1000);
     expect(grid(e).style.gridTemplateColumns).toBe(`repeat(${Math.min(6, Math.floor((1000 + 16) / (metrics.layout.minField + 16)))}, minmax(0, 1fr))`);
-    expect(e.querySelector('label[for=f-b]')).toBeNull();
-    expect(e.querySelector<HTMLElement>('label[for=f-addr]')!.parentElement!.style.gridColumn).toBe('1 / -1');
-    expect(e.querySelector<HTMLElement>('label[for=f-note]')!.parentElement!.style.gridColumn).toBe('1 / -1');
-    expect(e.querySelector<HTMLElement>('label[for=f-a]')!.parentElement!.style.gridColumn).toBe('auto');
+    expect(e.querySelector(`label[for=${F}-b]`)).toBeNull();
+    expect(e.querySelector<HTMLElement>(`label[for=${F}-addr]`)!.parentElement!.style.gridColumn).toBe('1 / -1');
+    expect(e.querySelector<HTMLElement>(`label[for=${F}-note]`)!.parentElement!.style.gridColumn).toBe('1 / -1');
+    expect(e.querySelector<HTMLElement>(`label[for=${F}-a]`)!.parentElement!.style.gridColumn).toBe('auto');
     expect(grid(owned(fields, {}, {}, 360)).style.gridTemplateColumns).toBe('repeat(1, minmax(0, 1fr))');
   });
   it('a group is one fieldset with a legend, spanning the row, laying out its own fields by the same rule, in declaration order', () => {
@@ -195,10 +200,10 @@ describe('rule 6 — layout', () => {
     expect(fs.querySelector('legend')!.textContent).toBe('Shipping');
     expect(fs.style.gridColumn).toBe('1 / -1');
     expect(fs.style.gridTemplateColumns).toBe('repeat(2, minmax(0, 1fr))');
-    expect([...fs.querySelectorAll('label')].map((l) => l.getAttribute('for'))).toEqual(['f-s1', 'f-s2']);
+    expect([...fs.querySelectorAll('label')].map((l) => l.getAttribute('for'))).toEqual([`${F}-s1`, `${F}-s2`]);
     // each() wraps every cell in a display:contents <each-item>; the grid item is its child.
     const order = [...grid(e).children].map((w) => w.firstElementChild!).map((c) => c.tagName === 'FIELDSET' ? 'group' : c.querySelector('label')!.getAttribute('for'));
-    expect(order).toEqual(['f-a', 'f-addr', 'group', 'f-c', 'f-note']);
+    expect(order).toEqual([`${F}-a`, `${F}-addr`, 'group', `${F}-c`, `${F}-note`]);
   });
 });
 
@@ -209,7 +214,7 @@ describe('rule 7 — bounds', () => {
       { key: 'm', label: 'M', kind: 'money', min: 0 },
       { key: 'd', label: 'D', kind: 'date', min: '2026-01-01', max: '2026-12-31' },
     ]);
-    const n = e.querySelector('#f-n')!, m = e.querySelector('#f-m')!, d = e.querySelector('#f-d')!;
+    const n = e.querySelector(`#${F}-n`)!, m = e.querySelector(`#${F}-m`)!, d = e.querySelector(`#${F}-d`)!;
     expect([n.getAttribute('min'), n.getAttribute('max'), n.getAttribute('step')]).toEqual(['1', '9', '2']);
     expect([m.getAttribute('min'), m.getAttribute('step')]).toEqual(['0', '0.01']);
     expect([d.getAttribute('min'), d.getAttribute('max')]).toEqual(['2026-01-01', '2026-12-31']);
@@ -226,10 +231,10 @@ describe('rule 8 — read-only', () => {
       { key: 's', label: 'S', kind: 'select', readOnly: true, options: Array.from({ length: 4 }, (_, i) => ({ value: String(i), label: String(i) })) },
     ];
     const e = owned(fields, { lock: false });
-    expect(e.querySelector('#f-t')!.hasAttribute('readonly')).toBe(false);
-    expect(e.querySelector('#f-s')!.hasAttribute('disabled')).toBe(true);
-    const lock = e.querySelector<HTMLInputElement>('#f-lock')!; lock.checked = true; lock.dispatchEvent(new Event('change')); flushEffects();
-    expect(e.querySelector('#f-t')!.hasAttribute('readonly')).toBe(true);
+    expect(e.querySelector(`#${F}-t`)!.hasAttribute('readonly')).toBe(false);
+    expect(e.querySelector(`#${F}-s`)!.hasAttribute('disabled')).toBe(true);
+    const lock = e.querySelector<HTMLInputElement>(`#${F}-lock`)!; lock.checked = true; lock.dispatchEvent(new Event('change')); flushEffects();
+    expect(e.querySelector(`#${F}-t`)!.hasAttribute('readonly')).toBe(true);
   });
 });
 
@@ -269,7 +274,9 @@ describe('controlled draft', () => {
   it('a writable signal is edited in place through Form()', () => {
     const value = signal({ q: 'a' });
     el('div', {}, [Form<{ q: string }>({ fields: [{ key: 'q', label: 'Q', kind: 'text' }], value, onSubmit: () => {} })]).mount(document.body); flushEffects();
-    type(document.querySelector<HTMLElement>('nisli-form')!, 'q', 'b');
+    const e = document.querySelector<HTMLElement>('nisli-form')!;
+    F = fidOf(e);
+    type(e, 'q', 'b');
     expect(value.value).toEqual({ q: 'b' });
   });
 });

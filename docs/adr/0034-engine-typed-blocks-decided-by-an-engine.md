@@ -4,7 +4,7 @@
 **Status**: Accepted
 **Depends on**: [0029-agent-native-ui-strategy](./0029-agent-native-ui-strategy.md), [0030-agent-native-authoring](./0030-agent-native-authoring.md)
 **Replaces the direction of**: [0032](./0032-derived-appearance-package.md) and [0033](./0033-oracle-soundness.md), both withdrawn on 2026-08-27 — see [`AUDIT-2026-08-27.md`](../research/nextgen/AUDIT-2026-08-27.md). Their numbers stay burned; this ADR does not supersede their text, it records what was built instead.
-**Companion**: [0035-engine-appearance-layer](./0035-engine-appearance-layer.md) (the visual layer this ADR only names), [0038-engine-block-kernel-and-space-domain](./0038-engine-block-kernel-and-space-domain.md) (how a block is built), [0040-engine-overlay-domain](./0040-engine-overlay-domain.md) (the things that float)
+**Companion**: [0035-engine-appearance-layer](./0035-engine-appearance-layer.md) (the visual layer this ADR only names), [0041-engine-proof-domain](./0041-engine-proof-domain.md) (how a screen is proven), [0038-engine-block-kernel-and-space-domain](./0038-engine-block-kernel-and-space-domain.md) (how a block is built), [0040-engine-overlay-domain](./0040-engine-overlay-domain.md) (the things that float)
 **Code**: [`packages/engine`](../../packages/engine), [`packages/ledger`](../../packages/ledger)
 
 ## Context
@@ -46,7 +46,7 @@ ADR records the architecture that emerged, in the language its code uses.
 | **Axes / Scheme** | Context the skin varies on. First axis: colour `scheme` (`light`/`dark`/`system`). | `skin.ts` (contract in 0035) |
 | **Status** | An async result a block may hold — structurally a core `QueryResult`/`ResourceResult`. | `blocks/status.ts` |
 | **Layout report** | The engine saying, in data, that a plan could not be satisfied. | `engine/report.ts` |
-| **Proof** | A screen mounted at widths with no browser, returning its layout reports. | `test/prove.ts`, `test/estimate.ts` |
+| **Proof** | A screen mounted at widths with no browser, holding every claim — fit reports still standing, no text overflow, no figure truncated, names, labels, dialog ARIA, menu roles, no block error, reachable, settled. Claim catalogue in [0041](./0041-engine-proof-domain.md). | `test/prove.ts`, `test/claims.ts`, `test/estimate.ts`, `test/glyphs.ts` |
 
 ## Bounded contexts
 
@@ -56,7 +56,7 @@ ADR records the architecture that emerged, in the language its code uses.
 | **Blocks** | Intent translated into decisions and structure; every block is built on the kernel (`block()`, styled only via `ctx.part()`) — [0038](./0038-engine-block-kernel-and-space-domain.md) | `blocks/kernel.ts`, `blocks/*.ts` | Intent, Decision, Appearance (through the kernel only) |
 | **Decision** | Pure decisions and the one measure→decide→apply loop; **Space** is its pure vocabulary (`fit`, `columnsFor`, `shellMode`, `dialogMode`, `labelColumn`, `labelEvery`, `labelWidth`, `pageSize`, `reportIf`) | `engine/space.ts`, `engine/fit.ts`, `engine/columns.ts`, `engine/paging.ts`, `engine/use-fit.ts`, `engine/measure.ts` | Metrics |
 | **Appearance** | Dressing decided structure | `skin.ts`, `skin/default.ts`, `style.ts` (`look()`) | — (the engine calls it; it calls nothing) |
-| **Proof** | Observing decisions the engine could not satisfy | `engine/report.ts`, `test/prove.ts`, `test/estimate.ts` | Decision |
+| **Proof** | Observing decisions the engine could not satisfy, and every other claim a screen must hold — [0041](./0041-engine-proof-domain.md) | `engine/report.ts`, `engine/dev.ts`, `test/prove.ts`, `test/claims.ts`, `test/estimate.ts`, `test/glyphs.ts`, `verify/index.ts` | Decision |
 | **Application** | A real product built only from Intent | `packages/ledger` | Intent, `useSkin` |
 
 Dependency direction: **Intent → Decision → Appearance**. Blocks translate
@@ -164,7 +164,7 @@ inconsistently. This ADR records that rule so the question need not be re-argued
   ([0022](../issues/0022-form-conditional-fields-and-reset.md), resolved by
   [0037](./0037-engine-form-intent-capture-domain.md)); dialogs
   have no action row ([0023](../issues/0023-actions-block-for-dialogs.md));
-  `prove()` is parked ([0024](../issues/0024-prove-harness-parked.md)); a Vite
+  `prove()` was parked ([0024](../issues/0024-prove-harness-parked.md), resolved by [0041](./0041-engine-proof-domain.md)); a Vite
   proxy hang is unexplained ([0025](../issues/0025-vite-proxy-accept-header-hang.md)).
 - **What Ledger has shown** (`packages/ledger`): nine screens — overview,
   accounts, account, transactions, budgets, import, rules, connections,

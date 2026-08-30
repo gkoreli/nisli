@@ -29,5 +29,5 @@ of numbering.
 | [0021 — `each()` is the only template consumer that rejects factory results](./0021-each-rejects-factory-results.md) | resolved | P1 |
 | [0022 — `Form` has no conditional fields and cannot reset a file input](./0022-form-conditional-fields-and-reset.md) | resolved (ADR 0037) | P1 |
 | [0023 — Dialogs have no action row; screens fake one with a fieldless `Form`](./0023-actions-block-for-dialogs.md) | open | P2 |
-| [0024 — `prove()` exists but is parked: screen-level proof is not yet a test](./0024-prove-harness-parked.md) | open (parked) | P2 |
+| [0024 — `prove()` exists but is parked: screen-level proof is not yet a test](./0024-prove-harness-parked.md) | resolved (ADR 0041) | P2 |
 | [0025 — A JSON `POST` through the Vite dev proxy hung with `Accept: */*`](./0025-vite-proxy-accept-header-hang.md) | open (unexplained) | P3 |

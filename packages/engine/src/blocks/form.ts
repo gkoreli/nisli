@@ -43,6 +43,7 @@ export interface FormProps<T> {
 export interface FormHandle { reset(): void; submit(): void }
 
 /** A select with this many choices or fewer is offered as a segmented group. */
+let nextId = 1;
 const SEGMENTED_MAX = 3;
 
 type Rec = Record<string, unknown>;
@@ -117,16 +118,18 @@ const FormImpl = block<ImplProps>('nisli-form', {
     // A single column narrower than a field's minimum is an unsatisfiable cell.
     const stopReport = effect(() => {
       if (width.value > 0 && visible.value.length > 0) {
-        reportIf({ slack: width.value - metrics.layout.minField }, { code: 'FIT_CELL', block: 'nisli-form', width: width.value, detail: 'a single field column is narrower than the minimum' });
+        reportIf({ slack: width.value - metrics.layout.minField }, { code: 'FIT_CELL', block: 'nisli-form', width: width.value, detail: 'a single field column is narrower than the minimum' }, ctx.host);
       }
     });
     onCleanup(stopReport);
 
     const value = () => draft.draft.value;
     const errorOf = (key: string) => draft.errors.value[key];
+    // Ids are per form instance: two forms on one page (a quick-add beside an edit dialog) share field keys, never ids.
+    const fid = `f${nextId++}`;
 
     const focusField = (key: string) => {
-      const target = host.querySelector<HTMLElement>(`#f-${key}`);
+      const target = host.querySelector<HTMLElement>(`#${fid}-${key}`);
       if (!target) return;
       if (target.getAttribute('role') === 'radiogroup') (target.querySelector<HTMLElement>('[aria-checked=true]') ?? target.querySelector<HTMLElement>('[role=radio]'))?.focus();
       else target.focus();
@@ -159,7 +162,7 @@ const FormImpl = block<ImplProps>('nisli-form', {
     type InputStyle = (extra?: StyleRecord) => ReadonlySignal<string>;
 
     const control = (f: Field<Rec>): ElementLike => {
-      const id = `f-${f.key}`;
+      const id = `${fid}-${f.key}`;
       const readOnly = computed(() => isReadOnly(f, value()));
       const invalid = computed(() => !!errorOf(f.key));
       const common = {
@@ -290,7 +293,7 @@ const FormImpl = block<ImplProps>('nisli-form', {
     // ── Fields, groups, the grid ─────────────────────────────────────────
 
     const fieldEl = (f: Field<Rec>) => {
-      const id = `f-${f.key}`;
+      const id = `${fid}-${f.key}`;
       return el('div', {
         style: ctx.part([], { display: 'flex', flexDirection: 'column', gap: metrics.space[1], minWidth: 0, gridColumn: spansRow(f) ? '1 / -1' : 'auto' }),
       }, [
@@ -330,6 +333,7 @@ const FormImpl = block<ImplProps>('nisli-form', {
       );
 
     return el('form', {
+      id: fid,
       novalidate: 'novalidate',
       style: ctx.part([], { display: 'flex', flexDirection: 'column', gap: metrics.space[4] }),
       on: { submit: (e) => { e.preventDefault(); submit(); } },

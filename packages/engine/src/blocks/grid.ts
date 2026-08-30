@@ -22,7 +22,7 @@ export const Grid = block<GridProps>('nisli-grid', {
       const width = ctx.width.value;
       const min = ctx.metrics.layout.minColumn;
       if (width > 0 && count.value > 0) {
-        reportIf({ slack: width - min }, { code: 'FIT_CELL', block: 'nisli-grid', width, detail: 'a single column is narrower than the minimum cell' });
+        reportIf({ slack: width - min }, { code: 'FIT_CELL', block: 'nisli-grid', width, detail: 'a single column is narrower than the minimum cell' }, ctx.host);
       }
     });
     onCleanup(stop);

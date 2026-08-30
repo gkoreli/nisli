@@ -188,9 +188,105 @@ t.unmount();                 // disposes, restores the measurer, skin and docume
 - `resize(width, viewport?)` is the frame changing: the measurer answers the
   new numbers and every observed block re-measures, as a `ResizeObserver`
   would tell it.
-- `prove(make, { widths })` mounts a whole screen at each width with the
-  estimating measurer and returns every `LayoutReport` the engine filed —
-  an empty result is the proof.
+- `measure` answers every element `text` did not (the estimator, in
+  `prove()`); `frame` is the root the claim checkers walk.
+- `prove(make, { widths, viewport?, scheme?, turns? })` mounts a whole
+  screen at each width over `mount()` with the estimating measurer, turns to
+  a fixed point, `settle()`s the data in, and returns `{ claims, reports,
+  byWidth[{ width, claims, reports, turns }] }` — every claim that does not
+  hold. An empty `claims` is the proof. Every Ledger screen is proven this
+  way (`packages/ledger/src/screens/screens.proof.test.ts`: nine screens ×
+  1280/1024/768/480/360, a store booted from a stubbed `fetch`, zero
+  claims).
+
+## Proof
+
+The Proof context observes Decision (ADR 0034): a screen is proven when
+every claim about it holds at every width, with no browser and no eyes.
+
+```ts
+import { prove } from '@nisli/engine/test';
+
+const proof = await prove(() => TransactionsScreen({}), { widths: [1280, 1024, 768, 480, 360], scheme: 'light' });
+expect(proof.claims).toEqual([]);
+```
+
+A screen's data must be in: stub the server (`fetch`) with the shapes the
+data layer reads, import the store and screens after the stub, `await` the
+store's boot, and assert the fixture reached the DOM before trusting the
+proof — an empty table never truncates a figure. A claim a screen makes
+today is recorded by exact text and asserted still present, so a fix is
+noticed; the proof itself is never loosened.
+
+A **Claim** is `{ code, block, detail, severity, width? }`. The checkers
+(`src/test/claims.ts`, each unit-tested on a positive and a negative
+fixture) run over the mounted tree:
+
+| code | claim |
+|---|---|
+| `FIT_ROW` / `FIT_COLUMNS` / `FIT_CELL` | every fit plan is satisfied (a `LayoutReport` still standing after the screen settled) |
+| `OVERFLOW_TEXT` | no one-line text is wider than its box without an ellipsis (a text's box is its own pinned width, else its container's — sharing a row is the fit reports' job) |
+| `FIGURE_TRUNCATED` | no figure (`tabular-nums` digits: money and date cells, a Stat's value, a meter) sits under an ellipsis narrower than it — a text may truncate, a number may not |
+| `UNSETTLED` | the screen reached a fixed point: turns run until a turn changes nothing (tree and reports alike), before and after `settle()`; still moving at `turns` (default 12) is not proven |
+| `NAME_MISSING` | every button, link and input has an accessible name |
+| `ID_DUPLICATE` | no id is on two elements |
+| `LABEL_MISSING` | every input inside a form has a label |
+| `DIALOG_ARIA` | every dialog is `aria-modal` and `aria-labelledby` an element with text |
+| `MENU_ITEM_ROLE` | everything reachable inside a `[role=menu]` is a menu item |
+| `BLOCK_ERROR` | no block failed (`data-nisli-error`) |
+| `UNREACHABLE` | every interactive element is reachable — not `[inert]` unless a modal is open above it |
+
+**The estimator is calibrated.** `src/test/estimate.ts` sizes text by
+summing per-glyph advance widths measured in real Chromium for the default
+skin's fonts at every text style the skin uses (14/400 body, 14/500
+control, 12/400 small, 12/500 header, 16/600 title, 20/600 heading, 28/600
+display, and 14/400 monospace for `text.code`), reading the `font-size`,
+`font-weight`, `font-family`, `text-transform`, `letter-spacing` and
+`font-variant-numeric` written inline: uppercase labels are summed as
+uppercase plus their spacing, and under `tabular-nums` every digit takes
+the measured tabular advance (a proportional `1` is 2.3px narrower). A
+header cell in a table's measuring pass is as wide as its widest cell, as
+the browser sizes the column. The table is `src/test/glyphs.ts`, generated
+by `pnpm calibrate` (`scripts/calibrate-glyphs.mjs`, Playwright resolved
+from `packages/www`); `glyphs.test.ts` holds every string the engine's own
+tests put on screen — plain, tabular and as labels — to within 3% of the
+browser's laid-out width. `textMeasurer(charWidth)` stays the deterministic
+flat measurer for block tests where a plan is arithmetic.
+
+**Runtime evidence.** In dev, an unsatisfied plan stamps the block's host
+`data-nisli-report="CODE"` (cleared when the plan is satisfied again) and
+lands in the `window.__nisli.reports` ring buffer — engine-internal
+diagnostics like core's `data-nisli-error`, so a browser can be read
+without a listener. `window.__nisli` (`{ reports, dev: true }`) is created
+the moment the engine loads in dev, so its absence is itself evidence: the
+build has none. `prove()` reads the stamp to keep only the reports still
+standing once a screen has settled. Dev is the same probe core uses —
+Vite/vitest `import.meta.env`, then `NODE_ENV`, then loud by default — so
+the stamp and ring are free in production only under a build that defines
+one of those (`vite build`, `NODE_ENV=production`); a bundle built with
+neither keeps them.
+
+**The browser half.** `@nisli/engine/verify` loads a running app in
+Chromium (Playwright, an optional dev peer, loaded on demand) at every route
+× width and checks: the evidence exists at all (`window.__nisli`, else
+`NO_EVIDENCE` — a production build cannot pass by having nothing to say),
+the screen finished loading (no `[role=status][aria-label="Loading"]` or
+`[aria-busy]` within `timeout`, else `STILL_LOADING`), zero console/page
+errors through the keyboard pass (minus `ignore`), zero
+`[data-nisli-error]`, zero `[data-nisli-report]` (with the latest ring
+entry's detail), no horizontal scroll, every visible control has an
+accessible name, Tab from the body reaches a control, and while a dialog
+is open Tab never leaves it — checked when a dialog is open at load, or
+opened by `open: [{ route, selector }]` (a control clicked before the
+snapshot). `verify({ baseUrl, routes, widths, ignore?, open? })` returns
+`{ ok, findings, checked, table }`; the CLI:
+
+```sh
+nisli-verify --base http://localhost:5200 --routes / /transactions --widths 1280 360 --open '/transactions=[data-nisli-action=add]'
+```
+
+Exit 0 with no findings, 1 with findings, 2 on usage. Screenshots are for
+looking; none of this is one.
 
 ## Overlays
 

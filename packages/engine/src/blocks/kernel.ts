@@ -173,7 +173,7 @@ export function block<P extends object>(tag: string, spec: BlockSpec<P>): Compon
         useFit(host, {
           ...fitSpec,
           onPlan: (plan, available) => {
-            reportIf(plan, { code: report.code, block: tag, width: available, detail: report.detail(plan) });
+            reportIf(plan, { code: report.code, block: tag, width: available, detail: report.detail(plan) }, host);
             onPlan?.(plan, available);
           },
         }),

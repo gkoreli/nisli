@@ -4,6 +4,71 @@ All notable changes to `@nisli/engine`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Unreleased until the first
 publish.
 
+## 0.5.0 — 2026-08-30
+
+- **Proof context re-founded** (issue 0024 un-parked at the engine level).
+  `prove(make, { widths, viewport?, scheme? })` is rebuilt over `mount()`
+  and returns `{ claims, reports, byWidth }`; it runs the claim checkers
+  at every width, flushes, turns (each ending in a `remeasure()` — the
+  ResizeObserver pass), `settle()`s, and keeps only the layout reports
+  still standing. `test/claims.ts`: `Claim { code, block, detail, severity,
+  width? }`, checkers `OVERFLOW_TEXT`, `NAME_MISSING`, `ID_DUPLICATE`,
+  `LABEL_MISSING`, `DIALOG_ARIA`, `MENU_ITEM_ROLE`, `BLOCK_ERROR`,
+  `UNREACHABLE` plus the fit reports, each with a positive and negative
+  fixture test. `mount()` gains `measure` (fallback measurer) and `frame`.
+- **Estimator calibrated to Chromium.** `scripts/calibrate-glyphs.mjs`
+  (`pnpm calibrate`) measures per-glyph advances and laid-out string widths
+  for the default skin's font stack at six text styles and writes
+  `test/glyphs.ts`; `estimate.ts` sums advances at the inline
+  `font-size`/`font-weight` the skin wrote (`textWidth`, `textStyleOf`,
+  `tableFor`); `glyphs.test.ts` holds 44 strings × 6 styles within 3%.
+- **Runtime evidence.** `reportIf(plan, report, host?)`: in dev the host
+  is stamped `data-nisli-report="CODE"` while unsatisfied and cleared when
+  satisfied; `report()` feeds a `window.__nisli.reports` ring buffer
+  (`RING` 200); listeners receive `(report, host)`. `engine/dev.ts` is the
+  dev probe (core does not export `isDev`).
+- **Browser runner.** `@nisli/engine/verify` — `verify({ baseUrl, routes,
+  widths, ignore?, height?, timeout?, settle? })` → `{ ok, findings,
+  checked, table }` over Playwright (optional peer, dynamic import); CLI
+  `bin/nisli-verify.mjs` (`nisli-verify --base … --routes … --widths …`).
+- **A passing proof means what it claims.** `prove()` turns to a fixed
+  point — a turn that changes neither the tree nor the reports ends the
+  loop, before and after `settle()` — and claims `UNSETTLED` when the cap
+  (`turns`, default 12) is hit; `ProofAtWidth.turns` says how many it
+  took. `FIGURE_TRUNCATED`: a `tabular-nums` figure under an ellipsis
+  narrower than it (a table's money/date cell, a Stat's value) is a claim,
+  where a text truncating is a decision; a one-line `div` (`nowrap`) is
+  inspected as text. The estimator reads `font-family` (monospace →
+  calibrated `code` table), `text-transform`, `letter-spacing` and
+  `font-variant-numeric` up the inline chain; a measuring table's header
+  is as wide as its widest cell (`columnWidth`), and a cell's own line
+  excludes folded values (`ownText`). `glyphs.ts` gains `display` and
+  `code` styles, `tabularDigit`, and tabular/label string sets held to 3%.
+- **`verify` cannot pass vacuously.** `window.__nisli = { reports, dev:
+  true }` exists from engine load in dev; a page without it is
+  `NO_EVIDENCE`. The runner waits for every loading state to clear
+  (`STILL_LOADING` otherwise), files console/page errors raised during
+  the keyboard pass too, reads the latest ring entry per stamped block,
+  and takes `open: [{ route, selector }]` (CLI `--open route=selector`)
+  to click a dialog open before the snapshot; the dialog claim is
+  documented as "open at load or by `open`". The CLI prefers the source
+  in a checkout over a stale `dist/`.
+- **Issue 0024 un-parked at the app level.** Every Ledger screen is proven
+  in `packages/ledger/src/screens/screens.proof.test.ts` — nine screens ×
+  1280/1024/768/480/360 over a store booted from a stubbed `fetch`, with a
+  `KNOWN` findings map that is empty; `nisli-verify` over eight live routes
+  × three widths reports no findings. The `nisli-engine` skill's `prove-`
+  rules now describe `prove()`, claims, the calibrated estimator, `verify()`
+  and the CLI (`prove-claims-are-failures`, `prove-real-content`,
+  `prove-verify-routes` added).
+- **Table:** values folded under a cell are never tabular figures
+  (`font-variant-numeric: normal`), whatever cell they sit under — found
+  by `FIGURE_TRUNCATED` on the Ledger's settings backups at 360.
+- **Form ids are per instance** (`f<n>-<key>`, the `<form>` carries
+  `f<n>`): two forms sharing field keys on one page (a quick-add beside an
+  edit dialog) no longer collide — found by the `ID_DUPLICATE` claim on the
+  first screen `prove()` ran. Tests query by the form's own prefix.
+
 ## 0.4.0 — 2026-08-29
 
 - **Overlay stack.** `engine/overlay.ts` (pure): `Layer` of kind `modal` |

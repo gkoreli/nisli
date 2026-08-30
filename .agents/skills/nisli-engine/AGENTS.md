@@ -3,7 +3,8 @@
 Every rule for writing and reviewing application UI built from `@nisli/engine`. Each rule gives the invariant, the bug it prevents, and an incorrect/correct pair. Correct examples are lifted from Ledger (`packages/ledger/src/screens/*.ts`) wherever one exists.
 
 **Engine source**: `packages/engine/src` — public surface is exactly what `src/index.ts` exports
-**Test surface**: `@nisli/engine/test` → `packages/engine/src/test/prove.ts` (`prove`, `estimator`, `mount`, `textMeasurer`)
+**Test surface**: `@nisli/engine/test` → `packages/engine/src/test/prove.ts` (`prove`, `estimator`, `mount`, `textMeasurer`, `claimsOf`, `checkers`); `@nisli/engine/verify` → `src/verify/index.ts` (`verify`, `format`) and the `nisli-verify` CLI (`bin/nisli-verify.mjs`)
+**Screen proof**: `packages/ledger/src/screens/screens.proof.test.ts` — nine screens × five widths, zero claims
 **ADRs**: `docs/adr/0034-engine-typed-blocks-decided-by-an-engine.md` (contract, language, decision rules), `0035-engine-appearance-layer.md` (skins, parts, axes), `0037-engine-form-intent-capture-domain.md` (the ten Form rules)
 **Worked example**: `packages/ledger` — nine screens, `TENETS.md`
 
@@ -605,11 +606,78 @@ No app word exists for: pixel widths, breakpoints, column counts, sticky/fixed, 
 
 ## 7. Proof at Width (MEDIUM)
 
-Verification is by test, not eye (ADR 0034, *Consequences*). The measurer is a seam: in tests every `measure()` is answered by a deterministic function, so a plan is arithmetic and a block is proven in happy-dom with no browser. The public test surface is `@nisli/engine/test`.
+Verification is by test, not eye (ADR 0034, *Consequences*; NORTH-STAR: *correct in every context, verified without looking*). Proof is a bounded context that observes Decision: it reads the inline styles and reports the engine wrote and says, in data, what does not hold. The measurer is the seam — in tests every `measure()` is answered without a browser — so a block is arithmetic under `textMeasurer()` and a whole screen is provable in happy-dom under the calibrated `estimator()`. The public test surface is `@nisli/engine/test` (`src/test/prove.ts`); the browser half is `@nisli/engine/verify` and the `nisli-verify` CLI. Issue 0024 is no longer parked: every Ledger screen is proven in `packages/ledger/src/screens/screens.proof.test.ts`.
+
+### `prove-screens-with-prove` — `prove()` is how a screen is proven
+
+`prove(make: () => Content, { widths, viewport?, scheme?, turns? }): Promise<Proof>` mounts the screen at each width over `mount()` with the estimating measurer, flushes, turns to a fixed point (each turn ends in `remeasure()`, the ResizeObserver pass), `settle()`s core's async work so the data is in, turns again, then runs every checker. `Proof { claims, reports, byWidth[{ width, claims, reports, turns }] }` — an empty `claims` is the proof; a screen still moving at `turns` (default 12) is claimed `UNSETTLED`. One `it` per screen, five widths, `scheme: 'light'` so text is sized as the skin dresses it.
+
+```typescript
+// ✅ CORRECT — packages/ledger/src/screens/screens.proof.test.ts
+import { prove, type Claim } from '@nisli/engine/test';
+const WIDTHS = [1280, 1024, 768, 480, 360] as const;
+for (const [name, make] of Object.entries(screens)) {
+  it(name, async () => {
+    const proof = await prove(make, { widths: WIDTHS, scheme: 'light' });
+    expect([...found].filter((f) => !expected.has(f))).toEqual([]);   // everything not a recorded finding must hold
+    expect(proof.byWidth.map((w) => w.width)).toEqual([...WIDTHS]);
+    for (const w of proof.byWidth) expect(w.turns, `${name} at ${w.width} settled`).toBeLessThan(12);
+  });
+}
+```
+
+### `prove-claims-are-failures` — A claim is a failing test, never noise
+
+A `Claim { code, block, detail, severity, width? }` is the engine saying something a person would otherwise catch by eye or keyboard is wrong. Codes (`src/test/claims.ts`, each checker unit-tested on a positive and a negative fixture): the fit reports `FIT_ROW` / `FIT_COLUMNS` / `FIT_CELL` (a plan still unsatisfied once the screen settled), `OVERFLOW_TEXT` (a one-line text wider than its box with no ellipsis), `FIGURE_TRUNCATED` (a `tabular-nums` figure — money, date, a Stat's value — under an ellipsis narrower than it: a text may truncate, a number may not), `UNSETTLED`, `NAME_MISSING`, `ID_DUPLICATE`, `LABEL_MISSING`, `DIALOG_ARIA`, `MENU_ITEM_ROLE`, `BLOCK_ERROR`, `UNREACHABLE`. Fix the intent (a `tertiary`? a shorter header?) or the engine (Settings @360 filed `FIGURE_TRUNCATED` on a folded backup name — the bug was `table.ts` inheriting `tabular-nums` into the fold, fixed there). Never loosen the proof.
+
+```typescript
+// ❌ WRONG — silencing a claim by widening the width list or filtering codes
+const proof = await prove(make, { widths: [1280, 1024] });          // 360 is where the claim was
+expect(proof.claims.filter((c) => c.code !== 'FIGURE_TRUNCATED')).toEqual([]);
+
+// ✅ CORRECT — screens.proof.test.ts: a claim a screen legitimately makes today is a recorded finding,
+// asserted STILL present (a fix retires its line), and everything else must hold
+const KNOWN: Record<string, { code: Claim['code']; detail: string; widths: readonly number[] }[]> = {};
+expect([...expected].filter((e) => !found.has(e))).toEqual([]);
+```
+
+### `prove-reports-are-failures` — A layout report is a failed plan
+
+`LayoutReport { code: 'FIT_ROW' | 'FIT_COLUMNS' | 'FIT_CELL'; block; width; deficit; detail }` (`engine/report.ts`) is a plan the engine could not satisfy after every concession. In dev the block's host is stamped `data-nisli-report="CODE"` while the plan fails (cleared when it passes) and the report lands in the `window.__nisli.reports` ring; with no listener it is also a `console.error`. `prove()` keeps only the reports still standing after settle (`Proof.reports`) and folds them into `claims`; `verify()` reads the stamp and ring as `LAYOUT_REPORT`. In a block test, subscribe with `onReport()` and expect `[]`.
+
+```typescript
+// ❌ WRONG — treating the console line as noise
+// [nisli engine FIT_COLUMNS] <nisli-table> columns Date, Payee, Amount cannot fit even truncated (7px short at 294px)
+
+// ✅ CORRECT — a report is a test failure; fix the intent or the engine
+const reports: LayoutReport[] = [];
+const stop = onReport((r) => reports.push(r));
+// … mount at 294 …
+expect(reports).toEqual([]);
+stop();
+```
+
+### `prove-real-content` — Prove over real data, and prove that you did
+
+An empty screen proves nothing: a table with no rows never truncates a figure. Boot the store from a stubbed server (`vi.stubGlobal('fetch', …)` for every `/api/*` shape the data layer reads), import the store and screens *after* the stub, `await store.ready`, and assert the fixture reached the DOM before the proof runs — the Ledger fixture has 19 transactions, 3 accounts, budgets, rules, a bank connection and backups, and a sanity test checks the rows and `$12,345.67` at 360.
+
+```typescript
+// ✅ CORRECT — screens.proof.test.ts
+const store = await import('../data/store.js');
+await store.ready;
+const { TransactionsScreen } = await import('./transactions.js');
+it('the transactions table holds every row, with figures, at 360', () => {
+  const t = mount(() => TransactionsScreen({}), {}, { width: 360, scheme: 'light', measure: estimator(360) });
+  try {
+    expect(t.frame.querySelectorAll('tbody tr').length).toBeGreaterThanOrEqual(transactions.length);
+    expect(t.frame.textContent).toContain('$12,345.67');
+  } finally { t.unmount(); }
+});
+```
 
 ### `prove-mount-at-width` — `mount()` a block at a width and assert the DOM
 
-`mount(target: tag | factory, props, { width = 800, viewport = width, scheme?, text? }): Mounted { el; styleOf(selector?); unmount() }` (`test/mount.ts`). `unmount()` restores the measurer, skin and document. Assert on inline styles (`display`, `width`, `textOverflow`) and DOM (`[role=menuitem]`, `thead th`).
+`mount(target: tag | factory, props, { width = 800, viewport = width, scheme?, text?, measure? }): Mounted { el; frame; styleOf(selector?); resize(width, viewport?); unmount() }` (`test/mount.ts`). `text` sizes text-shaped elements, `measure` answers everything else (the estimator, in `prove()`), the frame answers the rest. `resize()` is the frame changing; `unmount()` restores the measurer, skin and document. Assert on inline styles (`display`, `width`, `textOverflow`) and DOM (`[role=menuitem]`, `thead th`).
 
 ```typescript
 // ✅ CORRECT — packages/engine/src/blocks/toolbar.test.ts
@@ -622,18 +690,20 @@ expect(shown).toEqual(['save']);
 
 (`data-nisli-action` is an engine-internal test hook the block writes on its own buttons — not app vocabulary.)
 
-### `prove-text-measurer` — Deterministic text widths make a plan arithmetic
+### `prove-text-measurer` — Two measurers: arithmetic for blocks, calibrated for screens
 
-`textMeasurer(charWidth)` sizes H1–H3/TH/TD/BUTTON/SPAN/A/LABEL/OPTION at `charWidth` per character (+ button padding). Write the expected widths as a comment so the assertion is checkable by hand.
+`textMeasurer(charWidth)` sizes H1–H3/TH/TD/BUTTON/SPAN/A/LABEL/OPTION at `charWidth` per character (+ button padding) so a block plan is arithmetic — write the expected widths as a comment. `estimator(frame)` (`test/estimate.ts`) is what `prove()` uses: it sums per-glyph advances measured in real Chromium (`test/glyphs.ts`, `pnpm calibrate`) at the `font-size`, `font-weight`, `font-family`, `text-transform`, `letter-spacing` and `font-variant-numeric` the skin wrote inline — uppercase labels as uppercase plus spacing, tabular digits at the tabular advance, monospace from the `code` table; a measuring table's column is its widest cell (`columnWidth`), a cell's own line excludes folded values (`ownText`). `glyphs.test.ts` holds every style within 3% of the browser. Do not hand a screen `textMeasurer`; do not hand a block test the estimator when the numbers should be checkable by hand.
 
 ```typescript
 // ✅ CORRECT — toolbar.test.ts: "available 328 = title + 8 + 112 + 8 + 32 → title 168"
 expect(t.title.style.width).toBe('168px');
+// ✅ CORRECT — screens.proof.test.ts: the estimator answers a screen
+mount(() => OverviewScreen({}), {}, { width: 1280, scheme: 'light', measure: estimator(1280) });
 ```
 
 ### `prove-five-widths` — Prove at the widths that matter
 
-Blocks are proven at 1280/1024/768/480/360 or at their own thresholds (`sidebarWidth + contentMin` and one pixel less; `dialogMin`). An app's bar (Ledger tenet 10): zero console errors across every route at five widths.
+Screens are proven at 1280/1024/768/480/360; blocks at those or at their own thresholds (`sidebarWidth + contentMin` and one pixel less; `dialogMin`). The app's bar (Ledger tenet 10): every screen holds every claim at five widths in `screens.proof.test.ts`, and `nisli-verify` reports no finding across every route at those widths.
 
 ```typescript
 // ✅ CORRECT — packages/engine/src/blocks/layout.test.ts
@@ -641,37 +711,20 @@ expect(sidebarAt(metrics.layout.sidebarWidth + metrics.layout.contentMin)).toBe(
 expect(sidebarAt(metrics.layout.sidebarWidth + metrics.layout.contentMin - 1)).toBe(false);
 ```
 
-### `prove-reports-are-failures` — A layout report is a failed plan
+### `prove-verify-routes` — `verify()` reads the running app's evidence per route
 
-`LayoutReport { code: 'FIT_ROW' | 'FIT_COLUMNS' | 'FIT_CELL'; block; width; deficit; detail }` (`engine/report.ts`). Silence means every plan was satisfied. With no listener a report is a `console.error` in dev — which is why "zero console errors at five widths" catches them. Subscribe with `onReport()`; in a test, collect and expect `[]`.
+`verify({ baseUrl, routes, widths, ignore?, open?, height?, timeout?, settle? }): Promise<Result { ok, findings, checked, table }>` from `@nisli/engine/verify` (`src/verify/index.ts`; Playwright is an optional peer, loaded on demand) loads each route × width in Chromium and files `Finding { route, width, code, detail }`: `NO_EVIDENCE` (no `window.__nisli` — a production build cannot pass by saying nothing), `STILL_LOADING` (a skeleton or `aria-busy` never cleared within `timeout`), `LOAD_FAILED`, `CONSOLE_ERROR` / `PAGE_ERROR` (through the keyboard pass, minus `ignore`), `BLOCK_ERROR`, `LAYOUT_REPORT` (a stamped host, with the latest ring entry), `HORIZONTAL_SCROLL`, `NAME_MISSING`, `TAB_UNREACHABLE`, `TAB_ESCAPED_DIALOG` (a dialog open at load or opened by `open: [{ route, selector }]`). It is read-only against a dev server and complements `prove()` — it proves the built app in a real browser, `prove()` proves the screen's decisions without one; a route needs both.
 
-```typescript
-// ❌ WRONG — treating the console line as noise
-// [nisli engine FIT_COLUMNS] <nisli-table> columns Date, Payee, Amount cannot fit even truncated (7px short at 294px)
-
-// ✅ CORRECT — a report is a test failure; fix the intent (a tertiary? a shorter header?) or the engine
-const reports: LayoutReport[] = [];
-const stop = onReport((r) => reports.push(r));
-// … mount at 294 …
-expect(reports).toEqual([]);
-stop();
-```
-
-### `prove-screens-with-prove` — `prove()` is the screen-level shape
-
-`prove(make: () => Content, { widths, turns? }): Promise<Proof[]>` (`test/prove.ts`) mounts a screen at each width under `estimator(frame)` — widths from the engine's own inline styles and text length × `metrics.charWidth` — and returns every report with its `frame`. `[]` is the proof. Parked for Ledger by decision (issue 0024) until the vocabulary settles; when un-parked, one test per route.
-
-```typescript
-// ✅ CORRECT — the target shape (issue 0024, "Un-parking requires")
-import { prove } from '@nisli/engine/test';
-it('lays out at five widths', async () => {
-  expect(await prove(() => OverviewScreen({}), { widths: [1280, 1024, 768, 480, 360] })).toEqual([]);
-});
+```sh
+# ✅ CORRECT — the Ledger dev server on :5200, eight routes, three widths, the add-transaction dialog opened
+nisli-verify --base http://localhost:5200 --routes / /accounts /transactions /budgets /import /rules /connections /settings \
+  --widths 1280 768 360 --open '/transactions=[data-nisli-action=add]'
+# ok: 24 loads, no findings   (exit 0; 1 with findings; 2 on usage)
 ```
 
 ### `prove-screenshots-not-proof` — Screenshots are for looking
 
-A screenshot or a Playwright sweep is looked at because one wants to, not because correctness depends on it (ADR 0034; Ledger tenet 10). A width test that asserts the plan is the source of truth; a sweep that passes does not excuse a missing one.
+A screenshot or a Playwright sweep is looked at because one wants to, not because correctness depends on it (ADR 0034; Ledger tenet 10). `prove()`'s empty `claims` and `verify()`'s `ok` are the sources of truth; a sweep that passes does not excuse a missing screen proof, and a screenshot that "looks right" does not retire a claim.
 
 ---
 
@@ -740,5 +793,5 @@ Core diagnoses a prop that is never read (N202). A block or screen wrapper that 
 `status-pass-result` · `status-async-actions-busy` · `status-no-loading-flags` · `status-stale-stays`
 `skin-use-once-root` · `skin-scheme-preference` · `skin-write-parts` · `skin-no-layout` · `skin-bare-proves`
 `decide-priority-lever` · `decide-kind-lever` · `decide-tone-lever` · `decide-destructive-lever` · `decide-text-truncates` · `decide-columns-fold` · `decide-grids-choose-columns` · `decide-dont-control`
-`prove-mount-at-width` · `prove-text-measurer` · `prove-five-widths` · `prove-reports-are-failures` · `prove-screens-with-prove` · `prove-screenshots-not-proof`
+`prove-screens-with-prove` · `prove-claims-are-failures` · `prove-reports-are-failures` · `prove-real-content` · `prove-mount-at-width` · `prove-text-measurer` · `prove-five-widths` · `prove-verify-routes` · `prove-screenshots-not-proof`
 `dogfood-issue-then-engine` · `dogfood-no-fake-intent` · `dogfood-keep-tenets`

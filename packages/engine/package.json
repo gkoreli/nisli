@@ -1,6 +1,6 @@
 {
   "name": "@nisli/engine",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Typed UI blocks decided by an engine \u2014 no CSS, no classes, no visual decisions in app code.",
   "type": "module",
   "license": "MIT",
@@ -11,7 +11,8 @@
     "directory": "packages/engine"
   },
   "peerDependencies": {
-    "@nisli/core": ">=0.55.0"
+    "@nisli/core": ">=0.55.0",
+    "playwright": ">=1.40.0"
   },
   "devDependencies": {
     "@nisli/core": "workspace:*",
@@ -19,7 +20,8 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./test": "./src/test/prove.ts"
+    "./test": "./src/test/prove.ts",
+    "./verify": "./src/verify/index.ts"
   },
   "publishConfig": {
     "exports": {
@@ -30,11 +32,16 @@
       "./test": {
         "types": "./dist/test/prove.d.ts",
         "default": "./dist/test/prove.js"
+      },
+      "./verify": {
+        "types": "./dist/verify/index.d.ts",
+        "default": "./dist/verify/index.js"
       }
     }
   },
   "files": [
     "dist",
+    "bin",
     "README.md",
     "LICENSE"
   ],
@@ -42,6 +49,15 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run --typecheck",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "calibrate": "node scripts/calibrate-glyphs.mjs"
+  },
+  "bin": {
+    "nisli-verify": "./bin/nisli-verify.mjs"
+  },
+  "peerDependenciesMeta": {
+    "playwright": {
+      "optional": true
+    }
   }
 }

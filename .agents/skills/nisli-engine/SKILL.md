@@ -4,7 +4,7 @@ description: Typed-block authoring guidelines for code that uses `@nisli/engine`
 license: MIT
 metadata:
   author: nisli-team
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Nisli Engine — Agent Skill
@@ -19,7 +19,7 @@ Reference these guidelines when:
 - Passing async results (`query()` / `resource()`) to blocks as `status`
 - Installing or writing a `Skin`, or forwarding a light/dark/system preference
 - Choosing `priority` / `kind` / `tone` / `destructive` so the engine degrades correctly
-- Proving a block or screen at width with `@nisli/engine/test`
+- Proving a block or screen at width with `@nisli/engine/test`, or a running app's routes with `@nisli/engine/verify` / `nisli-verify`
 - Reviewing app code for smuggled appearance (pixels, colours, breakpoints, per-instance flags)
 - Deciding where a new need belongs: engine rule, skin part, or semantic word
 
@@ -107,12 +107,15 @@ Reference these guidelines when:
 
 ### 7. Proof at Width (MEDIUM)
 
-- `prove-mount-at-width` - Prove a block with `mount(tag | factory, props, { width, viewport?, scheme?, text? })` from `@nisli/engine/test`; assert on inline styles and DOM, then `unmount()`
-- `prove-text-measurer` - Use `textMeasurer(charWidth)` so text-shaped elements have deterministic widths and a plan is arithmetic
-- `prove-five-widths` - Prove at 1280/1024/768/480/360 (or the block's own thresholds); zero console errors across every route at those widths is the app's bar
-- `prove-reports-are-failures` - A `LayoutReport` (`FIT_ROW`, `FIT_COLUMNS`, `FIT_CELL`) means the engine could not satisfy a plan — treat one as a failing test, never as noise
-- `prove-screens-with-prove` - `prove(() => Screen({}), { widths })` mounts a screen with the estimating measurer and returns its reports; `[]` is the proof (parked for Ledger per issue 0024, still the shape)
-- `prove-screenshots-not-proof` - Screenshots are for looking, not correctness; a sweep is never the source of truth over a width test
+- `prove-screens-with-prove` - `prove(() => Screen({}), { widths, scheme: 'light', turns? })` from `@nisli/engine/test` mounts a screen at each width under the calibrated estimator, turns to a fixed point, `settle()`s the data in, and returns `{ claims, reports, byWidth[{ width, claims, reports, turns }] }`; empty `claims` is the proof — one `it` per screen (Ledger: `screens.proof.test.ts`, nine screens, zero claims)
+- `prove-claims-are-failures` - A `Claim` (`FIT_*`, `OVERFLOW_TEXT`, `FIGURE_TRUNCATED`, `UNSETTLED`, `NAME_MISSING`, `ID_DUPLICATE`, `LABEL_MISSING`, `DIALOG_ARIA`, `MENU_ITEM_ROLE`, `BLOCK_ERROR`, `UNREACHABLE`) is a failing test: fix the intent or the engine, never filter codes or drop widths; a finding that stays is recorded in `KNOWN` by exact text and asserted still present
+- `prove-reports-are-failures` - A `LayoutReport` (`FIT_ROW`, `FIT_COLUMNS`, `FIT_CELL`) is a plan the engine could not satisfy; it stamps `data-nisli-report` and the `window.__nisli.reports` ring in dev, `prove()` keeps the ones still standing after settle, `verify()` files `LAYOUT_REPORT` — in a block test `onReport()` and expect `[]`
+- `prove-real-content` - Prove over real data: stub `fetch` for every `/api/*` shape, import store and screens after the stub, `await store.ready`, and assert the fixture reached the DOM (rows, `$12,345.67` at 360) before trusting the proof
+- `prove-mount-at-width` - Prove a block with `mount(tag | factory, props, { width, viewport?, scheme?, text?, measure? })` → `{ el, frame, styleOf(), resize(), unmount() }`; assert on inline styles and DOM, then `unmount()`
+- `prove-text-measurer` - `textMeasurer(charWidth)` makes a block plan arithmetic; `estimator(frame)` (calibrated to Chromium per glyph, style, `tabular-nums`, uppercase/letter-spacing, monospace; `glyphs.test.ts` within 3%) answers a screen — never the other way round
+- `prove-five-widths` - 1280/1024/768/480/360 for screens (or a block's own thresholds); the app's bar is zero claims at five widths and zero `nisli-verify` findings across every route
+- `prove-verify-routes` - `verify({ baseUrl, routes, widths, ignore?, open? })` / `nisli-verify --base … --routes … --widths … [--open route=selector]` loads the running app in Chromium and files `NO_EVIDENCE`, `STILL_LOADING`, `LOAD_FAILED`, `CONSOLE_ERROR`, `PAGE_ERROR`, `BLOCK_ERROR`, `LAYOUT_REPORT`, `HORIZONTAL_SCROLL`, `NAME_MISSING`, `TAB_UNREACHABLE`, `TAB_ESCAPED_DIALOG`; exit 0 only with no findings — the browser half of proof, not a replacement for `prove()`
+- `prove-screenshots-not-proof` - Screenshots and sweeps are for looking; `prove().claims === []` and `verify().ok` are the sources of truth, and neither is retired by something looking right
 
 ### 8. Dogfooding — Ledger (MEDIUM)
 

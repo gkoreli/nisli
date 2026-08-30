@@ -24,13 +24,17 @@ export interface MountOptions {
   viewport?: number;
   /** Install the default skin at this scheme; bare when omitted. */
   scheme?: Scheme;
-  /** Sizes text-shaped elements (titles, buttons, cells); `undefined` falls through to the frame. */
+  /** Sizes text-shaped elements (titles, buttons, cells); `undefined` falls through to `measure`, then the frame. */
   text?: (el: HTMLElement) => number | undefined;
+  /** Answers every element `text` did not (the estimator, in `prove()`); absent, everything else is the frame. */
+  measure?: Measurer;
 }
 
 export interface Mounted {
   /** The block's custom element. */
   readonly el: HTMLElement;
+  /** The frame the block is mounted in (`width` wide); the root the claim checkers walk. */
+  readonly frame: HTMLElement;
   /** Inline style of the first element matching `selector` (the block itself when omitted). */
   styleOf(selector?: string): CSSStyleDeclaration;
   /** The frame changes: the block is now `width` wide (and the document `viewport`, default `width`); every block re-decides. */
@@ -60,6 +64,7 @@ export function mount(target: string | Factory, props: Record<string, unknown>, 
   let width = options.width ?? 800;
   let viewport = options.viewport ?? width;
   const frame = document.createElement('div');
+  frame.style.width = `${width}px`;
   document.body.appendChild(frame);
 
   let el: HTMLElement;
@@ -75,7 +80,7 @@ export function mount(target: string | Factory, props: Record<string, unknown>, 
   const measurer: Measurer = (node) => {
     if (node === el) return width;
     if (node === document.documentElement) return viewport;
-    return options.text?.(node) ?? width;
+    return options.text?.(node) ?? options.measure?.(node) ?? width;
   };
   setMeasurer(measurer);
   if (options.scheme) useSkin(defaultSkin, { scheme: options.scheme });
@@ -86,9 +91,11 @@ export function mount(target: string | Factory, props: Record<string, unknown>, 
 
   return {
     el,
+    frame,
     styleOf: (selector) => (selector ? el.querySelector<HTMLElement>(selector) : el)?.style ?? (() => { throw new Error(`mount(): nothing matches "${selector}"`); })(),
     resize: (w, v = w) => {
       width = w; viewport = v;
+      frame.style.width = `${w}px`;
       remeasure();
       window.dispatchEvent(new Event('resize'));
       flushEffects();

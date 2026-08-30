@@ -155,7 +155,8 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
               .map((sc) => ({ sc, value: sc.cell(row.value) as unknown }))
               .filter(({ value }) => value !== '' && value !== null && value !== undefined);
             if (folded.length === 0) return null;
-            return el('div', { style: ctx.part('text.muted', truncate) },
+            // Folded values are text from other columns: never tabular figures, whatever cell they sit under.
+            return el('div', { style: ctx.part('text.muted', { ...truncate, fontVariantNumeric: 'normal' }) },
               folded.flatMap(({ sc, value }, i) => [
                 ...(i === 0 ? [] : [' · ']),
                 ...(isNumeric(sc) ? [`${sc.header} `] : []),

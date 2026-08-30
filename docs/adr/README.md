@@ -46,3 +46,4 @@ They moved with the framework when `@nisli/core` became a standalone package.
 - [0038. Engine Block Kernel and the Space Domain](./0038-engine-block-kernel-and-space-domain.md) - Accepted - 2026-08-29
 - [0039. Ledger Bank Connectivity — Connections, Provider Boundary, and Projections](./0039-ledger-bank-connectivity-domain.md) - Accepted - 2026-08-29
 - [0040. Engine Overlay Domain — Layers, One Stack, Native Inert](./0040-engine-overlay-domain.md) - Accepted - 2026-08-29
+- [0041. Engine Proof Domain — Claims, a Calibrated Estimator, and Runtime Evidence](./0041-engine-proof-domain.md) - Accepted - 2026-08-30

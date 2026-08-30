@@ -1,6 +1,6 @@
 # 0024 — `prove()` exists but is parked: screen-level proof is not yet a test
 
-**Status**: open (parked by decision, 2026-08-28)
+**Status**: resolved by [ADR 0041](../adr/0041-engine-proof-domain.md) (2026-08-30); was parked by decision, 2026-08-28
 **Priority**: P2
 **Area**: `@nisli/engine` — `test/prove.ts`, `test/estimate.ts`, `engine/report.ts`
 
@@ -34,3 +34,20 @@ wrong thing.
 3. A calibration test that runs the estimator and Chromium over the same
    screens and diffs their reports.
 4. Retiring the sweep as the source of truth.
+
+## Resolution (2026-08-30)
+
+[ADR 0041](../adr/0041-engine-proof-domain.md) re-founded the Proof context:
+`prove()` rebuilt over `mount()` with an eleven-claim catalogue
+(`test/claims.ts`), the estimator calibrated to Chromium per glyph and per
+text style within 3 % (`test/glyphs.ts`, `glyphs.test.ts`), dev-only runtime
+evidence (`data-nisli-report`, `window.__nisli.reports`), and a browser
+half (`@nisli/engine/verify`, `nisli-verify`). Against the un-parking list:
+
+1. Vocabulary stable — met (a week of Ledger use).
+2. One proof per screen — met: `packages/ledger/src/screens/screens.proof.test.ts`,
+   nine screens × five widths, `KNOWN` findings map empty.
+3. Calibration against Chromium — met at glyph/string level; the per-screen
+   report diff is 0041's plan item 3.
+4. Sweep retired as source of truth — met; `nisli-verify` replaces the
+   scratchpad scripts.
