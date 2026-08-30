@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { seed } from './seed.js';
+import { initialLedger } from './initial-ledger.js';
 import type { Account, Ledger } from './model.js';
 
 vi.mock('@nisli/engine', () => ({ notify: vi.fn() }));
@@ -13,6 +13,12 @@ const json = (status: number, body: unknown) =>
   ({ ok: status < 400, status, statusText: String(status), json: async () => body }) as unknown as Response;
 
 const stored = (l: Ledger): Ledger => ({ ...l, settings: { ...l.settings, name: 'From server' } });
+const ledgerFixture = (): Ledger => {
+  const ledger = initialLedger();
+  ledger.accounts = [{ id: 'checking', name: 'Checking', kind: 'checking', opening: 10_000, institution: 'Bank', currency: 'USD' }];
+  ledger.transactions = [{ id: 'transaction', accountId: 'checking', categoryId: 'groceries', date: '2026-08-29', amount: -100, payee: 'Grocer' }];
+  return ledger;
+};
 
 async function loadStore() {
   vi.resetModules();
@@ -39,7 +45,7 @@ const flushAll = async (ms: number) => { await vi.advanceTimersByTimeAsync(ms); 
 
 describe('store as a client of the server', () => {
   it('boots from the server when it has a ledger', async () => {
-    const server = stored(seed());
+    const server = stored(ledgerFixture());
     handler = (c) => (c.method === 'GET' ? { status: 200, body: { version: 3, ledger: server } } : { status: 500, body: {} });
     const store = await loadStore();
     expect(store.settings.value.name).toBe('From server');
@@ -49,7 +55,7 @@ describe('store as a client of the server', () => {
   });
 
   it('migrates a localStorage ledger once when the server is empty', async () => {
-    const local = { ...seed(), settings: { ...seed().settings, name: 'From cache' } };
+    const local = { ...ledgerFixture(), settings: { ...ledgerFixture().settings, name: 'From cache' } };
     localStorage.setItem(KEY, JSON.stringify(local));
     handler = (c) =>
       c.method === 'GET' ? { status: 200, body: { version: 0, ledger: null } } : { status: 200, body: { version: 1 } };
@@ -64,7 +70,7 @@ describe('store as a client of the server', () => {
 
   it('applies a write at once and PUTs it with the current version after the debounce', async () => {
     handler = (c) =>
-      c.method === 'GET' ? { status: 200, body: { version: 5, ledger: seed() } } : { status: 200, body: { version: 6 } };
+      c.method === 'GET' ? { status: 200, body: { version: 5, ledger: ledgerFixture() } } : { status: 200, body: { version: 6 } };
     const store = await loadStore();
     const before = store.transactions.value.length;
     store.addTransaction({ accountId: store.accounts.value[0]!.id, categoryId: 'uncategorized', date: '2026-08-29', amount: -100, payee: 'Test' });
@@ -85,7 +91,7 @@ describe('store as a client of the server', () => {
   it('migrates legacy bank provenance and makes account currency explicit', async () => {
     type LegacyAccount = Omit<Account, 'currency' | 'external'> & { currency?: string; external?: { provider: string; itemId: string; accountId: string } };
     type LegacyLedger = Omit<Ledger, 'accounts'> & { accounts: LegacyAccount[] };
-    const legacy = seed() as unknown as LegacyLedger;
+    const legacy = ledgerFixture() as unknown as LegacyLedger;
     legacy.accounts[0] = { ...legacy.accounts[0]!, currency: undefined, external: { provider: 'plaid', itemId: 'connection-1', accountId: 'bank-account-1' } };
     legacy.transactions[0] = { ...legacy.transactions[0]!, accountId: legacy.accounts[0]!.id, externalId: 'bank-transaction-1' };
     handler = (c) => c.method === 'GET'
@@ -99,10 +105,10 @@ describe('store as a client of the server', () => {
 
   it('on 409 replays owner edits over newer server data and retries with its version', async () => {
     const { notify } = await import('@nisli/engine');
-    const newer = stored(seed());
+    const newer = stored(ledgerFixture());
     handler = (c) =>
       c.method === 'GET'
-        ? { status: 200, body: { version: 1, ledger: seed() } }
+        ? { status: 200, body: { version: 1, ledger: ledgerFixture() } }
         : { status: 409, body: { error: { message: 'stale' }, version: 2, ledger: newer } };
     const store = await loadStore();
     store.addCategory('Bikes');
@@ -123,10 +129,10 @@ describe('store as a client of the server', () => {
 
   it('replays only owner overlays while retaining a concurrent bank observation', async () => {
     handler = (c) => c.method === 'GET'
-      ? { status: 200, body: { version: 1, ledger: seed() } }
+      ? { status: 200, body: { version: 1, ledger: ledgerFixture() } }
       : { status: 500, body: {} };
     const store = await loadStore();
-    const base = seed();
+    const base = ledgerFixture();
     base.accounts[0] = {
       ...base.accounts[0]!,
       external: { provider: 'plaid', environment: 'production', connectionId: 'bank', accountId: 'account', status: 'active' },
@@ -154,7 +160,7 @@ describe('store as a client of the server', () => {
   it('goes offline on a network failure and recovers with backoff', async () => {
     let down = false;
     handler = (c) => {
-      if (c.method === 'GET') return { status: 200, body: { version: 1, ledger: seed() } };
+      if (c.method === 'GET') return { status: 200, body: { version: 1, ledger: ledgerFixture() } };
       return down ? 'network' : { status: 200, body: { version: 2 } };
     };
     const store = await loadStore();

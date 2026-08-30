@@ -5,25 +5,32 @@ per version, human-readable highlights.
 
 ## Unreleased
 
+- Ledger no longer has a runtime mock provider or generated starter finances.
+  A new ledger has reference categories but no accounts, transactions, budgets,
+  or rules; missing Plaid credentials and Plaid Sandbox configuration fail at
+  startup. Retired mock records remain recognizable only for backed-up cleanup,
+  which also removes unchanged legacy sample budgets/rules without touching
+  owner-customized configuration.
+
 - Bank sync is now applied atomically by the server, shared by manual sync
   and a daily 06:00 local-time scheduler. Pending-to-posted replacements keep
   their local identity and category, and provider reauthentication is visible.
 - Plaid Link requests 730 days before Item creation, supports update mode and
-  a configured HTTPS OAuth return on mobile, and preserves the Trial plan's
-  scarce Production Items by making Sandbox the documented first gate.
+  a configured HTTPS OAuth return on mobile, and preserves scarce Production
+  Items by reusing the existing connection for rebuild and reauthorization.
 - The zero-dependency server serves the production client as well as `/api`;
   an opt-in macOS LaunchAgent keeps it running without putting secrets in its
   plist. Tailscale Serve remains the private phone-access path.
-- Banks can replace demo/Sandbox/local financial state from existing live
+- Banks can replace legacy sample/local financial state from existing live
   connections, behind confirmation, while preserving categories, budgets,
-  rules, and preferences. The server fetches every live snapshot first, writes
-  a named backup, reuses the existing Plaid Items, and removes simulated
-  connections.
+  customized rules, and preferences. The server fetches every live snapshot first, writes
+  a named backup, reuses the existing Plaid Items, and removes retired sample
+  connection metadata.
 - Bank connectivity now has an explicit domain boundary: provider adapters
   normalize signed integer amounts, currency, account kinds, transaction
   names, and opaque checkpoints before projection. Connections and bank facts
-  carry provenance, so Banks can say whether the ledger is live, simulated, or
-  mixed; credentials and checkpoints never reach the browser.
+  carry provenance, so Banks can distinguish provider, retired sample, and
+  local/imported facts; credentials and checkpoints never reach the browser.
 - Store writes use private fsynced temp files and fail closed on corrupt JSON.
   Sync, disconnect, and live-data replacement use ordered, replay-safe state
   transitions across the ledger and encrypted connection store.

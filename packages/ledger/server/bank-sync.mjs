@@ -78,11 +78,11 @@ export function createBankingService({ activeProvider, providerFor, loadConnecti
   };
 
   return {
-    list: async () => (await loadConnections()).map(connectionView),
+    list: async () => (await loadConnections()).filter(isLiveConnection).map(connectionView),
 
     composition: async () => {
       const [{ ledger }, connections] = await Promise.all([getLedger(), loadConnections()]);
-      if (!ledger) return { accounts: { live: 0, simulated: 0, unowned: 0 }, transactions: { live: 0, simulated: 0, unowned: 0 }, history: 0 };
+      if (!ledger) return { accounts: { live: 0, legacy: 0, unowned: 0 }, transactions: { live: 0, legacy: 0, unowned: 0 }, history: 0, legacyConfiguration: 0 };
       return financialComposition(ledger, connections);
     },
 
@@ -136,7 +136,7 @@ export function createBankingService({ activeProvider, providerFor, loadConnecti
     /**
      * Explicit recovery/migration command: fetch every live snapshot first,
      * then replace financial projections once, behind an always-created backup.
-     * No new provider connection is created and simulated connections are dropped.
+     * No new provider connection is created and retired mock metadata is dropped.
      */
     useLiveDataOnly: () => serial(async () => {
       const all = (await loadConnections()).map((connection) => normalizeConnection(connection, {
@@ -144,7 +144,7 @@ export function createBankingService({ activeProvider, providerFor, loadConnecti
         liveEnvironment: activeProvider.env,
       }));
       const live = all.filter(isLiveConnection);
-      if (!live.length) throw new BankingError('Connect a live bank before replacing demo data', 409, 'NO_LIVE_CONNECTION');
+      if (!live.length) throw new BankingError('Connect a bank before replacing legacy sample data', 409, 'NO_LIVE_CONNECTION');
       const snapshots = [];
       for (const connection of live) {
         if (!canSynchronize(connection)) throw new BankingError(`${connection.institution} must be reconnected first`, 409, 'REAUTH_REQUIRED');
@@ -160,8 +160,7 @@ export function createBankingService({ activeProvider, providerFor, loadConnecti
         }
       }
 
-      // Stage simulated connections as disabled before changing the ledger.
-      // A crash at any later point cannot make the scheduler re-import them.
+      // Stage retired mock connections as disabled before changing the ledger.
       await updateConnections((current) => current.map((connection) => isLiveConnection(connection)
         ? connection
         : { ...connection, status: 'disabled', error: undefined }));

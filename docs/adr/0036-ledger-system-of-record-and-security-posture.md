@@ -115,8 +115,9 @@ Settings adopt server state without going through a write.
 
 ### 4. The provider adapter
 
-One shape, implemented by `mock.mjs` and `plaid.mjs`, chosen at boot by env
-(Plaid iff `PLAID_CLIENT_ID` and `PLAID_SECRET` are both set):
+One provider port is implemented by `plaid.mjs`; test doubles exercise the port
+only in automated tests. Runtime startup requires `PLAID_CLIENT_ID`,
+`PLAID_SECRET`, and a real-data environment (`development` or `production`):
 
 ```
 { name, env,
@@ -128,8 +129,8 @@ One shape, implemented by `mock.mjs` and `plaid.mjs`, chosen at boot by env
 ```
 
 `index.mjs` is routing only and knows no provider detail; items are handed to
-the adapter with the token already decrypted. Plaid's `exchange({ mock: true })`
-still yields a mock item so a real and a simulated bank can coexist. This is
+the adapter with the token already decrypted. Historical mock records are
+quarantined and can only be removed by the backed-up cleanup command. This is
 the *link → accounts → sync-with-cursor → remove* contract of tenet 7;
 SimpleFIN, Teller or CSV would be a third file in `providers/`, not a rewrite.
 

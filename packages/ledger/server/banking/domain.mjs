@@ -8,7 +8,8 @@
 import { randomUUID } from 'node:crypto';
 
 export const UNCATEGORIZED = 'uncategorized';
-export const SIMULATED_PROVIDER = 'mock';
+/** Read-only compatibility marker for connections created by the retired runtime mock provider. */
+export const LEGACY_SIMULATED_PROVIDER = 'mock';
 
 const byDateDesc = (a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
 const connectionIdOf = (account) => account.external?.connectionId ?? account.external?.itemId;
@@ -45,14 +46,16 @@ const normalizeProviderAccount = (account) => ({
 
 /** Migrate a stored provider Item into the BankConnection aggregate. */
 export function normalizeConnection(raw, { liveProvider = 'plaid', liveEnvironment = 'unknown' } = {}) {
-  const provider = raw.provider ?? (raw.access_token ? liveProvider : SIMULATED_PROVIDER);
-  const environment = raw.environment ?? (provider === SIMULATED_PROVIDER ? 'mock' : liveEnvironment);
+  const provider = raw.provider ?? (raw.access_token ? liveProvider : LEGACY_SIMULATED_PROVIDER);
+  const legacySimulated = provider === LEGACY_SIMULATED_PROVIDER;
+  const environment = raw.environment ?? (legacySimulated ? 'mock' : liveEnvironment);
   const checkpoint = raw.checkpoint ?? raw.cursor ?? null;
   const connection = {
     status: 'ok',
     ...raw,
     provider,
     environment,
+    status: legacySimulated ? 'disabled' : (raw.status ?? 'ok'),
     checkpoint,
     accounts: (raw.accounts ?? []).map(normalizeProviderAccount),
   };
@@ -64,11 +67,12 @@ export function normalizeConnection(raw, { liveProvider = 'plaid', liveEnvironme
 export function connectionView(raw) {
   const connection = normalizeConnection(raw);
   const { access_token, checkpoint, completionKey, ...visible } = connection;
-  return { ...visible, source: connection.provider === SIMULATED_PROVIDER ? 'simulated' : 'live' };
+  return visible;
 }
 
-export const canSynchronize = (connection) => !['reauth-required', 'disabled', 'disconnect-pending'].includes(connection.status);
-export const isLiveConnection = (connection) => connection.provider !== SIMULATED_PROVIDER;
+export const isLiveConnection = (connection) => connection.provider !== LEGACY_SIMULATED_PROVIDER;
+export const canSynchronize = (connection) => isLiveConnection(connection)
+  && !['reauth-required', 'disabled', 'disconnect-pending'].includes(connection.status);
 
 /**
  * Fold one complete provider change page-set into the ledger projection.
@@ -229,10 +233,33 @@ export function projectBankSync(
   return { ledger: next, summary: { added, modified, unmatched, removed, accounts: accountsAdded, inactiveAccounts: accountsInactive, at, historyStatus: result.updateStatus } };
 }
 
+const LEGACY_BUDGETS = new Set([
+  'b1|groceries|60000', 'b2|dining|30000', 'b3|transport|15000',
+  'b4|shopping|25000', 'b5|fun|8000', 'b6|travel|40000',
+]);
+const LEGACY_RULES = new Set([
+  'r1|whole foods|groceries', 'r2|trader joe|groceries', 'r3|uber|transport',
+  'r4|netflix|fun', 'r5|payroll|salary', 'r6|amazon|shopping',
+]);
+const legacyBudget = (budget) => LEGACY_BUDGETS.has(`${budget.id}|${budget.categoryId}|${budget.limit}`);
+const legacyRule = (rule) => LEGACY_RULES.has(`${rule.id}|${rule.match}|${rule.categoryId}`);
+export const legacySampleConfigurationCount = (ledger) =>
+  ledger.budgets.filter(legacyBudget).length + ledger.rules.filter(legacyRule).length;
+
 /** The destructive base used only by the explicit, backed-up live-data command. */
-export const financialBlank = (ledger) => ({
-  ...structuredClone(ledger), accounts: [], transactions: [], sync: {}, bankHistory: [], pendingBankRebuild: [],
-});
+export const financialBlank = (ledger) => {
+  const next = structuredClone(ledger);
+  return {
+    ...next,
+    accounts: [],
+    transactions: [],
+    budgets: next.budgets.filter((budget) => !legacyBudget(budget)),
+    rules: next.rules.filter((rule) => !legacyRule(rule)),
+    sync: {},
+    bankHistory: [],
+    pendingBankRebuild: [],
+  };
+};
 
 const conflict = (message, code) => Object.assign(new Error(message), { status: 409, code });
 const sameBankReference = (left, right) => left?.provider === right?.provider
@@ -305,12 +332,13 @@ export function mergeOwnerLedgerWrite(current, proposed) {
 export function financialComposition(ledger, rawConnections) {
   const sourceByConnection = new Map(rawConnections.map((raw) => {
     const connection = normalizeConnection(raw);
-    return [connection.id, isLiveConnection(connection) ? 'live' : 'simulated'];
+    return [connection.id, isLiveConnection(connection) ? 'live' : 'legacy'];
   }));
   const counts = {
-    accounts: { live: 0, simulated: 0, unowned: 0 },
-    transactions: { live: 0, simulated: 0, unowned: 0 },
+    accounts: { live: 0, legacy: 0, unowned: 0 },
+    transactions: { live: 0, legacy: 0, unowned: 0 },
     history: ledger.bankHistory?.length ?? 0,
+    legacyConfiguration: legacySampleConfigurationCount(ledger),
   };
   for (const account of ledger.accounts) {
     const source = sourceByConnection.get(connectionIdOf(account)) ?? 'unowned';

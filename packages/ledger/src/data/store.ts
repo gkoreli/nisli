@@ -2,13 +2,13 @@ import { signal, computed, type ReadonlySignal } from '@nisli/core';
 import { UNCATEGORIZED, type Account, type Budget, type Category, type Ledger, type Rule, type Settings, type Transaction } from './model.js';
 import { notify } from '@nisli/engine';
 import * as api from './api.js';
-import { seed } from './seed.js';
+import { initialLedger } from './initial-ledger.js';
 
 const KEY = 'ledger.v1';
 
 /** Bring any stored shape up to the current model. */
 function migrate(raw: Partial<Ledger>): Ledger {
-  const base = seed();
+  const base = initialLedger();
   const currency = raw.settings?.currency ?? base.settings.currency;
   const migratedAccounts = (raw.accounts ?? base.accounts).map((account) => {
     const external = account.external as (typeof account.external & { itemId?: string }) | undefined;
@@ -62,7 +62,7 @@ const readCache = (): Ledger | undefined => {
 };
 const writeCache = (l: Ledger) => { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch { /* storage unavailable */ } };
 
-const state = signal<Ledger>(readCache() ?? seed());
+const state = signal<Ledger>(readCache() ?? initialLedger());
 let acknowledged = structuredClone(state.value);
 let version = 0;
 let pending: { timer: ReturnType<typeof setTimeout> | undefined; retry: number; inflight: boolean; dirty: boolean } =
@@ -228,7 +228,7 @@ async function boot(): Promise<void> {
     const { version: v, ledger } = await api.getLedger();
     if (ledger) { adopt(ledger, v); return; }
     const cached = readCache();
-    const first = cached ?? seed();
+    const first = cached ?? initialLedger();
     state.value = first;
     version = v;
     try {

@@ -65,8 +65,10 @@ SyncResult {
 ```
 
 Plaid's positive-outflow decimals become signed integer minor units inside
-`providers/plaid.mjs`. The mock provider implements the same normalized port.
-The domain fold therefore has no Plaid sign, key, or account-kind rules.
+`providers/plaid.mjs`. Test fixtures implement the same normalized port, but
+there is no selectable runtime mock provider. The domain fold therefore has no
+Plaid sign, key, or account-kind rules without exposing invented data in the
+application.
 
 Persisted legacy Items migrate on read to connections (`cursor` → `checkpoint`,
 missing provider inferred once, decimal balances → signed minor units). The
@@ -114,8 +116,9 @@ in-place file move.
 
 ### 4. Start fresh with live data is a domain command
 
-The Banks screen asks the server for projection composition: live, simulated,
-and unclassified local/imported account and transaction counts. When a live
+The Banks screen asks the server for projection composition: provider-backed,
+retired-sample, and unclassified local/imported account and transaction counts.
+When a live
 connection exists and the projection is not exclusively live, it offers
 **Start fresh with live data**.
 
@@ -125,12 +128,13 @@ The command:
 2. fetches a complete, historically ready null-checkpoint snapshot for every
    live connection;
 3. aborts without touching the ledger if any snapshot fails;
-4. disables simulated connections so a crash cannot let the scheduler re-add
-   them;
+4. disables retired mock connection metadata so a crash cannot let the
+   scheduler consider it;
 5. creates an unconditional named `pre-live-data` backup;
 6. atomically replaces accounts, transactions, and sync metadata from the live
-   snapshots while preserving categories, budgets, rules, and preferences;
-7. advances live checkpoints and removes simulated connections.
+   snapshots while preserving categories, customized budgets/rules, and
+   preferences; exact unchanged legacy sample budgets/rules are removed;
+7. advances live checkpoints and removes retired mock metadata.
 
 The success notice names the restorable backup. The old client-side “Start
 fresh” and routine demo-reset actions are removed because they could clear a
@@ -138,7 +142,7 @@ projection while leaving provider checkpoints advanced.
 
 ### 5. Public language and visibility
 
-The browser receives `BankConnection` views with `source: live | simulated`,
+The browser receives only provider-backed `BankConnection` views with
 provider/environment, health, and normalized account summaries. It never
 receives credentials or checkpoints. Banks shows projection composition in
 plain words; untagged older facts are called local/imported, never guessed to
@@ -150,7 +154,8 @@ existing fieldless Form is contained legacy debt; no new fake Form is added.
 
 ## Consequences
 
-- Plaid, a future SimpleFIN adapter, and mock data share one real contract.
+- Plaid and any future provider share one real contract; tests use doubles at
+  the port without creating a runtime mode.
 - A live connection can repair or replace its projection without another bank
   authorization or Trial Item.
 - Crash recovery is replay, not manual cursor surgery.

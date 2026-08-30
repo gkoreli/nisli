@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { projectBankSync, shouldRunDaily } from './bank-sync.mjs';
-import { financialComposition, mergeOwnerLedgerWrite } from './banking/domain.mjs';
+import { financialBlank, financialComposition, mergeOwnerLedgerWrite, normalizeConnection } from './banking/domain.mjs';
 import { plaidProvider } from './providers/plaid.mjs';
 
 const ledger = () => ({
@@ -158,7 +158,7 @@ describe('owner ledger write boundary', () => {
 });
 
 describe('financial provenance', () => {
-  it('separates live, simulated, and local/imported projections', () => {
+  it('separates live, retired-sample, and local/imported projections', () => {
     const current = ledger();
     current.accounts = [
       { id: 'live-account', name: 'Live', kind: 'checking', institution: 'Bank', currency: 'USD', opening: 0, external: { provider: 'plaid', connectionId: 'live', accountId: 'a1' } },
@@ -175,10 +175,27 @@ describe('financial provenance', () => {
       { ...item, id: 'live' },
       { ...item, id: 'mock', provider: 'mock', environment: 'mock' },
     ])).toEqual({
-      accounts: { live: 1, simulated: 1, unowned: 1 },
-      transactions: { live: 1, simulated: 1, unowned: 1 },
+      accounts: { live: 1, legacy: 1, unowned: 1 },
+      transactions: { live: 1, legacy: 1, unowned: 1 },
       history: 0,
+      legacyConfiguration: 0,
     });
+  });
+
+  it('quarantines retired mock metadata and removes only unchanged sample configuration', () => {
+    expect(normalizeConnection({ id: 'old', provider: 'mock', environment: 'mock', status: 'ok' })).toMatchObject({ status: 'disabled' });
+    const current = ledger();
+    current.budgets = [
+      { id: 'b1', categoryId: 'groceries', limit: 60_000 },
+      { id: 'owner-budget', categoryId: 'food', limit: 12_345 },
+    ];
+    current.rules = [
+      { id: 'r1', match: 'whole foods', categoryId: 'groceries' },
+      { id: 'owner-rule', match: 'cafe', categoryId: 'food' },
+    ];
+    const cleaned = financialBlank(current);
+    expect(cleaned.budgets).toEqual([{ id: 'owner-budget', categoryId: 'food', limit: 12_345 }]);
+    expect(cleaned.rules).toEqual([{ id: 'owner-rule', match: 'cafe', categoryId: 'food' }]);
   });
 });
 

@@ -16,7 +16,6 @@ export interface BankConnection {
   id: string;
   provider: string;
   environment: string;
-  source: 'live' | 'simulated';
   institution: string;
   accounts: BankAccount[];
   status: 'ok' | 'reauth-required' | 'error' | 'disabled' | 'disconnect-pending';
@@ -43,16 +42,17 @@ export interface SyncAllResult extends Partial<SyncSummary> {
 }
 
 export interface BankStatus {
-  mode: 'mock' | 'plaid';
+  mode: 'plaid';
   env: string;
   oauthRedirect: boolean;
   syncHour: number;
 }
 
 export interface FinancialComposition {
-  accounts: { live: number; simulated: number; unowned: number };
-  transactions: { live: number; simulated: number; unowned: number };
+  accounts: { live: number; legacy: number; unowned: number };
+  transactions: { live: number; legacy: number; unowned: number };
   history: number;
+  legacyConfiguration: number;
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -64,8 +64,8 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 const post = <T>(path: string, body: unknown) => call<T>(path, { method: 'POST', body: JSON.stringify(body) });
 
 export const getBankStatus = () => call<BankStatus>('/api/bank/status');
-export const createLinkToken = (connectionId?: string) => post<{ link_token?: string; mock?: boolean }>('/api/bank/link-token', connectionId ? { connectionId } : {});
-export const exchange = async (body: { public_token: string; institution?: string } | { mock: true; institution: string }): Promise<BankConnection> => {
+export const createLinkToken = (connectionId?: string) => post<{ link_token: string }>('/api/bank/link-token', connectionId ? { connectionId } : {});
+export const exchange = async (body: { public_token: string; institution?: string }): Promise<BankConnection> => {
   try {
     return await post<BankConnection>('/api/bank/exchange', body);
   } catch (error) {

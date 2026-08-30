@@ -70,12 +70,6 @@ export const ConnectionsScreen = component('ledger-connections', () => {
 
   const launchLink = async (connectionId?: string) => {
     const t = await createLinkToken(connectionId);
-    if (t.mock) {
-      const connection = await exchange({ mock: true, institution: 'Chase' });
-      await syncOne(connection);
-      notify('Mock bank connected', 'positive');
-      return;
-    }
     if (!t.link_token) throw new Error('The server returned no link token.');
     const pending = { linkToken: t.link_token, ...(connectionId ? { connectionId } : {}) };
     rememberLink(pending);
@@ -116,10 +110,10 @@ export const ConnectionsScreen = component('ledger-connections', () => {
   };
 
   const switchToLiveData = async () => {
-    const live = list.value.filter((connection) => connection.source === 'live').length;
+    const live = list.value.length;
     if (!(await confirm({
       title: 'Start fresh with live data?',
-      message: `This replaces every account and transaction with a fresh import from ${live} live connection${live === 1 ? '' : 's'}, and removes simulated connections. Categories, budgets, rules, and preferences stay. Ledger creates a restorable server backup first; it does not create another Plaid connection.`,
+      message: `This replaces every account and transaction with a fresh import from ${live} bank connection${live === 1 ? '' : 's'}, removes retired sample-bank metadata, and removes unchanged sample budgets and rules. Your categories, customized budgets/rules, and preferences stay. Ledger creates a restorable server backup first; it does not create another Plaid connection.`,
       confirmLabel: 'Start with live data',
       destructive: true,
     }))) return;
@@ -136,7 +130,7 @@ export const ConnectionsScreen = component('ledger-connections', () => {
 
   const columns: Column<BankConnection>[] = [
     { id: 'institution', header: 'Institution', cell: (i) => i.institution, priority: 'primary' },
-    { id: 'source', header: 'Source', cell: (i) => i.source === 'live' ? `${i.provider} · ${i.environment}` : 'Simulated' },
+    { id: 'source', header: 'Provider', cell: (i) => `${i.provider} · ${i.environment}` },
     { id: 'accounts', header: 'Accounts', cell: (i) => `${i.accounts.length} · ${i.accounts.map((a) => `••${a.mask}`).join(' ')}` },
     { id: 'status', header: 'Status', cell: (i) => i.status === 'reauth-required' ? 'Reconnect' : i.status === 'disconnect-pending' ? 'Disconnect pending' : i.status === 'error' ? 'Error' : i.status === 'disabled' ? 'Paused' : i.historyStatus && i.historyStatus !== 'HISTORICAL_UPDATE_COMPLETE' ? 'Loading history' : 'Connected' },
     { id: 'sync', header: 'Last sync', kind: 'date', cell: (i) => relative(lastSync.value[i.id]?.at), priority: 'tertiary' },
@@ -152,12 +146,12 @@ export const ConnectionsScreen = component('ledger-connections', () => {
   const connectAction = { id: 'connect', label: 'Connect a bank', priority: 'primary' as const, onSelect: () => launchLink() };
   const hasNonLiveData = computed(() => {
     const value = composition.data.value;
-    return !!value && value.accounts.simulated + value.accounts.unowned + value.transactions.simulated + value.transactions.unowned > 0;
+    return !!value && value.accounts.legacy + value.accounts.unowned + value.transactions.legacy + value.transactions.unowned + value.legacyConfiguration > 0;
   });
   const pageActions = computed(() => [
     connectAction,
     { id: 'syncAll', label: 'Sync all', priority: 'secondary' as const, onSelect: syncAll },
-    ...(list.value.some((connection) => connection.source === 'live') && hasNonLiveData.value
+    ...(list.value.length > 0 && hasNonLiveData.value
       ? [{ id: 'liveOnly', label: 'Start fresh with live data', priority: 'tertiary' as const, destructive: true, onSelect: switchToLiveData }]
       : []),
   ]);
@@ -174,11 +168,11 @@ export const ConnectionsScreen = component('ledger-connections', () => {
           Stat({ label: 'Last sync', value: relative(newest.value), hint: newest.value ? new Date(newest.value).toLocaleString() : 'Nothing synced yet' }),
           Stat({
             label: 'Ledger data',
-            value: computed(() => hasNonLiveData.value ? 'Mixed' : list.value.some((connection) => connection.source === 'live') ? 'Live only' : 'Local / simulated'),
+            value: computed(() => hasNonLiveData.value ? 'Mixed' : list.value.length ? 'Bank only' : 'Local only'),
             hint: computed(() => {
               const value = composition.data.value;
               if (!value) return 'Checking provenance…';
-              return `${value.transactions.live} live · ${value.transactions.simulated} simulated · ${value.transactions.unowned} local/imported transactions · ${value.history} prior provider changes retained`;
+              return `${value.transactions.live} bank · ${value.transactions.legacy} retired sample · ${value.transactions.unowned} local/imported transactions · ${value.legacyConfiguration} unchanged sample setup items · ${value.history} prior provider changes retained`;
             }),
             status: composition,
           }),
@@ -196,9 +190,7 @@ export const ConnectionsScreen = component('ledger-connections', () => {
         status: bank,
         children: [
           Text({ text: bank.data.value
-            ? (bank.data.value.mode === 'plaid'
-              ? `Connected to Plaid (${bank.data.value.env}). Chase and most US banks connect through Plaid’s OAuth flow.`
-              : 'Running in mock mode: no Plaid credentials are configured, so “Connect a bank” links a simulated Chase with sample accounts. Set PLAID_CLIENT_ID and PLAID_SECRET on the server to go live.')
+            ? `Connected to Plaid (${bank.data.value.env}). Ledger has no sample-bank mode; every listed connection is provider-backed.`
             : 'Checking the bank service…', role: 'body' }),
           Text({ text: 'Your bank login and access tokens live only on the Ledger server. The browser never sees them; it only asks the server to sync.', role: 'muted' }),
           Text({ text: 'Synced transactions are filed by your rules and de-duplicated against what is already here. Disconnecting a bank keeps everything imported.', role: 'muted' }),
@@ -209,7 +201,7 @@ export const ConnectionsScreen = component('ledger-connections', () => {
         open,
         onClose: close,
         children: computed(() => selected.value ? [
-          Text({ text: `${selected.value.source === 'live' ? `${selected.value.provider} ${selected.value.environment}` : 'Simulated connection'} · Last sync ${relative(lastSync.value[selected.value.id]?.at)} · ${importedFor(selected.value.id)} imported`, role: 'muted' }),
+          Text({ text: `${selected.value.provider} ${selected.value.environment} · Last sync ${relative(lastSync.value[selected.value.id]?.at)} · ${importedFor(selected.value.id)} imported`, role: 'muted' }),
           ...(selected.value.error ? [Text({ text: `${selected.value.error.code}: ${selected.value.error.message}`, role: 'muted' })] : []),
           Table<BankAccount>({ columns: accountColumns, rows: selected.value.accounts, key: (a) => a.id }),
           Form<Record<string, never>>({

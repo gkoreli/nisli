@@ -7,8 +7,8 @@
  *   HOST  (default 127.0.0.1). For Tailscale access run with HOST=<your
  *         tailscale IP> (e.g. 100.x.y.z) or keep localhost and use
  *         `tailscale serve`. Never bind 0.0.0.0 on a public network.
- *   PLAID_CLIENT_ID + PLAID_SECRET → plaid mode (PLAID_ENV: sandbox |
- *         development | production); otherwise mock mode.
+ *   PLAID_CLIENT_ID + PLAID_SECRET are required. PLAID_ENV is development
+ *         or production; Sandbox is deliberately not a runtime mode.
  *   LEDGER_KEY  64 hex chars for token encryption; else server/data/.key.
  *
  * Logs: one line per request — method, path, status, ms. Never a token,
@@ -19,7 +19,6 @@ import { readFile, stat } from 'node:fs/promises';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getLedger, putLedger, listBackups, restoreBackup, loadConnections, updateConnections, updateLedger, StoreError } from './store.mjs';
-import { mock } from './providers/mock.mjs';
 import { plaidProvider, ProviderError } from './providers/plaid.mjs';
 import { BankingError, createBankingService, shouldRunDaily } from './bank-sync.mjs';
 
@@ -27,9 +26,12 @@ const PORT = Number(process.env.PORT ?? 5201);
 const HOST = process.env.HOST ?? '127.0.0.1';
 const CLIENT_ID = process.env.PLAID_CLIENT_ID ?? '';
 const SECRET = process.env.PLAID_SECRET ?? '';
+const PLAID_ENV = process.env.PLAID_ENV ?? '';
 const REDIRECT_URI = process.env.PLAID_REDIRECT_URI ?? '';
 const SYNC_HOUR = Number(process.env.LEDGER_SYNC_HOUR ?? 6);
 if (!Number.isInteger(SYNC_HOUR) || SYNC_HOUR < 0 || SYNC_HOUR > 23) throw new Error('LEDGER_SYNC_HOUR must be an integer from 0 to 23');
+if (!CLIENT_ID || !SECRET) throw new Error('PLAID_CLIENT_ID and PLAID_SECRET are required; Ledger has no runtime mock mode');
+if (!['development', 'production'].includes(PLAID_ENV)) throw new Error('PLAID_ENV must be development or production; Ledger does not run against invented Sandbox data');
 const isTailnetAddress = (hostname) => {
   if (hostname.endsWith('.ts.net') || hostname.startsWith('fd7a:115c:a1e0:')) return true;
   const octets = hostname.split('.').map(Number);
@@ -41,14 +43,13 @@ if (!['localhost', '127.0.0.1', '::1'].includes(HOST) && !isTailnetAddress(HOST)
 }
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = join(HERE, '..', 'dev', 'dist');
-const activeProvider = CLIENT_ID && SECRET ? plaidProvider({
-  clientId: CLIENT_ID, secret: SECRET, env: process.env.PLAID_ENV ?? 'sandbox', redirectUri: REDIRECT_URI,
-}) : mock;
+const activeProvider = plaidProvider({
+  clientId: CLIENT_ID, secret: SECRET, env: PLAID_ENV, redirectUri: REDIRECT_URI,
+});
 const connectionOptions = { liveProvider: activeProvider.name, liveEnvironment: activeProvider.env };
 const configuredConnections = () => loadConnections(connectionOptions);
 const changeConnections = (update) => updateConnections(update, connectionOptions);
 const providerFor = (connection) => {
-  if (connection.provider === mock.name) return mock;
   if (connection.provider === activeProvider.name && connection.environment === activeProvider.env) return activeProvider;
   if (connection.provider === activeProvider.name) {
     throw new BankingError(`Provider environment ${connection.environment} is not configured`, 409, 'PROVIDER_ENVIRONMENT_MISMATCH');

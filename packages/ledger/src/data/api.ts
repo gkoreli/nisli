@@ -6,7 +6,7 @@ import type { Ledger } from './model.js';
 
 export interface LedgerResponse { version: number; ledger: Ledger | null }
 export interface BackupInfo { name: string; date: string; bytes: number }
-export interface Health { ok: true; mode: 'mock' | 'plaid'; host: string; version: string }
+export interface Health { ok: true; mode: 'plaid'; host: string; version: string }
 
 /** Thrown by `putLedger` when the server holds a newer version; carries the server's state. */
 export class ConflictError extends Error {

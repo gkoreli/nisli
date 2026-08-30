@@ -12,7 +12,7 @@ pnpm --filter @nisli/ledger dev:all     # ledger server on :5201 + Vite on :5200
 `dev:all` supervises both processes: stopping it stops the API and Vite
 together, so a later run does not inherit an orphaned listener on port 5201.
 
-The server (`server/index.mjs`, zero dependencies) is the system of record;
+The server (`server/index.mjs`, zero runtime dependencies) is the system of record;
 `pnpm dev` alone runs Vite against whatever cache the browser holds, in the
 `offline` state, and syncs once the server is back.
 
@@ -78,18 +78,19 @@ Rationale and the full table of rules: [ADR 0036](../../docs/adr/0036-ledger-sys
 The browser never holds a bank secret. The server owns the Plaid credentials
 and the per-connection access tokens. The app only sees item ids and account
 summaries through `/api/bank/*`, proxied by Vite. Providers sit behind one
-normalized adapter shape (`server/providers/mock.mjs`,
-`server/providers/plaid.mjs`): link → signed-minor-unit accounts and
-transactions → sync-with-checkpoint → remove. The active provider is chosen by
-env; persisted simulated connections continue to use the mock adapter.
+normalized adapter shape (`server/providers/plaid.mjs`): link →
+signed-minor-unit accounts and transactions → sync-with-checkpoint → remove.
+There is no runtime mock provider and no sample ledger. A fresh installation
+starts with reference categories and empty accounts, transactions, rules, and
+budgets. Missing Plaid credentials or `PLAID_ENV=sandbox` stops startup with a
+clear error rather than inventing financial data. Retired mock connection
+records are recognized only so **Start fresh with live data** can remove them
+safely behind a backup.
 
-- **Mock mode** (default, no env): "Connect a bank" instantly links a pretend
-  Chase with three accounts and generates realistic transactions on every
-  sync. Everything else — mapping to ledger accounts, deduping, rules,
-  reconciliation — runs for real.
-- **Plaid mode**: copy `.env.example` to `.env`, make it owner-readable only,
-  and enter the keys from dashboard.plaid.com. The Node server loads this file;
-  it is git-ignored. In Sandbox, Plaid Link accepts its test credentials.
+- Copy `.env.example` to `.env`, make it owner-readable only, and enter the
+  keys from dashboard.plaid.com. The server loads this file; it is git-ignored.
+- `PLAID_ENV` must be `development` or `production`; this owner installation
+  uses `production`.
 - A new Item requests 730 days of Transactions history. Do not create a real
   Production Item with older Ledger code: Plaid does not let an Item increase
   `days_requested` later, and removing an Item does not restore a Trial slot.
@@ -104,18 +105,16 @@ pnpm dev:all
 
 The safe sequence is:
 
-1. Put the Sandbox client id and Sandbox secret in `.env`, keep
-   `PLAID_ENV=sandbox`, and prove Connect → Sync → Disconnect with test data.
-2. Apply for Plaid Trial and wait until Production and Chase OAuth are enabled.
-3. Replace only the secret with the Production secret, set
-   `PLAID_ENV=production`, restart Ledger, then connect Chase once. Select
-   checking, savings, and Sapphire in that single Chase authorization.
-4. Banks will call the projection **Mixed** if seed, Sandbox, CSV, or manual
-   facts remain. Choose **Start fresh with live data** there. Ledger fetches a
-   complete snapshot first, creates a named restorable server backup, reuses
-   the existing Production Item, preserves categories/budgets/rules/preferences,
-   and removes simulated connections.
-5. Confirm all selected masks and balances, sync, and inspect history older than
+1. Use the Production client id/secret with `PLAID_ENV=production`, restart
+   Ledger, and connect Chase once. Select checking, savings, and Sapphire in
+   that single Chase authorization.
+2. Banks calls the projection **Mixed** when older sample/local/imported facts
+   remain. Choose **Start fresh with live data**. Ledger fetches a complete
+   snapshot first, creates a named restorable backup, reuses the existing
+   Production Item, removes retired sample-bank records plus unchanged sample
+   budgets/rules, and preserves categories, customized configuration, and
+   preferences.
+3. Confirm all selected masks and balances, sync, and inspect history older than
    90 days before treating setup as complete.
 
 Sync uses Plaid's `/transactions/sync` cursor, so each sync brings only what

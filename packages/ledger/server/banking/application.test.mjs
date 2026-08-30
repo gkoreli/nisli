@@ -34,10 +34,13 @@ function harness({ failLive = false, historyReady = true } = {}) {
       return { ...snapshot(candidate.id), historyReady, updateStatus: historyReady ? 'HISTORICAL_UPDATE_COMPLETE' : 'NOT_READY' };
     }),
   };
-  const mock = { name: 'mock', env: 'mock', sync: vi.fn(), remove: vi.fn() };
+  const providerFor = vi.fn((candidate) => {
+    if (candidate.provider !== 'plaid') throw new Error(`Retired provider ${candidate.provider} cannot run`);
+    return plaid;
+  });
   const service = createBankingService({
     activeProvider: plaid,
-    providerFor: (candidate) => candidate.provider === 'mock' ? mock : plaid,
+    providerFor,
     loadConnections: async () => structuredClone(connections),
     updateConnections: async (update) => { connections = await update(structuredClone(connections)); return connections; },
     getLedger: async () => ({ version: 1, ledger: structuredClone(currentLedger) }),
@@ -47,7 +50,7 @@ function harness({ failLive = false, historyReady = true } = {}) {
       return { version: 2, ledger: currentLedger, backup: 'ledger.pre-live-data.json' };
     },
   });
-  return { service, plaid, mock, backupLabels, connections: () => connections, ledger: () => currentLedger };
+  return { service, plaid, providerFor, backupLabels, connections: () => connections, ledger: () => currentLedger };
 }
 
 describe('banking application service', () => {
@@ -56,7 +59,7 @@ describe('banking application service', () => {
     const outcome = await h.service.useLiveDataOnly();
 
     expect(h.plaid.sync).toHaveBeenCalledOnce();
-    expect(h.mock.sync).not.toHaveBeenCalled();
+    expect(h.providerFor).not.toHaveBeenCalledWith(expect.objectContaining({ provider: 'mock' }));
     expect(h.backupLabels).toEqual(['pre-live-data']);
     expect(h.connections()).toHaveLength(1);
     expect(h.connections()[0]).toMatchObject({ id: 'live', checkpoint: 'fresh-checkpoint' });
@@ -93,15 +96,13 @@ describe('banking application service', () => {
     const views = await h.service.list();
     const composition = await h.service.composition();
 
-    expect(views).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: 'simulated', source: 'simulated' }),
-      expect.objectContaining({ id: 'live', source: 'live' }),
-    ]));
+    expect(views).toEqual([expect.objectContaining({ id: 'live', provider: 'plaid' })]);
     expect(views.every((view) => !('checkpoint' in view) && !('access_token' in view))).toBe(true);
     expect(composition).toEqual({
-      accounts: { live: 0, simulated: 0, unowned: 1 },
-      transactions: { live: 0, simulated: 0, unowned: 1 },
+      accounts: { live: 0, legacy: 0, unowned: 1 },
+      transactions: { live: 0, legacy: 0, unowned: 1 },
       history: 0,
+      legacyConfiguration: 0,
     });
   });
 
@@ -124,7 +125,7 @@ describe('banking application service', () => {
     const repeated = await h.service.connect(body);
 
     expect(h.plaid.exchange).toHaveBeenCalledOnce();
-    expect(repeated).toMatchObject({ id: 'live', source: 'live' });
+    expect(repeated).toMatchObject({ id: 'live', provider: 'plaid' });
     expect(repeated).not.toHaveProperty('completionKey');
   });
 });

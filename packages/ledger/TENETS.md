@@ -17,10 +17,10 @@ say no. When in doubt, sharpen what exists rather than add.
 
 ## 1. It is not a toy
 
-Every feature is built to be used daily with real data. "Demo mode" and
-"mock mode" exist only so the app can be developed and verified without
-credentials; they are never the default path a real user lands on without
-knowing it. The screen always says which mode it is in.
+Every runtime feature is built to be used daily with real data. Ledger has no
+demo dataset, sample bank, or credential-free fallback. Test doubles exist
+only inside automated tests and can never be selected by runtime configuration.
+Missing provider configuration is a startup failure, never invented money.
 
 ## 2. Local-first, owner-hosted
 
