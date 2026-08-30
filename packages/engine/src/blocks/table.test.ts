@@ -9,15 +9,15 @@ import { mount as mountBlock, type Mounted } from '../test/mount.js';
 
 interface Row { id: string; date: string; payee: string; category: string; account: string; note: string; amount: number }
 const columns: Column<Row>[] = [
-  { id: 'date', header: 'Date', kind: 'date', cell: (r) => r.date, priority: 'primary' },
-  { id: 'payee', header: 'Payee', cell: (r) => r.payee, priority: 'primary' },
-  { id: 'category', header: 'Category', cell: (r) => r.category },
-  { id: 'account', header: 'Account', cell: (r) => r.account, priority: 'tertiary' },
-  { id: 'note', header: 'Note', cell: (r) => r.note, priority: 'tertiary' },
-  { id: 'amount', header: 'Amount', kind: 'money', cell: (r) => r.amount, priority: 'primary' },
+  { id: 'date', label: 'Date', kind: 'date', cell: (r) => r.date, priority: 'primary' },
+  { id: 'payee', label: 'Payee', cell: (r) => r.payee, priority: 'primary' },
+  { id: 'category', label: 'Category', cell: (r) => r.category },
+  { id: 'account', label: 'Account', cell: (r) => r.account, priority: 'tertiary' },
+  { id: 'note', label: 'Note', cell: (r) => r.note, priority: 'tertiary' },
+  { id: 'amount', label: 'Amount', kind: 'money', cell: (r) => r.amount, priority: 'primary' },
 ];
 const naturals = [72, 173, 101, 72, 52, 69]; // sum 539
-const naturalOf = (header: string) => naturals[columns.findIndex((c) => header.startsWith(c.header))] ?? 0;
+const naturalOf = (header: string) => naturals[columns.findIndex((c) => header.startsWith(c.label))] ?? 0;
 // A column is as wide as its header text says; everything else is the frame.
 const text = (el: HTMLElement) => (el.tagName === 'TH' ? naturalOf(el.textContent ?? '') : undefined);
 const rows: Row[] = [{ id: '1', date: 'Aug 1', payee: 'REI', category: 'Shopping', account: 'Card', note: '', amount: -12 }];
@@ -26,7 +26,7 @@ let mounted: Mounted | undefined;
 afterEach(() => { mounted?.unmount(); mounted = undefined; });
 
 function mount(width: number) {
-  const t = (mounted = mountBlock('nisli-table', { columns, rows, key: (r: Row) => r.id }, { width, text }));
+  const t = (mounted = mountBlock('nisli-table', { columns, rows, rowKey: (r: Row) => r.id }, { width, text }));
   return {
     shown: () => [...t.el.querySelectorAll<HTMLElement>('thead th')].filter((th) => th.style.display !== 'none').map((th) => th.textContent),
     cells: () => [...t.el.querySelectorAll<HTMLElement>('tbody td')].filter((td) => td.style.display !== 'none').length,
@@ -75,7 +75,7 @@ describe('Table drops columns by priority', () => {
   });
 
   it('a row lights up only while hovered, through the skin part', () => {
-    mounted = mountBlock('nisli-table', { columns, rows, key: (r: Row) => r.id }, { width: 1000, scheme: 'light' });
+    mounted = mountBlock('nisli-table', { columns, rows, rowKey: (r: Row) => r.id }, { width: 1000, scheme: 'light' });
     const tr = mounted.el.querySelector<HTMLElement>('tbody tr')!;
     const before = tr.getAttribute('style');
     tr.dispatchEvent(new Event('mouseenter'));
@@ -96,7 +96,7 @@ describe('Table is reachable by keyboard (ADR 0042 b)', () => {
   it('a sortable header is a button a keyboard reaches; Enter sorts ascending, Space flips to descending, aria-sort follows on the th', () => {
     const sorts: Sort[] = [];
     // The app owns the sort: onSort hands the engine the new one, as a screen would.
-    mounted = mountBlock('nisli-table', { columns: sortable, rows, key: (r: Row) => r.id, onSort: (s: Sort) => { sorts.push(s); (mounted!.el as any)._setProp('sort', s); } }, { width: 1000, text });
+    mounted = mountBlock('nisli-table', { columns: sortable, rows, rowKey: (r: Row) => r.id, onSort: (s: Sort) => { sorts.push(s); (mounted!.el as any)._setProp('sort', s); } }, { width: 1000, text });
     const ths = [...mounted.el.querySelectorAll<HTMLElement>('thead th')];
     expect(ths.map((th) => !!th.querySelector('button'))).toEqual([true, false, false, false, false, true]);
     const order = focusables(mounted.el);
@@ -105,11 +105,11 @@ describe('Table is reachable by keyboard (ADR 0042 b)', () => {
     expect(document.activeElement).toBe(ths[0]!.querySelector('button'));
     expect(accessibleName(document.activeElement!)).toBe('Date');
     activate('Enter');
-    expect(sorts).toEqual([{ by: 'date', dir: 'asc' }]);
+    expect(sorts).toEqual([{ by: 'date', order: 'asc' }]);
     expect(ths[0]!.getAttribute('aria-sort')).toBe('ascending');
     expect(ths[0]!.querySelector('[aria-hidden=true]')!.textContent).toBe(' ↑');
     activate(' ');
-    expect(sorts).toEqual([{ by: 'date', dir: 'asc' }, { by: 'date', dir: 'desc' }]);
+    expect(sorts).toEqual([{ by: 'date', order: 'asc' }, { by: 'date', order: 'desc' }]);
     expect(ths[0]!.getAttribute('aria-sort')).toBe('descending');
     expect(ths[1]!.hasAttribute('aria-sort')).toBe(false);
     expect(ths[0]!.style.cursor).not.toBe('pointer');               // the pointer affordance is the button's, not the cell's
@@ -119,7 +119,7 @@ describe('Table is reachable by keyboard (ADR 0042 b)', () => {
 
   it('a selectable row is a named tab stop after the headers; Enter and Space each select once, Space without scrolling the page; focus lights it up', () => {
     const selected: Row[] = [];
-    mounted = mountBlock('nisli-table', { columns: sortable, rows, key: (r: Row) => r.id, onSelect: (r: Row) => selected.push(r) }, { width: 1000, text, scheme: 'light' });
+    mounted = mountBlock('nisli-table', { columns: sortable, rows, rowKey: (r: Row) => r.id, onOpen: (r: Row) => selected.push(r) }, { width: 1000, text, scheme: 'light' });
     const order = focusables(mounted.el);
     const tr = mounted.el.querySelector<HTMLElement>('tbody tr')!;
     expect(order[2]).toBe(tr);                                      // Date, Amount headers, then the row
@@ -145,7 +145,7 @@ describe('Table is reachable by keyboard (ADR 0042 b)', () => {
   it('a control inside a cell keeps its own keys: Space on it is not prevented and does not select the row; on the row it does', () => {
     const selected: Row[] = [];
     const withControl: Column<Row>[] = columns.map((c) => (c.id === 'note' ? { ...c, cell: () => html`<button id="in">x</button>` } : c));
-    mounted = mountBlock('nisli-table', { columns: withControl, rows, key: (r: Row) => r.id, onSelect: (r: Row) => selected.push(r) }, { width: 1000, text });
+    mounted = mountBlock('nisli-table', { columns: withControl, rows, rowKey: (r: Row) => r.id, onOpen: (r: Row) => selected.push(r) }, { width: 1000, text });
     const tr = mounted.el.querySelector<HTMLElement>('tbody tr')!;
     const inner = mounted.el.querySelector<HTMLElement>('#in')!;
     expect(focusables(mounted.el)).toContain(inner);
@@ -158,8 +158,8 @@ describe('Table is reachable by keyboard (ADR 0042 b)', () => {
     expect(selected.length).toBe(1);
   });
 
-  it('a table without onSelect has no focusable rows and no row names; without sortable no header buttons', () => {
-    mounted = mountBlock('nisli-table', { columns, rows, key: (r: Row) => r.id }, { width: 1000, text });
+  it('a table without onOpen has no focusable rows and no row names; without sortable no header buttons', () => {
+    mounted = mountBlock('nisli-table', { columns, rows, rowKey: (r: Row) => r.id }, { width: 1000, text });
     expect(mounted.el.querySelector('tbody tr')!.hasAttribute('tabindex')).toBe(false);
     expect(mounted.el.querySelector('tbody tr')!.hasAttribute('aria-labelledby')).toBe(false);
     expect(mounted.el.querySelectorAll('thead button').length).toBe(0);
@@ -168,7 +168,7 @@ describe('Table is reachable by keyboard (ADR 0042 b)', () => {
 
   it('row ids come from a counter, so a keyed reorder keeps every id unique', () => {
     const two = [...rows, { id: '2', date: 'Aug 2', payee: 'Uber', category: 'Transport', account: 'Card', note: '', amount: -7 }];
-    mounted = mountBlock('nisli-table', { columns, rows: two, key: (r: Row) => r.id, onSelect: () => {} }, { width: 1000, text });
+    mounted = mountBlock('nisli-table', { columns, rows: two, rowKey: (r: Row) => r.id, onOpen: () => {} }, { width: 1000, text });
     const ids = () => [...mounted!.el.querySelectorAll<HTMLElement>('tbody tr')].map((tr) => tr.getAttribute('aria-labelledby'));
     const first = ids();
     (mounted.el as any)._setProp('rows', [two[1], two[0]]); flushEffects();

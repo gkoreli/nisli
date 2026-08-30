@@ -6,12 +6,12 @@ import type { Field } from './schema.js';
 
 interface D { kind?: string; amount?: number; debit?: number; country?: string; city?: string; name?: string }
 const fields = signal<readonly Field<D>[]>([
-  { key: 'kind', label: 'Kind', kind: 'select', options: [{ value: 'single', label: 'Single' }, { value: 'split', label: 'Split' }] },
-  { key: 'amount', label: 'Amount', kind: 'money', required: true, when: (d) => d.kind === 'single' },
-  { key: 'debit', label: 'Debit', kind: 'money', required: true, when: (d) => d.kind === 'split' },
-  { key: 'country', label: 'Country', kind: 'select', options: [{ value: 'ge', label: 'GE' }, { value: 'fr', label: 'FR' }] },
-  { key: 'city', label: 'City', kind: 'select', options: (d) => (d.country === 'ge' ? [{ value: 'tbilisi', label: 'Tbilisi' }] : d.country === 'fr' ? [{ value: 'paris', label: 'Paris' }] : []) },
-  { key: 'name', label: 'Name', kind: 'text', required: true },
+  { name: 'kind', label: 'Kind', options: [{ value: 'single', label: 'Single' }, { value: 'split', label: 'Split' }] },
+  { name: 'amount', label: 'Amount', kind: 'money', required: true, when: (d) => d.kind === 'single' },
+  { name: 'debit', label: 'Debit', kind: 'money', required: true, when: (d) => d.kind === 'split' },
+  { name: 'country', label: 'Country', options: [{ value: 'ge', label: 'GE' }, { value: 'fr', label: 'FR' }] },
+  { name: 'city', label: 'City', options: (d) => (d.country === 'ge' ? [{ value: 'tbilisi', label: 'Tbilisi' }] : d.country === 'fr' ? [{ value: 'paris', label: 'Paris' }] : []) },
+  { name: 'name', label: 'Name', kind: 'text', required: true },
 ]);
 
 const owned = (initial: Partial<D> = {}, key = signal<unknown>(1)) => {
@@ -23,7 +23,7 @@ const owned = (initial: Partial<D> = {}, key = signal<unknown>(1)) => {
 describe('rule 1 — presence', () => {
   it('a field whose `when` is false is not visible, leaves the submitted object and carries no error', () => {
     const d = owned({ kind: 'single', amount: 5, debit: 9, name: 'n' });
-    expect(d.visible.value.map((f) => f.key)).toEqual(['kind', 'amount', 'country', 'city', 'name']);
+    expect(d.visible.value.map((f) => f.name)).toEqual(['kind', 'amount', 'country', 'city', 'name']);
     expect(d.submit()).toMatchObject({ ok: true, value: { kind: 'single', amount: 5, name: 'n' } });
     d.set('kind', 'split'); d.set('debit', undefined);
     expect(d.submit().errors).toEqual({ debit: 'Debit is required.' });

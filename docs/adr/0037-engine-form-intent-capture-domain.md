@@ -55,10 +55,16 @@ Dependency direction is Schema ← Draft ← Rendering; the test files mirror it
 
 ### Ubiquitous language (additions to the 0034 table)
 
+Amended by [0043](./0043-engine-intent-vocabulary-contract.md) (engine
+0.8.0): Field's `key` is `name`, `kind` is the exported `Kind` with capture
+derived (`options` → a choice, `long` → multi-line, `'boolean'`, `'file'`),
+`FieldKind` is gone, `destructive?: Action` is `actions?: readonly Action[]`.
+The rows and the type block below are kept as decided here; 0043 is canonical.
+
 | term | meaning | where it lives |
 |---|---|---|
 | **Field** | One intent-typed entry of a schema: `key`, `label`, `kind`, and optional meaning (`required`, `when`, `options`, `readOnly`, `validate`, `min`/`max`/`step`, `group`, `long`, `hint`, `placeholder`, `accept`). | `form/schema.ts` `Field<T>` |
-| **Option** | A `{ value, label }` choice of a `select` field. | `form/schema.ts` `Option` |
+| **Option** | A `{ value, label }` choice of a field with `options` (0043; was "of a `select` field"). | `form/schema.ts` `Option` |
 | **Draft** | The object being edited: `Partial<T>`, owned by the engine (`initial` + `key`) or by the app (`value`). | `form/draft.ts` `Draft<T>`, `createDraft` |
 | **Dirty** | The draft differs, shallowly and empties-alike, from the last loaded or committed base. | `form/draft.ts` `differs`, `dirty` |
 | **Touched** | A field whose control has blurred once; errors show for touched fields, or for all after a submit attempt. | `form/draft.ts` `touched`, `blur` |
@@ -100,7 +106,7 @@ the `setMeasurer` seam where width matters.
 | 1 | **Presence.** A field whose `when(draft)` is false is not rendered, carries no error and leaves the submitted object. | `schema.ts` `visibleFields`; `draft.ts` `pick`, `errors` | `form.test.ts` › rule 1 — presence › *a field whose when() is false is not rendered, is omitted on submit, and its error is cleared*; `draft.test.ts` › rule 1 — presence; `schema.test.ts` › visibleFields |
 | 2 | **Dependent options.** `options(draft)` is re-evaluated on every change; a value no longer offered is cleared, to a fixpoint. | `schema.ts` `optionsOf`; `draft.ts` `settle` | `form.test.ts` › rule 2 › *re-evaluates options(draft) on every change and clears a value no longer offered*; `draft.test.ts` › rule 2; `schema.test.ts` › optionsOf |
 | 3 | **Validation timing and announcement.** Never on a first keystroke; on blur for that field; on a submit attempt for every visible field. Marked with `aria-invalid` + `aria-describedby`; 2+ errors add a `role="alert"` "N fields need attention." and focus moves to the first invalid control. `required`, bounds, choice membership, then the domain `validate` last. | `draft.ts` `errors`, `submit`; `schema.ts` `validateField`; `form.ts` `summary`, `focusField` | `form.test.ts` › rule 3 › *an untouched field shows no error while typing; blur shows it; typing again clears it* and *on submit with 2+ errors: an alert summary, every field marked, focus on the first invalid*; `draft.test.ts` › rule 3; `schema.test.ts` › validateField (5 cases) |
-| 4 | **Choice rendering.** A `select` with 2–3 options is a segmented `role="radiogroup"` of `role="radio"` buttons (arrow keys move, the checked one is primary-styled); 4+ is a native `<select>` with a leading "Choose…". Intent stays `kind: 'select'`. | `form.ts` `SEGMENTED_MAX`, `segmented`, `select` | `form.test.ts` › rule 4 › *2–3 options: a segmented radio group; 4+: a native select; intent stays kind:select* and *clicking a segment selects it and the draft changes* |
+| 4 | **Choice rendering.** A `select` with 2–3 options is a segmented `role="radiogroup"` of `role="radio"` buttons (arrow keys move, the checked one is primary-styled); 4+ is a native `<select>` with a leading "Choose…". Intent stays `kind: 'select'` (since 0043: intent is `options` on any kind; the rule is unchanged). | `form.ts` `SEGMENTED_MAX`, `segmented`, `select` | `form.test.ts` › rule 4 › *2–3 options: a segmented radio group; 4+: a native select; intent stays kind:select* and *clicking a segment selects it and the draft changes* |
 | 5 | **Draft lifecycle.** Owned mode: draft = `initial` on mount and whenever `key` changes; a file input remounts on `generation`; cancelling a dirty draft asks "Discard changes?" first; a successful submit commits (no longer dirty); `reset` returns to the last committed base. Controlled mode: the app's `value` (a writable signal is edited in place; `undefined` reads as `{}`), same rules, no confirm. | `draft.ts` `createDraft`, `load`, `commit`, `reset`; `form.ts` `cancel`, `Form()` | `form.test.ts` › rule 5 › *draft = initial on mount and whenever key changes; a file input remounts*, *cancelling a dirty form asks first…*, *after a successful submit the form is no longer dirty*, *a FormHandle via ref resets and submits*; `draft.test.ts` › rule 5 (3 cases) and › controlled mode; `form.test.ts` › controlled draft |
 | 6 | **Layout.** Columns from `columnsFor(width, visibleCount, metrics.layout.minField = 240, gap)` — the *visible* count only; `long` and `textarea` span the row; a group is one `fieldset` with a `legend`, spanning the row, laying out its own fields by the same rule, in declaration order. `FIT_CELL` reported below `minField`. | `form.ts` `cols`, `fieldEl`, `groupEl`, `arrange`; `schema.ts` `spansRow` | `form.test.ts` › rule 6 › *columns from the visible count only; long and textarea fields span the row* and *a group is one fieldset with a legend…*; `layout.test.ts` › Form |
 | 7 | **Bounds.** `min`/`max`/`step` reach the native control; money steps 0.01 and number `any` unless the schema says; a date's bounds are ISO strings; `inputmode="decimal"` for money/number. | `schema.ts` `stepOf`; `form.ts` `control` | `form.test.ts` › rule 7 › *min/max/step reach the native control; money steps 0.01; a date takes ISO strings*; `schema.test.ts` › *money steps by 0.01, number by any…* |
@@ -183,8 +189,9 @@ are unchanged.
 
 ## Long-term plan
 
-1. **Actions block** ([issue 0023](../issues/0023-actions-block-for-dialogs.md)).
-   Dialogs whose purpose is a decision still fake an action row with a
+1. **Actions block** ([issue 0023](../issues/0023-actions-block-for-dialogs.md)) —
+   done by [0043](./0043-engine-intent-vocabulary-contract.md): the internal
+   `actionRow()` and `Dialog.actions`. Dialogs whose purpose is a decision still fake an action row with a
    fieldless `Form`. `Form`'s button row (submit / cancel / destructive, busy
    handling) is the seed of that block; extracting it lets both share one rule.
 2. **Wizard / stepper as a composition of Forms.** When a second screen needs

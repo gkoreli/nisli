@@ -59,7 +59,7 @@ describe('Section with a status', () => {
 
 describe('Table, Stat, Page with a status', () => {
   it('Table pending: five skeleton rows under the real header, no data rows', () => {
-    const el = make('nisli-table', { columns: [{ id: 'a', header: 'A', cell: () => 'a' }, { id: 'b', header: 'B', cell: () => 'b' }], rows: [{ id: 1 }], key: (r: { id: number }) => String(r.id), status: status({ loading: true }) });
+    const el = make('nisli-table', { columns: [{ id: 'a', label: 'A', cell: () => 'a' }, { id: 'b', label: 'B', cell: () => 'b' }], rows: [{ id: 1 }], rowKey: (r: { id: number }) => String(r.id), status: status({ loading: true }) });
     expect(el.querySelectorAll('thead th').length).toBe(2);
     expect(el.querySelectorAll('tbody[role=status] tr').length).toBe(5);
     expect((el.querySelector('tbody:not([role])') as HTMLElement).style.display).toBe('none');

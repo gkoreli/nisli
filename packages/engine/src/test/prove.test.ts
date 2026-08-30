@@ -24,12 +24,12 @@ import { REPORT_ATTR, reportRing } from '../engine/report.js';
 
 interface Row { id: string; date: string; payee: string; category: string; account: string; note: string; amount: number }
 const columns: Column<Row>[] = [
-  { id: 'date', header: 'Date', kind: 'date', cell: (r) => r.date, priority: 'primary' },
-  { id: 'payee', header: 'Payee', cell: (r) => r.payee, priority: 'primary' },
-  { id: 'category', header: 'Category', cell: (r) => r.category },
-  { id: 'account', header: 'Account', cell: (r) => r.account, priority: 'tertiary' },
-  { id: 'note', header: 'Note', cell: (r) => r.note, priority: 'tertiary' },
-  { id: 'amount', header: 'Amount', kind: 'money', cell: (r) => r.amount, priority: 'primary' },
+  { id: 'date', label: 'Date', kind: 'date', cell: (r) => r.date, priority: 'primary' },
+  { id: 'payee', label: 'Payee', cell: (r) => r.payee, priority: 'primary' },
+  { id: 'category', label: 'Category', cell: (r) => r.category },
+  { id: 'account', label: 'Account', cell: (r) => r.account, priority: 'tertiary' },
+  { id: 'note', label: 'Note', cell: (r) => r.note, priority: 'tertiary' },
+  { id: 'amount', label: 'Amount', kind: 'money', cell: (r) => r.amount, priority: 'primary' },
 ];
 const rows: Row[] = [
   { id: '1', date: '2026-08-30', payee: 'Whole Foods Market #10235', category: 'Groceries', account: 'Checking', note: 'weekly', amount: -123.45 },
@@ -37,10 +37,10 @@ const rows: Row[] = [
 ];
 interface Draft { payee: string; amount: number; kind: string; note: string }
 const fields: Field<Draft>[] = [
-  { key: 'payee', label: 'Payee', kind: 'text', required: true },
-  { key: 'amount', label: 'Amount', kind: 'money' },
-  { key: 'kind', label: 'Kind', kind: 'select', options: [{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }] },
-  { key: 'note', label: 'Note', kind: 'textarea' },
+  { name: 'payee', label: 'Payee', kind: 'text', required: true },
+  { name: 'amount', label: 'Amount', kind: 'money' },
+  { name: 'kind', label: 'Kind', options: [{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }] },
+  { name: 'note', label: 'Note', long: true },
 ];
 
 const WIDTHS = [1280, 1024, 768, 480, 360];
@@ -50,12 +50,12 @@ function screen(open = false) {
     brand: 'Ledger',
     nav: [{ label: 'Overview', href: '/' }, { label: 'Transactions', href: '/transactions' }],
     location: '/transactions',
-    content: Page({
+    children: Page({
       title: 'Transactions',
       actions: [{ id: 'import', label: 'Import', priority: 'tertiary' }, { id: 'add', label: 'Add transaction', priority: 'primary' }],
       children: [
         Grid({ children: [Stat({ label: 'Spent', value: '$1,234.56', delta: { text: '+12%', tone: 'negative' } }), Stat({ label: 'Income', value: '$3,000.00' })] }),
-        Section({ title: 'This month', children: [Table({ columns, rows, key: (r) => r.id })] }),
+        Section({ title: 'This month', children: [Table({ columns, rows, rowKey: (r) => r.id })] }),
         Section({ title: 'Quick add', children: [Form<Draft>({ fields, initial: { payee: '', amount: 0, kind: 'expense', note: '' }, key: 'new', onSubmit: () => {} })] }),
         Dialog({ title: 'Edit transaction', open, onClose: () => {}, children: [Text({ text: 'Body' }), Form<Draft>({ fields, initial: { payee: 'REI', amount: -12, kind: 'expense', note: '' }, key: 'edit', onSubmit: () => {} })] }),
       ],
@@ -82,7 +82,7 @@ describe('prove()', () => {
 
   it('a screen the engine cannot satisfy is a list of claims that say why, tagged with the width', async () => {
     // Three primary columns (never leave; text truncates to 96) need ~72 + 96 + 69 = 237px; a grid cell needs 220.
-    const proof = await prove(() => Grid({ children: [Section({ title: 'S', children: [Table({ columns, rows, key: (r) => r.id })] })] }), { widths: [1024, 200], scheme: 'light' });
+    const proof = await prove(() => Grid({ children: [Section({ title: 'S', children: [Table({ columns, rows, rowKey: (r) => r.id })] })] }), { widths: [1024, 200], scheme: 'light' });
     expect(proof.byWidth[0]!.claims).toEqual([]);
     const at200 = proof.byWidth[1]!;
     expect(at200.reports.map((r) => r.code).sort()).toEqual(['FIT_CELL', 'FIT_COLUMNS']);

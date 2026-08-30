@@ -64,7 +64,7 @@ intent by a rule a test can read — and nothing was provable through
 | term | meaning | where it lives |
 |---|---|---|
 | **Layer** | One floating thing that is open right now. `{ id, kind, dismiss, trap, lock, restoreFocus }` — its policy as data. | `engine/overlay.ts` `Layer`, `layer(id, kind)` |
-| **Kind** | What a layer is: `modal` (a dialog), `popover` (a menu), `passive` (a notice). The kind fixes the policy; `defaults(kind)` is the whole table. | `LayerKind`, `defaults` |
+| **Layer kind** (renamed by [0043](./0043-engine-intent-vocabulary-contract.md); `Kind` is a datum's kind) | What a layer is: `modal` (a dialog), `popover` (a menu), `passive` (a notice). The kind fixes the policy; `defaults(kind)` is the whole table. | `LayerKind`, `defaults` |
 | **Dismissal policy** | `dismiss: { escape, outside }` — what closes it from outside its own controls. Modal and popover: both. Passive: neither. | `Layer.dismiss` |
 | **Stack / top / reach** | The open layers in opening order; the last is the top. **`reach`** is the topmost *non-passive* layer — the only layer an Escape or an outside pointer reaches. One Escape closes one thing; a notice is transparent. | `LayerStack`, `push`, `pop`, `top`, `isTop`, `reach`, `escapeTarget`, `pointerTarget` |
 | **Trap** | Focus stays inside the layer's surface while it is open (modal only). Tab from the last visible control wraps to the first; Shift+Tab the reverse. | `Layer.trap`; kernel `onKeydown` + `focusables` |

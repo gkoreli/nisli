@@ -3,36 +3,41 @@ import { truncate, buttonBox } from '../style.js';
 import { measure } from '../engine/measure.js';
 import { pageSize } from '../engine/space.js';
 import { block, type Ctx } from './kernel.js';
-import type { Content } from './types.js';
+import { Empty, type EmptyProps } from './empty.js';
+import type { Content, Kind, Priority } from './types.js';
 import type { Status } from './status.js';
 
 export type CellValue = string | number | Content;
 
 export interface Column<T> {
+  /** Identity among the columns: the sort key, the cell id. */
   readonly id: string;
-  readonly header: string;
+  /** The human name of the column. */
+  readonly label: string;
   readonly cell: (row: T) => CellValue;
   /** What the cell holds. Numbers and money align right and use tabular figures. */
-  readonly kind?: 'text' | 'number' | 'money' | 'date';
-  /** primary columns never leave; tertiary leave first when the table is narrow. */
-  readonly priority?: 'primary' | 'secondary' | 'tertiary';
+  readonly kind?: Extract<Kind, 'text' | 'number' | 'money' | 'date'>;
+  /** primary columns never leave (dropped ones fold under the first primary text column); tertiary leave first. */
+  readonly priority?: Priority;
   readonly sortable?: boolean;
 }
 
 export interface Sort {
   readonly by: string;
-  readonly dir: 'asc' | 'desc';
+  readonly order: 'asc' | 'desc';
 }
 
 export interface TableProps<T> {
   columns: readonly Column<T>[];
   rows: readonly T[];
-  key: (row: T) => string;
-  onSelect?: (row: T) => void;
+  /** Identity of a row across renders. */
+  rowKey: (row: T) => string;
+  /** A row was opened. Not a selection: the row carries no `aria-selected`. */
+  onOpen?: (row: T) => void;
   sort?: Sort;
   onSort?: (sort: Sort) => void;
-  /** Shown when there are no rows. */
-  empty?: string;
+  /** What to say when there are no rows: a string (the `Empty` block's `title`) or the whole `Empty`. */
+  empty?: string | EmptyProps;
   status?: Status;
 }
 
@@ -102,7 +107,7 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
         code: 'FIT_COLUMNS',
         detail: (plan) => {
           const gone = new Set(plan.decisions.filter((d) => d.action === 'stack' || d.action === 'overflow').map((d) => d.id));
-          return `columns ${columns.value.filter((c) => !gone.has(c.id)).map((c) => c.header).join(', ')} cannot fit even truncated`;
+          return `columns ${columns.value.filter((c) => !gone.has(c.id)).map((c) => c.label).join(', ')} cannot fit even truncated`;
         },
       },
     });
@@ -114,7 +119,7 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
       return ids.map((sid) => columns.value.find((c) => c.id === sid)!).filter(Boolean);
     };
 
-    const cellStyle = (c: Column<unknown>, header: boolean) => ctx.part(header ? 'table.header' : 'table.cell', () => ({
+    const cellStyle = (c: Column<unknown>, head: boolean) => ctx.part(head ? 'table.header' : 'table.cell', () => ({
       display: grid.gone(c.id) ? 'none' : 'table-cell',
       textAlign: isNumeric(c) ? 'right' : 'left',
       fontVariantNumeric: isNumeric(c) || c.kind === 'date' ? 'tabular-nums' : 'normal',
@@ -123,7 +128,7 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
       maxWidth: measuring.value ? (c.priority === 'primary' ? 'none' : 320) : 'none',
       width: !measuring.value && grid.decision(c.id) && !grid.gone(c.id) ? grid.decision(c.id)!.width : 'auto',
       padding: `${metrics.space[2]}px ${metrics.space[3]}px`,
-      userSelect: header ? 'none' : 'auto',
+      userSelect: head ? 'none' : 'auto',
       font: 'inherit',
     }));
     /** The row's name comes from its first primary cell (else its first cell): the column whose `<td>` carries the row id. */
@@ -131,34 +136,34 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
 
     const sortMark = (c: Column<unknown>) => {
       const s = props.sort.value;
-      return s && s.by === c.id ? (s.dir === 'asc' ? ' ↑' : ' ↓') : '';
+      return s && s.by === c.id ? (s.order === 'asc' ? ' ↑' : ' ↓') : '';
     };
     const toggleSort = (c: Column<unknown>) => {
       if (!c.sortable) return;
       const s = props.sort.value;
-      props.onSort.value?.({ by: c.id, dir: s?.by === c.id && s.dir === 'asc' ? 'desc' : 'asc' });
+      props.onSort.value?.({ by: c.id, order: s?.by === c.id && s.order === 'asc' ? 'desc' : 'asc' });
     };
 
-    const body = each(rows, (r) => props.key.value(r), (row) => {
+    const body = each(rows, (r) => props.rowKey.value(r), (row) => {
       // Per row, from a counter: `each()` keeps a row's element across a keyed reorder, so an index would drift.
       const rowId = `${id}-r${nextRow++}`;
       const hovered = signal(false);
       const focused = signal(false);
-      const select = () => props.onSelect.value?.(row.value);
+      const open = () => props.onOpen.value?.(row.value);
       return el('tr', {
-        tabindex: computed(() => (props.onSelect.value ? '0' : false)),
-        // A selectable row is named by its primary cell: a keyboard lands on it and hears what it is.
-        'aria-labelledby': computed(() => (props.onSelect.value && nameColumn.value ? `${rowId}-${nameColumn.value}` : false)),
-        style: ctx.part(() => (hovered.value || focused.value ? ['table.row.hover'] : []), () => ({ cursor: props.onSelect.value ? 'pointer' : 'default' })),
+        tabindex: computed(() => (props.onOpen.value ? '0' : false)),
+        // An openable row is named by its primary cell: a keyboard lands on it and hears what it is.
+        'aria-labelledby': computed(() => (props.onOpen.value && nameColumn.value ? `${rowId}-${nameColumn.value}` : false)),
+        style: ctx.part(() => (hovered.value || focused.value ? ['table.row.hover'] : []), () => ({ cursor: props.onOpen.value ? 'pointer' : 'default' })),
         on: {
-          click: select,
-          // Enter and Space select, as a button would; both defaults are prevented: Space's is a page scroll, and a
+          click: open,
+          // Enter and Space open, as a button would; both defaults are prevented: Space's is a page scroll, and a
           // cancelled Enter keydown has no keypress — which would otherwise land in the input the selection just
           // focused (a dialog's first field) and implicitly submit its form on the same keystroke.
           // Only on the row itself: a control rendered inside a cell keeps its own keys.
           keydown: ((e: KeyboardEvent) => {
-            if (!props.onSelect.value || e.target !== e.currentTarget) return;
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(); }
+            if (!props.onOpen.value || e.target !== e.currentTarget) return;
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
           }) as EventListener,
           mouseenter: () => { hovered.value = true; },
           mouseleave: () => { hovered.value = false; },
@@ -178,7 +183,7 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
             return el('div', { style: ctx.part('text.muted', { ...truncate, fontVariantNumeric: 'normal' }) },
               folded.flatMap(({ sc, value }, i) => [
                 ...(i === 0 ? [] : [' · ']),
-                ...(isNumeric(sc) ? [`${sc.header} `] : []),
+                ...(isNumeric(sc) ? [`${sc.label} `] : []),
                 value,
               ]) as never,
             );
@@ -192,11 +197,12 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
         ? el('tbody', { role: 'status', 'aria-label': 'Loading' }, Array.from({ length: SKELETON_ROWS }, () => skeletonRow(ctx, columns.value, (c) => cellStyle(c, false))))
         : null,
     );
-    const emptyRow = computed<TemplateResult | null>(() =>
-      !pending.value && rows.value.length === 0
-        ? el('div', { style: ctx.part('text.muted', { padding: metrics.space[5], textAlign: 'center' }) }, props.empty.value ?? 'Nothing here yet.')
-        : null,
-    );
+    // Nothing here: the Empty block, unchanged, in the row where the table's body would be.
+    const emptyRow = computed<unknown>(() => {
+      if (pending.value || rows.value.length !== 0) return null;
+      const e = props.empty.value ?? 'Nothing here yet.';
+      return Empty(typeof e === 'string' ? { title: e } : e);
+    });
 
     return [
       ctx.failure,
@@ -209,7 +215,7 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
             el('th', {
               scope: 'col',
               style: cellStyle(c, true),
-              'aria-sort': computed(() => { const s = props.sort.value; return s?.by === c.id ? (s.dir === 'asc' ? 'ascending' : 'descending') : false; }),
+              'aria-sort': computed(() => { const s = props.sort.value; return s?.by === c.id ? (s.order === 'asc' ? 'ascending' : 'descending') : false; }),
             }, c.sortable
               // A sortable header is a real button: Tab reaches it, Enter and Space sort natively; the sort mark is decoration.
               ? [el('button', {
@@ -220,8 +226,8 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
                   font: 'inherit', color: 'inherit', textAlign: 'inherit', background: 'none', border: 'none', borderRadius: 0, cursor: 'pointer',
                 }),
                 on: { click: () => toggleSort(c) },
-              }, [c.header, el('span', { 'aria-hidden': 'true' }, computed(() => sortMark(c)))])]
-              : c.header),
+              }, [c.label, el('span', { 'aria-hidden': 'true' }, computed(() => sortMark(c)))])]
+              : c.label),
           )),
         ]),
         el('tbody', { style: ctx.part([], () => ({ display: pending.value ? 'none' : 'table-row-group' })) }, [body]),
@@ -243,11 +249,11 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
 export function Table<T>(props: {
   columns: readonly Column<T>[];
   rows: readonly T[] | ReadonlySignal<readonly T[]>;
-  key: (row: T) => string;
-  onSelect?: (row: T) => void;
+  rowKey: (row: T) => string;
+  onOpen?: (row: T) => void;
   sort?: Sort | ReadonlySignal<Sort | undefined>;
   onSort?: (sort: Sort) => void;
-  empty?: string;
+  empty?: string | EmptyProps;
   status?: Status;
 }): Content {
   return TableImpl(props as unknown as Parameters<typeof TableImpl>[0]);

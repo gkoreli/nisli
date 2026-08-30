@@ -39,8 +39,8 @@ const settle = async () => { for (let i = 0; i < 4; i++) await Promise.resolve()
 
 describe('rule 1 — presence', () => {
   const fields: Field<any>[] = [
-    { key: 'kind', label: 'Kind', kind: 'select', options: [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }, { value: 'c', label: 'C' }, { value: 'd', label: 'D' }] },
-    { key: 'amount', label: 'Amount', kind: 'money', required: true, when: (d) => d.kind === 'a' },
+    { name: 'kind', label: 'Kind', options: [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }, { value: 'c', label: 'C' }, { value: 'd', label: 'D' }] },
+    { name: 'amount', label: 'Amount', kind: 'money', required: true, when: (d) => d.kind === 'a' },
   ];
   it('a field whose when() is false is not rendered, is omitted on submit, and its error is cleared', () => {
     const got: unknown[] = [];
@@ -59,8 +59,8 @@ describe('rule 1 — presence', () => {
 describe('rule 2 — dependent options', () => {
   it('re-evaluates options(draft) on every change and clears a value no longer offered', () => {
     const fields: Field<any>[] = [
-      { key: 'country', label: 'Country', kind: 'select', options: [{ value: 'ge', label: 'GE' }, { value: 'fr', label: 'FR' }, { value: 'de', label: 'DE' }, { value: 'it', label: 'IT' }] },
-      { key: 'city', label: 'City', kind: 'select', options: (d) => (d.country === 'ge' ? [{ value: 'tbilisi', label: 'Tbilisi' }, { value: 'batumi', label: 'Batumi' }, { value: 'kutaisi', label: 'Kutaisi' }, { value: 'gori', label: 'Gori' }] : [{ value: 'paris', label: 'Paris' }, { value: 'lyon', label: 'Lyon' }, { value: 'nice', label: 'Nice' }, { value: 'lille', label: 'Lille' }]) },
+      { name: 'country', label: 'Country', options: [{ value: 'ge', label: 'GE' }, { value: 'fr', label: 'FR' }, { value: 'de', label: 'DE' }, { value: 'it', label: 'IT' }] },
+      { name: 'city', label: 'City', options: (d) => (d.country === 'ge' ? [{ value: 'tbilisi', label: 'Tbilisi' }, { value: 'batumi', label: 'Batumi' }, { value: 'kutaisi', label: 'Kutaisi' }, { value: 'gori', label: 'Gori' }] : [{ value: 'paris', label: 'Paris' }, { value: 'lyon', label: 'Lyon' }, { value: 'nice', label: 'Nice' }, { value: 'lille', label: 'Lille' }]) },
     ];
     const seen: unknown[] = [];
     const e = owned(fields, { country: 'ge', city: 'batumi' }, { onChange: (v: unknown) => seen.push(v) });
@@ -74,8 +74,8 @@ describe('rule 2 — dependent options', () => {
 
 describe('rule 3 — validation timing and announcement', () => {
   const fields: Field<any>[] = [
-    { key: 'payee', label: 'Payee', kind: 'text', required: true, hint: 'Who was paid' },
-    { key: 'amount', label: 'Amount', kind: 'money', required: true },
+    { name: 'payee', label: 'Payee', kind: 'text', required: true, hint: 'Who was paid' },
+    { name: 'amount', label: 'Amount', kind: 'money', required: true },
   ];
   it('an untouched field shows no error while typing; blur shows it; typing again clears it', () => {
     const e = owned(fields);
@@ -106,8 +106,8 @@ describe('rule 3 — validation timing and announcement', () => {
 
 describe('rule 4 — choice rendering', () => {
   const opts = (n: number) => Array.from({ length: n }, (_, i) => ({ value: `v${i}`, label: `V${i}` }));
-  it('2–3 options: a segmented radio group; 4+: a native select; intent stays kind:select', () => {
-    const e = owned([{ key: 'two', label: 'Two', kind: 'select', options: opts(2) }, { key: 'three', label: 'Three', kind: 'select', options: opts(3) }, { key: 'four', label: 'Four', kind: 'select', options: opts(4) }], { three: 'v1' });
+  it('a field with options is a choice: 2–3 options a segmented radio group, 4+ a native select; capture is derived, never said', () => {
+    const e = owned([{ name: 'two', label: 'Two', options: opts(2) }, { name: 'three', label: 'Three', options: opts(3) }, { name: 'four', label: 'Four', options: opts(4) }], { three: 'v1' });
     const three = e.querySelector<HTMLElement>(`#${F}-three`)!;
     expect(e.querySelector(`#${F}-two`)!.getAttribute('role')).toBe('radiogroup');
     expect(three.getAttribute('role')).toBe('radiogroup');
@@ -117,7 +117,7 @@ describe('rule 4 — choice rendering', () => {
   });
   it('clicking a segment selects it and the draft changes', () => {
     const seen: unknown[] = [];
-    const e = owned([{ key: 'two', label: 'Two', kind: 'select', options: opts(2) }], {}, { onChange: (v: unknown) => seen.push(v) });
+    const e = owned([{ name: 'two', label: 'Two', options: opts(2) }], {}, { onChange: (v: unknown) => seen.push(v) });
     e.querySelectorAll<HTMLButtonElement>(`#${F}-two button`)[1]!.click(); flushEffects();
     expect(seen).toEqual([{ two: 'v1' }]);
     expect(e.querySelectorAll(`#${F}-two button`)[1]!.getAttribute('aria-checked')).toBe('true');
@@ -125,7 +125,7 @@ describe('rule 4 — choice rendering', () => {
 });
 
 describe('rule 5 — draft lifecycle (uncontrolled)', () => {
-  const fields: Field<any>[] = [{ key: 'name', label: 'Name', kind: 'text' }, { key: 'doc', label: 'Doc', kind: 'file' }];
+  const fields: Field<any>[] = [{ name: 'name', label: 'Name', kind: 'text' }, { name: 'doc', label: 'Doc', kind: 'file' }];
   it('draft = initial on mount and whenever key changes; a file input remounts', () => {
     const e = owned(fields, { name: 'a' });
     type(e, 'name', 'b');
@@ -162,7 +162,7 @@ describe('rule 5 — draft lifecycle (uncontrolled)', () => {
   it('a FormHandle via ref resets and submits', () => {
     let handle!: FormHandle;
     const got: unknown[] = [];
-    const tpl = el('div', {}, [Form<{ name: string }>({ fields: [{ key: 'name', label: 'Name', kind: 'text' }], initial: { name: 'a' }, onSubmit: (v) => { got.push(v); }, ref: (h) => { handle = h; } })]);
+    const tpl = el('div', {}, [Form<{ name: string }>({ fields: [{ name: 'name', label: 'Name', kind: 'text' }], initial: { name: 'a' }, onSubmit: (v) => { got.push(v); }, ref: (h) => { handle = h; } })]);
     tpl.mount(document.body); flushEffects();
     const e = document.querySelector<HTMLElement>('nisli-form')!;
     F = fidOf(e);
@@ -176,16 +176,16 @@ describe('rule 5 — draft lifecycle (uncontrolled)', () => {
 
 describe('rule 6 — layout', () => {
   const fields: Field<any>[] = [
-    { key: 'a', label: 'A', kind: 'text' },
-    { key: 'b', label: 'B', kind: 'text', when: (d) => !!d.show },
-    { key: 'addr', label: 'Address', kind: 'text', long: true },
-    { key: 's1', label: 'Street', kind: 'text', group: 'Shipping' },
-    { key: 'c', label: 'C', kind: 'text' },
-    { key: 's2', label: 'City', kind: 'text', group: 'Shipping' },
-    { key: 'note', label: 'Note', kind: 'textarea' },
+    { name: 'a', label: 'A', kind: 'text' },
+    { name: 'b', label: 'B', kind: 'text', when: (d) => !!d.show },
+    { name: 'addr', label: 'Address', kind: 'text', long: true },
+    { name: 's1', label: 'Street', kind: 'text', group: 'Shipping' },
+    { name: 'c', label: 'C', kind: 'text' },
+    { name: 's2', label: 'City', kind: 'text', group: 'Shipping' },
+    { name: 'note', label: 'Note', long: true },
   ];
   const grid = (e: HTMLElement) => e.querySelector<HTMLElement>('form > div')!;
-  it('columns from the visible count only; long and textarea fields span the row', () => {
+  it('columns from the visible count only; long fields span the row', () => {
     const e = owned(fields, {}, {}, 1000);
     expect(grid(e).style.gridTemplateColumns).toBe(`repeat(${Math.min(6, Math.floor((1000 + 16) / (metrics.layout.minField + 16)))}, minmax(0, 1fr))`);
     expect(e.querySelector(`label[for=${F}-b]`)).toBeNull();
@@ -212,9 +212,9 @@ describe('rule 6 — layout', () => {
 describe('rule 7 — bounds', () => {
   it('min/max/step reach the native control; money steps 0.01; a date takes ISO strings', () => {
     const e = owned([
-      { key: 'n', label: 'N', kind: 'number', min: 1, max: 9, step: 2 },
-      { key: 'm', label: 'M', kind: 'money', min: 0 },
-      { key: 'd', label: 'D', kind: 'date', min: '2026-01-01', max: '2026-12-31' },
+      { name: 'n', label: 'N', kind: 'number', min: 1, max: 9, step: 2 },
+      { name: 'm', label: 'M', kind: 'money', min: 0 },
+      { name: 'd', label: 'D', kind: 'date', min: '2026-01-01', max: '2026-12-31' },
     ]);
     const n = e.querySelector(`#${F}-n`)!, m = e.querySelector(`#${F}-m`)!, d = e.querySelector(`#${F}-d`)!;
     expect([n.getAttribute('min'), n.getAttribute('max'), n.getAttribute('step')]).toEqual(['1', '9', '2']);
@@ -228,9 +228,9 @@ describe('rule 7 — bounds', () => {
 describe('rule 8 — read-only', () => {
   it('renders the control read-only (input readonly / select disabled), reactive to the draft', () => {
     const fields: Field<any>[] = [
-      { key: 'lock', label: 'Lock', kind: 'checkbox' },
-      { key: 't', label: 'T', kind: 'text', readOnly: (d) => !!d.lock },
-      { key: 's', label: 'S', kind: 'select', readOnly: true, options: Array.from({ length: 4 }, (_, i) => ({ value: String(i), label: String(i) })) },
+      { name: 'lock', label: 'Lock', kind: 'boolean' },
+      { name: 't', label: 'T', kind: 'text', readOnly: (d) => !!d.lock },
+      { name: 's', label: 'S', readOnly: true, options: Array.from({ length: 4 }, (_, i) => ({ value: String(i), label: String(i) })) },
     ];
     const e = owned(fields, { lock: false });
     expect(e.querySelector(`#${F}-t`)!.hasAttribute('readonly')).toBe(false);
@@ -244,7 +244,7 @@ describe('rule 9 — live mode', () => {
   it('no buttons, no submit; onChange fires per change; validation still runs on blur', () => {
     const seen: unknown[] = [];
     let submitted = 0;
-    const e = owned([{ key: 'q', label: 'Q', kind: 'text', required: true }], {}, { mode: 'live', onChange: (v: unknown) => seen.push(v), onSubmit: () => submitted++, onCancel: () => {} });
+    const e = owned([{ name: 'q', label: 'Q', kind: 'text', required: true }], {}, { mode: 'live', onChange: (v: unknown) => seen.push(v), onSubmit: () => submitted++, onCancel: () => {} });
     expect(e.querySelector<HTMLElement>('form > div:last-child')!.style.display).toBe('none');
     type(e, 'q', 'a'); type(e, 'q', 'ab');
     expect(seen).toEqual([{ q: 'a' }, { q: 'ab' }]);
@@ -259,14 +259,14 @@ describe('rule 10 — busy', () => {
   it('a promise-returning onSubmit keeps the button busy and disabled; a rejection notifies', async () => {
     let done!: () => void;
     const p = new Promise<void>((r) => { done = r; });
-    const e = owned([{ key: 'q', label: 'Q', kind: 'text' }], {}, { onSubmit: () => p });
+    const e = owned([{ name: 'q', label: 'Q', kind: 'text' }], {}, { onSubmit: () => p });
     const btn = e.querySelector<HTMLButtonElement>('button[type=submit]')!;
     submit(e);
     expect(btn.getAttribute('aria-busy')).toBe('true');
     expect(btn.disabled).toBe(true);
     done(); await settle();
     expect(btn.getAttribute('aria-busy')).toBeNull();
-    const f = owned([{ key: 'q', label: 'Q', kind: 'text' }], {}, { onSubmit: () => Promise.reject(new Error('Bank said no')) });
+    const f = owned([{ name: 'q', label: 'Q', kind: 'text' }], {}, { onSubmit: () => Promise.reject(new Error('Bank said no')) });
     submit(f); await settle();
     expect(__notices.value.map((n) => n.text)).toEqual(['Bank said no']);
   });
@@ -275,7 +275,7 @@ describe('rule 10 — busy', () => {
 describe('controlled draft', () => {
   it('a writable signal is edited in place through Form()', () => {
     const value = signal({ q: 'a' });
-    el('div', {}, [Form<{ q: string }>({ fields: [{ key: 'q', label: 'Q', kind: 'text' }], value, onSubmit: () => {} })]).mount(document.body); flushEffects();
+    el('div', {}, [Form<{ q: string }>({ fields: [{ name: 'q', label: 'Q', kind: 'text' }], value, onSubmit: () => {} })]).mount(document.body); flushEffects();
     const e = document.querySelector<HTMLElement>('nisli-form')!;
     F = fidOf(e);
     type(e, 'q', 'b');
@@ -286,7 +286,7 @@ describe('controlled draft', () => {
 describe('labels point at what they label (ADR 0042 d)', () => {
   const opts = (n: number) => Array.from({ length: n }, (_, i) => ({ value: `v${i}`, label: `V${i}` }));
   it('a segmented group has a <span> label with no for=, named through aria-labelledby; clicking the label focuses the checked segment', () => {
-    const e = owned([{ key: 'three', label: 'Three', kind: 'select', options: opts(3) }, { key: 'four', label: 'Four', kind: 'select', options: opts(4) }], { three: 'v1' });
+    const e = owned([{ name: 'three', label: 'Three', options: opts(3) }, { name: 'four', label: 'Four', options: opts(4) }], { three: 'v1' });
     const label = e.querySelector<HTMLElement>(`#${F}-three-label`)!;
     expect(label.tagName).toBe('SPAN');
     expect(e.querySelector(`label[for=${F}-three]`)).toBeNull();
@@ -301,25 +301,29 @@ describe('labels point at what they label (ADR 0042 d)', () => {
     expect(formLabels.check(e, estimator(800))).toEqual([]);
   });
   it('the label follows the decision: options shrinking from 4 to 3 turns the <label for> into a <span>, and back', () => {
-    const e = owned([{ key: 'n', label: 'N', kind: 'select', options: (d) => opts(d.many ? 4 : 3) }, { key: 'many', label: 'Many', kind: 'checkbox' }], { many: true });
+    const e = owned([{ name: 'n', label: 'N', options: (d) => opts(d.many ? 4 : 3) }, { name: 'many', label: 'Many', kind: 'boolean' }], { many: true });
     expect(e.querySelector<HTMLElement>(`#${F}-n-label`)!.tagName).toBe('LABEL');
     const many = e.querySelector<HTMLInputElement>(`#${F}-many`)!; many.checked = false; many.dispatchEvent(new Event('change')); flushEffects();
     expect(e.querySelector<HTMLElement>(`#${F}-n-label`)!.tagName).toBe('SPAN');
     expect(e.querySelector(`#${F}-n`)!.getAttribute('role')).toBe('radiogroup');
     expect(formLabels.check(e, estimator(800))).toEqual([]);
   });
-  it('a checkbox caption is its <label for>: the name is field label plus caption, clicking the caption toggles the draft', () => {
+  it('a boolean field has one string: its label is the <label for> beside the box, the whole name; clicking it toggles the draft', () => {
     const seen: Record<string, unknown>[] = [];
-    const e = owned([{ key: 'income', label: 'Kind', kind: 'checkbox', placeholder: 'This is income' }], { income: false }, { onChange: (v: Record<string, unknown>) => seen.push(v) });
+    const e = owned([{ name: 'income', label: 'This is income', kind: 'boolean' }], { income: false }, { onChange: (v: Record<string, unknown>) => seen.push(v) });
     const box = e.querySelector<HTMLInputElement>(`#${F}-income`)!;
-    expect(accessibleName(box)).toBe('Kind This is income');
+    expect(accessibleName(box)).toBe('This is income');
     expect(box.hasAttribute('placeholder')).toBe(false);
-    const caption = e.querySelector<HTMLLabelElement>(`label[for=${F}-income]`)!;
-    expect(caption.textContent).toBe('This is income');
-    expect(e.querySelector<HTMLElement>(`#${F}-income-label`)!.tagName).toBe('SPAN');
-    caption.click(); flushEffects();                                // a label click toggles its control
+    expect(box.hasAttribute('aria-labelledby')).toBe(false);
+    const label = e.querySelector<HTMLLabelElement>(`label[for=${F}-income]`)!;
+    expect(label.textContent).toBe('This is income');
+    expect(e.querySelectorAll(`[id="${F}-income-label"]`).length).toBe(1);   // no heading above the box: one label
+    label.click(); flushEffects();                                  // a label click toggles its control
     expect(box.checked).toBe(true);
     expect(seen).toEqual([{ income: true }]);
     expect(formLabels.check(e, estimator(800))).toEqual([]);
+    // @ts-expect-error — a boolean has nothing to placeholder: the type rejects it
+    const wrong: Field<{ income: boolean }> = { name: 'income', label: 'X', kind: 'boolean', placeholder: 'no' };
+    void wrong;
   });
 });

@@ -47,7 +47,7 @@ describe('overlay — one manager, the top layer', () => {
   it('confirm() over a Dialog: Escape answers the confirm, the dialog stays open, scroll stays locked', async () => {
     const open = signal(true);
     up(Dialog, dialog('Outer', open));
-    const p = confirm({ title: 'Sure?', message: 'm' }); flushEffects();
+    const p = confirm({ title: 'Sure?', text: 'm', action: { label: 'Yes' } }); flushEffects();
     expect(document.body.style.overflow).toBe('hidden');
     key('Escape');
     expect(await p).toBe(false);
@@ -157,7 +157,7 @@ describe('overlay — focus, inert and scroll lock', () => {
     const t = up(Dialog, dialog('Outer', outer, html`<button id="del">Delete</button>`));
     await tick();
     t.el.querySelector<HTMLElement>('#del')!.focus();
-    const p = confirm({ title: 'Sure?', message: 'm' }); flushEffects();
+    const p = confirm({ title: 'Sure?', text: 'm', action: { label: 'Yes' } }); flushEffects();
     await tick();
     expect(t.el.closest('[inert]')).not.toBeNull();                 // the outer is behind the confirm now
     expect(document.activeElement?.textContent).toBe('Cancel');
@@ -408,7 +408,7 @@ describe('overlay — confirm() and notify() as layers', () => {
     await tick();
     const del = t.el.querySelector<HTMLElement>('#del')!;
     del.focus();
-    const p = confirm({ title: 'Sure?', message: 'm' }); flushEffects();
+    const p = confirm({ title: 'Sure?', text: 'm', action: { label: 'Yes' } }); flushEffects();
     await tick();
     expect(__layers.value.map((l) => l.kind)).toEqual(['modal', 'modal']);
     const dialogs = [...document.querySelectorAll<HTMLElement>('[role=presentation]')];
@@ -471,7 +471,7 @@ describe('overlay — the App menu is a popover layer (ADR 0042 a)', () => {
   const nav = [{ label: 'Overview', href: '/' }, { label: 'Accounts', href: '/accounts' }, { label: 'Settings', href: '/settings' }];
   const shell = async (width: number) => {
     const location = signal('/');
-    const t = up(App, { brand: 'Ledger', nav, location, content: html`<button id="after">after</button>` }, { width, viewport: width });
+    const t = up(App, { brand: 'Ledger', nav, location, children: html`<button id="after">after</button>` }, { width, viewport: width });
     const toggle = t.el.querySelector<HTMLElement>('button[aria-label="Menu"]')!;
     const menu = t.el.querySelector<HTMLElement>('nav[aria-label="Primary"]')!;
     const links = () => [...menu.querySelectorAll<HTMLElement>('a[href]')];

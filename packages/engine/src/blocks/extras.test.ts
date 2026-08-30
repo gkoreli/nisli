@@ -24,7 +24,7 @@ const make = (tag: string, props: Record<string, unknown>) => {
 
 describe('Table paging', () => {
   const rows = Array.from({ length: 150 }, (_, i) => ({ id: String(i) }));
-  const props = { columns: [{ id: 'id', header: 'Id', cell: (r: { id: string }) => r.id }], rows, key: (r: { id: string }) => r.id };
+  const props = { columns: [{ id: 'id', label: 'Id', cell: (r: { id: string }) => r.id }], rows, rowKey: (r: { id: string }) => r.id };
   it('shows 60 rows, then 60 more on request, and says how many remain', () => {
     const t = make('nisli-table', props);
     expect(t.querySelectorAll('tbody tr').length).toBe(60);
@@ -46,7 +46,7 @@ describe('Table paging', () => {
 
 describe('Columns', () => {
   const labels = Array.from({ length: 12 }, (_, i) => `Month ${i + 1}`); // 8 chars → ~60px each
-  const props = { labels, series: [{ name: 'A', values: labels.map((_, i) => i + 1) }], text: (v: number) => String(v) };
+  const props = { labels, series: [{ label: 'A', values: labels.map((_, i) => i + 1) }], format: (v: number) => String(v) };
   const visible = (el: HTMLElement) => [...el.querySelectorAll<HTMLElement>('span')].filter((s) => labels.includes(s.textContent ?? '') && s.style.visibility === 'visible').length;
   it('shows every label when there is room, every other when there is not', () => {
     width = 1200; expect(visible(make('nisli-columns', props))).toBe(12);
@@ -68,7 +68,7 @@ describe('charts at a width (mount)', () => {
 
   it('Columns: label thinning is labelEvery(slot, longest) at every width', () => {
     const labels = Array.from({ length: 12 }, (_, i) => `Month ${i + 1}`); // 8 chars → 65.6px each
-    const props = { labels, series: [{ name: 'A', values: labels.map((_, i) => i + 1) }], text: String };
+    const props = { labels, series: [{ label: 'A', values: labels.map((_, i) => i + 1) }], format: String };
     const shown = (m: Mounted) => [...m.el.querySelectorAll<HTMLElement>('span')].filter((s) => labels.includes(s.textContent ?? '') && s.style.visibility === 'visible').length;
     expect(shown(up('nisli-columns', props, { width: 1200 }))).toBe(12); // slot 100 ≥ 65.6
     expect(shown(up('nisli-columns', props, { width: 400 }))).toBe(6);   // slot 33 → every 2nd
@@ -227,13 +227,13 @@ describe('notify — live tone, a Dismiss a keyboard reaches, Escape, paused tim
 
 describe('confirm', () => {
   it('resolves true on confirm, false on cancel/escape, and cleans up', async () => {
-    const p = confirm({ title: 'Sure?', message: 'Really.', confirmLabel: 'Yes', destructive: true });
+    const p = confirm({ title: 'Sure?', text: 'Really.', action: { label: 'Yes', destructive: true } });
     flushEffects();
     const dlg = document.querySelector('[role=dialog]')!;
     expect(document.getElementById(dlg.getAttribute('aria-labelledby')!)!.textContent).toBe('Sure?');
     [...dlg.querySelectorAll('button')].find((b) => b.textContent === 'Yes')!.click();
     expect(await p).toBe(true);
-    const q = confirm({ title: 'Again?', message: 'm' }); flushEffects();
+    const q = confirm({ title: 'Again?', text: 'm', action: { label: 'Yes' } }); flushEffects();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(await q).toBe(false);
     await new Promise((r) => setTimeout(r, 5));

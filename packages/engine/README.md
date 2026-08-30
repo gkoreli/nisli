@@ -383,8 +383,9 @@ keyboard or pointer path — never an "element exists" assertion — in
   dialog, else the `main` landmark — never to `<body>`.
 - **Labels.** A field's `<label for>` targets only a labelable control. A
   segmented group is named through `aria-labelledby` and clicking its heading
-  focuses the checked option; a checkbox's caption is its own `<label for>`
-  (clicking toggles) and its name is heading + caption.
+  focuses the checked option; a boolean field has one string — its `label`
+  — as the `<label for>` beside the box (clicking toggles), and that label
+  alone is its name.
 - **Focus ring and hover.** A focused row lights the same `table.row.hover`
   part as a hovered one; focus is the skin's `focus` part, never removed by
   a block. Focus is only ever moved by the overlay manager or by a block
@@ -407,15 +408,31 @@ keyboard or pointer path — never an "element exists" assertion — in
   layer: a `menu` of `menuitem`s, `menuWidth` from metrics, full arrow-key
   model, closes on Escape, outside pointer, a tap on its trigger, or
   selection. A `primary` action is never overflowed (`FIT_ROW` instead).
-- **Table** — columns drop, truncate and fold by `priority` and `kind`; a
-  `sortable` header is a real `<button>` inside the `<th>` (`aria-sort` on
-  the `th`); an `onSelect` row is a tab stop named by its primary cell,
-  selected by Enter/Space, lit while focused as while hovered.
+- **Table** — columns (`label`, `kind`, `priority`) drop, truncate and fold
+  by `priority` and `kind`; a `sortable` header is a real `<button>` inside
+  the `<th>` (`aria-sort` on the `th`, `Sort { by, order }`); an `onOpen` row
+  is a tab stop named by its primary cell, opened by Enter/Space, lit while
+  focused as while hovered; `empty` (a string, or `EmptyProps`) renders the
+  `Empty` block where the rows would be.
+- **Actions** — one type, `Action { id, label, priority?, destructive?,
+  onSelect? }`, one renderer (`blocks/actions.ts`), one rule wherever it is
+  placed (Toolbar, Page, Empty, Form, Dialog, confirm): `destructive` →
+  danger; `priority: 'primary'` → the filled button; else plain; busy on a
+  returned promise. Per action — the engine never counts primaries. Only the
+  Toolbar overflows; every other row wraps.
 - **Dialog** — a `modal` layer: `role="dialog"`, `aria-modal`,
   `aria-labelledby` its title; `dialogMode()` chooses sheet or centred at
-  width; initial focus on its first visible control that is not Close.
-- **confirm()** — a Dialog mounted at the body, so a modal layer above
-  whatever is open; resolves to the answer, one Escape answers `false`.
+  width; initial focus on its first visible control that is not Close;
+  `actions` render after `children`, a destructive one first and apart.
+- **Empty** — a `title` (the statement), a `hint`, and `actions` through the
+  one renderer.
+- **Text** — `role: 'body' | 'note' | 'code'`: `note` is WAI-ARIA's word for
+  ancillary prose (the engine emits `role="note"` and the skin's muted look);
+  a heading is a container's `title`, never a Text.
+- **confirm({ title, text, action })** — a Dialog mounted at the body, so a
+  modal layer above whatever is open; `action` is `Pick<Action, 'label' |
+  'destructive'>` and the engine makes it the row's primary; resolves to the
+  answer, one Escape answers `false`.
 - **notify()** — two live regions, a polite `status` and an assertive
   `alert`, mounted before the first notice; `negative` is an alert, every
   other tone a status. A `passive` layer while it shows anything, above every
@@ -424,14 +441,18 @@ keyboard or pointer path — never an "element exists" assertion — in
   8 s for negative) pauses on hover and focus; a keyboard dismiss returns
   focus to where it came from, never to `<body>`.
 
-- **Form** — a schema of fields (`when`, dependent `options`, `readOnly`,
-  `validate`, bounds, `group`, `long`); the engine decides presence, columns
-  at width, segmented group vs. select, validation timing and announcement,
-  and — when given `initial`/`key` instead of `value` — owns the draft,
-  its dirtiness and its reset. Every control is labelled: `<label for>` for
-  a labelable control, `aria-labelledby` for a segmented group (its heading
-  click focuses the checked option), and a checkbox's caption is a
-  `<label for>` that toggles it. Domain in `src/blocks/form/`.
+- **Form** — a schema of fields (`name`, `label`, `kind: Kind`, `when`,
+  dependent `options`, `readOnly`, `validate`, bounds, `group`, `long`);
+  capture is derived, never said — `options` make a choice (segmented at ≤ 3,
+  else a list), `long` a multi-line control, `kind: 'boolean'` a box with its
+  `label` beside it, `kind: 'file'` a picker; the engine decides presence,
+  columns at width, validation timing and announcement, and — when given
+  `initial`/`key` instead of `value` — owns the draft, its dirtiness and its
+  reset. `actions` sit beside Cancel and the submit (the row's primary).
+  Every control is labelled: `<label for>` for a labelable control,
+  `aria-labelledby` for a segmented group (its heading click focuses the
+  checked option), and a boolean's one label is the `<label for>` that
+  toggles it. Domain in `src/blocks/form/`.
 
 ## Status
 

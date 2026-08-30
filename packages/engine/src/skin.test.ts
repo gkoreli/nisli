@@ -24,18 +24,18 @@ const mountAll = () => {
   const host = document.createElement('div');
   document.body.appendChild(host);
   const props: Record<string, Record<string, unknown>> = {
-    'nisli-app': { brand: 'B', nav: [{ label: 'A', href: '/a' }], location: '/a', content: html`<i></i>` },
+    'nisli-app': { brand: 'B', nav: [{ label: 'A', href: '/a' }], location: '/a', children: html`<i></i>` },
     'nisli-page': { title: 'T', actions: [{ id: 'x', label: 'X', priority: 'primary' }, { id: 'y', label: 'Y', destructive: true }], children: html`<i></i>` },
     'nisli-section': { title: 'S', children: html`<i></i>` },
     'nisli-section-pending': { title: 'S', children: html`<i></i>`, status: { loading: signal(true), error: signal(null) } },
     'nisli-grid': { children: [html`<i></i>`, html`<i></i>`] },
     'nisli-stat': { label: 'L', value: 'V', delta: { text: 'd', tone: 'negative' }, hint: 'h' },
-    'nisli-table': { columns: [{ id: 'a', header: 'A', cell: () => 'a', kind: 'money' }], rows: [{ id: 1 }], key: (r: { id: number }) => String(r.id), onSelect: () => {} },
-    'nisli-form': { fields: [{ key: 'a', label: 'A', kind: 'text', required: true, hint: 'h' }, { key: 's', label: 'S', kind: 'select', options: [] }, { key: 'n', label: 'N', kind: 'textarea' }], value: {}, onChange: () => {}, onSubmit: () => {}, onCancel: () => {}, destructive: { id: 'd', label: 'D' } },
+    'nisli-table': { columns: [{ id: 'a', label: 'A', cell: () => 'a', kind: 'money' }], rows: [{ id: 1 }], rowKey: (r: { id: number }) => String(r.id), onOpen: () => {} },
+    'nisli-form': { fields: [{ name: 'a', label: 'A', kind: 'text', required: true, hint: 'h' }, { name: 's', label: 'S', options: [] }, { name: 'n', label: 'N', long: true }], value: {}, onChange: () => {}, onSubmit: () => {}, onCancel: () => {}, actions: [{ id: 'd', label: 'D', destructive: true }] },
     'nisli-dialog': { title: 'D', open: true, onClose: () => {}, children: html`<i></i>` },
     'nisli-meter': { label: 'M', value: 120, max: 100, detail: 'x' },
     'nisli-bars': { items: [{ label: 'a', value: 1, text: '1' }] },
-    'nisli-empty': { title: 'E', hint: 'h', action: { id: 'a', label: 'A' } },
+    'nisli-empty': { title: 'E', hint: 'h', actions: [{ id: 'a', label: 'A' }] },
     'nisli-text': { text: 't', role: 'code', tone: 'warning' },
     'nisli-link': { href: '/', label: 'l' },
   };

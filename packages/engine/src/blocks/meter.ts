@@ -6,8 +6,8 @@ export interface MeterProps {
   label: string;
   value: number;
   max: number;
-  /** Text beside the label — e.g. "€420 of €500". */
-  detail?: string;
+  /** The reading, in the app's units — e.g. "€420 of €500". */
+  text?: string;
 }
 
 /** A filled bar. The engine tones it by how close to the limit it is. */
@@ -23,7 +23,7 @@ export const Meter = block<MeterProps>('nisli-meter', {
         el('span', { style: ctx.part('text', truncate) }, props.label),
         el('span', {
           style: ctx.part(() => (tone.value === 'negative' ? 'tone.negative' : 'tone.neutral'), { whiteSpace: 'nowrap', flex: 'none', fontVariantNumeric: 'tabular-nums' }),
-        }, computed(() => props.detail.value ?? '')),
+        }, computed(() => props.text.value ?? '')),
       ]),
       el('div', {
         role: 'meter',

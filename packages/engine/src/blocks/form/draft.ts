@@ -45,8 +45,8 @@ export interface Draft<T> {
   readonly dirty: ReadonlySignal<boolean>;
   /** Bumped whenever the draft is reset; controls that cannot take a value (file) remount on it. */
   readonly generation: ReadonlySignal<number>;
-  set(key: string, value: unknown): void;
-  blur(key: string): void;
+  set(name: string, value: unknown): void;
+  blur(name: string): void;
   /** Validate every visible field; on success return the value to submit. */
   submit(): SubmitResult<T>;
   /** After a successful submit: the form is no longer dirty from this value. */
@@ -75,10 +75,10 @@ export function settle<T>(fields: readonly Field<T>[], draft: Rec): Rec {
   for (let pass = 0; pass < 8; pass++) {
     let changed = false;
     for (const f of visibleFields(fields, next as Partial<T>)) {
-      if (f.kind !== 'select' || typeof f.options !== 'function') continue;
-      const v = next[f.key];
+      if (typeof f.options !== 'function') continue;
+      const v = next[f.name];
       if (v === undefined || v === null || v === '') continue;
-      if (!optionsOf(f, next as Partial<T>).some((o) => o.value === String(v))) { next = { ...next, [f.key]: undefined }; changed = true; }
+      if (!optionsOf(f, next as Partial<T>).some((o) => o.value === String(v))) { next = { ...next, [f.name]: undefined }; changed = true; }
     }
     if (!changed) break;
   }
@@ -88,7 +88,7 @@ export function settle<T>(fields: readonly Field<T>[], draft: Rec): Rec {
 /** Only the keys of fields that exist. */
 const pick = <T>(visible: readonly Field<T>[], draft: Rec): T => {
   const out: Rec = {};
-  for (const f of visible) if (draft[f.key] !== undefined) out[f.key] = draft[f.key];
+  for (const f of visible) if (draft[f.name] !== undefined) out[f.name] = draft[f.name];
   return out as T;
 };
 
@@ -138,9 +138,9 @@ export function createDraft<T>(options: DraftOptions<T>): Draft<T> {
     const t = touched.value;
     const out: Record<string, string> = {};
     for (const f of visible.value) {
-      if (!all && !t.has(f.key)) continue;
-      const m = validateField(f, d[f.key], draft.value);
-      if (m) out[f.key] = m;
+      if (!all && !t.has(f.name)) continue;
+      const m = validateField(f, d[f.name], draft.value);
+      if (m) out[f.name] = m;
     }
     return out;
   });
@@ -149,19 +149,19 @@ export function createDraft<T>(options: DraftOptions<T>): Draft<T> {
 
   return {
     draft, visible, errors, touched, dirty, generation,
-    set(key, value) {
-      write(settle(options.fields.value, { ...(draft.value as Rec), [key]: value }));
+    set(name, value) {
+      write(settle(options.fields.value, { ...(draft.value as Rec), [name]: value }));
     },
-    blur(key) {
-      if (!touched.value.has(key)) touched.value = new Set([...touched.value, key]);
+    blur(name) {
+      if (!touched.value.has(name)) touched.value = new Set([...touched.value, name]);
     },
     submit() {
       attempted.value = true;
       const d = draft.value as Rec;
       const errs: Record<string, string> = {};
       for (const f of visible.value) {
-        const m = validateField(f, d[f.key], draft.value);
-        if (m) errs[f.key] = m;
+        const m = validateField(f, d[f.name], draft.value);
+        if (m) errs[f.name] = m;
       }
       const first = Object.keys(errs)[0];
       return { ok: first === undefined, value: pick(visible.value, d), errors: errs, first };

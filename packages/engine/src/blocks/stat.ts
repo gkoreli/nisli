@@ -1,14 +1,14 @@
 import { el, computed } from '@nisli/core';
 import { truncate, cardBox, cardPart } from '../style.js';
 import { block } from './kernel.js';
-import type { Tone } from './types.js';
+import type { Delta } from './types.js';
 import type { Status } from './status.js';
 
 export interface StatProps {
   label: string;
   value: string;
-  /** A change relative to something; the tone says whether it is good news. */
-  delta?: { text: string; tone: Tone };
+  /** A change relative to something. */
+  delta?: Delta;
   hint?: string;
   status?: Status;
 }

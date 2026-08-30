@@ -209,8 +209,8 @@ describe('block kernel', () => {
     /document\.addEventListener/,
     /zIndex:\s*-?\d/,
   ];
-  // Every block is on the kernel; the files that are not blocks hold intent and state, no DOM.
-  const NOT_BLOCKS = new Set(['kernel.ts', 'status.ts', 'surface.ts', 'types.ts']);
+  // Every block is on the kernel; the files that are not blocks hold intent, state, or a helper on ctx (actions.ts renders every Action).
+  const NOT_BLOCKS = new Set(['kernel.ts', 'status.ts', 'surface.ts', 'types.ts', 'actions.ts']);
   it('no block styles by hand: every block file is on the kernel, and none has a style writer, element.style, string style, module metrics, its own root, a document listener or a z-index literal', () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const files = readdirSync(here)
@@ -220,5 +220,16 @@ describe('block kernel', () => {
     expect(offKernel).toEqual([]);
     const offenders = files.flatMap(([f, src]) => RULES.filter((r) => r.test(src)).map((r) => `${f}: ${r.source}`));
     expect(offenders).toEqual([]);
+  });
+
+  // ADR 0043 acceptance 5: every Action is one renderer. `button.danger` is said nowhere but actions.ts;
+  // `button.primary` only there and in Form's segmented option (a chosen option, not an action).
+  it('every Action row is one renderer: no block says button.danger, and only the segmented option says button.primary', () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const files = readdirSync(here)
+      .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts') && f !== 'actions.ts')
+      .map((f) => [f, readFileSync(join(here, f), 'utf8')] as const);
+    expect(files.filter(([, src]) => /button\.danger/.test(src)).map(([f]) => f)).toEqual([]);
+    expect(files.filter(([, src]) => /button\.primary/.test(src)).map(([f]) => f)).toEqual(['form.ts']);
   });
 });

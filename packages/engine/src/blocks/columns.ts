@@ -5,7 +5,7 @@ import { block } from './kernel.js';
 import type { Tone } from './types.js';
 
 export interface Series {
-  readonly name: string;
+  readonly label: string;
   readonly tone?: Tone;
   readonly values: readonly number[];
 }
@@ -14,8 +14,8 @@ export interface ColumnsProps {
   /** One label per x position (e.g. months). */
   labels: readonly string[];
   series: readonly Series[];
-  /** Text for a value — the app knows its units. */
-  text: (value: number) => string;
+  /** A value's text — the app knows its units. */
+  format: (value: number) => string;
 }
 
 const HEIGHT = 160;
@@ -39,23 +39,23 @@ export const Columns = block<ColumnsProps>('nisli-columns', {
     const slot = computed(() => (ctx.width.value > 0 ? ctx.width.value / Math.max(1, labels.value.length) : UNMEASURED_SLOT));
     const longest = computed(() => Math.max(metrics.space[2], ...labels.value.map((l) => labelWidth(l, metrics.space[2], metrics.charWidth))));
     const every = computed(() => labelEvery(slot.value, longest.value));
-    const groups = computed(() => labels.value.map((label, i) => ({ label, i, values: series.value.map((s) => ({ v: s.values[i] ?? 0, tone: s.tone, name: s.name })) })));
+    const groups = computed(() => labels.value.map((label, i) => ({ label, i, values: series.value.map((s) => ({ v: s.values[i] ?? 0, tone: s.tone, label: s.label })) })));
 
     return [
       el('div', { style: ctx.part([], { display: 'flex', gap: metrics.space[3], marginBottom: metrics.space[2], flexWrap: 'wrap' }) },
         series.value.map((s) => el('span', { style: ctx.part('text.muted', { display: 'inline-flex', alignItems: 'center', gap: metrics.space[1] }) }, [
           el('i', { style: ctx.part(barParts(s.tone), { display: 'inline-block', width: 10, height: 10 }) }),
-          s.name,
+          s.label,
         ])),
       ),
       el('div', {
         role: 'img',
-        'aria-label': computed(() => `${series.value.map((s) => s.name).join(' and ')} by ${labels.value.length} periods`),
+        'aria-label': computed(() => `${series.value.map((s) => s.label).join(' and ')} by ${labels.value.length} periods`),
         style: ctx.part([], { display: 'flex', alignItems: 'flex-end', height: HEIGHT, gap: 2 }),
       }, [
         each(groups, (g) => g.label, (g) =>
           el('div', {
-            title: computed(() => g.value.values.map((x) => `${x.name}: ${props.text.value(x.v)}`).join('\n')),
+            title: computed(() => g.value.values.map((x) => `${x.label}: ${props.format.value(x.v)}`).join('\n')),
             style: ctx.part([], { flex: '1 1 0', minWidth: 0, display: 'flex', alignItems: 'flex-end', gap: 1, height: '100%' }),
           },
             computed(() => g.value.values.map((x) => el('div', {

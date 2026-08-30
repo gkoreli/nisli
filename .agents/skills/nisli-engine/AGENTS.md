@@ -5,7 +5,7 @@ Every rule for writing and reviewing application UI built from `@nisli/engine`. 
 **Engine source**: `packages/engine/src` — public surface is exactly what `src/index.ts` exports
 **Test surface**: `@nisli/engine/test` → `packages/engine/src/test/prove.ts` (`prove`, `estimator`, `mount`, `textMeasurer`, `claimsOf`, `checkers`); `@nisli/engine/verify` → `src/verify/index.ts` (`verify`, `format`) and the `nisli-verify` CLI (`bin/nisli-verify.mjs`)
 **Screen proof**: `packages/ledger/src/screens/screens.proof.test.ts` — nine screens × five widths, zero claims
-**ADRs**: `docs/adr/0034-engine-typed-blocks-decided-by-an-engine.md` (contract, language, decision rules), `0035-engine-appearance-layer.md` (skins, parts, axes), `0037-engine-form-intent-capture-domain.md` (the ten Form rules), `0040-engine-overlay-domain.md` (layers), `0041-engine-proof-domain.md` (claims, prove, verify), `0042-engine-reachability.md` (keyboard and AT)
+**ADRs**: `docs/adr/0034-engine-typed-blocks-decided-by-an-engine.md` (contract, language, decision rules), `0035-engine-appearance-layer.md` (skins, parts, axes), `0037-engine-form-intent-capture-domain.md` (the ten Form rules), `0040-engine-overlay-domain.md` (layers), `0041-engine-proof-domain.md` (claims, prove, verify), `0042-engine-reachability.md` (keyboard and AT), `0043-engine-intent-vocabulary-contract.md` (one word, one meaning; one Action rule; capture derived)
 **Worked example**: `packages/ledger` — nine screens, `TENETS.md`
 
 The engine's block kernel (`src/blocks/kernel.ts`, `src/engine/space.ts`) is being refactored; nothing below depends on it. Only the public intent API and the rules are documented.
@@ -16,7 +16,7 @@ The engine's block kernel (`src/blocks/kernel.ts`, `src/engine/space.ts`) is bei
 
 ### `intent-say-what-not-how` — Props state what a thing is
 
-The public prop types (`blocks/types.ts`, each `blocks/*.ts`) offer only meaning: `priority` (survival order), `kind` (what a cell holds), `tone` (whether a number is good news), `role` (what a run of text is), `destructive`, `sortable`, `required`, and structure — what contains what. "These are the actions" is intent; where they sit is the engine's (ADR 0034, *The contract*).
+The public prop types (`blocks/types.ts`, each `blocks/*.ts`) offer only meaning: `priority` (survival order), `kind` (what a value is), `tone` (whether a number is good news), `role` (what a run of prose is), `destructive`, `sortable`, `required`, and structure — what contains what. How a thing is captured (a select, a textarea, a checkbox) or dressed (muted) is never said. "These are the actions" is intent; where they sit is the engine's (ADR 0034, *The contract*).
 
 ```typescript
 // ❌ WRONG — the author is making the visual decision, in a new syntax
@@ -34,6 +34,55 @@ Page({
 });
 ```
 
+### `intent-one-word-one-meaning` — The vocabulary is one language (ADR 0043)
+
+A term means the same thing on every interface it applies to and appears on no other. A subset of a type is allowed (`confirm` takes two fields of `Action`; `Column.kind` takes four of the six `Kind`s); a synonym is not. The whole intent vocabulary, as `index.ts` exports it:
+
+| term | meaning | applies to |
+|---|---|---|
+| `id` | identity among siblings — the sort key, the busy key, the DOM id | `Column`, `Action` |
+| `key` | identity across renders: a change is a new thing (a Form resets to `initial`) | `FormProps` |
+| `rowKey` | `key`, per row — `(row) => string` | `TableProps` |
+| `name` | the property of `T` a field edits; the control's HTML `name` | `Field` |
+| `kind` | what a value *is*: `Kind = 'text' \| 'number' \| 'money' \| 'date' \| 'boolean' \| 'file'`; never how it is captured. A Column takes the first four | `Column`, `Field` |
+| `label` | the human name of an item or datum | `Stat`, `Meter`, `Field`, `Option`, `BarItem`, `NavItem`, `Link`, `Action`, `Column`, `Series` |
+| `title` | the heading of a block, at a level the block knows: a container's name, a dialog's question, an empty state's statement. The only way an app says a heading | `Page`, `Section`, `Dialog`, `Empty`, `Toolbar`, `confirm` |
+| `text` | a human-readable string the app wrote: prose, or the reading of a number in the app's units | `Text`, `Delta`, `BarItem`, `Meter`, `confirm`, `notify` |
+| `format` | a function from a number to its `text` | `ColumnsProps` |
+| `hint` | secondary text *of* an item — an explanation under it. (`role: 'note'` is the free-standing form of the same concept; they are not synonyms) | `Empty`, `Stat`, `Field` |
+| `placeholder` | what an empty control shows: ghost text, or the empty choice ("All accounts"); a type error on `boolean` and `file` | `Field` |
+| `empty` | what to say when there is nothing: a string (the `Empty` title) or `EmptyProps` | `TableProps` |
+| `children` | what a container holds. The only prop word for it | `App`, `Page`, `Section`, `Grid`, `Dialog` |
+| `Action` | `{ id; label; priority?; destructive?; onSelect? }` — a thing a person may activate; one type, one rule, one renderer | `Toolbar`, `Page`, `Empty`, `Form`, `Dialog`; `confirm` takes `Pick<Action, 'label' \| 'destructive'>` |
+| `actions` | the Actions a block offers, in the author's order; the engine places them | `Toolbar`, `Page`, `Empty`, `Form`, `Dialog` |
+| `action` | the one Action a confirm offers as its answer: `Pick<Action, 'label' \| 'destructive'>` | `confirm` |
+| `Priority` | survival order only, default `'secondary'`. That the primary is the filled button, and the fold target, are engine rules | `Action`, `Column` |
+| `destructive` | cannot be undone; danger, and nothing further asked | `Action` |
+| `onSelect` | an Action was activated | `Action` |
+| `onOpen` | a row was opened (not a selection) | `TableProps` |
+| `order` | sort order `'asc' \| 'desc'` | `Sort` |
+| `role` | what a run of prose is: `'body'`, `'note'`, `'code'`. Never a Part | `TextProps` |
+| `tone` | whether a number is good news; optional everywhere | `Text`, `Delta`, `Series`, `notify` |
+| `Delta` | `{ text; tone? }`, exported — annotate a computed delta with it | `StatProps.delta` |
+
+```typescript
+// ❌ WRONG — synonyms and look words: the compiler rejects every one since 0.8.0
+{ id: 'payee', header: 'Payee', cell: (t) => t.payee }
+{ name: 'note', label: 'Note', kind: 'textarea' }
+Text({ text: 'Backups are written nightly.', role: 'muted' })
+confirm({ title: 'Delete?', message: '…', confirmLabel: 'Delete', destructive: true })
+delta: computed(() => ({ text: 'On track', tone: 'positive' as const }))
+
+// ✅ CORRECT — one word each
+{ id: 'payee', label: 'Payee', cell: (t) => t.payee }
+{ name: 'note', label: 'Note', long: true }
+Text({ text: 'Backups are written nightly.', role: 'note' })
+confirm({ title: 'Delete?', text: '…', action: { label: 'Delete', destructive: true } })
+delta: computed<Delta | undefined>(() => ({ text: 'On track', tone: 'positive' }))
+```
+
+---
+
 ### `intent-no-appearance-vocabulary` — The banned spelling of appearance
 
 Banned in app code: `className`, `style`, `data-*`, pixels, rem, colours, fonts, `flex-end`, `sticky`, breakpoints, "what collapses at 360". The types do not offer any of it; `blocks/toolbar.test.ts` › *the public type offers no visual escape hatch* proves `className`, `style` and `align` are compile errors. If it typechecks, it is laid out right.
@@ -44,7 +93,7 @@ Toolbar({ title: 't', actions: [], className: 'x' });
 Section({ title: 'S', children, style: 'padding: 0' });
 
 // ✅ CORRECT — say the structure; the engine pads, pins, and truncates
-Section({ title: 'Recent transactions', children: [Table<Transaction>({ columns, rows: recent, key: (t) => t.id })] });
+Section({ title: 'Recent transactions', children: [Table<Transaction>({ columns, rows: recent, rowKey: (t) => t.id })] });
 ```
 
 ### `intent-new-need-home` — Three homes for a new need, never a fourth
@@ -86,14 +135,14 @@ useSkin(bare ? null : defaultSkin, { scheme: settings.value.appearance ?? 'syste
 
 ### `intent-structure-is-the-decision` — Nesting and counts are already intent
 
-A `Stat` inside a `Section` is a nested surface; a `select` with three options is a segmented control; a form with six visible fields at 800 px is three columns. The engine reads these from structure. Do not restate them as props.
+A `Stat` inside a `Section` is a nested surface; a field with three `options` is a segmented control; a form with six visible fields at 800 px is three columns. The engine reads these from structure. Do not restate them as props.
 
 ```typescript
 // ❌ WRONG — restating what the schema already carries
-{ key: 'amountShape', kind: 'select', segmented: true, options: [/* 2 */] }
+{ name: 'amountShape', label: 'Amounts are', segmented: true, options: [/* 2 */] }
 
-// ✅ CORRECT — packages/ledger/src/screens/import.ts: a plain 2-option select; the engine makes it segmented
-{ key: 'amountShape', label: 'Amounts are', kind: 'select', required: true,
+// ✅ CORRECT — packages/ledger/src/screens/import.ts: a 2-option choice; the engine makes it segmented
+{ name: 'amountShape', label: 'Amounts are', required: true,
   options: [{ value: 'signed', label: 'One signed column' }, { value: 'split', label: 'Money out / money in' }] }
 ```
 
@@ -105,18 +154,18 @@ Fifteen blocks plus `notify()` and `confirm()` — the whole vocabulary (`src/in
 
 ### `block-app` — `App` is the shell; sidebar vs bar is the engine's
 
-`AppProps { brand; nav: NavItem[]; location; content }` (`blocks/app.ts`). Sidebar iff `width ≥ sidebarWidth + contentMin` (232 + 560), else a sticky top bar whose menu is a `popover` layer through `ctx.overlay` (ADR 0042): the toggle is `aria-expanded` + `aria-controls`, open focuses the first link (ArrowUp: the last), arrows wrap, Home/End jump, Escape and an outside tap close and return focus to the toggle, Tab leaves past the toggle, navigation closes without moving focus. The matching nav item gets `aria-current="page"`; `/` matches exactly, others by prefix.
+`AppProps { brand; nav: NavItem[]; location; children }` (`blocks/app.ts`). Sidebar iff `width ≥ sidebarWidth + contentMin` (232 + 560), else a sticky top bar whose menu is a `popover` layer through `ctx.overlay` (ADR 0042): the toggle is `aria-expanded` + `aria-controls`, open focuses the first link (ArrowUp: the last), arrows wrap, Home/End jump, Escape and an outside tap close and return focus to the toggle, Tab leaves past the toggle, navigation closes without moving focus. The matching nav item gets `aria-current="page"`; `/` matches exactly, others by prefix.
 
 ```typescript
 // ❌ WRONG — the app choosing the shell shape
-App({ brand: 'Ledger', nav, location, content, layout: window.innerWidth > 900 ? 'sidebar' : 'bar' });
+App({ brand: 'Ledger', nav, location, children, layout: window.innerWidth > 900 ? 'sidebar' : 'bar' });
 
 // ✅ CORRECT — packages/ledger/src/main.ts
 const app = App({
   brand: 'Ledger',
   nav,
   location: computed(() => router.url.value.pathname),
-  content: AppRouter({}),
+  children: AppRouter({}),
 });
 ```
 
@@ -138,7 +187,7 @@ return Page({
 
 ### `block-toolbar` — `Toolbar` ranks actions above the title, primaries above all
 
-`ToolbarProps { title; actions? }`; `Action { id; label; priority?; destructive?; onSelect? }` (`blocks/toolbar.ts`, `blocks/types.ts`). Rank `tertiary 1 < secondary 2 < title 10 < primary 20`: tertiaries overflow into the "More actions" menu first (later ones first), then secondaries, then the title truncates to `minTitle` (80). A primary never leaves — it is not overflowable; the plan reports `FIT_ROW` instead. A busy action is `aria-busy` and disabled. The More menu is a `popover` layer its trigger toggles (a tap on the open trigger closes, never reopens).
+`ToolbarProps { title; actions? }`; `Action { id; label; priority?; destructive?; onSelect? }` (`blocks/toolbar.ts`, `blocks/types.ts`). Rank `tertiary 1 < secondary 2 < title 10 < primary 20`: tertiaries overflow into the "More actions" menu first (later ones first), then secondaries, then the title truncates to `minTitle` (80). A primary never leaves — it is not overflowable; the plan reports `FIT_ROW` instead. A busy action is `aria-busy` and disabled. Buttons and menu items come from the one renderer (`blocks/actions.ts`, see `decide-one-action-rule`). The More menu is a `popover` layer its trigger toggles (a tap on the open trigger closes, never reopens).
 
 ```typescript
 // ✅ CORRECT — packages/engine/README.md; proven at 1024/768/600/480/360 in toolbar.test.ts
@@ -178,34 +227,34 @@ Grid({ children: cards })   // cards: computed(() => accounts.value.map((a) => S
 
 ### `block-stat` — `Stat` is a labelled figure with a toned delta
 
-`StatProps { label; value; delta?: { text; tone }; hint?; status? }` (`blocks/stat.ts`). The value truncates; `delta.tone` colours the change through the skin's `tone.*` part; nested in a surface it draws no card; pending shows a one-bone skeleton.
+`StatProps { label; value; delta?: Delta; hint?; status? }` (`Delta { text; tone? }`, exported; `blocks/stat.ts`). The value truncates; `delta.tone` colours the change through the skin's `tone.*` part; nested in a surface it draws no card; pending shows a one-bone skeleton.
 
 ```typescript
 // ✅ CORRECT — packages/ledger/src/screens/overview.ts
 Stat({ label: 'Spending', value: computed(() => money(spendNow.value)), delta: spendDelta })
-// spendDelta: { text: '+12% vs Jul', tone: pct > 0 ? 'negative' : 'positive' }
+// spendDelta: computed<Delta | undefined>(() => ({ text: '+12% vs Jul', tone: pct > 0 ? 'negative' : 'positive' }))
 ```
 
 ### `block-table` — `Table` drops, truncates and folds by column meaning
 
-`TableProps<T> { columns: Column<T>[]; rows; key; onSelect?; sort?; onSort?; empty?; status? }`; `Column<T> { id; header; cell; kind?; priority?; sortable? }`; `Sort { by; dir }` (`blocks/table.ts`). Decisions: text columns truncate to `minTextColumn` (96), figures and dates never; non-primary columns leave by priority (tertiary first, later first) and **fold under the first primary text column** as a muted line (numeric ones as "Header value"; empties earn no slot); primaries never leave (`FIT_COLUMNS` if they cannot fit); `kind: 'number' | 'money'` aligns right with tabular numerals; 60 rows then "Show N more of M"; `onSelect` makes rows tab stops named by their primary `<td>` (`aria-labelledby`), selected by Enter or Space (Space without scrolling; a control inside a cell keeps its own keys) and lit while focused; `sortable` headers hold a real `<button>` so Enter/Space toggle `onSort`, with `aria-sort` on the `th`.
+`TableProps<T> { columns: Column<T>[]; rows; rowKey; onOpen?; sort?; onSort?; empty?: string | EmptyProps; status? }`; `Column<T> { id; label; cell; kind?; priority?; sortable? }`; `Sort { by; order }` (`blocks/table.ts`). Decisions: text columns truncate to `minTextColumn` (96), figures and dates never; non-primary columns leave by priority (tertiary first, later first) and **fold under the first primary text column** as a muted line (numeric ones as "Label value"; empties earn no slot); primaries never leave (`FIT_COLUMNS` if they cannot fit); `kind: 'number' | 'money'` aligns right with tabular numerals; 60 rows then "Show N more of M"; `onOpen` makes rows tab stops named by their primary `<td>` (`aria-labelledby`), opened by Enter or Space (Space without scrolling; a control inside a cell keeps its own keys) and lit while focused; `sortable` headers hold a real `<button>` so Enter/Space toggle `onSort`, with `aria-sort` on the `th`; with no rows, `empty` renders the `Empty` block (a string is its `title`; pass `EmptyProps` for a `hint` or `actions`).
 
 ```typescript
 // ✅ CORRECT — packages/ledger/src/screens/transactions.ts
 const columns: Column<Transaction>[] = [
-  { id: 'date', header: 'Date', kind: 'date', cell: (t) => shortDate(t.date), priority: 'primary', sortable: true },
-  { id: 'payee', header: 'Payee', cell: (t) => t.payee, priority: 'primary', sortable: true },
-  { id: 'category', header: 'Category', cell: (t) => categoryName(t.categoryId), sortable: true },
-  { id: 'account', header: 'Account', cell: (t) => accountName(t.accountId), priority: 'tertiary' },
-  { id: 'note', header: 'Note', cell: (t) => t.note ?? '', priority: 'tertiary' },
-  { id: 'amount', header: 'Amount', kind: 'money', cell: (t) => Text({ text: money(t.amount, { sign: true }), tone: t.amount > 0 ? 'positive' : 'neutral' }), priority: 'primary', sortable: true },
+  { id: 'date', label: 'Date', kind: 'date', cell: (t) => shortDate(t.date), priority: 'primary', sortable: true },
+  { id: 'payee', label: 'Payee', cell: (t) => t.payee, priority: 'primary', sortable: true },
+  { id: 'category', label: 'Category', cell: (t) => categoryName(t.categoryId), sortable: true },
+  { id: 'account', label: 'Account', cell: (t) => accountName(t.accountId), priority: 'tertiary' },
+  { id: 'note', label: 'Note', cell: (t) => t.note ?? '', priority: 'tertiary' },
+  { id: 'amount', label: 'Amount', kind: 'money', cell: (t) => Text({ text: money(t.amount, { sign: true }), tone: t.amount > 0 ? 'positive' : 'neutral' }), priority: 'primary', sortable: true },
 ];
-Table<Transaction>({ columns, rows, key: (t) => t.id, sort, onSort: (s) => { sort.value = s; }, onSelect: (t) => { editing.value = t; open.value = true; }, empty: 'No transactions match these filters.' });
+Table<Transaction>({ columns, rows, rowKey: (t) => t.id, sort, onSort: (s) => { sort.value = s; }, onOpen: (t) => { editing.value = t; open.value = true; }, empty: 'No transactions match these filters.' });
 ```
 
 ### `block-form` — `Form` is a schema; the engine decides the rest
 
-`FormProps<T> { fields; value? | initial? + key?; onChange?; onSubmit; submitLabel?; onCancel?; destructive?; mode?; ref? }`; `FormHandle { reset(); submit() }` (`blocks/form.ts`, `blocks/form/schema.ts`). The ten rules are section 3. Columns from the visible field count (`minField` 240); `FIT_CELL` below it. Every control is labelled by the engine: `<label for>` for a labelable control, `aria-labelledby` for a segmented group (its heading click focuses the checked option), and a checkbox's caption is its own `<label for>`.
+`FormProps<T> { fields; value? | initial? + key?; onChange?; onSubmit; submitLabel?; onCancel?; actions?; mode?; ref? }`; `FormHandle { reset(); submit() }` (`blocks/form.ts`, `blocks/form/schema.ts`). The ten rules are section 3. Columns from the visible field count (`minField` 240); `FIT_CELL` below it. Every control is labelled by the engine: `<label for>` for a labelable control, `aria-labelledby` for a segmented group (its heading click focuses the checked option), and a boolean's one string — its `label` — is the `<label for>` beside the box. `actions` sit beside Cancel and the submit: the submit is the row's primary, a destructive action sits first and apart, and every one is drawn by the one renderer.
 
 ```typescript
 // ✅ CORRECT — packages/ledger/src/screens/accounts.ts (owned draft in a dialog)
@@ -218,7 +267,7 @@ Form<Draft>({
 
 ### `block-dialog` — `Dialog` is a card with room and a sheet on a phone
 
-`DialogProps { title; open; onClose; children }` (`blocks/dialog.ts`). Below `dialogMin` (640) viewport it is a full-height sheet; otherwise a centred card of `dialogWidth` (520). The engine locks body scroll, closes on Escape and overlay click, focuses the first control on open, and restores focus on close. Dialogs have no action row yet (issue 0023) — see `dogfood-no-fake-intent`.
+`DialogProps { title; open; onClose; children; actions? }` (`blocks/dialog.ts`). Below `dialogMin` (640) viewport it is a full-height sheet; otherwise a centred card of `dialogWidth` (520). The engine locks body scroll, closes on Escape and overlay click, focuses the first control on open, and restores focus on close. `actions` render after `children`, wrap and never overflow (the dialog is already the focused layer) — a dialog whose purpose is a decision says `actions`, never `Form({ fields: [] })` (issue 0023, resolved).
 
 ```typescript
 // ✅ CORRECT — packages/ledger/src/screens/transaction-dialog.ts
@@ -228,18 +277,22 @@ return Dialog({
   onClose: props.onClose,
   children: computed(() => [Form<Draft>({ fields, initial: toDraft(props.transaction.value, props.accountId.value), key: draftKey.value, onSubmit: submit, /* … */ })]),
 });
+
+// ✅ CORRECT — a decision dialog: content, then its actions
+Dialog({ title: `${item.institution}`, open, onClose, children: [Text({ text: summary, role: 'note' }), Table({ /* … */ })],
+  actions: [{ id: 'sync', label: 'Sync now', priority: 'primary', onSelect: sync }, { id: 'disconnect', label: 'Disconnect', destructive: true, onSelect: disconnect }] });
 ```
 
 ### `block-meter` — `Meter` tones itself by ratio
 
-`MeterProps { label; value; max; detail? }` (`blocks/meter.ts`). `value/max > 1` → negative, `> 0.85` → warning, else neutral; `role="meter"` with `aria-valuenow/min/max`. The app supplies numbers and the formatted `detail`.
+`MeterProps { label; value; max; text? }` (`blocks/meter.ts`). `value/max > 1` → negative, `> 0.85` → warning, else neutral; `role="meter"` with `aria-valuenow/min/max`. The app supplies numbers and the reading as `text`.
 
 ```typescript
 // ❌ WRONG — the app picking the tone
 Meter({ label, value, max, tone: spent > limit ? 'negative' : 'neutral' });
 
 // ✅ CORRECT — packages/ledger/src/screens/budgets.ts
-Meter({ label: r.category, value: r.spent, max: r.limit, detail: `${money(r.spent)} of ${money(r.limit)}` })
+Meter({ label: r.category, value: r.spent, max: r.limit, text: `${money(r.spent)} of ${money(r.limit)}` })
 ```
 
 ### `block-bars` — `Bars` sizes its label column
@@ -253,30 +306,36 @@ Bars({ items: byCategory })   // [{ label: c.name, value: cents, text: money(cen
 
 ### `block-columns` — `Columns` is grouped bars over an ordered axis
 
-`ColumnsProps { labels; series: Series[]; text }`; `Series { name; tone?; values }` (`blocks/columns.ts`). The engine sizes bars to width and shows every nth axis label so none overlap; the legend is drawn from `series`; `tone` picks `chart.bar.*`.
+`ColumnsProps { labels; series: Series[]; format }`; `Series { label; tone?; values }` (`blocks/columns.ts`). The engine sizes bars to width and shows every nth axis label so none overlap; the legend is drawn from `series`; `tone` picks `chart.bar.*`.
 
 ```typescript
 // ✅ CORRECT — packages/ledger/src/screens/overview.ts
-Columns({ labels: trendLabels, series: trendSeries, text: (v) => money(v) })
-// trendSeries: [{ name: 'Income', tone: 'positive', values }, { name: 'Spending', tone: 'negative', values }]
+Columns({ labels: trendLabels, series: trendSeries, format: (v) => money(v) })
+// trendSeries: Series[] = [{ label: 'Income', tone: 'positive', values }, { label: 'Spending', tone: 'negative', values }]
 ```
 
-### `block-empty` — `Empty` is the call to action when there is nothing
+### `block-empty` — `Empty` is the statement when there is nothing
 
-`EmptyProps { title; hint?; action? }` (`blocks/empty.ts`). Centred title, optional hint, one primary action that goes busy on a promise. Use it for a whole-screen or whole-section nothing; `Table.empty` covers an empty list inside a table.
+`EmptyProps { title; hint?; actions? }` (`blocks/empty.ts`). The `title` is the statement ("No banks connected"), the `hint` what to do about it, and `actions` a centred row through the one renderer — mark the one the person came for `priority: 'primary'` and it is filled; Empty no longer assumes so. Use it for a whole-screen or whole-section nothing; `Table.empty` renders this same block inside a table.
 
 ```typescript
 // ✅ CORRECT
-Empty({ title: 'No banks connected', hint: 'Link a bank to sync transactions automatically.', action: { id: 'link', label: 'Connect a bank', onSelect: link } })
+Empty({ title: 'No banks connected', hint: 'Link a bank to sync transactions automatically.', actions: [{ id: 'link', label: 'Connect a bank', priority: 'primary', onSelect: link }] })
 ```
 
 ### `block-text` — `Text` names a role and a tone
 
-`TextProps { text; role?: 'body' | 'muted' | 'heading' | 'code'; tone? }` (`blocks/text.ts`). Role maps to a `text.*` part, tone to a `tone.*` part; long text wraps anywhere. Also valid as a table `CellValue`.
+`TextProps { text; role?: 'body' | 'note' | 'code'; tone? }` (`blocks/text.ts`). `role` says what the prose is: `body` (default); `note` — WAI-ARIA's word for content ancillary to the main content, a free-standing secondary paragraph (the engine emits `role="note"` and the skin's muted look); `code`, a literal (`role="code"`). There is no `muted` (a Part) and no `heading` (a heading is a container's `title` — a heading between blocks is a Section). Tone maps to a `tone.*` part; long text wraps anywhere. Also valid as a table `CellValue`.
 
 ```typescript
 // ✅ CORRECT — packages/ledger/src/screens/budgets.ts (inside a column cell)
 Text({ text: money(r.remaining, { sign: true }), tone: r.remaining < 0 ? 'negative' : r.remaining < r.limit * 0.15 ? 'warning' : 'positive' })
+
+// ✅ CORRECT — packages/ledger/src/screens/settings.ts: an explanatory paragraph under a Section
+Text({ text: 'Backups are written on the Mac daily, under server/data/backups.', role: 'note' })
+
+// ✅ CORRECT — an error line is body text with a tone, not a note
+Text({ text: `${error.code}: ${error.message}`, tone: 'negative' })
 ```
 
 ### `block-link` — `Link` is a dressed anchor
@@ -299,22 +358,39 @@ notify(existing ? 'Transaction saved' : 'Transaction added', 'positive');
 
 ### `block-confirm` — `confirm()` asks before the irreversible
 
-`confirm({ title, message, confirmLabel?, destructive? }): Promise<boolean>` (`blocks/confirm.ts`). Renders a `Dialog` with Cancel and a primary or danger confirm; resolves the answer. Pair with `destructive: true` actions (Ledger tenet 3: deletions ask first and say what they delete).
+`confirm({ title, text, action: Pick<Action, 'label' | 'destructive'> }): Promise<boolean>` (`blocks/confirm.ts`). Renders a `Dialog` with Cancel and the answer; the engine makes the answer the row's primary (filled, or danger when destructive) — the same rule as every other row. Pair with `destructive: true` actions (Ledger tenet 3: deletions ask first and say what they delete).
 
 ```typescript
 // ✅ CORRECT — packages/ledger/src/screens/budgets.ts
-destructive: editing.value ? { id: 'delete', label: 'Delete budget', destructive: true, onSelect: async () => {
+actions: editing.value ? [{ id: 'delete', label: 'Delete budget', destructive: true, onSelect: async () => {
   const b = editing.value!;
-  if (!(await confirm({ title: 'Delete budget?', message: `${categoryName(b.categoryId)} · ${money(b.limit)} per month`, confirmLabel: 'Delete', destructive: true }))) return;
+  if (!(await confirm({ title: 'Delete budget?', text: `${categoryName(b.categoryId)} · ${money(b.limit)} per month`, action: { label: 'Delete', destructive: true } }))) return;
   removeBudget(b.id); open.value = false; notify('Budget deleted');
-} } : undefined,
+} }] : [],
 ```
 
 ---
 
 ## 3. Form Schema (HIGH) — ADR 0037
 
-`Field<T> { key; label; kind: FieldKind; required?; placeholder?; hint?; accept?; options?; when?; readOnly?; validate?; min?; max?; step?; group?; long? }`; `FieldKind = 'text' | 'number' | 'money' | 'date' | 'select' | 'textarea' | 'file' | 'checkbox'` (`blocks/form/schema.ts`). Each rule below is one place in `form/*` and one named test in `form.test.ts`.
+`Field<T> = DatumField | BooleanField | FileField`, discriminated on `kind?: Kind` (`blocks/form/schema.ts`): `DatumField { name; label; kind?: 'text' | 'number' | 'money' | 'date'; required?; placeholder?; hint?; options?; when?; readOnly?; validate?; min?; max?; step?; group?; long? }`; `BooleanField { name; label; kind: 'boolean'; … }` (no `placeholder`, `options`, `long`, bounds); `FileField { name; label; kind: 'file'; accept?; … }` (no `placeholder`). `kind` says what the value is; how it is captured is derived — see `form-capture-derived`. Each rule below is one place in `form/*` and one named test in `form.test.ts`.
+
+### `form-capture-derived` — `kind` is the datum; capture is the engine's (ADR 0043 rule 4)
+
+There is no `'select'`, `'textarea'` or `'checkbox'`. `options` present → a choice (segmented at ≤ 3, else a list — the engine's call); `long: true` → a multi-line control; `kind: 'boolean'` → a box with the field's `label` beside it as its `<label for>` (one string, the whole name); `kind: 'file'` → a picker. A `placeholder` is ghost text or the empty choice, and a type error on `boolean` and `file`.
+
+```typescript
+// ❌ WRONG — widget words, and a checkbox named twice (0042 §(d), superseded)
+{ name: 'categoryId', label: 'Category', kind: 'select', options }
+{ name: 'note', label: 'Note', kind: 'textarea' }
+{ name: 'income', label: 'Kind', kind: 'checkbox', placeholder: 'This is income' }
+
+// ✅ CORRECT — what the value is; the engine captures it
+{ name: 'categoryId', label: 'Category', options }
+{ name: 'note', label: 'Note', long: true }
+{ name: 'income', label: 'This is income', kind: 'boolean' }
+{ name: 'file', label: 'CSV file', kind: 'file', accept: '.csv,text/csv', required: true }
+```
 
 ### `form-when-presence` — Presence is `when(draft)`, never hint prose (rule 1)
 
@@ -322,14 +398,14 @@ A field whose `when` is false is not rendered, carries no error, and leaves the 
 
 ```typescript
 // ❌ WRONG — issue 0022: the rule lives in prose and is validated after the fact
-{ key: 'amount', label: 'Amount column', kind: 'select', hint: 'One signed column — or leave blank and use debit/credit below' }
+{ name: 'amount', label: 'Amount column', hint: 'One signed column — or leave blank and use debit/credit below' }
 
 // ✅ CORRECT — packages/ledger/src/screens/import.ts
 const signed = (d: Partial<Mapping>) => d.amountShape === 'signed';
 const split = (d: Partial<Mapping>) => d.amountShape === 'split';
-{ key: 'amount', label: 'Amount column', kind: 'select', required: true, options: colOptions.value, when: signed, validate: differsFrom('date', 'date') },
-{ key: 'debit',  label: 'Money out column', kind: 'select', options: colOptions.value, placeholder: 'None', when: split, validate: differsFrom('credit', 'money in') },
-{ key: 'credit', label: 'Money in column',  kind: 'select', options: colOptions.value, placeholder: 'None', when: split, validate: differsFrom('debit', 'money out') },
+{ name: 'amount', label: 'Amount column', required: true, options: colOptions.value, when: signed, validate: differsFrom('date', 'date') },
+{ name: 'debit', label: 'Money out column', options: colOptions.value, placeholder: 'None', when: split, validate: differsFrom('credit', 'money in') },
+{ name: 'credit', label: 'Money in column', options: colOptions.value, placeholder: 'None', when: split, validate: differsFrom('debit', 'money out') },
 ```
 
 ### `form-options-draft` — Dependent choices are `options(draft)` (rule 2)
@@ -338,7 +414,7 @@ const split = (d: Partial<Mapping>) => d.amountShape === 'split';
 
 ```typescript
 // ✅ CORRECT — packages/ledger/src/screens/transaction-dialog.ts
-{ key: 'categoryId', label: 'Category', kind: 'select',
+{ name: 'categoryId', label: 'Category',
   options: (d) => categories.value.filter((c) => c.id === 'transfer' || !!c.income === (d.kind === 'income')).map((c) => ({ value: c.id, label: c.name })),
   hint: 'Left blank, a matching rule decides; otherwise Uncategorized.' }
 ```
@@ -352,7 +428,7 @@ const split = (d: Partial<Mapping>) => d.amountShape === 'split';
 onChange: (v) => { error.value = v.opening > 0 && v.kind === 'credit' ? 'Enter as negative' : ''; }
 
 // ✅ CORRECT — packages/ledger/src/screens/accounts.ts
-{ key: 'opening', label: 'Opening balance', kind: 'money', required: true, step: 0.01, hint: 'Negative for money owed',
+{ name: 'opening', label: 'Opening balance', kind: 'money', required: true, step: 0.01, hint: 'Negative for money owed',
   validate: (v, d) => (d.kind === 'credit' && typeof v === 'number' && v > 0 ? 'A credit card balance is money owed — enter it as zero or negative' : undefined) }
 ```
 
@@ -398,18 +474,18 @@ Fields sharing a `group` string become one `fieldset` with a `legend`, spanning 
 
 ```typescript
 // ✅ CORRECT
-{ key: 'street', label: 'Street', kind: 'text', group: 'Shipping', long: true },
-{ key: 'city',   label: 'City',   kind: 'text', group: 'Shipping' },
-{ key: 'zip',    label: 'Postcode', kind: 'text', group: 'Shipping' },
+{ name: 'street', label: 'Street', kind: 'text', group: 'Shipping', long: true },
+{ name: 'city', label: 'City',   kind: 'text', group: 'Shipping' },
+{ name: 'zip', label: 'Postcode', kind: 'text', group: 'Shipping' },
 ```
 
 ### `form-long` — `long` spans the row; there is no width word (rule 6, non-goals)
 
-`long: true` or `kind: 'textarea'` takes the full row. `Field` has no `width`, `inline`, `columns`, or `segmented` — by the 0034 rule.
+`long: true` takes the full row and a multi-line control. `Field` has no `width`, `inline`, `columns`, `segmented` or `textarea` — by the 0034 rule.
 
 ```typescript
 // ✅ CORRECT — packages/ledger/src/screens/transaction-dialog.ts
-{ key: 'note', label: 'Note', kind: 'textarea', placeholder: 'Optional', long: true }
+{ name: 'note', label: 'Note', placeholder: 'Optional', long: true }
 ```
 
 ### `form-bounds-readonly` — Bounds reach the control; read-only follows the draft (rules 7, 8)
@@ -418,12 +494,12 @@ Fields sharing a `group` string become one `fieldset` with a `legend`, spanning 
 
 ```typescript
 // ✅ CORRECT — packages/ledger/src/screens/budgets.ts
-{ key: 'limit', label: 'Monthly limit', kind: 'money', required: true, min: 0 }
+{ name: 'limit', label: 'Monthly limit', kind: 'money', required: true, min: 0 }
 ```
 
 ### `form-submit-async` — A promise from `onSubmit` goes busy on its own (rule 10)
 
-Return the promise; the submit button is `aria-busy` and disabled until it settles, a rejection becomes a negative notice, and the draft commits on success. Same for `destructive.onSelect`.
+Return the promise; the submit button is `aria-busy` and disabled until it settles, a rejection becomes a negative notice, and the draft commits on success. Same for an `actions[].onSelect`.
 
 ```typescript
 // ❌ WRONG
@@ -445,12 +521,12 @@ Form<Record<string, never>>({ fields: [], value: {}, onChange: () => {}, onSubmi
 ```typescript
 // ✅ CORRECT — packages/ledger/src/screens/settings.ts
 const backups = query(() => ['ledger', 'backups'], () => listBackups());
-Table<ServerBackup>({ columns: backupColumns, rows: backupRows, key: (b) => b.name, status: backups, onSelect: (b) => { chosen.value = b; restoring.value = true; }, empty: 'No backups yet. The first one is written tonight.' })
+Table<ServerBackup>({ columns: backupColumns, rows: backupRows, rowKey: (b) => b.name, status: backups, onOpen: (b) => { chosen.value = b; restoring.value = true; }, empty: 'No backups yet. The first one is written tonight.' })
 ```
 
 ### `status-async-actions-busy` — Return the promise from `onSelect`
 
-`Action.onSelect` may return a promise; every block that renders an `Action` (Toolbar/Page, Empty, Form's destructive) shows it busy until it settles and notifies on rejection.
+`Action.onSelect` may return a promise; every host of an `Action` (Toolbar/Page, Empty, Form, Dialog) shows it busy until it settles and notifies on rejection — one renderer, one rule.
 
 ```typescript
 // ❌ WRONG — a hand-rolled busy flag and swallowed error
@@ -458,7 +534,7 @@ Table<ServerBackup>({ columns: backupColumns, rows: backupRows, key: (b) => b.na
 
 // ✅ CORRECT — packages/ledger/src/screens/settings.ts
 { id: 'reset', label: 'Reset demo data', priority: 'tertiary', destructive: true, onSelect: async () => {
-  if (!(await confirm({ title: 'Reset all data?', message: 'This replaces everything with the demo data. Export a backup first if you need it.', confirmLabel: 'Reset', destructive: true }))) return;
+  if (!(await confirm({ title: 'Reset all data?', text: 'This replaces everything with the demo data. Export a backup first if you need it.', action: { label: 'Reset', destructive: true } }))) return;
   resetToSeed(); draft.value = { ...settings.value }; notify('Demo data restored');
 } }
 ```
@@ -504,7 +580,7 @@ const dark = matchMedia('(prefers-color-scheme: dark)').matches;
 useSkin(dark ? darkSkin : lightSkin);
 
 // ✅ CORRECT — packages/ledger/src/screens/settings.ts offers it as a select; main.ts forwards it
-{ key: 'appearance', label: 'Appearance', kind: 'select', required: true, options: [{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }] }
+{ name: 'appearance', label: 'Appearance', required: true, options: [{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }] }
 ```
 
 ### `skin-write-parts` — A skin is a map of parts, or a function of the axes
@@ -537,32 +613,32 @@ With no skin every `look()` is empty and blocks render bare: browser-default tex
 
 ## 6. Decisions & Levers (MEDIUM-HIGH)
 
-The levers an author holds are `priority`, `kind`, `tone`, `destructive`, `role`, `required`, `sortable`, and structure. Everything else is the engine's (ADR 0034, *Decision rules that exist today*).
+The levers an author holds are `priority`, `kind`, `tone`, `destructive`, `role`, `required`, `sortable`, `options`, `long`, and structure. Everything else is the engine's (ADR 0034, *Decision rules that exist today*).
 
 ### `decide-priority-lever` — `priority` is survival order
 
-On `Action` and `Column`: `primary` survives longest, `tertiary` leaves first; equal priority gives ground from the end (document order). Order your tertiaries so the least valuable is last.
+`Priority = 'primary' | 'secondary' | 'tertiary'` (exported), default `'secondary'`. On `Action` and `Column`: `primary` survives longest, `tertiary` leaves first; equal priority gives ground from the end (document order). Order your tertiaries so the least valuable is last. The word has one meaning — survival; that the primary action is the filled button, and that the first primary text column is the fold target, are the engine's rules.
 
 ```typescript
 // ✅ CORRECT — packages/ledger/src/screens/overview.ts: cadence is the first to fold
 const recurringColumns: Column<RecurringItem>[] = [
-  { id: 'payee', header: 'Payee', cell: (r) => r.payee, priority: 'primary' },
-  { id: 'cadence', header: 'Cadence', cell: (r) => r.cadence, priority: 'tertiary' },
-  { id: 'typical', header: 'Typical', kind: 'money', cell: (r) => money(r.typicalAmount, { sign: true }) },
-  { id: 'next', header: 'Next expected', kind: 'date', cell: (r) => shortDate(r.nextExpected) },
+  { id: 'payee', label: 'Payee', cell: (r) => r.payee, priority: 'primary' },
+  { id: 'cadence', label: 'Cadence', cell: (r) => r.cadence, priority: 'tertiary' },
+  { id: 'typical', label: 'Typical', kind: 'money', cell: (r) => money(r.typicalAmount, { sign: true }) },
+  { id: 'next', label: 'Next expected', kind: 'date', cell: (r) => shortDate(r.nextExpected) },
 ];
 ```
 
 ### `decide-kind-lever` — `kind` says what a cell holds
 
-`number`/`money` align right with tabular numerals and never truncate; `date` uses tabular numerals and never truncates; `text` (default) truncates to `minTextColumn`. Mark every figure column — an unmarked amount column will be truncated as text.
+`Kind` (exported) says what a value is, on a Column and a Field alike. On a column (`'text' | 'number' | 'money' | 'date'`): `number`/`money` align right with tabular numerals and never truncate; `date` uses tabular numerals and never truncates; `text` (default) truncates to `minTextColumn`. Mark every figure column — an unmarked amount column will be truncated as text. On a field the same four, plus `'boolean'` and `'file'`; never a widget.
 
 ```typescript
 // ❌ WRONG — a money column left as text: it may truncate and aligns left
-{ id: 'amount', header: 'Amount', cell: (t) => money(t.amount) }
+{ id: 'amount', label: 'Amount', cell: (t) => money(t.amount) }
 
 // ✅ CORRECT
-{ id: 'amount', header: 'Amount', kind: 'money', cell: (t) => money(t.amount), priority: 'primary' }
+{ id: 'amount', label: 'Amount', kind: 'money', cell: (t) => money(t.amount), priority: 'primary' }
 ```
 
 ### `decide-tone-lever` — `tone` names meaning, once
@@ -574,9 +650,23 @@ const recurringColumns: Column<RecurringItem>[] = [
 Text({ text: c.status, tone: c.ok ? 'positive' : 'negative' })
 ```
 
+### `decide-one-action-rule` — One `Action`, one renderer, one rule (ADR 0043 rule 3)
+
+Every host of an `Action` — Toolbar (and Page), Empty, Form, Dialog, and `confirm`'s answers — draws it through `blocks/actions.ts` with one rule, applied per action: `destructive` → `button.danger` (wins); else `priority: 'primary'` → `button.primary`; else `button.plain`; busy under its `id` on a returned promise. The renderer never counts: two primaries are two filled buttons. One primary per row is the convention to write to; in a Form the submit is the row's primary, so a Form or Dialog `actions` entry is normally secondary, tertiary or destructive. Only the Toolbar overflows (to a menu, `FIT_ROW` below the minimum); Empty, Form and Dialog rows wrap. In a footer (Form, Dialog) a destructive action sits first and apart.
+
+```typescript
+// ❌ WRONG — expecting Empty to fill its only action, or a Form to make an extra action danger on its own
+Empty({ title: 'No rules', actions: [{ id: 'add', label: 'Add rule' }] })            // plain: nothing said primary
+Form({ /* … */ actions: [{ id: 'delete', label: 'Delete' }] })                          // plain: nothing said destructive
+
+// ✅ CORRECT — the word carries the meaning; the rule is the same everywhere
+Empty({ title: 'No rules', actions: [{ id: 'add', label: 'Add rule', priority: 'primary', onSelect: add }] })
+Form({ /* … */ actions: [{ id: 'delete', label: 'Delete', destructive: true, onSelect: remove }] })
+```
+
 ### `decide-destructive-lever` — `destructive` is danger, never primary
 
-`Action.destructive: true` renders as danger (`button.danger`, `menu.item.danger`) and is never treated as primary. It is a word about consequence; pair it with `confirm()`.
+`Action.destructive: true` renders as danger (`button.danger`, `menu.item.danger`) wherever it is placed and wins over `priority: 'primary'`. It is a word about consequence; pair it with `confirm()`.
 
 ### `decide-text-truncates` — Text gives ground before anything leaves; figures never do
 
@@ -612,18 +702,18 @@ const open = signal(false);
 html`<div style="position:fixed;bottom:0" hidden=${() => !open.value}>…</div>`;   // no Escape, no focus, pushes nothing back
 
 // ✅ CORRECT — packages/ledger/src/main.ts: the App decides; at 360 its menu is a popover layer with no app line
-const app = App({ brand: 'Ledger', nav, location: computed(() => router.url.value.pathname), content: AppRouter({}) });
+const app = App({ brand: 'Ledger', nav, location: computed(() => router.url.value.pathname), children: AppRouter({}) });
 ```
 
 ### `decide-reachable-by-keyboard` — Every decision is reachable by keyboard and named for AT
 
-If the engine draws something a person can act on, a keyboard reaches it and a reader can name it, with no app line (ADR 0042): a `sortable` header is a real `<button>` (Enter/Space sort, `aria-sort` on the `th`); an `onSelect` row is a tab stop named by its primary cell; every notice has a Dismiss in the tab order and answers Escape; every Form control is labelled by a `<label for>` or `aria-labelledby`; a keyboard dismiss never drops focus to `<body>`. Ledger's Transactions screen gains keyboard sorting and named rows without a change.
+If the engine draws something a person can act on, a keyboard reaches it and a reader can name it, with no app line (ADR 0042): a `sortable` header is a real `<button>` (Enter/Space sort, `aria-sort` on the `th`); an `onOpen` row is a tab stop named by its primary cell; every notice has a Dismiss in the tab order and answers Escape; every Form control is labelled by a `<label for>` or `aria-labelledby`; a keyboard dismiss never drops focus to `<body>`. Ledger's Transactions screen gains keyboard sorting and named rows without a change.
 
 ```typescript
-// ✅ CORRECT — packages/ledger/src/screens/transactions.ts: `sortable` and `onSelect` are the whole intent
-{ id: 'date', header: 'Date', kind: 'date', cell: (t) => shortDate(t.date), priority: 'primary', sortable: true },
+// ✅ CORRECT — packages/ledger/src/screens/transactions.ts: `sortable` and `onOpen` are the whole intent
+{ id: 'date', label: 'Date', kind: 'date', cell: (t) => shortDate(t.date), priority: 'primary', sortable: true },
 …
-Table<Transaction>({ columns, rows, key: (t) => t.id, sort, onSort: (s) => { sort.value = s; }, onSelect: (t) => { editing.value = t; open.value = true; } })
+Table<Transaction>({ columns, rows, rowKey: (t) => t.id, sort, onSort: (s) => { sort.value = s; }, onOpen: (t) => { editing.value = t; open.value = true; } })
 ```
 
 ### `decide-tone-is-urgency` — A notice's tone is its urgency
@@ -801,7 +891,7 @@ Form<FileStep>({ fields: fileFields, mode: 'live', initial: { file: undefined, a
 
 ### `dogfood-no-fake-intent` — Do not bend a block to mean something else
 
-Issue 0023: a dialog whose purpose is a decision has no action row, so screens mount `Form<Record<string, never>>({ fields: [] })` to obtain buttons. It works and it is the wrong intent — "a form" said to mean "some actions". Tolerated as a filed gap; never introduce a new one silently.
+Issue 0023 was the example: a dialog whose purpose is a decision had no action row, so a screen mounted `Form<Record<string, never>>({ fields: [] })` to obtain buttons — "a form" said to mean "some actions". ADR 0043 resolved it with `Dialog.actions`; the fieldless Form is now the wrong word and a compile-clean lie. When a block does not fit, file the gap and solve it in the engine; never bend a block silently.
 
 ### `dogfood-keep-tenets` — `TENETS.md` is the app-side contract
 
@@ -829,7 +919,11 @@ The engine's own lesson (`engine/use-fit.ts` header, `blocks/kernel.ts` header):
 
 ### Expecting a `<select>` for a field with ≤ 3 options
 
-Intent stays `kind: 'select'`, but 2–3 options render a segmented `role="radiogroup"` of `role="radio"` buttons; 4+ render a native `<select>` with a leading "Choose…" (`form.test.ts` rule 4). A test that queries `select#f-kind` for a 2-option field finds nothing. Query `#f-<key>` and branch on `getAttribute('role')`; a `placeholder` on a select field is the first option's text only in the native case.
+A field with `options` is a choice: 2–3 options render a segmented `role="radiogroup"` of `role="radio"` buttons; 4+ render a native `<select>` with a leading "Choose…" (`form.test.ts` rule 4). A test that queries `select#f-kind` for a 2-option field finds nothing. Query `#f-<name>` and branch on `getAttribute('role')`; a `placeholder` on a choice is the empty option's text only in the native case.
+
+### Writing the pre-0.8.0 words
+
+`header`, `key` on a field, `key`/`onSelect` on a Table, `dir`, `kind: 'select' | 'textarea' | 'checkbox'`, `role: 'muted' | 'heading'`, `Empty.action`, `Form.destructive`, `confirmLabel`/`message`, `Meter.detail`, `Series.name`, `Columns.text`, `App.content` — each is a compile error (ADR 0043, `actions.test.ts`). The fix is the vocabulary (`intent-one-word-one-meaning`), never a cast; and a `'positive' as const` on a tone means a computed that should be annotated `Delta` or `Action[]`.
 
 ### Reading `children` lazily
 
@@ -843,11 +937,11 @@ Core diagnoses a prop that is never read (N202). A block or screen wrapper that 
 
 ## Rule index
 
-`intent-say-what-not-how` · `intent-no-appearance-vocabulary` · `intent-new-need-home` · `intent-app-imports-blocks-only` · `intent-structure-is-the-decision`
+`intent-say-what-not-how` · `intent-one-word-one-meaning` · `intent-no-appearance-vocabulary` · `intent-new-need-home` · `intent-app-imports-blocks-only` · `intent-structure-is-the-decision`
 `block-app` · `block-page` · `block-toolbar` · `block-section` · `block-grid` · `block-stat` · `block-table` · `block-form` · `block-dialog` · `block-meter` · `block-bars` · `block-columns` · `block-empty` · `block-text` · `block-link` · `block-notify` · `block-confirm`
-`form-when-presence` · `form-options-draft` · `form-validate-reason` · `form-owned-initial-key` · `form-controlled-value` · `form-live-mode` · `form-group` · `form-long` · `form-bounds-readonly` · `form-submit-async`
+`form-capture-derived` · `form-when-presence` · `form-options-draft` · `form-validate-reason` · `form-owned-initial-key` · `form-controlled-value` · `form-live-mode` · `form-group` · `form-long` · `form-bounds-readonly` · `form-submit-async`
 `status-pass-result` · `status-async-actions-busy` · `status-no-loading-flags` · `status-stale-stays`
 `skin-use-once-root` · `skin-scheme-preference` · `skin-write-parts` · `skin-no-layout` · `skin-bare-proves`
-`decide-priority-lever` · `decide-kind-lever` · `decide-tone-lever` · `decide-destructive-lever` · `decide-text-truncates` · `decide-columns-fold` · `decide-grids-choose-columns` · `decide-dont-control`
+`decide-priority-lever` · `decide-kind-lever` · `decide-tone-lever` · `decide-one-action-rule` · `decide-destructive-lever` · `decide-text-truncates` · `decide-columns-fold` · `decide-grids-choose-columns` · `decide-dont-control`
 `prove-screens-with-prove` · `prove-claims-are-failures` · `prove-reports-are-failures` · `prove-real-content` · `prove-mount-at-width` · `prove-text-measurer` · `prove-five-widths` · `prove-verify-routes` · `prove-screenshots-not-proof`
 `dogfood-issue-then-engine` · `dogfood-no-fake-intent` · `dogfood-keep-tenets`

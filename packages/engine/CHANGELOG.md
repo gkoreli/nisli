@@ -4,6 +4,52 @@ All notable changes to `@nisli/engine`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Unreleased until the first
 publish.
 
+## 0.8.0 — 2026-08-30
+
+- **The intent vocabulary contract (ADR 0043; issue 0027, 0023).** One
+  word, one meaning, across the whole surface; no look words in intent;
+  every `Action` honoured identically. A clean break — no aliases, no
+  deprecations; the compiler rejects the old words. Every rename:
+
+  | old | new | where |
+  |---|---|---|
+  | `Field.key` | `name` | `form/schema.ts` |
+  | `Field.kind: FieldKind` (`'select'`, `'textarea'`, `'checkbox'`) | `kind?: Kind` (`'text'` default, `'number'`, `'money'`, `'date'`, `'boolean'`, `'file'`); capture derived from `options`, `long`, the kind | `form/schema.ts`, `form.ts` |
+  | `FieldKind` | removed; `Kind`, `DatumField`, `BooleanField`, `FileField` exported | `types.ts`, `index.ts` |
+  | `Field.placeholder` as a checkbox caption | a `boolean` field's one string is its `label`, the `<label for>` beside the box; `placeholder` is a type error on `boolean` and `file` | `form.ts` |
+  | `Column.header` | `label` | `table.ts` |
+  | `Column.kind` (own union) | `Extract<Kind, 'text' \| 'number' \| 'money' \| 'date'>` | `table.ts` |
+  | `TableProps.key` | `rowKey` | `table.ts` |
+  | `TableProps.onSelect` | `onOpen` | `table.ts` |
+  | `Sort.dir` | `order` | `table.ts` |
+  | `TableProps.empty: string` (a muted line) | `string \| EmptyProps`, rendered as the `Empty` block | `table.ts` |
+  | `Series.name` | `label` | `columns.ts` |
+  | `ColumnsProps.text` | `format` | `columns.ts` |
+  | `MeterProps.detail` | `text` | `meter.ts` |
+  | `AppProps.content: Content` | `children: Children` | `app.ts` |
+  | `TextProps.role: 'muted'` | `'note'` (WAI-ARIA note; the engine emits `role="note"`, and `role="code"` for `'code'`) | `text.ts` |
+  | `TextProps.role: 'heading'` | removed — a heading is a container's `title` | `text.ts` |
+  | `EmptyProps.action: Action` | `actions: readonly Action[]` | `empty.ts` |
+  | `FormProps.destructive: Action` | `actions: readonly Action[]` (a destructive one first and apart; the submit is the row's primary) | `form.ts` |
+  | `confirm({ title, message, confirmLabel?, destructive? })` | `confirm({ title, text, action: Pick<Action, 'label' \| 'destructive'> })`; the answer is the row's primary | `confirm.ts` |
+  | — | `DialogProps.actions?: readonly Action[]`, after `children` (resolves issue 0023) | `dialog.ts` |
+  | `StatProps.delta: { text; tone }` | `Delta { text; tone? }`, exported; `Priority` exported | `stat.ts`, `types.ts` |
+
+- One renderer for every action: `blocks/actions.ts` (`actionButton`,
+  `menuItem`, `actionRow`, `variantOf`) draws Toolbar, Empty, Form (its
+  Cancel and submit included), Dialog and confirm with one rule per action —
+  `destructive` → `button.danger`; `priority: 'primary'` → `button.primary`;
+  else `button.plain`; busy under the action's id. Empty no longer assumes
+  its action is primary; Form no longer assumes its extra action is danger.
+  `kernel.test.ts` scans for it: `button.danger` nowhere else, `button.primary`
+  only there and on Form's chosen segmented option.
+- `index.ts` is split: the intent vocabulary first, then the skin, then the
+  Decision and block-author words (`LayerKind` stays, under that heading).
+- 0042 §(d) is superseded: a boolean field has one `<label for>`; the
+  accessible name is the label alone (`LABEL_MISSING` unchanged).
+- Tests: `blocks/actions.test.ts` (the contract as behaviour, and the old
+  words as `@ts-expect-error`s); every suite renamed to the new words.
+
 ## 0.7.0 — 2026-08-30
 
 - Skin contrast is a contract (ADR 0035 appearance layer, panel 2026-08-30):

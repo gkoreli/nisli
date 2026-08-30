@@ -1,7 +1,8 @@
 import { el, each, signal, computed, ref } from '@nisli/core';
-import { truncate, buttonBox, menuItemBox } from '../style.js';
+import { truncate, buttonBox } from '../style.js';
 import { measure } from '../engine/measure.js';
 import { block, focusables } from './kernel.js';
+import { actionButton, menuItem } from './actions.js';
 import type { Action } from './types.js';
 
 export type { Action };
@@ -15,7 +16,6 @@ export interface ToolbarProps {
 // ground (to `minTitle`) and everything else leaves first; a primary never leaves.
 const RANK = { tertiary: 1, secondary: 2, title: 10, primary: 20 } as const;
 const rank = (a: Action) => RANK[a.priority ?? 'secondary'];
-const variantOf = (a: Action) => (a.destructive ? 'danger' : a.priority === 'primary' ? 'primary' : 'plain');
 let nextId = 1;
 
 export const Toolbar = block<ToolbarProps>('nisli-toolbar', {
@@ -107,8 +107,6 @@ export const Toolbar = block<ToolbarProps>('nisli-toolbar', {
       else if (e.key === 'ArrowUp') { e.preventDefault(); openMenu('last'); }
     };
 
-    const isBusy = (a: Action) => busy.is(a.id);
-
     return [
       el('h2', {
         ref: titleEl,
@@ -119,17 +117,10 @@ export const Toolbar = block<ToolbarProps>('nisli-toolbar', {
       }, props.title),
       el('div', { style: ctx.part([], { flex: '1 1 0', minWidth: 0 }) }),
       each(actions, (a) => a.id, (a) =>
-        el('button', {
-          type: 'button',
-          'data-nisli-action': computed(() => a.value.id),
-          'aria-busy': computed(() => (isBusy(a.value) ? 'true' : false)),
-          disabled: computed(() => (isBusy(a.value) ? 'disabled' : false)),
-          style: ctx.part(
-            () => ['button', `button.${variantOf(a.value)}`, ...(isBusy(a.value) ? ['button.busy' as const] : [])],
-            () => ({ ...buttonBox(), display: row.gone(a.value.id) ? 'none' : 'inline-flex' }),
-          ),
-          on: { click: () => busy.run(a.value.id, a.value.onSelect) },
-        }, computed(() => a.value.label)),
+        actionButton(ctx, () => a.value, {
+          attrs: { 'data-nisli-action': computed(() => a.value.id) },
+          structure: () => ({ display: row.gone(a.value.id) ? 'none' : 'inline-flex' }),
+        }),
       ),
       el('button', {
         ref: trigger,
@@ -162,16 +153,13 @@ export const Toolbar = block<ToolbarProps>('nisli-toolbar', {
         on: { keydown: onMenuKey },
       }, [
         each(overflowed, (a) => a.id, (a) =>
-          el('button', {
-            type: 'button',
-            role: 'menuitem',
-            'data-nisli-item': computed(() => a.value.id),
-            tabindex: computed(() => ((active.value ?? overflowed.value[0]?.id) === a.value.id ? '0' : '-1')),
-            style: ctx.part(() => ['menu.item', ...(a.value.destructive ? ['menu.item.danger' as const] : [])], menuItemBox()),
-            'aria-busy': computed(() => (isBusy(a.value) ? 'true' : false)),
-            disabled: computed(() => (isBusy(a.value) ? 'disabled' : false)),
-            on: { click: () => { open.value = false; busy.run(a.value.id, a.value.onSelect); } },
-          }, computed(() => a.value.label)),
+          menuItem(ctx, () => a.value, {
+            attrs: {
+              'data-nisli-item': computed(() => a.value.id),
+              tabindex: computed(() => ((active.value ?? overflowed.value[0]?.id) === a.value.id ? '0' : '-1')),
+            },
+            onActivate: (x) => { open.value = false; busy.run(x.id, x.onSelect); },
+          }),
         ),
       ]),
     ];

@@ -36,7 +36,7 @@ ADR records the architecture that emerged, in the language its code uses.
 | term | meaning | where it lives |
 |---|---|---|
 | **Block** | A typed factory an application composes: `Toolbar({ title, actions })`. A custom element under the hood; app code never sees the element. | `packages/engine/src/blocks/*.ts` |
-| **Intent** | What a block's props may say: what a thing *is* and is *for*. Never how it looks. | the public prop types in `blocks/*.ts`, `blocks/types.ts` |
+| **Intent** | What a block's props may say: what a thing *is* and is *for*. Never how it looks. The word-by-word table is [0043 §Ubiquitous language](./0043-engine-intent-vocabulary-contract.md#ubiquitous-language) — the canonical intent vocabulary since 0.8.0. | the intent section of `index.ts`, `blocks/types.ts`, `blocks/form/schema.ts`, the public prop types in `blocks/*.ts` |
 | **Decision** | A choice the engine makes from intent, structure and width that a human would otherwise make by eye. | `engine/*.ts`, the rules inside each block |
 | **Plan** | The pure output of `fit()`: per-item `keep` / `shrink` / `stack` / `overflow`, widths, slack. | `engine/fit.ts` `FitPlan` |
 | **Degrade vocabulary** | The order an item gives ground: **shrink** (to `minWidth`), **stack** (fold into `stackInto`, stay visible), **overflow** (leave into a menu). | `engine/fit.ts` |
@@ -52,7 +52,7 @@ ADR records the architecture that emerged, in the language its code uses.
 
 | context | responsibility | files | may depend on |
 |---|---|---|---|
-| **Intent** | The closed vocabulary an app may use | `blocks/types.ts`; the exported prop types of every block | — |
+| **Intent** | The closed vocabulary an app may use — decided term by term in [0043](./0043-engine-intent-vocabulary-contract.md) | the intent section of `index.ts`; `blocks/types.ts`; the exported prop types of every block | — |
 | **Blocks** | Intent translated into decisions and structure; every block is built on the kernel (`block()`, styled only via `ctx.part()`) — [0038](./0038-engine-block-kernel-and-space-domain.md) | `blocks/kernel.ts`, `blocks/*.ts` | Intent, Decision, Appearance (through the kernel only) |
 | **Decision** | Pure decisions and the one measure→decide→apply loop; **Space** is its pure vocabulary (`fit`, `columnsFor`, `shellMode`, `dialogMode`, `labelColumn`, `labelEvery`, `labelWidth`, `pageSize`, `reportIf`) | `engine/space.ts`, `engine/fit.ts`, `engine/columns.ts`, `engine/paging.ts`, `engine/use-fit.ts`, `engine/measure.ts` | Metrics |
 | **Appearance** | Dressing decided structure | `skin.ts`, `skin/default.ts`, `style.ts` (`look()`) | — (the engine calls it; it calls nothing) |
@@ -78,6 +78,9 @@ App code **can** say, and only say, meaning: `priority: 'primary' | 'secondary'
 (whether a number is good news), `role: 'body' | 'muted' | 'heading' | 'code'`,
 `destructive: true`, `sortable`, `required`, and structure — what contains what.
 "These are the actions" is intent; *where* they sit is the engine's.
+(Since [0043](./0043-engine-intent-vocabulary-contract.md): the `role` union is
+`'body' | 'note' | 'code'`, `kind` is the exported `Kind`, and every term above
+has one row there.)
 
 ## Decision rules that exist today
 

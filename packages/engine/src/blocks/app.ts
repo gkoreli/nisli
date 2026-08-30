@@ -2,7 +2,7 @@ import { el, each, signal, computed, effect, onCleanup, ref } from '@nisli/core'
 import { buttonBox } from '../style.js';
 import { shellMode } from '../engine/space.js';
 import { block, focusables } from './kernel.js';
-import type { Content } from './types.js';
+import { toList, type Children } from './types.js';
 
 export interface NavItem {
   readonly label: string;
@@ -14,7 +14,7 @@ export interface AppProps {
   nav: readonly NavItem[];
   /** The current pathname; the engine marks the matching nav item. */
   location: string;
-  content: Content;
+  children: Children;
 }
 
 const isActive = (href: string, location: string) =>
@@ -174,7 +174,7 @@ export const App = block<AppProps>('nisli-app', {
         }, computed(() => (open.value ? 'Close' : 'Menu'))),
       ]),
       // Content
-      el('div', { style: ctx.part([], { flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }) }, [props.content.value as Content]),
+      el('div', { style: ctx.part([], { flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }) }, computed(() => toList(props.children.value))),
     ];
   },
 });

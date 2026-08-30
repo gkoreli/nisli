@@ -12,13 +12,14 @@ import { buttonBox, inputBox, type StyleRecord } from '../style.js';
 import type { Part } from '../skin.js';
 import { columnsFor } from '../engine/space.js';
 import { reportIf } from '../engine/report.js';
-import type { Action, Content } from './types.js';
+import type { Action, Content, Kind } from './types.js';
 import { block, type Ctx, type Parts } from './kernel.js';
 import { confirm } from './confirm.js';
-import { optionsOf, isReadOnly, spansRow, stepOf, type Field, type FieldKind, type Option } from './form/schema.js';
+import { actionButton, actionRow } from './actions.js';
+import { optionsOf, hasOptions, isReadOnly, spansRow, stepOf, kindOf, type Field, type Option } from './form/schema.js';
 import { createDraft, type Draft } from './form/draft.js';
 
-export type { Field, FieldKind, Option } from './form/schema.js';
+export type { Field, DatumField, BooleanField, FileField, Option } from './form/schema.js';
 
 export interface FormProps<T> {
   fields: readonly Field<T>[] | ReadonlySignal<readonly Field<T>[]>;
@@ -32,8 +33,8 @@ export interface FormProps<T> {
   onSubmit: (value: T) => void | Promise<unknown>;
   submitLabel?: string;
   onCancel?: () => void;
-  /** A destructive action offered beside the buttons — e.g. delete. */
-  destructive?: Action;
+  /** Actions offered beside Cancel and the submit — e.g. delete. The submit is the row's primary; a destructive one sits apart. */
+  actions?: readonly Action[];
   /** `live`: no buttons, no submit; every change is the submission (filters, settings that apply as you type). */
   mode?: 'submit' | 'live';
   /** For the rare imperative caller. */
@@ -42,7 +43,7 @@ export interface FormProps<T> {
 
 export interface FormHandle { reset(): void; submit(): void }
 
-/** A select with this many choices or fewer is offered as a segmented group. */
+/** A choice with this many options or fewer is offered as a segmented group. */
 let nextId = 1;
 const SEGMENTED_MAX = 3;
 
@@ -58,7 +59,7 @@ interface ImplProps {
   onSubmit: (value: Rec) => void | Promise<unknown>;
   submitLabel?: string;
   onCancel?: () => void;
-  destructive?: Action;
+  actions?: readonly Action[];
   mode?: 'submit' | 'live';
   handle?: (h: FormHandle) => void;
 }
@@ -70,7 +71,7 @@ export function arrange(fields: readonly Field<Rec>[]): Item[] {
   const items: Item[] = [];
   const groups = new Map<string, Extract<Item, { kind: 'group' }>>();
   for (const f of fields) {
-    if (!f.group) { items.push({ id: `field:${f.key}`, kind: 'field', field: f }); continue; }
+    if (!f.group) { items.push({ id: `field:${f.name}`, kind: 'field', field: f }); continue; }
     let g = groups.get(f.group);
     if (!g) { g = { id: `group:${f.group}`, kind: 'group', title: f.group, fields: [] }; groups.set(f.group, g); items.push(g); }
     g.fields.push(f);
@@ -78,7 +79,7 @@ export function arrange(fields: readonly Field<Rec>[]): Item[] {
   return items;
 }
 
-const parse = (kind: FieldKind, raw: string): unknown => {
+const parse = (kind: Kind, raw: string): unknown => {
   if (kind === 'number' || kind === 'money') return raw === '' ? undefined : Number(raw);
   return raw;
 };
@@ -150,7 +151,7 @@ const FormImpl = block<ImplProps>('nisli-form', {
     const cancel = () => {
       const done = () => props.onCancel.value?.();
       if (!owned || !draft.dirty.value) return done();
-      void confirm({ title: 'Discard changes?', message: 'Your edits will be lost.', destructive: true, confirmLabel: 'Discard' }).then((yes) => { if (yes) done(); });
+      void confirm({ title: 'Discard changes?', text: 'Your edits will be lost.', action: { label: 'Discard', destructive: true } }).then((yes) => { if (yes) done(); });
     };
 
     untrack(() => props.handle.value?.({ reset: () => draft.reset(), submit }));
@@ -162,11 +163,11 @@ const FormImpl = block<ImplProps>('nisli-form', {
     type InputStyle = (extra?: StyleRecord) => ReadonlySignal<string>;
 
     const control = (f: Field<Rec>): ElementLike => {
-      const id = `${fid}-${f.key}`;
+      const id = `${fid}-${f.name}`;
       const readOnly = computed(() => isReadOnly(f, value()));
-      const invalid = computed(() => !!errorOf(f.key));
+      const invalid = computed(() => !!errorOf(f.name));
       const common = {
-        name: f.key,
+        name: f.name,
         id,
         required: f.required ? 'required' : (false as const),
         placeholder: f.placeholder ?? (false as const),
@@ -176,11 +177,11 @@ const FormImpl = block<ImplProps>('nisli-form', {
       // The input's parts: its state decides which; the skin decides how.
       const inputParts = (): Parts => ['input', ...(invalid.value ? ['input.invalid' as const] : []), ...(readOnly.value ? ['input.readonly' as const] : [])];
       const style: InputStyle = (extra = {}) => ctx.part(inputParts, { ...inputBox(), ...extra });
-      const on = (name: string, handler: (e: Event) => void) => ({ [name]: handler, blur: () => draft.blur(f.key) });
+      const on = (name: string, handler: (e: Event) => void) => ({ [name]: handler, blur: () => draft.blur(f.name) });
 
-      if (f.kind === 'select') {
+      if (hasOptions(f)) {
         const opts = computed(() => optionsOf(f, value()));
-        // The engine's eyes-decision: a handful of choices is a segmented group, more is a list.
+        // Capture is derived: options make a choice, and the engine's eyes-decision is a handful → segmented, more → a list.
         return computed(() => (opts.value.length >= 2 && opts.value.length <= SEGMENTED_MAX ? segmented(f, opts.value, id, readOnly) : select(f, opts.value, id, common, style, readOnly, on)));
       }
       if (f.kind === 'file') {
@@ -191,29 +192,27 @@ const FormImpl = block<ImplProps>('nisli-form', {
           accept: f.accept ?? false,
           disabled: computed(() => (readOnly.value ? 'disabled' : false)),
           style: style({ padding: `${metrics.space[1]}px ${metrics.space[2]}px`, height: 'auto' }),
-          on: on('change', (e) => draft.set(f.key, (e.target as HTMLInputElement).files?.[0] ?? undefined)),
+          on: on('change', (e) => draft.set(f.name, (e.target as HTMLInputElement).files?.[0] ?? undefined)),
         }); });
       }
-      if (f.kind === 'checkbox') {
+      if (f.kind === 'boolean') {
         const r = ref<HTMLElement>();
-        // The caption (`placeholder`, the engine's rule for a checkbox) is the box's own `<label for>`: clicking it toggles,
-        // and the name is the field label plus the caption ("Kind This is income") through aria-labelledby.
+        // A boolean has one string: its label, the box's own `<label for>` beside it — clicking it toggles, and it is the whole name.
         return el('span', { style: ctx.part([], { display: 'flex', alignItems: 'center', gap: metrics.space[2], height: metrics.control.height }) }, [
           el('input', {
             ref: r,
             ...common,
             placeholder: false,
-            'aria-labelledby': `${id}-label ${id}-caption`,
             type: 'checkbox',
             disabled: computed(() => (readOnly.value ? 'disabled' : false)),
             style: ctx.part([], { width: metrics.control.check, height: metrics.control.check, margin: 0 }),
-            checked: computed(() => sync(r, 'checked', !!value()[f.key])),
-            on: on('change', (e) => draft.set(f.key, (e.target as HTMLInputElement).checked)),
+            checked: computed(() => sync(r, 'checked', !!value()[f.name])),
+            on: on('change', (e) => draft.set(f.name, (e.target as HTMLInputElement).checked)),
           }),
-          el('label', { for: id, id: `${id}-caption`, style: ctx.part('text', { cursor: 'pointer' }) }, f.placeholder ?? ''),
+          el('label', { for: id, id: `${id}-label`, style: ctx.part('text', { cursor: 'pointer' }) }, f.required ? `${f.label} *` : f.label),
         ]);
       }
-      if (f.kind === 'textarea') {
+      if (f.long) {
         const r = ref<HTMLElement>();
         return el('textarea', {
           ref: r,
@@ -221,32 +220,32 @@ const FormImpl = block<ImplProps>('nisli-form', {
           rows: '3',
           readonly: computed(() => (readOnly.value ? 'readonly' : false)),
           style: style({ height: 'auto', minHeight: 80, padding: metrics.space[3] }),
-          on: on('input', (e) => draft.set(f.key, (e.target as HTMLTextAreaElement).value)),
-        }, computed(() => { const v = show(value()[f.key]); sync(r, 'value', v); return v; }));
+          on: on('input', (e) => draft.set(f.name, (e.target as HTMLTextAreaElement).value)),
+        }, computed(() => { const v = show(value()[f.name]); sync(r, 'value', v); return v; }));
       }
       const r = ref<HTMLElement>();
       return el('input', {
         ref: r,
         ...common,
-        type: f.kind === 'date' ? 'date' : f.kind === 'text' ? 'text' : 'number',
+        type: f.kind === 'date' ? 'date' : kindOf(f) === 'text' ? 'text' : 'number',
         min: attr(f.min), max: attr(f.max), step: attr(stepOf(f)),
         inputmode: f.kind === 'money' || f.kind === 'number' ? 'decimal' : false,
         readonly: computed(() => (readOnly.value ? 'readonly' : false)),
         style: style(),
-        value: computed(() => sync(r, 'value', show(value()[f.key]))),
-        on: on('input', (e) => draft.set(f.key, parse(f.kind, (e.target as HTMLInputElement).value))),
+        value: computed(() => sync(r, 'value', show(value()[f.name]))),
+        on: on('input', (e) => draft.set(f.name, parse(kindOf(f), (e.target as HTMLInputElement).value))),
       });
     };
 
     const select = (f: Field<Rec>, opts: readonly Option[], id: string, common: Common, style: InputStyle, readOnly: ReadonlySignal<boolean>, on: (n: string, h: (e: Event) => void) => Record<string, (e: Event) => void>) => {
       const r = ref<HTMLElement>();
-      const current = computed(() => show(value()[f.key]));
+      const current = computed(() => show(value()[f.name]));
       return el('select', {
         ref: r,
         ...common,
         disabled: computed(() => (readOnly.value ? 'disabled' : false)),
         style: style(),
-        on: on('change', (e) => draft.set(f.key, (e.target as HTMLSelectElement).value)),
+        on: on('change', (e) => draft.set(f.name, (e.target as HTMLSelectElement).value)),
       }, [
         el('option', { value: '' }, f.placeholder ?? 'Choose…'),
         ...opts.map((o) => el('option', { value: o.value, selected: computed(() => (current.value === o.value ? 'selected' : false)) }, o.label)),
@@ -256,7 +255,7 @@ const FormImpl = block<ImplProps>('nisli-form', {
     };
 
     const segmented = (f: Field<Rec>, opts: readonly Option[], id: string, readOnly: ReadonlySignal<boolean>) => {
-      const current = computed(() => show(value()[f.key]));
+      const current = computed(() => show(value()[f.name]));
       const buttons = opts.map((o, i) => el('button', {
         type: 'button',
         role: 'radio',
@@ -269,46 +268,46 @@ const FormImpl = block<ImplProps>('nisli-form', {
           { ...buttonBox(), flex: '1 1 0', minWidth: 0, justifyContent: 'center' },
         ),
         on: {
-          click: () => draft.set(f.key, o.value),
+          click: () => draft.set(f.name, o.value),
           keydown: (e) => {
             const k = (e as KeyboardEvent).key;
             const d = k === 'ArrowRight' || k === 'ArrowDown' ? 1 : k === 'ArrowLeft' || k === 'ArrowUp' ? -1 : 0;
             if (!d) return;
             e.preventDefault();
             const next = opts[(i + d + opts.length) % opts.length]!;
-            draft.set(f.key, next.value);
+            draft.set(f.name, next.value);
             host.querySelector<HTMLElement>(`#${id} [value="${next.value}"]`)?.focus();
           },
         },
       }, o.label));
       return el('div', {
         id,
-        name: f.key,
+        name: f.name,
         role: 'radiogroup',
         'aria-labelledby': `${id}-label`,
-        'aria-invalid': computed(() => (errorOf(f.key) ? 'true' : false)),
-        'aria-describedby': computed(() => (errorOf(f.key) || f.hint ? `${id}-note` : false)),
+        'aria-invalid': computed(() => (errorOf(f.name) ? 'true' : false)),
+        'aria-describedby': computed(() => (errorOf(f.name) || f.hint ? `${id}-note` : false)),
         'aria-readonly': computed(() => (readOnly.value ? 'true' : false)),
         style: ctx.part([], { display: 'flex', gap: metrics.space[1], minWidth: 0, height: metrics.control.height }),
-        on: { focusout: (e) => { const to = (e as FocusEvent).relatedTarget as Node | null; if (!to || !(e.currentTarget as HTMLElement).contains(to)) draft.blur(f.key); } },
+        on: { focusout: (e) => { const to = (e as FocusEvent).relatedTarget as Node | null; if (!to || !(e.currentTarget as HTMLElement).contains(to)) draft.blur(f.name); } },
       }, buttons);
     };
 
     // ── Fields, groups, the grid ─────────────────────────────────────────
 
     /** Whether the field's control is offered as a segmented group (the same decision `control()` makes). */
-    const segmentedOf = (f: Field<Rec>) => computed(() => { if (f.kind !== 'select') return false; const n = optionsOf(f, value()).length; return n >= 2 && n <= SEGMENTED_MAX; });
+    const segmentedOf = (f: Field<Rec>) => computed(() => { if (!hasOptions(f)) return false; const n = optionsOf(f, value()).length; return n >= 2 && n <= SEGMENTED_MAX; });
 
     const fieldEl = (f: Field<Rec>) => {
-      const id = `${fid}-${f.key}`;
+      const id = `${fid}-${f.name}`;
       const text = f.required ? `${f.label} *` : f.label;
       const segmented = segmentedOf(f);
-      // `<label for>` only for a labelable element. A segmented group is named through its aria-labelledby, and a
-      // checkbox's field label is the first half of its name (the caption is the label): both get a `<span id>`.
-      const heading = f.kind === 'checkbox'
-        ? el('span', { id: `${id}-label`, style: ctx.part('text.muted') }, text)
+      // `<label for>` only for a labelable element. A segmented group is named through its aria-labelledby, so it gets
+      // a `<span id>`; a boolean's label is beside its box (in `control()`), so it has no heading at all.
+      const heading = f.kind === 'boolean'
+        ? null
         : computed(() => (segmented.value
-          ? el('span', { id: `${id}-label`, style: ctx.part('text.muted', { cursor: 'default' }), on: { click: () => focusField(f.key) } }, text)
+          ? el('span', { id: `${id}-label`, style: ctx.part('text.muted', { cursor: 'default' }), on: { click: () => focusField(f.name) } }, text)
           : el('label', { for: id, id: `${id}-label`, style: ctx.part('text.muted') }, text)));
       return el('div', {
         style: ctx.part([], { display: 'flex', flexDirection: 'column', gap: metrics.space[1], minWidth: 0, gridColumn: spansRow(f) ? '1 / -1' : 'auto' }),
@@ -317,8 +316,8 @@ const FormImpl = block<ImplProps>('nisli-form', {
         control(f),
         el('span', {
           id: `${id}-note`,
-          style: ctx.part((): Part => (errorOf(f.key) ? 'tone.negative' : 'text.faint'), () => ({ display: errorOf(f.key) || f.hint ? 'block' : 'none' })),
-        }, computed(() => errorOf(f.key) || f.hint || '')),
+          style: ctx.part((): Part => (errorOf(f.name) ? 'tone.negative' : 'text.faint'), () => ({ display: errorOf(f.name) || f.hint ? 'block' : 'none' })),
+        }, computed(() => errorOf(f.name) || f.hint || '')),
       ]);
     };
 
@@ -329,7 +328,7 @@ const FormImpl = block<ImplProps>('nisli-form', {
         style: ctx.part([], () => ({ ...gridOf(n.value), gridColumn: '1 / -1', margin: 0, padding: 0, border: 'none', minWidth: 0 })),
       }, [
         el('legend', { style: ctx.part('text.label', { padding: 0, marginBottom: metrics.space[2] }) }, g.title),
-        each(members, (f) => f.key, (f) => fieldEl(untrack(() => f.value))),
+        each(members, (f) => f.name, (f) => fieldEl(untrack(() => f.value))),
       ]);
     };
 
@@ -342,11 +341,10 @@ const FormImpl = block<ImplProps>('nisli-form', {
       return n >= 2 ? el('p', { role: 'alert', style: ctx.part('tone.negative', { margin: 0 }) }, `${n} fields need attention.`) : null;
     });
 
-    const button = (variant: 'primary' | 'plain' | 'danger', id: string | null, structure: () => StyleRecord) =>
-      ctx.part(
-        (): Parts => ['button', `button.${variant}`, ...(id && busy.is(id) ? ['button.busy' as const] : [])],
-        () => ({ ...buttonBox(), ...structure() }),
-      );
+    // The row: the app's actions (a destructive one first and apart), then Cancel, then the submit — the row's primary.
+    const actions = computed(() => [...(props.actions.value ?? [])]);
+    const cancelButton = actionButton(ctx, () => ({ id: 'cancel', label: 'Cancel' }), { structure: () => ({ display: props.onCancel.value ? 'inline-flex' : 'none' }), onActivate: cancel });
+    const submitButton = actionButton(ctx, () => ({ id: 'submit', label: props.submitLabel.value ?? 'Save', priority: 'primary' }), { type: 'submit' });
 
     return el('form', {
       id: fid,
@@ -356,26 +354,7 @@ const FormImpl = block<ImplProps>('nisli-form', {
     }, [
       summary,
       body,
-      el('div', { style: ctx.part([], () => ({ display: props.mode.value === 'live' ? 'none' : 'flex', gap: metrics.space[2], justifyContent: 'flex-end', flexWrap: 'wrap' })) }, [
-        el('button', {
-          type: 'button',
-          'aria-busy': computed(() => (busy.is('destructive') ? 'true' : false)),
-          disabled: computed(() => (busy.is('destructive') ? 'disabled' : false)),
-          style: button('danger', 'destructive', () => ({ marginRight: 'auto', display: props.destructive.value ? 'inline-flex' : 'none' })),
-          on: { click: () => busy.run('destructive', props.destructive.value?.onSelect) },
-        }, computed(() => props.destructive.value?.label ?? '')),
-        el('button', {
-          type: 'button',
-          style: button('plain', null, () => ({ display: props.onCancel.value ? 'inline-flex' : 'none' })),
-          on: { click: cancel },
-        }, 'Cancel'),
-        el('button', {
-          type: 'submit',
-          'aria-busy': computed(() => (busy.is('submit') ? 'true' : false)),
-          disabled: computed(() => (busy.is('submit') ? 'disabled' : false)),
-          style: button('primary', 'submit', () => ({})),
-        }, computed(() => props.submitLabel.value ?? 'Save')),
-      ]),
+      actionRow(ctx, actions, { apart: true, trailing: [cancelButton, submitButton], structure: () => ({ display: props.mode.value === 'live' ? 'none' : 'flex' }) }),
     ]);
   },
 });

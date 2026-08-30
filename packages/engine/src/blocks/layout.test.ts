@@ -78,8 +78,8 @@ describe('Dialog', () => {
 describe('Form', () => {
   it('lays fields out in as many columns as fit, textarea spanning all', () => {
     const fields = [
-      { key: 'a', label: 'A', kind: 'text' }, { key: 'b', label: 'B', kind: 'money' },
-      { key: 'c', label: 'C', kind: 'select', options: [] }, { key: 'n', label: 'N', kind: 'textarea' },
+      { name: 'a', label: 'A', kind: 'text' }, { name: 'b', label: 'B', kind: 'money' },
+      { name: 'c', label: 'C', options: [] }, { name: 'n', label: 'N', long: true },
     ];
     const grid = (w: number) => make('nisli-form', { fields, value: {}, onChange: () => {}, onSubmit: () => {} }, w).querySelector<HTMLElement>('form > div')!;
     expect(grid(360).style.gridTemplateColumns).toBe('repeat(1, minmax(0, 1fr))');
@@ -89,7 +89,7 @@ describe('Form', () => {
   });
   it('refuses to submit with a required field empty and says which', () => {
     let submitted = 0;
-    const el = make('nisli-form', { fields: [{ key: 'payee', label: 'Payee', kind: 'text', required: true }], value: { payee: '' }, onChange: () => {}, onSubmit: () => submitted++ }, 800);
+    const el = make('nisli-form', { fields: [{ name: 'payee', label: 'Payee', kind: 'text', required: true }], value: { payee: '' }, onChange: () => {}, onSubmit: () => submitted++ }, 800);
     el.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true })); flushEffects();
     expect(submitted).toBe(0);
     expect(el.textContent).toContain('Payee is required.');

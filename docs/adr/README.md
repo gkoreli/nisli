@@ -48,3 +48,4 @@ They moved with the framework when `@nisli/core` became a standalone package.
 - [0040. Engine Overlay Domain — Layers, One Stack, Native Inert](./0040-engine-overlay-domain.md) - Accepted - 2026-08-29
 - [0041. Engine Proof Domain — Claims, a Calibrated Estimator, and Runtime Evidence](./0041-engine-proof-domain.md) - Accepted - 2026-08-30
 - [0042. Engine Reachability — Every Decision Reachable by Keyboard and AT](./0042-engine-reachability.md) - Accepted - 2026-08-30
+- [0043. Engine Intent Vocabulary Contract — One Term, One Meaning, Across the Whole Surface](./0043-engine-intent-vocabulary-contract.md) - Accepted - 2026-08-30

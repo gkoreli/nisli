@@ -2,13 +2,16 @@ import { el, computed, ref } from '@nisli/core';
 import { buttonBox } from '../style.js';
 import { dialogMode } from '../engine/space.js';
 import { block, focusables } from './kernel.js';
-import { toList, type Children } from './types.js';
+import { actionRow } from './actions.js';
+import { toList, type Action, type Children } from './types.js';
 
 export interface DialogProps {
   title: string;
   open: boolean;
   onClose: () => void;
   children: Children;
+  /** What a person may do from the dialog, after its content. The row wraps; it never overflows — the dialog is already the focused layer. */
+  actions?: readonly Action[];
 }
 
 let nextId = 1;
@@ -28,6 +31,7 @@ export const Dialog = block<DialogProps>('nisli-dialog', {
     const surface = ref<HTMLElement>();
     const sheet = computed(() => dialogMode(ctx.width.value, metrics.layout) === 'sheet');
     const open = computed(() => props.open.value);
+    const actions = computed(() => [...(props.actions.value ?? [])]);
 
     const overlay = ctx.overlay({
       kind: 'modal',
@@ -71,7 +75,11 @@ export const Dialog = block<DialogProps>('nisli-dialog', {
           el('h2', { id: `${id}-title`, style: ctx.part('text.title', { margin: 0, font: 'inherit' }) }, props.title),
           el('button', { type: 'button', 'aria-label': 'Close', style: ctx.part(['button', 'button.quiet'], buttonBox()), on: { click: () => props.onClose.value() } }, '✕'),
         ]),
-        el('div', { style: ctx.part([], { padding: metrics.space[4], overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: metrics.space[4] }) }, computed(() => toList(props.children.value))),
+        el('div', { style: ctx.part([], { padding: metrics.space[4], overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: metrics.space[4] }) }, [
+          computed(() => toList(props.children.value)),
+          // In the body's flow after the content — where a fieldless Form's row sat; a footer's rule for danger.
+          actionRow(ctx, actions, { apart: true }),
+        ]),
       ]),
     ]);
   },

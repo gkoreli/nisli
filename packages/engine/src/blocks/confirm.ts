@@ -1,19 +1,21 @@
-import { el, signal } from '@nisli/core';
-import { buttonBox } from '../style.js';
+import { el, signal, computed } from '@nisli/core';
 import { block } from './kernel.js';
 import { Dialog } from './dialog.js';
+import { actionRow } from './actions.js';
+import type { Action } from './types.js';
 
 export interface ConfirmOptions {
+  /** The question. */
   title: string;
-  message: string;
-  confirmLabel?: string;
-  destructive?: boolean;
+  /** What answering yes does, in prose. */
+  text: string;
+  /** The affirmative answer: its label, and whether it cannot be undone. The engine makes it the row's primary. */
+  action: Pick<Action, 'label' | 'destructive'>;
 }
 
 interface ConfirmBodyProps {
-  message: string;
-  confirmLabel: string;
-  destructive: boolean;
+  text: string;
+  action: Pick<Action, 'label' | 'destructive'>;
   onAnswer: (answer: boolean) => void;
 }
 
@@ -21,15 +23,12 @@ interface ConfirmBodyProps {
 const ConfirmBody = block<ConfirmBodyProps>('nisli-confirm', {
   host: () => ({ display: 'contents' }),
   render: (props, ctx) => [
-    el('p', { style: ctx.part('text', { margin: 0 }) }, props.message),
-    el('div', { style: ctx.part([], { display: 'flex', gap: ctx.metrics.space[2], justifyContent: 'flex-end' }) }, [
-      el('button', { type: 'button', style: ctx.part(['button', 'button.plain'], buttonBox()), on: { click: () => props.onAnswer.value(false) } }, 'Cancel'),
-      el('button', {
-        type: 'button',
-        style: ctx.part(() => ['button', props.destructive.value ? 'button.danger' : 'button.primary'], buttonBox()),
-        on: { click: () => props.onAnswer.value(true) },
-      }, props.confirmLabel),
-    ]),
+    el('p', { style: ctx.part('text', { margin: 0 }) }, props.text),
+    actionRow(ctx, computed<readonly Action[]>(() => [
+      { id: 'cancel', label: 'Cancel', onSelect: () => props.onAnswer.value(false) },
+      // The person came for the answer: it is the primary (filled), or danger when it cannot be undone.
+      { id: 'confirm', label: props.action.value.label, destructive: props.action.value.destructive, priority: 'primary', onSelect: () => props.onAnswer.value(true) },
+    ])),
   ],
 });
 
@@ -57,9 +56,7 @@ export function confirm(options: ConfirmOptions): Promise<boolean> {
         title: options.title,
         open,
         onClose: () => finish(false),
-        children: [
-          ConfirmBody({ message: options.message, confirmLabel: options.confirmLabel ?? 'Confirm', destructive: options.destructive ?? false, onAnswer: finish }),
-        ],
+        children: [ConfirmBody({ text: options.text, action: options.action, onAnswer: finish })],
       }),
     ]);
     tpl.mount(host);

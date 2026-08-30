@@ -1,6 +1,6 @@
 # 0023 — Dialogs have no action row; screens fake one with a fieldless `Form`
 
-**Status**: open
+**Status**: resolved (2026-08-30) by [ADR 0043](../adr/0043-engine-intent-vocabulary-contract.md) §E5 — option 1: `Dialog({ actions?: readonly Action[] })`, rendered by the one `actionRow()` in the body's flow after `children` (wraps, never overflows); the fieldless `Form` in `connections.ts` is gone
 **Priority**: P2
 **Area**: `@nisli/engine` — `blocks/dialog.ts`, a missing block
 **Found**: 2026-08-28 (Banks screen) and again by the rules screen fork the same day
