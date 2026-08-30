@@ -110,3 +110,12 @@ meant. Every intent has a visual control and a visible result; text fields
 exist for data (a payee, a note, an amount), not for instructions. What the
 user does in the UI *is* the instruction, and the intelligence (tenet 11)
 reads it from there.
+
+## 13. Deterministic UI
+
+The same viewport and the same intent always produce the same structure.
+Data fits into the structure; it never reshapes it. Sorting, filtering or
+paging must never make a column, an action or a section appear or disappear.
+Goga, 2026-08-30, after a sort by Amount folded two columns of the
+Transactions table: "even if the engine is smart, the UI must be
+deterministic and behave as it is supposed to." See ADR 0044 and issue 0028.

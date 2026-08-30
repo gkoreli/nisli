@@ -41,7 +41,7 @@ export type { StyleRecord } from './style.js';
 // ── Decision and block-author vocabulary: never intent ─────────────────
 // `LayerKind` (0040) is a layer's policy — `modal` or `popover` — a word for
 // block authors, not for an app; a datum's `Kind` is the intent word above.
-export { fit, columnsFor, shellMode, dialogMode, labelColumn, labelEvery, labelWidth, pageSize, type FitInput, type FitItem, type FitPlan, type FitDecision, type FitAction } from './engine/space.js';
+export { fit, columnsFor, shellMode, dialogMode, labelColumn, labelEvery, labelWidth, pageSize, columnBudgets, spreadSlack, textWeights, SORT_MARK_CHARS, type ColumnIntent, type ColumnBudget, type FitInput, type FitItem, type FitPlan, type FitDecision, type FitAction } from './engine/space.js';
 export { onReport, type LayoutReport, type ReportCode } from './engine/report.js';
 export { placeMenu, type Layer, type LayerKind, type LayerStack, type Placement, type PlaceOptions, type Size } from './engine/overlay.js';
 

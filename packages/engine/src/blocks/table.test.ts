@@ -3,7 +3,10 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { flushEffects, html } from '@nisli/core';
 import { type Column, type Sort } from './table.js';
 import { focusables } from './kernel.js';
-import { accessibleName, accessibleNames, sortReachable } from '../test/claims.js';
+import { onReport, type LayoutReport } from '../engine/report.js';
+import { setMeasurer } from '../engine/measure.js';
+import { metrics } from '../metrics.js';
+import { accessibleName, accessibleNames, sortReachable, overflowText } from '../test/claims.js';
 import { estimator } from '../test/estimate.js';
 import { mount as mountBlock, type Mounted } from '../test/mount.js';
 
@@ -16,58 +19,75 @@ const columns: Column<Row>[] = [
   { id: 'note', label: 'Note', cell: (r) => r.note, priority: 'tertiary' },
   { id: 'amount', label: 'Amount', kind: 'money', cell: (r) => r.amount, priority: 'primary' },
 ];
-const naturals = [72, 173, 101, 72, 52, 69]; // sum 539
-const naturalOf = (header: string) => naturals[columns.findIndex((c) => header.startsWith(c.label))] ?? 0;
-// A column is as wide as its header text says; everything else is the frame.
-const text = (el: HTMLElement) => (el.tagName === 'TH' ? naturalOf(el.textContent ?? '') : undefined);
+// Budgets (ADR 0044), never measurements: date 8ch → 81.6, money 12ch → 110.4 (rigid Σ 192);
+// the four text columns share the remainder by weight (payee, primary, ×2; Σ weights 5),
+// each clamped to [minTextColumn 96, textColumnCap 320].
+const DATE = metrics.layout.dateChars * metrics.charWidth + 2 * metrics.space[3];      // 81.6
+const MONEY = metrics.layout.figureChars * metrics.charWidth + 2 * metrics.space[3];   // 110.4
 const rows: Row[] = [{ id: '1', date: 'Aug 1', payee: 'REI', category: 'Shopping', account: 'Card', note: '', amount: -12 }];
 
 let mounted: Mounted | undefined;
 afterEach(() => { mounted?.unmount(); mounted = undefined; });
 
-function mount(width: number) {
-  const t = (mounted = mountBlock('nisli-table', { columns, rows, rowKey: (r: Row) => r.id }, { width, text }));
+const shownOf = (el: HTMLElement) => [...el.querySelectorAll<HTMLElement>('thead th')].filter((th) => th.style.display !== 'none').map((th) => th.textContent);
+
+function mount(width: number, rowsIn: readonly Row[] = rows) {
+  const t = (mounted = mountBlock('nisli-table', { columns, rows: rowsIn, rowKey: (r: Row) => r.id }, { width }));
   return {
-    shown: () => [...t.el.querySelectorAll<HTMLElement>('thead th')].filter((th) => th.style.display !== 'none').map((th) => th.textContent),
+    shown: () => shownOf(t.el),
     cells: () => [...t.el.querySelectorAll<HTMLElement>('tbody td')].filter((td) => td.style.display !== 'none').length,
     el: t.el,
     resize: t.resize,
   };
 }
 
-describe('Table drops columns by priority', () => {
-  it('1000: every column', () => {
-    expect(mount(1000).shown()).toEqual(['Date', 'Payee', 'Category', 'Account', 'Note', 'Amount']);
+describe('Table drops columns by priority — from budgets, never from cells', () => {
+  it('1000: every column, and the slack widens the text columns so the row sums to the width', () => {
+    const t = mount(1000);
+    expect(t.shown()).toEqual(['Date', 'Payee', 'Category', 'Account', 'Note', 'Amount']);
+    const widths = [...t.el.querySelectorAll<HTMLElement>('thead th')].map((th) => parseFloat(th.style.width));
+    expect(widths.reduce((a, b) => a + b, 0)).toBeCloseTo(1000);
+    expect(widths[0]).toBeCloseTo(DATE);
+    expect(widths[5]).toBeCloseTo(MONEY);
   });
-  it('500: the two tertiary columns leave the row, later one first', () => {
-    // 539 - 52 (note) = 487 ≤ 500
-    expect(mount(500).shown()).toEqual(['Date', 'Payee', 'Category', 'Account', 'Amount']);
+  it('640: the later tertiary folds first', () => {
+    // remainder 448 → payee 179.2, others floored at 96: Σ 659.2 > 640 → Note folds.
+    expect(mount(640).shown()).toEqual(['Date', 'Payee', 'Category', 'Account', 'Amount']);
   });
-  it('420: both tertiaries', () => {
-    // 487 - 72 = 415 ≤ 420
-    expect(mount(420).shown()).toEqual(['Date', 'Payee', 'Category', 'Amount']);
+  it('480: both tertiaries', () => {
+    // 192 + 115.2 + 3×96 = 595.2 > 480; folding Note and Account pays the deficit.
+    expect(mount(480).shown()).toEqual(['Date', 'Payee', 'Category', 'Amount']);
   });
-  it('294: nothing is lost — dropped columns fold under the primary text cell', () => {
-    const t = mount(294);
+  it('360: nothing is lost — dropped columns fold under the primary text cell', () => {
+    const t = mount(360);
     expect(t.shown()).toEqual(['Date', 'Payee', 'Amount']);
     expect(t.cells()).toBe(3);
     const payee = t.el.querySelectorAll<HTMLElement>('tbody td')[1]!;
     expect(payee.textContent).toBe('REIShopping · Card');
   });
-  it('250: the primary text column truncates rather than let the row overflow', () => {
-    // primaries 72 + 173 + 69 = 314 > 250 → payee shrinks by 64 to 109 (min is 96)
-    const t = mount(250);
-    expect(t.shown()).toEqual(['Date', 'Payee', 'Amount']);
-    const payee = t.el.querySelectorAll<HTMLElement>('thead th')[1]!;
-    expect(payee.style.width).toBe('109px');
-    expect(payee.style.textOverflow).toBe('ellipsis');
-    // every surviving column is pinned so the browser cannot re-widen them
-    expect(t.el.querySelector<HTMLElement>('thead th')!.style.width).toBe('72px');
+  it('360: the surviving columns are pinned — budgets plus the slack, under a fixed table layout', () => {
+    const t = mount(360);
+    const ths = [...t.el.querySelectorAll<HTMLElement>('thead th')].filter((th) => th.style.display !== 'none');
+    expect(parseFloat(ths[0]!.style.width)).toBeCloseTo(DATE);
+    // payee: floor 96 + all the slack (360 − 192 − 96 = 72) — the row sums to the width
+    expect(parseFloat(ths[1]!.style.width)).toBeCloseTo(360 - DATE - MONEY);
+    expect(parseFloat(ths[2]!.style.width)).toBeCloseTo(MONEY);
+    expect(ths[1]!.style.textOverflow).toBe('ellipsis');
     expect(t.el.querySelector<HTMLElement>('table')!.style.tableLayout).toBe('fixed');
+    expect(t.el.querySelector<HTMLElement>('table')!.style.width).toBe('100%');
+  });
+  it('280: the primaries alone exceed the width — FIT_COLUMNS is filed and they stay', () => {
+    const filed: LayoutReport[] = [];
+    const stop = onReport((r) => filed.push(r));
+    const t = mount(280);
+    // date 81.6 + payee 96 (its floor) + amount 110.4 = 288 > 280
+    expect(t.shown()).toEqual(['Date', 'Payee', 'Amount']);
+    expect(filed.map((r) => r.code)).toContain('FIT_COLUMNS');
+    stop();
   });
 
   it('re-decides when the frame widens again', async () => {
-    const t = mount(294);
+    const t = mount(360);
     expect(t.shown()).toEqual(['Date', 'Payee', 'Amount']);
     t.resize(1000);
     await Promise.resolve(); flushEffects();
@@ -96,7 +116,7 @@ describe('Table is reachable by keyboard (ADR 0042 b)', () => {
   it('a sortable header is a button a keyboard reaches; Enter sorts ascending, Space flips to descending, aria-sort follows on the th', () => {
     const sorts: Sort[] = [];
     // The app owns the sort: onSort hands the engine the new one, as a screen would.
-    mounted = mountBlock('nisli-table', { columns: sortable, rows, rowKey: (r: Row) => r.id, onSort: (s: Sort) => { sorts.push(s); (mounted!.el as any)._setProp('sort', s); } }, { width: 1000, text });
+    mounted = mountBlock('nisli-table', { columns: sortable, rows, rowKey: (r: Row) => r.id, onSort: (s: Sort) => { sorts.push(s); (mounted!.el as any)._setProp('sort', s); } }, { width: 1000 });
     const ths = [...mounted.el.querySelectorAll<HTMLElement>('thead th')];
     expect(ths.map((th) => !!th.querySelector('button'))).toEqual([true, false, false, false, false, true]);
     const order = focusables(mounted.el);
@@ -119,7 +139,7 @@ describe('Table is reachable by keyboard (ADR 0042 b)', () => {
 
   it('a selectable row is a named tab stop after the headers; Enter and Space each select once, Space without scrolling the page; focus lights it up', () => {
     const selected: Row[] = [];
-    mounted = mountBlock('nisli-table', { columns: sortable, rows, rowKey: (r: Row) => r.id, onOpen: (r: Row) => selected.push(r) }, { width: 1000, text, scheme: 'light' });
+    mounted = mountBlock('nisli-table', { columns: sortable, rows, rowKey: (r: Row) => r.id, onOpen: (r: Row) => selected.push(r) }, { width: 1000, scheme: 'light' });
     const order = focusables(mounted.el);
     const tr = mounted.el.querySelector<HTMLElement>('tbody tr')!;
     expect(order[2]).toBe(tr);                                      // Date, Amount headers, then the row
@@ -145,7 +165,7 @@ describe('Table is reachable by keyboard (ADR 0042 b)', () => {
   it('a control inside a cell keeps its own keys: Space on it is not prevented and does not select the row; on the row it does', () => {
     const selected: Row[] = [];
     const withControl: Column<Row>[] = columns.map((c) => (c.id === 'note' ? { ...c, cell: () => html`<button id="in">x</button>` } : c));
-    mounted = mountBlock('nisli-table', { columns: withControl, rows, rowKey: (r: Row) => r.id, onOpen: (r: Row) => selected.push(r) }, { width: 1000, text });
+    mounted = mountBlock('nisli-table', { columns: withControl, rows, rowKey: (r: Row) => r.id, onOpen: (r: Row) => selected.push(r) }, { width: 1000 });
     const tr = mounted.el.querySelector<HTMLElement>('tbody tr')!;
     const inner = mounted.el.querySelector<HTMLElement>('#in')!;
     expect(focusables(mounted.el)).toContain(inner);
@@ -159,7 +179,7 @@ describe('Table is reachable by keyboard (ADR 0042 b)', () => {
   });
 
   it('a table without onOpen has no focusable rows and no row names; without sortable no header buttons', () => {
-    mounted = mountBlock('nisli-table', { columns, rows, rowKey: (r: Row) => r.id }, { width: 1000, text });
+    mounted = mountBlock('nisli-table', { columns, rows, rowKey: (r: Row) => r.id }, { width: 1000 });
     expect(mounted.el.querySelector('tbody tr')!.hasAttribute('tabindex')).toBe(false);
     expect(mounted.el.querySelector('tbody tr')!.hasAttribute('aria-labelledby')).toBe(false);
     expect(mounted.el.querySelectorAll('thead button').length).toBe(0);
@@ -168,12 +188,98 @@ describe('Table is reachable by keyboard (ADR 0042 b)', () => {
 
   it('row ids come from a counter, so a keyed reorder keeps every id unique', () => {
     const two = [...rows, { id: '2', date: 'Aug 2', payee: 'Uber', category: 'Transport', account: 'Card', note: '', amount: -7 }];
-    mounted = mountBlock('nisli-table', { columns, rows: two, rowKey: (r: Row) => r.id, onOpen: () => {} }, { width: 1000, text });
+    mounted = mountBlock('nisli-table', { columns, rows: two, rowKey: (r: Row) => r.id, onOpen: () => {} }, { width: 1000 });
     const ids = () => [...mounted!.el.querySelectorAll<HTMLElement>('tbody tr')].map((tr) => tr.getAttribute('aria-labelledby'));
     const first = ids();
     (mounted.el as any)._setProp('rows', [two[1], two[0]]); flushEffects();
     expect(ids()).toEqual([first[1], first[0]]);                    // the elements moved with their rows
     expect(new Set(ids()).size).toBe(2);
     expect([...mounted.el.querySelectorAll<HTMLElement>('tbody tr')].map((tr) => accessibleName(tr))).toEqual(['Aug 2', 'Aug 1']);
+  });
+});
+
+describe('Table column decisions are a function of width and intent, never of the rows shown (tenet, ADR 0044)', () => {
+  const many: Row[] = Array.from({ length: 70 }, (_, i) => ({
+    id: String(i), date: `Aug ${(i % 28) + 1}`, payee: `Payee ${i}`, category: 'Shopping', account: 'Card', note: '', amount: -(i + 1),
+  }));
+  // Row 65 sits beyond the first page (tablePage = 60) and carries a very long payee.
+  many[65] = { ...many[65]!, payee: 'AMAZON MARKETPLACE PAYMENTS AMZN.COM/BILL WA — order 112-4491883-2201014 (marketplace seller)', amount: -9999 };
+  const sorted = [...many].sort((a, b) => a.amount - b.amount);
+  // A rows change lands on a microtask; nothing may re-solve, but let anything that would.
+  const settle = async () => { flushEffects(); await Promise.resolve(); await Promise.resolve(); flushEffects(); };
+
+  it('768: sorting by Amount brings a long payee onto the page; the visible header set must not change', async () => {
+    mounted = mountBlock('nisli-table', { columns, rows: many, rowKey: (r: Row) => r.id }, { width: 768, measure: estimator(768) });
+    const before = shownOf(mounted.el);
+    expect(before).toContain('Payee');
+    expect(before).toContain('Category');
+    expect(before).toContain('Account');
+    expect(before).toContain('Amount');
+    // Sort by amount descending (largest debit first): row 65 enters the page.
+    (mounted.el as any)._setProp('rows', sorted);
+    await settle();
+    expect([...mounted.el.querySelectorAll('tbody tr')].some((tr) => tr.textContent!.includes('AMAZON MARKETPLACE'))).toBe(true);
+    // The tenet: a layout decision depends on width and intent, never on which data is shown.
+    expect(shownOf(mounted.el)).toEqual(before);
+    // And it must not change back either.
+    (mounted.el as any)._setProp('rows', many);
+    await settle();
+    expect(shownOf(mounted.el)).toEqual(before);
+  });
+
+  it('at every width, the header set and the pinned widths are the same for any rows: sorted, paged, one row, none', async () => {
+    for (const width of [1280, 1024, 768, 480, 360]) {
+      const snapshot = (el: HTMLElement) => [...el.querySelectorAll<HTMLElement>('thead th')].map((th) => `${th.textContent}:${th.style.display}:${th.style.width}`);
+      const base = mountBlock('nisli-table', { columns, rows: many, rowKey: (r: Row) => r.id }, { width });
+      const expected = snapshot(base.el);
+      // …after paging: "Show 10 more of 10" reveals the long payee
+      [...base.el.querySelectorAll<HTMLElement>('button')].find((b) => b.textContent!.startsWith('Show'))!.click();
+      await settle();
+      expect(base.el.querySelectorAll('tbody tr').length).toBe(70);
+      expect(snapshot(base.el), `paged at ${width}`).toEqual(expected);
+      base.unmount();
+      // …with the rows sorted, with one row, with none
+      for (const data of [sorted, many.slice(0, 1), [] as Row[]]) {
+        const t = mountBlock('nisli-table', { columns, rows: data, rowKey: (r: Row) => r.id }, { width });
+        await settle();
+        expect(snapshot(t.el), `rows ${data.length} at ${width}`).toEqual(expected);
+        t.unmount();
+      }
+    }
+  });
+
+  it('a figure wider than its budget truncates and files FIGURE_TRUNCATED — the column does not widen', () => {
+    const wide: Column<Row>[] = columns.map((c) => (c.id === 'amount' ? { ...c, cell: () => '-$123,456,789.00' } : c));
+    mounted = mountBlock('nisli-table', { columns: wide, rows, rowKey: (r: Row) => r.id }, { width: 768, measure: estimator(768) });
+    const amountTh = [...mounted.el.querySelectorAll<HTMLElement>('thead th')].at(-1)!;
+    expect(parseFloat(amountTh.style.width)).toBeCloseTo(MONEY);   // the budget stands
+    const claims = overflowText.check(mounted.frame, estimator(768));
+    expect(claims.map((c) => c.code)).toContain('FIGURE_TRUNCATED');
+    expect(claims.find((c) => c.code === 'FIGURE_TRUNCATED')!.detail).toContain('-$123,456,789.00');
+  });
+
+  it('a sortable header reserves its sort mark, so the sorted column is exactly as wide as the unsorted one', async () => {
+    const sortable: Column<Row>[] = columns.map((c) => (c.id === 'amount' ? { ...c, label: 'Total amount', sortable: true } : c));
+    mounted = mountBlock('nisli-table', { columns: sortable, rows, rowKey: (r: Row) => r.id }, { width: 1000 });
+    const widthsOf = () => [...mounted!.el.querySelectorAll<HTMLElement>('thead th')].map((th) => th.style.width);
+    const before = widthsOf();
+    // label floor (12ch + padding) + the reserved mark (2ch) — wider than the figure budget, sorted or not
+    expect(parseFloat(before.at(-1)!)).toBeCloseTo(12 * metrics.charWidth + 2 * metrics.space[3] + 2 * metrics.charWidth);
+    (mounted.el as any)._setProp('sort', { by: 'amount', order: 'asc' });
+    await settle();
+    expect(widthsOf()).toEqual(before);
+    expect(shownOf(mounted.el).at(-1)).toContain('Total amount');
+  });
+
+  it('a rows change causes zero solves: the engine never re-measures, and the styles stand', async () => {
+    mounted = mountBlock('nisli-table', { columns, rows: many, rowKey: (r: Row) => r.id }, { width: 768 });
+    const before = [...mounted.el.querySelectorAll<HTMLElement>('thead th')].map((th) => th.getAttribute('style'));
+    let hostMeasures = 0;
+    const host = mounted.el;
+    setMeasurer((node) => { if (node === host) hostMeasures++; return node === host ? 768 : 0; });
+    (mounted.el as any)._setProp('rows', sorted);
+    await settle();
+    expect(hostMeasures).toBe(0);   // a solve reads measure(host); none ran
+    expect([...mounted.el.querySelectorAll<HTMLElement>('thead th')].map((th) => th.getAttribute('style'))).toEqual(before);
   });
 });

@@ -14,8 +14,15 @@ import { observeWidth } from './measure.js';
 export interface FitSpec {
   /** Room in the row, read during the measuring phase. */
   available: () => number;
-  /** Items at natural size, read during the measuring phase. */
-  items: () => FitItem[];
+  /** Items at natural size, given the room. Read during the measuring phase when `measures` (the default); pure data otherwise. */
+  items: (available: number) => FitItem[];
+  /**
+   * `items()` reads the DOM at natural size (default): the solve renders the
+   * block unconstrained, flushes, and measures. `false` — the items are pure
+   * data (budgets): no measuring render, no extra flush, and `measuring`
+   * never turns true, so a rows change re-renders rows only (ADR 0044).
+   */
+  measures?: boolean;
   gap: number;
   triggerWidth?: () => number;
   /** Signals whose change should re-solve (read them inside). */
@@ -39,12 +46,12 @@ export function useFit(host: HTMLElement, spec: FitSpec): Fit {
 
   const solve = () => {
     if (!host.isConnected) return;
-    measuring.value = true;
-    flush();
+    const measures = spec.measures !== false;
+    if (measures) { measuring.value = true; flush(); }
     const available = spec.available();
-    const next = fit({ available, gap: spec.gap, triggerWidth: spec.triggerWidth?.() ?? 0, items: spec.items() });
+    const next = fit({ available, gap: spec.gap, triggerWidth: spec.triggerWidth?.() ?? 0, items: spec.items(available) });
     plan.value = next;
-    measuring.value = false;
+    if (measures) measuring.value = false;
     flush();
     spec.onPlan?.(next, available);
   };

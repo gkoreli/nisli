@@ -4,6 +4,36 @@ All notable changes to `@nisli/engine`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Unreleased until the first
 publish.
 
+## 0.9.0 — 2026-08-30
+
+- **Deterministic decisions (ADR 0044; issue 0028; ledger TENETS §13).** A
+  layout decision is a function of viewport width and declared intent, never
+  of which data is currently shown; data truncates, folds or wraps inside
+  the decided structure and never reshapes it — sorting Ledger's
+  Transactions by Amount can no longer widen Payee and fold two columns.
+  - Table column widths are budgets, pure functions of `kind`, the header
+    label and `metrics.layout` (`columnBudgets`, `spreadSlack`,
+    `textWeights` in `engine/space.ts`): `figureChars` (12) / `dateChars`
+    (8) × `charWidth` for figure and date columns, weighted shares floored
+    at `minTextColumn` for text columns, the sort mark reserved on every
+    `sortable` column whether or not it is sorted (`columnBudgets` takes no
+    sort input), leftover width spread back over the surviving text columns.
+  - The table is always `table-layout: fixed`: the measuring pass — the
+    `max-content` flip, two `flush()`es, the `thead th` measurement over the
+    visible page — is gone (`measures: false` on Table's `fitRow`), and a
+    rows change causes zero solves (`deps` no longer reads `rows`).
+  - Bars' label column (`labelChars` 20) and Columns' axis skipping
+    (`axisChars` 8) are char budgets too, never the longest label; labels
+    truncate inside them.
+  - In dev every decided block stamps its structural plan on its host as
+    `data-nisli-plan` (`PLAN_ATTR`); `prove()` advances every table's page
+    once and mounts each `ProveOptions.variants` factory (same intent over
+    perturbed data), diffs the stamps, and files the new
+    `DECISION_UNSTABLE` claim (error) naming the block and both plans.
+  - A figure wider than its budget truncates and files `FIGURE_TRUNCATED` —
+    the fix is a shorter format or one metric raised once, never a wider
+    column.
+
 ## 0.8.0 — 2026-08-30
 
 - **The intent vocabulary contract (ADR 0043; issue 0027, 0023).** One

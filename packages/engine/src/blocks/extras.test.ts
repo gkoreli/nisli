@@ -76,14 +76,14 @@ describe('charts at a width (mount)', () => {
     expect(shown(up('nisli-columns', props, { width: 0 }))).toBe(6);     // unmeasured: 48px slot → every 2nd
   });
 
-  it('Bars: the label column is labelColumn(width, longest) — natural, then a third, never under minLabel', () => {
+  it('Bars: the label column is labelColumn(width, budget) — the label budget (never the longest label), then a third, never under minLabel', () => {
     const items = [{ label: 'Groceries and household', value: 3, text: '3' }, { label: 'Rent', value: 9, text: '9' }];
-    const longest = 23 * 7.2 + 8; // 173.6
+    const budget = 20 * 7.2 + 8; // labelChars × charWidth + a breath = 152; the 23-char label truncates inside it
     const label = (m: Mounted) => m.styleOf('each-item span').width;
-    expect(label(up('nisli-bars', { items }, { width: 900 }))).toBe(`${longest}px`);
+    expect(label(up('nisli-bars', { items }, { width: 900 }))).toBe(`${budget}px`);
     expect(label(up('nisli-bars', { items }, { width: 300 }))).toBe('100px');
     expect(label(up('nisli-bars', { items }, { width: 120 }))).toBe('64px');
-    expect(label(up('nisli-bars', { items }, { width: 0 }))).toBe(`${longest}px`);
+    expect(label(up('nisli-bars', { items }, { width: 0 }))).toBe(`${budget}px`);
     const fills = [...up('nisli-bars', { items }, { width: 900 }).el.querySelectorAll<HTMLElement>('[style*="height:100%"]')];
     expect(fills.map((f) => f.style.width)).toEqual([`${(3 / 9) * 100}%`, '100%']);
   });

@@ -5,7 +5,7 @@ Every rule for writing and reviewing application UI built from `@nisli/engine`. 
 **Engine source**: `packages/engine/src` — public surface is exactly what `src/index.ts` exports
 **Test surface**: `@nisli/engine/test` → `packages/engine/src/test/prove.ts` (`prove`, `estimator`, `mount`, `textMeasurer`, `claimsOf`, `checkers`); `@nisli/engine/verify` → `src/verify/index.ts` (`verify`, `format`) and the `nisli-verify` CLI (`bin/nisli-verify.mjs`)
 **Screen proof**: `packages/ledger/src/screens/screens.proof.test.ts` — nine screens × five widths, zero claims
-**ADRs**: `docs/adr/0034-engine-typed-blocks-decided-by-an-engine.md` (contract, language, decision rules), `0035-engine-appearance-layer.md` (skins, parts, axes), `0037-engine-form-intent-capture-domain.md` (the ten Form rules), `0040-engine-overlay-domain.md` (layers), `0041-engine-proof-domain.md` (claims, prove, verify), `0042-engine-reachability.md` (keyboard and AT), `0043-engine-intent-vocabulary-contract.md` (one word, one meaning; one Action rule; capture derived)
+**ADRs**: `docs/adr/0034-engine-typed-blocks-decided-by-an-engine.md` (contract, language, decision rules), `0035-engine-appearance-layer.md` (skins, parts, axes), `0037-engine-form-intent-capture-domain.md` (the ten Form rules), `0040-engine-overlay-domain.md` (layers), `0041-engine-proof-domain.md` (claims, prove, verify), `0042-engine-reachability.md` (keyboard and AT), `0043-engine-intent-vocabulary-contract.md` (one word, one meaning; one Action rule; capture derived), `0044-engine-deterministic-decisions.md` (the determinism tenet: a decision is a function of width and intent, never data; `DECISION_UNSTABLE`)
 **Worked example**: `packages/ledger` — nine screens, `TENETS.md`
 
 The engine's block kernel (`src/blocks/kernel.ts`, `src/engine/space.ts`) is being refactored; nothing below depends on it. Only the public intent API and the rules are documented.
@@ -692,6 +692,23 @@ children: [Grid({ children: cards })]
 
 No app word exists for: pixel widths, breakpoints, column counts, sticky/fixed, overflow order beyond `priority`, segmented-vs-select (the count decides), skeleton shape, notice placement or timing, dialog size, focus management, roles and live-region politeness, numeric alignment. If a screen seems to need one, it is a gap: `intent-new-need-home`, then `dogfood-issue-then-engine`.
 
+### `decide-data-never-reshapes` — A decision never depends on the data shown (ADR 0044)
+
+A layout decision is a function of viewport width and declared intent, never of which data is currently shown; data fits into the decided structure — it truncates, folds, or wraps — and never reshapes it (the tenet: 0034 §The contract rule 1; `packages/ledger/TENETS.md` §13; born of sorting Transactions by Amount widening Payee and folding two columns, issue 0028). Table column widths are budgets — pure functions of `kind`, the header label and `metrics.layout` (`columnBudgets`, `engine/space.ts`) — never measured from cells; Bars' label column and Columns' axis skipping are char budgets (`labelChars`, `axisChars`), never the longest label. So sorting, filtering, paging and "Show 60 more" can never move a column, a fold, a section or an action. A figure wider than its budget truncates and files `FIGURE_TRUNCATED`: the fix is a shorter format, or one metric raised once — never a wider column, never a re-plan. For app code the rule means: declare one structure and let the data live inside it, and keep data out of `title` — a data-bearing title is measured as intent, and because `fit()` pays lowest priority first it can evict secondary actions into the overflow menu before it truncates to `minTitle`.
+
+```typescript
+// ❌ WRONG — structure chosen from the data currently loaded
+const columns = computed(() => (rows.value.some((r) => r.note) ? withNote : withoutNote)); // a filter reshapes the table
+Toolbar({ title: computed(() => selected.value?.payee ?? '') });  // data as intent: a long payee can push actions into the menu
+
+// ✅ CORRECT — packages/ledger/src/screens/transactions.ts: one declared column set; a long payee truncates, never widens
+const columns: Column<Transaction>[] = [
+  { id: 'date', label: 'Date', kind: 'date', cell: (t) => shortDate(t.date), priority: 'primary', sortable: true },
+  { id: 'payee', label: 'Payee', cell: (t) => t.payee, priority: 'primary' },
+  { id: 'amount', label: 'Amount', kind: 'money', cell: (t) => money(t.amount, { sign: true }), priority: 'primary', sortable: true },
+];
+```
+
 ### `decide-floats-are-layers` — Anything that floats is a layer
 
 Dialog, `confirm()`, the Toolbar menu, the App bar-mode menu and notices are all layers on the one overlay stack (`engine/overlay.ts`, driven only by `blocks/kernel.ts`; ADR 0040, 0042). The stack gives each Escape, outside-pointer dismiss, focus in and focus return, z-order and inertness — and treats a pointer on a layer's *anchor* as inside, so a real tap on an open menu's trigger closes it once rather than dismissing on pointerdown and reopening on click. Never hand-roll a sheet, a focus trap or a third focus model; an app never sees any of it.
@@ -755,7 +772,7 @@ for (const [name, make] of Object.entries(screens)) {
 
 ### `prove-claims-are-failures` — A claim is a failing test, never noise
 
-A `Claim { code, block, detail, severity, width? }` is the engine saying something a person would otherwise catch by eye or keyboard is wrong. Codes (`src/test/claims.ts`, each checker unit-tested on a positive and a negative fixture): the fit reports `FIT_ROW` / `FIT_COLUMNS` / `FIT_CELL` (a plan still unsatisfied once the screen settled), `OVERFLOW_TEXT` (a one-line text wider than its box with no ellipsis), `FIGURE_TRUNCATED` (a `tabular-nums` figure — money, date, a Stat's value — under an ellipsis narrower than it: a text may truncate, a number may not), `UNSETTLED`, `NAME_MISSING`, `ID_DUPLICATE`, `LABEL_MISSING`, `DIALOG_ARIA`, `MENU_ITEM_ROLE`, `BLOCK_ERROR`, `UNREACHABLE`, `SORT_UNREACHABLE` (a sortable header a keyboard cannot reach), `POPUP_ARIA` (`aria-expanded` without a shown/hidden controlled element), `LIVE_TONE` (a negative notice outside an assertive container, or any notice outside a live container). Fix the intent (a `tertiary`? a shorter header?) or the engine (Settings @360 filed `FIGURE_TRUNCATED` on a folded backup name — the bug was `table.ts` inheriting `tabular-nums` into the fold, fixed there). Never loosen the proof.
+A `Claim { code, block, detail, severity, width? }` is the engine saying something a person would otherwise catch by eye or keyboard is wrong. Codes (`src/test/claims.ts`, each checker unit-tested on a positive and a negative fixture): the fit reports `FIT_ROW` / `FIT_COLUMNS` / `FIT_CELL` (a plan still unsatisfied once the screen settled), `OVERFLOW_TEXT` (a one-line text wider than its box with no ellipsis), `FIGURE_TRUNCATED` (a `tabular-nums` figure — money, date, a Stat's value — under an ellipsis narrower than it: a text may truncate, a number may not), `DECISION_UNSTABLE` (the same width and intent produced two structural plans for two datasets — ADR 0044), `UNSETTLED`, `NAME_MISSING`, `ID_DUPLICATE`, `LABEL_MISSING`, `DIALOG_ARIA`, `MENU_ITEM_ROLE`, `BLOCK_ERROR`, `UNREACHABLE`, `SORT_UNREACHABLE` (a sortable header a keyboard cannot reach), `POPUP_ARIA` (`aria-expanded` without a shown/hidden controlled element), `LIVE_TONE` (a negative notice outside an assertive container, or any notice outside a live container). Fix the intent (a `tertiary`? a shorter header?) or the engine (Settings @360 filed `FIGURE_TRUNCATED` on a folded backup name — the bug was `table.ts` inheriting `tabular-nums` into the fold, fixed there). Never loosen the proof.
 
 ```typescript
 // ❌ WRONG — silencing a claim by widening the width list or filtering codes
@@ -782,6 +799,22 @@ const stop = onReport((r) => reports.push(r));
 // … mount at 294 …
 expect(reports).toEqual([]);
 stop();
+```
+
+### `prove-decision-unstable` — The determinism tenet is proven by diffing stamped plans (ADR 0044)
+
+In dev every decided block stamps its structural decisions on its host as `data-nisli-plan` (`PLAN_ATTR`, `engine/report.ts`): a `fitRow` block (Table, Toolbar) stamps the canonical plan (`id:action:width`, `>target` for folds), Bars `label:W`, Columns `every:N`, Grid and Form `columns:N`. After the base mount reaches its fixed point, `prove()` advances every table's page once — the one data perturbation it can make with no knowledge of the screen — and mounts each `ProveOptions.variants` factory to its own fixed point, then diffs the stamps in document order. Any structural difference is a `DECISION_UNSTABLE` claim (severity `error`) naming the block and both plans. A `variants` factory must present the *same intent over perturbed data* — a sorted copy of the rows, a reversed series; the caller owns the perturbation, no block prop names data. A variant whose stamped blocks differ in count or tag is named too: that is a changed intent, a misuse of `variants`.
+
+```typescript
+// ✅ CORRECT — same intent, perturbed data: the variant boots the store with the rows pre-sorted
+const proof = await prove(() => TransactionsScreen({}), {
+  widths: WIDTHS, scheme: 'light',
+  variants: [() => TransactionsScreen({})],   // mounted over the perturbed store state
+});
+expect(proof.claims).toEqual([]);             // any plan drift is DECISION_UNSTABLE, naming the block
+
+// ❌ WRONG — "fixing" instability by dropping the variant or filtering the code
+expect(proof.claims.filter((c) => c.code !== 'DECISION_UNSTABLE')).toEqual([]);
 ```
 
 ### `prove-real-content` — Prove over real data, and prove that you did

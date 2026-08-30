@@ -4,12 +4,12 @@ description: Typed-block authoring guidelines for code that uses `@nisli/engine`
 license: MIT
 metadata:
   author: nisli-team
-  version: "2.0.0"
+  version: "2.1.0"
 ---
 
 # Nisli Engine — Agent Skill
 
-Guide for building application UI from `@nisli/engine`: app code says **what** things are, the engine decides how they are laid out and what fits at every width, and a skin — installed once — says what the parts look like. There is no CSS file, no `className`, no `style` prop, no `data-*` attribute in the public surface; the types do not offer them. Rules across 8 categories, each traceable to `packages/engine/src/index.ts`, the block prop types, `docs/adr/0034`, `0035`, `0037`, `0043` (the vocabulary contract: one word, one meaning), and the Ledger app (`packages/ledger`).
+Guide for building application UI from `@nisli/engine`: app code says **what** things are, the engine decides how they are laid out and what fits at every width, and a skin — installed once — says what the parts look like. There is no CSS file, no `className`, no `style` prop, no `data-*` attribute in the public surface; the types do not offer them. Rules across 8 categories, each traceable to `packages/engine/src/index.ts`, the block prop types, `docs/adr/0034`, `0035`, `0037`, `0043` (the vocabulary contract: one word, one meaning), `0044` (deterministic decisions: a decision is a function of width and intent, never data), and the Ledger app (`packages/ledger`).
 
 ## When to Apply
 
@@ -107,6 +107,7 @@ Reference these guidelines when:
 - `decide-columns-fold` - A dropped table column folds under the primary text cell as a muted line — nothing is lost; do not duplicate it in another column
 - `decide-grids-choose-columns` - `Grid` and `Form` pick their column counts from width; `App` picks sidebar vs bar; `Dialog` picks card vs sheet — do not try to control these
 - `decide-dont-control` - No app knob exists for widths, breakpoints, column counts, sticky, overflow order, segmented-vs-select, skeleton shape, focus, roles or live-region politeness; if you need one, see `intent-new-need-home`
+- `decide-data-never-reshapes` - ADR 0044: a layout decision is a function of width and declared intent, never of the data shown — column widths are budgets from `kind`/label/`metrics.layout`, and sorting, filtering, paging or "Show N more" never move a column, fold, section or action; data truncates, folds or wraps inside the decided structure; a too-wide figure files `FIGURE_TRUNCATED` (fix the format, or one metric, once) — the column never widens. Declare one structure and keep data out of `title`: a data-bearing title is measured as intent and can evict secondary actions into the overflow menu before it truncates
 - `decide-floats-are-layers` - Anything that floats (Dialog, confirm, the Toolbar menu, the App bar menu, notices) is a layer on the one overlay stack: Escape, outside pointer, focus in/return and z-order are the engine's; a tap on an open layer's anchor toggles it, never dismiss-then-reopen — never hand-roll a sheet or a focus trap
 - `decide-reachable-by-keyboard` - Every decision the engine draws is reachable by keyboard and named for AT with no app line: sortable headers are buttons, `onOpen` rows are named tab stops, notices have a Dismiss in the tab order, labels target labelable controls; a keyboard dismiss never drops focus to `<body>`
 - `decide-tone-is-urgency` - `notify(text, 'negative')` is an assertive `alert` (interrupts, 8 s); every other tone a polite `status` (4 s); the spoken name is Error/Success/Warning/Note — pick the tone for its meaning, never for loudness
@@ -114,8 +115,9 @@ Reference these guidelines when:
 ### 7. Proof at Width (MEDIUM)
 
 - `prove-screens-with-prove` - `prove(() => Screen({}), { widths, scheme: 'light', turns? })` from `@nisli/engine/test` mounts a screen at each width under the calibrated estimator, turns to a fixed point, `settle()`s the data in, and returns `{ claims, reports, byWidth[{ width, claims, reports, turns }] }`; empty `claims` is the proof — one `it` per screen (Ledger: `screens.proof.test.ts`, nine screens, zero claims)
-- `prove-claims-are-failures` - A `Claim` (`FIT_*`, `OVERFLOW_TEXT`, `FIGURE_TRUNCATED`, `UNSETTLED`, `NAME_MISSING`, `ID_DUPLICATE`, `LABEL_MISSING`, `DIALOG_ARIA`, `MENU_ITEM_ROLE`, `BLOCK_ERROR`, `UNREACHABLE`, `SORT_UNREACHABLE`, `POPUP_ARIA`, `LIVE_TONE`) is a failing test: fix the intent or the engine, never filter codes or drop widths; a finding that stays is recorded in `KNOWN` by exact text and asserted still present
+- `prove-claims-are-failures` - A `Claim` (`FIT_*`, `OVERFLOW_TEXT`, `FIGURE_TRUNCATED`, `DECISION_UNSTABLE`, `UNSETTLED`, `NAME_MISSING`, `ID_DUPLICATE`, `LABEL_MISSING`, `DIALOG_ARIA`, `MENU_ITEM_ROLE`, `BLOCK_ERROR`, `UNREACHABLE`, `SORT_UNREACHABLE`, `POPUP_ARIA`, `LIVE_TONE`) is a failing test: fix the intent or the engine, never filter codes or drop widths; a finding that stays is recorded in `KNOWN` by exact text and asserted still present
 - `prove-reports-are-failures` - A `LayoutReport` (`FIT_ROW`, `FIT_COLUMNS`, `FIT_CELL`) is a plan the engine could not satisfy; it stamps `data-nisli-report` and the `window.__nisli.reports` ring in dev, `prove()` keeps the ones still standing after settle, `verify()` files `LAYOUT_REPORT` — in a block test `onReport()` and expect `[]`
+- `prove-decision-unstable` - the determinism tenet is checked as `DECISION_UNSTABLE`: in dev every decided block stamps its plan as `data-nisli-plan`; `prove()` advances each table's page once and mounts every `ProveOptions.variants` factory — same intent over perturbed data (a sorted copy of the rows, a reversed series; the caller owns the perturbation) — and diffs the stamps; any structural difference is an `error` claim naming the block and both plans, and a variant whose blocks differ in count or tag is named as changed intent, a misuse of `variants`
 - `prove-real-content` - Prove over real data: stub `fetch` for every `/api/*` shape, import store and screens after the stub, `await store.ready`, and assert the fixture reached the DOM (rows, `$12,345.67` at 360) before trusting the proof
 - `prove-mount-at-width` - Prove a block with `mount(tag | factory, props, { width, viewport?, scheme?, text?, measure? })` → `{ el, frame, styleOf(), resize(), unmount() }`; assert on inline styles and DOM, then `unmount()`
 - `prove-text-measurer` - `textMeasurer(charWidth)` makes a block plan arithmetic; `estimator(frame)` (calibrated to Chromium per glyph, style, `tabular-nums`, uppercase/letter-spacing, monospace; `glyphs.test.ts` within 3%) answers a screen — never the other way round

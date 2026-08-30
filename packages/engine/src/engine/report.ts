@@ -39,6 +39,18 @@ export function onReport(listener: Listener): () => void {
 
 /** The attribute a block's host carries in dev while one of its plans is unsatisfied. */
 export const REPORT_ATTR = 'data-nisli-report';
+/**
+ * The attribute a decided block carries in dev: its structural decisions as a
+ * canonical string (decisions as data, the same channel as the report stamp).
+ * `prove()` diffs it between mounts of the same screen with the data
+ * perturbed — the `DECISION_UNSTABLE` claim (ADR 0044).
+ */
+export const PLAN_ATTR = 'data-nisli-plan';
+
+/** Stamp a block's structural decisions on its host (dev only). */
+export function stampPlan(host: Element | null | undefined, plan: string): void {
+  if (host && isDev()) host.setAttribute(PLAN_ATTR, plan);
+}
 /** How many reports the dev ring buffer keeps. */
 export const RING = 200;
 

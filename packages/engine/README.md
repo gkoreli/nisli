@@ -37,6 +37,25 @@ engine places them trailing. "This bar stays reachable while scrolling" will be
 a typed boolean on the block that owns the page, not `position: sticky` in app
 code. Intent is vocabulary the types offer; appearance is the engine's.
 
+## Determinism
+
+A layout decision is a function of viewport width and declared intent, never
+of which data is currently shown; data fits into the decided structure — it
+truncates, folds, or wraps — and never reshapes it (ADR 0044; the tenet is
+also 0034 §The contract rule 1 and `packages/ledger/TENETS.md` §13).
+Invariant under data at a width: a table's column set, each column's pinned
+width and which columns fold; a toolbar's overflowed action set; a grid's or
+form's column count; the sections and actions on screen. Free to vary: the
+row count; a row's height (a fold line with an empty value earns no line);
+the fold line's text and where any ellipsis falls; the `Empty` block; a
+chart's item count (one item is one slot — the count is the chart's
+structure, its text is not). Sorting, filtering, paging or "Show N more" can
+never move a column. A figure wider than its budget truncates and files
+`FIGURE_TRUNCATED` — evidence that a format or one metric is wrong, fixed
+once, never a re-plan. `prove()` checks the property as `DECISION_UNSTABLE`
+by diffing every block's stamped plan across a page advance and each
+data-perturbed variant (§Proof).
+
 ## Two layers
 
 - **Engine (scaffolding, visual-less).** Structure and decisions: what is shown,
@@ -240,6 +259,7 @@ fixture) run over the mounted tree:
 | `FIT_ROW` / `FIT_COLUMNS` / `FIT_CELL` | every fit plan is satisfied (a `LayoutReport` still standing after the screen settled) |
 | `OVERFLOW_TEXT` | no one-line text is wider than its box without an ellipsis (a text's box is its own pinned width, else its container's — sharing a row is the fit reports' job) |
 | `FIGURE_TRUNCATED` | no figure (`tabular-nums` digits: money and date cells, a Stat's value, a meter) sits under an ellipsis narrower than it — a text may truncate, a number may not |
+| `DECISION_UNSTABLE` | the same width and intent produce the same structural plan for any data — `prove()` diffs each decided block's dev `data-nisli-plan` stamp across a page advance and every `variants` factory (ADR 0044) |
 | `UNSETTLED` | the screen reached a fixed point: turns run until a turn changes nothing (tree and reports alike), before and after `settle()`; still moving at `turns` (default 12) is not proven |
 | `NAME_MISSING` | every button, link and input has an accessible name |
 | `ID_DUPLICATE` | no id is on two elements |
@@ -409,11 +429,26 @@ keyboard or pointer path — never an "element exists" assertion — in
   model, closes on Escape, outside pointer, a tap on its trigger, or
   selection. A `primary` action is never overflowed (`FIT_ROW` instead).
 - **Table** — columns (`label`, `kind`, `priority`) drop, truncate and fold
-  by `priority` and `kind`; a `sortable` header is a real `<button>` inside
+  by `priority` and `kind`, and every column width is a *budget* — a pure
+  function of `kind`, the header label and `metrics.layout` at the measured
+  width (`columnBudgets`), never of the rows (ADR 0044): figure and date
+  columns get `figureChars`/`dateChars` × `charWidth`, text columns get
+  weighted shares floored at `minTextColumn` and by their own label, every
+  `sortable` header reserves its sort mark whether or not it is sorted,
+  leftover width goes back to the text columns (`spreadSlack`), and the
+  table is always `table-layout: fixed` — no measuring pass, and a rows
+  change causes zero solves. A `sortable` header is a real `<button>` inside
   the `<th>` (`aria-sort` on the `th`, `Sort { by, order }`); an `onOpen` row
   is a tab stop named by its primary cell, opened by Enter/Space, lit while
   focused as while hovered; `empty` (a string, or `EmptyProps`) renders the
   `Empty` block where the rows would be.
+- **Bars** — items (`label`, `value`, `text`); the label column is a fixed
+  budget (`labelChars` × `charWidth`, capped at a third of the block), never
+  the longest item's label — a long label truncates inside it.
+- **Columns** — grouped columns over an ordered axis; which axis positions
+  carry a label (`every`) is a function of the width and the label *count*
+  only (the `axisChars` budget) — one label is one slot, so the count is the
+  chart's structure and the labels' text never decides.
 - **Actions** — one type, `Action { id, label, priority?, destructive?,
   onSelect? }`, one renderer (`blocks/actions.ts`), one rule wherever it is
   placed (Toolbar, Page, Empty, Form, Dialog, confirm): `destructive` →

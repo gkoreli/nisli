@@ -11,7 +11,7 @@ import { el, each, ref, computed, effect, onCleanup, untrack, isSignal, type Ref
 import { buttonBox, inputBox, type StyleRecord } from '../style.js';
 import type { Part } from '../skin.js';
 import { columnsFor } from '../engine/space.js';
-import { reportIf } from '../engine/report.js';
+import { reportIf, stampPlan } from '../engine/report.js';
 import type { Action, Content, Kind } from './types.js';
 import { block, type Ctx, type Parts } from './kernel.js';
 import { confirm } from './confirm.js';
@@ -121,6 +121,7 @@ const FormImpl = block<ImplProps>('nisli-form', {
       if (width.value > 0 && visible.value.length > 0) {
         reportIf({ slack: width.value - metrics.layout.minField }, { code: 'FIT_CELL', block: 'nisli-form', width: width.value, detail: 'a single field column is narrower than the minimum' }, ctx.host);
       }
+      stampPlan(ctx.host, `columns:${cols.value}`);
     });
     onCleanup(stopReport);
 

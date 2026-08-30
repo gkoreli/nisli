@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { metrics } from '../metrics.js';
-import { shellMode, dialogMode, labelColumn, labelEvery, labelWidth, pageSize, fit, columnsFor } from './space.js';
+import { shellMode, dialogMode, labelColumn, labelEvery, labelWidth, pageSize, fit, columnsFor, columnBudgets, spreadSlack, textWeights, SORT_MARK_CHARS, type ColumnIntent } from './space.js';
 
 const L = metrics.layout;
 
@@ -65,5 +65,78 @@ describe('space — decisions from a width', () => {
     expect(pageSize(120, 150)).toEqual({ remaining: 30, next: 30 });
     expect(pageSize(150, 150)).toEqual({ remaining: 0, next: 0 });
     expect(pageSize(200, 150)).toEqual({ remaining: 0, next: 0 });
+  });
+});
+
+describe('columnBudgets — the tenet as arithmetic (ADR 0044): naturals from kind, label and share, never from rows', () => {
+  const cw = metrics.charWidth;                          // 7.2
+  const pad = 2 * metrics.space[3];                      // 24
+  const cols: ColumnIntent[] = [
+    { id: 'date', label: 'Date', kind: 'date', priority: 'primary' },
+    { id: 'payee', label: 'Payee', priority: 'primary' },
+    { id: 'category', label: 'Category' },
+    { id: 'note', label: 'Note', priority: 'tertiary' },
+    { id: 'amount', label: 'Amount', kind: 'money', priority: 'primary' },
+  ];
+  const DATE = L.dateChars * cw + pad;                   // 81.6
+  const MONEY = L.figureChars * cw + pad;                // 110.4
+
+  it('dates and figures get character budgets, rigid (no minWidth): they never truncate', () => {
+    const b = columnBudgets(cols, 1000);
+    expect(b[0]).toEqual({ id: 'date', width: DATE });
+    expect(b[4]).toEqual({ id: 'amount', width: MONEY });
+  });
+
+  it('text columns share the remainder by weight (primary double), capped, with minWidth at the text floor', () => {
+    const b = columnBudgets(cols, 1000);
+    const remainder = 1000 - DATE - MONEY;               // 808, over weights 2+1+1
+    expect(b[1]!.width).toBe(L.textColumnCap);           // payee: 404 capped at 320
+    expect(b[1]!.minWidth).toBe(L.minTextColumn);
+    expect(b[2]!.width).toBeCloseTo(remainder / 4);      // category: 202
+  });
+
+  it('below the floor every text share pins at minTextColumn — the same at any narrow width, so the floor cannot move either', () => {
+    for (const w of [400, 300, 200, 100]) {
+      const b = columnBudgets(cols, w);
+      expect(b[2]!.width).toBe(L.minTextColumn);
+      expect(b[2]!.minWidth).toBe(L.minTextColumn);
+    }
+  });
+
+  it('a header label floors its column (a label is intent), and a sortable column reserves the sort mark whether or not it is sorted — there is no sort input at all', () => {
+    const long: ColumnIntent[] = [{ id: 'total', label: 'Total amount', kind: 'money', sortable: true }];
+    expect(columnBudgets(long, 500)[0]!.width).toBeCloseTo('Total amount'.length * cw + pad + SORT_MARK_CHARS * cw); // 124.8 > the figure budget
+    const plain: ColumnIntent[] = [{ id: 'total', label: 'Total amount', kind: 'money' }];
+    expect(columnBudgets(plain, 500)[0]!.width).toBeCloseTo('Total amount'.length * cw + pad); // the label floor alone
+  });
+
+  it('unmeasured (0) is roomy: every text column at its cap', () => {
+    expect(columnBudgets(cols, 0)[1]!.width).toBe(L.textColumnCap);
+    expect(columnBudgets(cols, 0)[2]!.width).toBe(L.textColumnCap);
+  });
+
+  it('every budget takes an explicit layout, so a density axis can move it', () => {
+    const tight = { ...L, dateChars: 6, figureChars: 8, minTextColumn: 40, textColumnCap: 100 };
+    const b = columnBudgets(cols, 300, tight);
+    expect(b[0]!.width).toBeCloseTo(Math.max(6 * cw + pad, labelWidth('Date', pad, cw)));
+    expect(b[2]!.width).toBeCloseTo(labelWidth('Category', pad, cw)); // the label floor beats the tight share floor (40)
+  });
+
+  it('spreadSlack: the leftover goes to the surviving weighted columns; unweighted and folded ones keep their widths; no slack, no change', () => {
+    const plan = fit({ available: 500, gap: 0, triggerWidth: 0, items: [
+      { id: 'a', width: 100, priority: 2 },
+      { id: 'b', width: 100, priority: 1 },
+    ] });
+    expect(plan.slack).toBe(300);
+    const spread = spreadSlack(plan, new Map([['b', 1], ['gone', 5]]));
+    expect(spread.get('a')).toBe(100);
+    expect(spread.get('b')).toBe(400);
+    expect(spread.has('gone')).toBe(false);
+    const none = spreadSlack(plan, new Map());
+    expect([...none.values()]).toEqual([100, 100]);
+  });
+
+  it('textWeights: primary text 2, other text 1, figures and dates none — the weights spreadSlack shares by', () => {
+    expect([...textWeights(cols)]).toEqual([['payee', 2], ['category', 1], ['note', 1]]);
   });
 });

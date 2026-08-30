@@ -21,6 +21,7 @@ export type ClaimCode =
   | 'OVERFLOW_TEXT'     // a one-line text wider than its box, and no ellipsis to say so
   | 'FIGURE_TRUNCATED'  // a figure (tabular-nums) wider than its box: an ellipsis would hide digits
   | 'UNSETTLED'         // the screen was still changing when prove() stopped looking
+  | 'DECISION_UNSTABLE' // the same width and intent produced two structural plans for two datasets (ADR 0044)
   | 'NAME_MISSING'      // a button, link or input with no accessible name
   | 'ID_DUPLICATE'      // one id on two elements
   | 'LABEL_MISSING'     // an input inside a form with no label

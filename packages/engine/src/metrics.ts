@@ -7,7 +7,13 @@ export const metrics = {
   space: { 1: 4, 2: 8, 3: 12, 4: 16, 5: 24, 6: 32 },
   /** A control's height and horizontal padding; `check` is a checkbox's side. */
   control: { height: 32, padX: 12, check: 16 },
-  /** Average glyph width at body size; used only for estimates. */
+  /**
+   * Average glyph width at body size. Estimates use it, and so do the
+   * budget decisions (`columnBudgets`, a chart's label budget): a budget in
+   * characters becomes px through this number, calibrated to the default
+   * skin. A skin with a wider face retunes it (or the char budgets) here —
+   * `verify()` in Chromium is the honest check that it still holds.
+   */
   charWidth: 7.2,
   /**
    * The z-order of everything that floats or pins. Page chrome pins below
@@ -40,6 +46,16 @@ export const metrics = {
     menuWidth: 160,
     /** Rows a table shows before asking; a long list is a decision, not a scroll. */
     tablePage: 60,
+    /** A date cell's budget, characters — the widest short date ("Sep 30" and a breath). A longer format truncates and files FIGURE_TRUNCATED; raise it here, once. */
+    dateChars: 8,
+    /** A money or number cell's budget, characters: sign, symbol, separators and decimals included ("-$123,456.78"). */
+    figureChars: 12,
+    /** A text column never takes more than this from its share; slack after folding may still widen it. */
+    textColumnCap: 320,
+    /** A bar chart's label column budget, characters; a longer label truncates inside it. */
+    labelChars: 20,
+    /** A chart axis label's budget, characters; which labels show is then a function of width and count, never of the strings. */
+    axisChars: 8,
   },
 } as const;
 

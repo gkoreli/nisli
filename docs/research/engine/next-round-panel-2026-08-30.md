@@ -55,7 +55,7 @@ Spot-checked before ranking: `toolbar.ts:52` primary is `overflowable: true`; `e
 - **vocabulary-contract** → round 3 / ADR 0043: needs a clean Ledger screens dir and the 0023 collision as evidence for what `Action`/`key`/`kind` must mean.
 - **skin-contrast** → round 2, 0035 amendment: independent and tiny; kept separate so the 0042 review judges one thing.
 - **Issue 0023 (Dialog actions):** it is the precondition for vocabulary; schedule between rounds 2 and 3 as the evidence generator.
-- **Table perf (double `flush()`, `max-content` flip on every rows change):** plausible phone jank, unmeasured; not a round until measured.
+- **Table perf (double `flush()`, `max-content` flip on every rows change):** plausible phone jank, unmeasured; not a round until measured. *Resolved 2026-08-30: table perf addressed by [ADR 0044](../../adr/0044-engine-deterministic-decisions.md) — the measuring phase is gone, zero solves per rows change (measure-spy test).*
 - **`<each-item display:contents>`, SSG/first paint:** core package or new capability; out of engine scope.
 - **table-domain:** its evaluation reached me truncated; cannot be ranked honestly — re-supply it if it should contend.
 

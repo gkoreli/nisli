@@ -1,6 +1,6 @@
 import { computed, effect, onCleanup } from '@nisli/core';
 import { columnsFor } from '../engine/space.js';
-import { reportIf } from '../engine/report.js';
+import { reportIf, stampPlan } from '../engine/report.js';
 import { block } from './kernel.js';
 import { toList, type Children } from './types.js';
 
@@ -24,6 +24,7 @@ export const Grid = block<GridProps>('nisli-grid', {
       if (width > 0 && count.value > 0) {
         reportIf({ slack: width - min }, { code: 'FIT_CELL', block: 'nisli-grid', width, detail: 'a single column is narrower than the minimum cell' }, ctx.host);
       }
+      stampPlan(ctx.host, `columns:${columnsFor(width, count.value, min, ctx.metrics.space[4])}`);
     });
     onCleanup(stop);
     return computed(() => toList(props.children.value));

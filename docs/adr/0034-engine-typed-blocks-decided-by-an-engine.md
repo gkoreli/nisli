@@ -82,6 +82,18 @@ App code **can** say, and only say, meaning: `priority: 'primary' | 'secondary'
 `'body' | 'note' | 'code'`, `kind` is the exported `Kind`, and every term above
 has one row there.)
 
+The contract also binds the engine:
+
+1. **A layout decision is a function of viewport width and declared intent,
+   never of which data is currently shown.** Data fits into the decided
+   structure — it truncates, folds, or wraps — and never reshapes it. Same
+   width and same props ⇒ same plan, whatever the rows, their order, the
+   page or the filter. A declared count (columns, children, fields, actions)
+   is structure and may decide; a row's content may not. Stated after
+   [issue 0028](../issues/0028-decisions-depend-on-visible-data.md), decided
+   in [0044](./0044-engine-deterministic-decisions.md), proven by the
+   `DECISION_UNSTABLE` claim.
+
 ## Decision rules that exist today
 
 Each is one line in code; each is provable at width with `setMeasurer`.

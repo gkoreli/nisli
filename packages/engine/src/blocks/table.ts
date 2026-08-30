@@ -1,7 +1,7 @@
-import { el, each, signal, computed, effect, onCleanup, ref, type ReadonlySignal, type TemplateResult } from '@nisli/core';
+import { el, each, signal, computed, effect, onCleanup, type ReadonlySignal, type TemplateResult } from '@nisli/core';
 import { truncate, buttonBox } from '../style.js';
 import { measure } from '../engine/measure.js';
-import { pageSize } from '../engine/space.js';
+import { pageSize, columnBudgets, spreadSlack, textWeights } from '../engine/space.js';
 import { block, type Ctx } from './kernel.js';
 import { Empty, type EmptyProps } from './empty.js';
 import type { Content, Kind, Priority } from './types.js';
@@ -62,7 +62,6 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
     const { host, metrics } = ctx;
     const id = `nisli-table-${nextId++}`;
     let nextRow = 1;
-    const tableEl = ref();
     const columns = computed(() => [...props.columns.value]);
     const allRows = computed(() => [...props.rows.value]);
     const limit = signal(metrics.layout.tablePage);
@@ -81,28 +80,32 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
       return (primaries.find(isText) ?? primaries[0])?.id;
     });
 
+    // Column naturals are budgets — a pure function of (available, columns, metrics), never of the rows
+    // (ADR 0044): sorting, filtering, paging or a sync can never reshape the decided structure. No
+    // measuring phase: the items are data, so a rows change re-renders rows only and re-solves nothing.
     const grid = ctx.fitRow({
       gap: 0,
-      available: () => measure(host),
-      items: () => {
-        const table = tableEl.current as HTMLElement | null;
-        const ths = table ? [...table.querySelectorAll<HTMLElement>('thead th')] : [];
-        const target = stackTarget.value;
-        return columns.value.map((c, i) => {
-          const width = ths[i] ? measure(ths[i]!) : 0;
-          return {
-            id: c.id,
-            width,
-            // A text column may truncate down to a few words; figures and dates never do.
-            minWidth: isText(c) ? Math.min(width, metrics.layout.minTextColumn) : undefined,
-            priority: RANK[c.priority ?? 'secondary'],
-            // Leaving the row means folding under the primary cell, never vanishing.
-            stackInto: c.priority !== 'primary' && target && target !== c.id ? target : undefined,
-            overflowable: c.priority !== 'primary',
-          };
-        });
+      measures: false,
+      available: () => {
+        const w = measure(host);
+        // Unmeasured (0) is roomy (space.ts vocabulary): every column at its natural budget, nothing folds.
+        return w > 0 ? w : columnBudgets(columns.value, 0, metrics.layout, metrics.charWidth, 2 * metrics.space[3]).reduce((s, b) => s + b.width, 0);
       },
-      deps: () => { columns.value; rows.value; },
+      items: (available) => {
+        const target = stackTarget.value;
+        const budgets = columnBudgets(columns.value, available, metrics.layout, metrics.charWidth, 2 * metrics.space[3]);
+        return columns.value.map((c, i) => ({
+          id: c.id,
+          width: budgets[i]!.width,
+          // A text column may truncate down to a few words (minTextColumn); figures and dates never do.
+          minWidth: budgets[i]!.minWidth,
+          priority: RANK[c.priority ?? 'secondary'],
+          // Leaving the row means folding under the primary cell, never vanishing.
+          stackInto: c.priority !== 'primary' && target && target !== c.id ? target : undefined,
+          overflowable: c.priority !== 'primary',
+        }));
+      },
+      deps: () => { columns.value; },
       report: {
         code: 'FIT_COLUMNS',
         detail: (plan) => {
@@ -111,10 +114,18 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
         },
       },
     });
-    const measuring = grid.measuring;
+    /**
+     * The decided width of every surviving column: the plan's widths plus the
+     * slack, spread over the surviving text columns by the share's own weights
+     * — so the columns sum to the available width and the browser's fixed
+     * layout has nothing of its own to distribute.
+     */
+    const finalWidths = computed<ReadonlyMap<string, number> | null>(() => {
+      const plan = grid.plan.value;
+      return plan ? spreadSlack(plan, textWeights(columns.value)) : null;
+    });
     /** Columns folded under `id`, in document order. */
     const stackedInto = (id: string): Column<unknown>[] => {
-      if (measuring.value) return [];
       const ids = grid.plan.value?.stacked.get(id) ?? [];
       return ids.map((sid) => columns.value.find((c) => c.id === sid)!).filter(Boolean);
     };
@@ -125,8 +136,7 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
       fontVariantNumeric: isNumeric(c) || c.kind === 'date' ? 'tabular-nums' : 'normal',
       ...truncate,
       boxSizing: 'border-box',
-      maxWidth: measuring.value ? (c.priority === 'primary' ? 'none' : 320) : 'none',
-      width: !measuring.value && grid.decision(c.id) && !grid.gone(c.id) ? grid.decision(c.id)!.width : 'auto',
+      width: !grid.gone(c.id) ? finalWidths.value?.get(c.id) ?? 'auto' : 'auto',
       padding: `${metrics.space[2]}px ${metrics.space[3]}px`,
       userSelect: head ? 'none' : 'auto',
       font: 'inherit',
@@ -206,9 +216,9 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
 
     return [
       ctx.failure,
+      // Pinned always: the decided widths are the truth; data truncates, folds or wraps within them.
       el('table', {
-        ref: tableEl,
-        style: ctx.part([], () => ({ borderCollapse: 'collapse', width: measuring.value ? 'max-content' : '100%', tableLayout: measuring.value ? 'auto' : 'fixed' })),
+        style: ctx.part([], { borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }),
       }, [
         el('thead', {}, [
           el('tr', {}, columns.value.map((c) =>

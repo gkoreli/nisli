@@ -48,7 +48,7 @@ import { css, apply, buttonBox, type StyleRecord } from '../style.js';
 import { look, type Part } from '../skin.js';
 import { useWidth, useViewportWidth } from '../engine/measure.js';
 import { useFit, type Fit, type FitSpec } from '../engine/use-fit.js';
-import { reportIf, type ReportCode } from '../engine/report.js';
+import { reportIf, stampPlan, type ReportCode } from '../engine/report.js';
 import type { FitPlan } from '../engine/fit.js';
 import { layer as makeLayer, push, pop, reach, locks, escapeTarget, pointerTarget, zIndexOf, placeMenu, EMPTY_STACK, type Layer, type LayerKind, type LayerStack, type Placement, type Size } from '../engine/overlay.js';
 import { SurfaceContext, surfaceDepth } from './surface.js';
@@ -174,6 +174,8 @@ export function block<P extends object>(tag: string, spec: BlockSpec<P>): Compon
           ...fitSpec,
           onPlan: (plan, available) => {
             reportIf(plan, { code: report.code, block: tag, width: available, detail: report.detail(plan) }, host);
+            // Decisions as data (dev): the plan, canonical, for DECISION_UNSTABLE to diff.
+            stampPlan(host, plan.decisions.map((d) => `${d.id}:${d.action}${d.width > 0 ? `:${Math.round(d.width)}` : ''}${d.into ? `>${d.into}` : ''}`).join(' '));
             onPlan?.(plan, available);
           },
         }),

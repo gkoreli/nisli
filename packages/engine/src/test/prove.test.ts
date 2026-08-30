@@ -32,8 +32,8 @@ const columns: Column<Row>[] = [
   { id: 'amount', label: 'Amount', kind: 'money', cell: (r) => r.amount, priority: 'primary' },
 ];
 const rows: Row[] = [
-  { id: '1', date: '2026-08-30', payee: 'Whole Foods Market #10235', category: 'Groceries', account: 'Checking', note: 'weekly', amount: -123.45 },
-  { id: '2', date: '2026-08-29', payee: 'REI', category: 'Shopping', account: 'Card', note: '', amount: -12 },
+  { id: '1', date: 'Aug 30', payee: 'Whole Foods Market #10235', category: 'Groceries', account: 'Checking', note: 'weekly', amount: -123.45 },
+  { id: '2', date: 'Aug 29', payee: 'REI', category: 'Shopping', account: 'Card', note: '', amount: -12 },
 ];
 interface Draft { payee: string; amount: number; kind: string; note: string }
 const fields: Field<Draft>[] = [
@@ -81,7 +81,7 @@ describe('prove()', () => {
   });
 
   it('a screen the engine cannot satisfy is a list of claims that say why, tagged with the width', async () => {
-    // Three primary columns (never leave; text truncates to 96) need ~72 + 96 + 69 = 237px; a grid cell needs 220.
+    // Three primary columns (never leave) need their budgets: date 81.6 + payee 96 + amount 110.4 = 288px; a grid cell needs 220.
     const proof = await prove(() => Grid({ children: [Section({ title: 'S', children: [Table({ columns, rows, rowKey: (r) => r.id })] })] }), { widths: [1024, 200], scheme: 'light' });
     expect(proof.byWidth[0]!.claims).toEqual([]);
     const at200 = proof.byWidth[1]!;
@@ -115,6 +115,17 @@ describe('prove()', () => {
     expect(moving.claims.map((c) => [c.code, c.width])).toContainEqual(['UNSETTLED', 800]);
     expect(moving.claims[0]!.detail).toMatch(/still changing after 4 turns after mount/);
     expect(moving.byWidth[0]!.turns).toBeGreaterThanOrEqual(5);   // the cap after mount, then at least one turn after settle()
+  });
+
+  it('DECISION_UNSTABLE: a data-perturbed variant must decide the same structural plans; a changed intent is caught and named', async () => {
+    const reversed = [...rows].reverse();
+    // Same intent, data reordered: every structural plan matches — the tenet (ADR 0044) holds.
+    const stable = await prove(() => Table({ columns, rows, rowKey: (r) => r.id }), { widths: [768, 360], variants: [() => Table({ columns, rows: reversed, rowKey: (r) => r.id })] });
+    expect(stable.claims).toEqual([]);
+    // A variant that changes the columns changes intent: the diff names the block and both plans.
+    const broken = await prove(() => Table({ columns, rows, rowKey: (r) => r.id }), { widths: [768], variants: [() => Table({ columns: columns.slice(0, 3), rows, rowKey: (r) => r.id })] });
+    expect(broken.claims.map((c) => [c.code, c.block, c.width])).toContainEqual(['DECISION_UNSTABLE', 'nisli-table', 768]);
+    expect(broken.claims.find((c) => c.code === 'DECISION_UNSTABLE')!.detail).toMatch(/with the data perturbed \(variant 1\)/);
   });
 
   it('viewport may be a function of the width; settle() lets a store boot before the checks', async () => {

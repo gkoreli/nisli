@@ -1,6 +1,7 @@
-import { el, each, computed } from '@nisli/core';
+import { el, each, computed, effect, onCleanup } from '@nisli/core';
 import { truncate } from '../style.js';
-import { labelEvery, labelWidth } from '../engine/space.js';
+import { labelEvery } from '../engine/space.js';
+import { stampPlan } from '../engine/report.js';
 import { block } from './kernel.js';
 import type { Tone } from './types.js';
 
@@ -37,8 +38,12 @@ export const Columns = block<ColumnsProps>('nisli-columns', {
     const series = computed(() => [...props.series.value]);
     const max = computed(() => Math.max(1, ...series.value.flatMap((s) => s.values)));
     const slot = computed(() => (ctx.width.value > 0 ? ctx.width.value / Math.max(1, labels.value.length) : UNMEASURED_SLOT));
-    const longest = computed(() => Math.max(metrics.space[2], ...labels.value.map((l) => labelWidth(l, metrics.space[2], metrics.charWidth))));
-    const every = computed(() => labelEvery(slot.value, longest.value));
+    // The axis label budget: `axisChars` glyphs and a breath. One label is one slot — the count is chart
+    // structure and may decide; the label *text* may not (ADR 0044): "September" and "May" skip the same.
+    const budget = metrics.layout.axisChars * metrics.charWidth + metrics.space[2];
+    const every = computed(() => labelEvery(slot.value, budget));
+    const stopStamp = effect(() => stampPlan(ctx.host, `every:${every.value}`));
+    onCleanup(stopStamp);
     const groups = computed(() => labels.value.map((label, i) => ({ label, i, values: series.value.map((s) => ({ v: s.values[i] ?? 0, tone: s.tone, label: s.label })) })));
 
     return [
