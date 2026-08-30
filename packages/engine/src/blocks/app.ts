@@ -85,7 +85,7 @@ export const App = block<AppProps>('nisli-app', {
           padding: `${metrics.space[2]}px ${metrics.space[3]}px`,
           position: 'sticky',
           top: 0,
-          zIndex: 20,
+          zIndex: metrics.layer.bar,
         })),
       }, [
         el('div', { style: ctx.part('brand') }, props.brand),
@@ -107,7 +107,7 @@ export const App = block<AppProps>('nisli-app', {
           padding: metrics.space[3],
           position: 'sticky',
           top: barHeight,
-          zIndex: 19,
+          zIndex: metrics.layer.bar - 1,
         })),
       }, [each(nav, (n) => n.href, link)]),
       // Content

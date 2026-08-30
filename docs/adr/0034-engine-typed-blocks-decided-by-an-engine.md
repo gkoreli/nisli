@@ -4,7 +4,7 @@
 **Status**: Accepted
 **Depends on**: [0029-agent-native-ui-strategy](./0029-agent-native-ui-strategy.md), [0030-agent-native-authoring](./0030-agent-native-authoring.md)
 **Replaces the direction of**: [0032](./0032-derived-appearance-package.md) and [0033](./0033-oracle-soundness.md), both withdrawn on 2026-08-27 — see [`AUDIT-2026-08-27.md`](../research/nextgen/AUDIT-2026-08-27.md). Their numbers stay burned; this ADR does not supersede their text, it records what was built instead.
-**Companion**: [0035-engine-appearance-layer](./0035-engine-appearance-layer.md) (the visual layer this ADR only names), [0038-engine-block-kernel-and-space-domain](./0038-engine-block-kernel-and-space-domain.md) (how a block is built)
+**Companion**: [0035-engine-appearance-layer](./0035-engine-appearance-layer.md) (the visual layer this ADR only names), [0038-engine-block-kernel-and-space-domain](./0038-engine-block-kernel-and-space-domain.md) (how a block is built), [0040-engine-overlay-domain](./0040-engine-overlay-domain.md) (the things that float)
 **Code**: [`packages/engine`](../../packages/engine), [`packages/ledger`](../../packages/ledger)
 
 ## Context
@@ -108,6 +108,12 @@ Each is one line in code; each is provable at width with `setMeasurer`.
   (232 + 560); otherwise a top bar with a menu sheet. `blocks/app.ts`.
 - **Dialog shape** — a full-height sheet below `dialogMin` (640), else a
   centred card of `dialogWidth`. `blocks/dialog.ts`.
+- **Overlay rules** — Escape and an outside pointer reach the top
+  non-passive layer only; a modal traps focus, makes the rest of the page
+  `inert` and locks scroll; notices float above modals by rule; menus are
+  placed by the engine. Recorded in
+  [0040](./0040-engine-overlay-domain.md). `engine/overlay.ts`,
+  `blocks/kernel.ts` `ctx.overlay`.
 - **A long list is a decision, not a scroll** — 60 rows, then "Show N more".
   `blocks/table.ts` `PAGE`.
 - **A surface inside a surface is not a card** — `SurfaceContext` depth;

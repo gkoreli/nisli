@@ -1,7 +1,7 @@
-import { el, each, signal, computed, onMount, onCleanup, ref } from '@nisli/core';
+import { el, each, signal, computed, ref } from '@nisli/core';
 import { truncate, buttonBox, menuItemBox } from '../style.js';
 import { measure } from '../engine/measure.js';
-import { block } from './kernel.js';
+import { block, focusables } from './kernel.js';
 import type { Action } from './types.js';
 
 export type { Action };
@@ -16,6 +16,7 @@ export interface ToolbarProps {
 const RANK = { tertiary: 1, secondary: 2, title: 10, primary: 20 } as const;
 const rank = (a: Action) => RANK[a.priority ?? 'secondary'];
 const variantOf = (a: Action) => (a.destructive ? 'danger' : a.priority === 'primary' ? 'primary' : 'plain');
+let nextId = 1;
 
 export const Toolbar = block<ToolbarProps>('nisli-toolbar', {
   host: ({ metrics }) => ({
@@ -32,8 +33,10 @@ export const Toolbar = block<ToolbarProps>('nisli-toolbar', {
   hostParts: ['surface', 'bar'],
   render: (props, ctx) => {
     const { host, busy, metrics } = ctx;
+    const id = `nisli-toolbar-${nextId++}`;
     const titleEl = ref();
-    const trigger = ref();
+    const trigger = ref<HTMLElement>();
+    const menu = ref<HTMLElement>();
     const open = signal(false);
     const actions = computed(() => [...(props.actions.value ?? [])]);
 
@@ -54,16 +57,54 @@ export const Toolbar = block<ToolbarProps>('nisli-toolbar', {
     });
     const overflowed = computed(() => (row.measuring.value ? [] : actions.value.filter((a) => row.decision(a.id)?.action === 'overflow')));
 
-    const onDoc = (e: Event) => { if (!host.contains(e.target as Node)) open.value = false; };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') open.value = false; };
-    onMount(() => {
-      document.addEventListener('pointerdown', onDoc);
-      document.addEventListener('keydown', onKey);
+    // The menu is a popover layer: the engine closes it on Escape or an outside
+    // pointer when it is the reachable layer, places it against the trigger,
+    // and returns focus to the trigger on close — except when Tab left it.
+    const items = () => [...(menu.current?.querySelectorAll<HTMLElement>('[role=menuitem]:not([disabled])') ?? [])];
+    let from: 'first' | 'last' = 'first';   // ArrowUp on the trigger opens on the last item (WAI-ARIA menu button)
+    let leaving = false;                     // Tab left the menu: focus goes on past the trigger, not back to it
+    const openMenu = (at: 'first' | 'last' = 'first') => { from = at; leaving = false; active.value = null; open.value = true; };
+    const overlay = ctx.overlay({
+      kind: 'popover',
+      open,
+      onDismiss: () => { open.value = false; },
+      within: () => menu.current,
+      anchor: () => trigger.current,
+      align: 'trailing',
+      size: () => ({ width: metrics.layout.menuWidth, height: metrics.control.height }),
+      initialFocus: () => (from === 'last' ? items().at(-1) : items()[0]) ?? menu.current,
+      restoreFocus: () => !leaving,
     });
-    onCleanup(() => {
-      document.removeEventListener('pointerdown', onDoc);
-      document.removeEventListener('keydown', onKey);
-    });
+
+    // Roving tabindex: one item is in the tab order; arrows move it with wrap, Home/End jump, Tab leaves and closes.
+    const active = signal<string | null>(null);
+    const focusItem = (item: HTMLElement | undefined) => { if (item) { active.value = item.getAttribute('data-nisli-item'); item.focus(); } };
+    const onMenuKey = (ev: Event) => {
+      const e = ev as KeyboardEvent;
+      const list = items();
+      const i = list.indexOf(document.activeElement as HTMLElement);
+      switch (e.key) {
+        case 'ArrowDown': e.preventDefault(); focusItem(list[(i + 1) % list.length]); break;
+        case 'ArrowUp': e.preventDefault(); focusItem(list[(i - 1 + list.length) % list.length]); break;
+        case 'Home': e.preventDefault(); focusItem(list[0]); break;
+        case 'End': e.preventDefault(); focusItem(list[list.length - 1]); break;
+        case 'Tab': {
+          // Leave forwards (or backwards): to the tabbable after (before) the trigger, as if the menu were not there.
+          e.preventDefault();
+          leaving = true;
+          open.value = false;
+          const order = focusables(document.body).filter((c) => !menu.current?.contains(c));
+          const at = trigger.current ? order.indexOf(trigger.current) : -1;
+          (order[at + (e.shiftKey ? -1 : 1)] ?? trigger.current)?.focus();
+          break;
+        }
+      }
+    };
+    const onTriggerKey = (ev: Event) => {
+      const e = ev as KeyboardEvent;
+      if (e.key === 'ArrowDown') { e.preventDefault(); openMenu('first'); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); openMenu('last'); }
+    };
 
     const isBusy = (a: Action) => busy.is(a.id);
 
@@ -91,30 +132,40 @@ export const Toolbar = block<ToolbarProps>('nisli-toolbar', {
       ),
       el('button', {
         ref: trigger,
+        id: `${id}-trigger`,
         type: 'button',
         'aria-label': 'More actions',
         'aria-haspopup': 'menu',
+        'aria-controls': `${id}-menu`,
         'aria-expanded': computed(() => String(open.value)),
         style: ctx.part(['button', 'button.plain'], () => ({ ...buttonBox(), display: row.measuring.value || overflowed.value.length ? 'inline-flex' : 'none' })),
-        on: { click: () => { open.value = !open.value; } },
+        on: { click: () => { if (open.value) open.value = false; else openMenu(); }, keydown: onTriggerKey },
       }, '⋯'),
       el('div', {
+        ref: menu,
+        id: `${id}-menu`,
         role: 'menu',
+        'aria-labelledby': `${id}-trigger`,
         style: ctx.part(['surface.raised', 'menu'], () => ({
           display: open.value ? 'flex' : 'none',
+          // Unseen until the engine has placed it: no first paint at the corner.
+          visibility: overlay.placement.value ? 'visible' : 'hidden',
           flexDirection: 'column',
-          position: 'absolute',
-          top: '100%',
-          right: metrics.space[4],
-          minWidth: 160,
+          position: 'fixed',
+          top: overlay.placement.value?.top ?? 0,
+          left: overlay.placement.value?.left ?? 0,
+          minWidth: metrics.layout.menuWidth,
           padding: metrics.space[1],
-          zIndex: 10,
+          zIndex: overlay.z.value,
         })),
+        on: { keydown: onMenuKey },
       }, [
         each(overflowed, (a) => a.id, (a) =>
           el('button', {
             type: 'button',
             role: 'menuitem',
+            'data-nisli-item': computed(() => a.value.id),
+            tabindex: computed(() => ((active.value ?? overflowed.value[0]?.id) === a.value.id ? '0' : '-1')),
             style: ctx.part(() => ['menu.item', ...(a.value.destructive ? ['menu.item.danger' as const] : [])], menuItemBox()),
             'aria-busy': computed(() => (isBusy(a.value) ? 'true' : false)),
             disabled: computed(() => (isBusy(a.value) ? 'disabled' : false)),

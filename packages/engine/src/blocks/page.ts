@@ -21,7 +21,7 @@ export const Page = block<PageProps>('nisli-page', {
     // Read eagerly: the content computed is lazy, and an unread prop is diagnosed (N202).
     props.children.value;
     return [
-      el('div', { style: ctx.part([], { position: 'sticky', top: 0, zIndex: 15 }) }, [
+      el('div', { style: ctx.part([], { position: 'sticky', top: 0, zIndex: metrics.layer.sticky }) }, [
         Toolbar({
           title: computed(() => (updating.value ? `${props.title.value} · Updating…` : props.title.value)),
           actions: computed(() => props.actions.value ?? []),

@@ -33,7 +33,12 @@ const ConfirmBody = block<ConfirmBodyProps>('nisli-confirm', {
   ],
 });
 
-/** Ask before an action that cannot be undone. Resolves to the answer. */
+/**
+ * Ask before an action that cannot be undone. Resolves to the answer. A
+ * Dialog mounted at the body, so it is a modal layer of the overlay stack:
+ * above whatever is open (a dialog, its menu), one Escape answers it alone,
+ * and focus returns to the control that invoked it.
+ */
 export function confirm(options: ConfirmOptions): Promise<boolean> {
   return new Promise((resolve) => {
     const open = signal(true);

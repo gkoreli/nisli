@@ -4,6 +4,33 @@ All notable changes to `@nisli/engine`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Unreleased until the first
 publish.
 
+## 0.4.0 — 2026-08-29
+
+- **Overlay stack.** `engine/overlay.ts` (pure): `Layer` of kind `modal` |
+  `popover` | `passive`, `push`/`pop`/`top`, `reach()` (the topmost
+  non-passive layer), `escapeTarget`, `pointerTarget`, `locks`, `zIndexOf`
+  over `metrics.layer` (`sticky`/`bar`/`modal`/`popover`/`passive` — paint
+  order is stack order; App and Page take their z from it), and `placeMenu()`
+  with `PlaceOptions.dir` for RTL. The kernel owns the only document
+  listeners: `ctx.overlay(spec)` → `{ z, placement }`.
+- **Kernel guarantees.** Inert set recomputed from the stack on every
+  open/close (a sibling modal is never inert; a notice's subtree never is);
+  ref-counted scroll lock shared by `lockScroll()` and the manager;
+  `focusables()` skips disabled, `[inert]`, hidden and zero-size controls;
+  a pointer on any layer above the reached one counts as inside; anchored
+  layers re-place on resize and scroll and are `visibility: hidden` until
+  placed (first size from `metrics.layout.menuWidth`); `restoreFocus` falls
+  back to the `main` landmark when the opener is gone.
+- **Blocks.** Dialog: initial focus via `focusables`, `aria-label` dropped
+  (`aria-labelledby` only). Toolbar menu: ArrowUp opens on the last item,
+  Tab/Shift+Tab leave to the tabbable after/before the trigger,
+  `menuItemBox()` gets a `minHeight`. `notify()` is a passive layer;
+  `confirm()` is a modal layer through Dialog. `kernel.test.ts` scan gains
+  rules 6 (no `document.addEventListener` in a block) and 7 (no `zIndex:`
+  literal). `mount()` no longer writes `<body>`.
+- **Removed.** `Overlay.layer`/`Overlay.isTop`, `layerDefaults`, the `Rect`
+  export, and `isTop()` from `engine/overlay.ts` (only its test used it).
+
 ## 0.3.0 — 2026-08-29
 
 - **Block kernel.** `block(tag, spec)` (`blocks/kernel.ts`): a block is a

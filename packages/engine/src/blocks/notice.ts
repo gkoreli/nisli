@@ -16,7 +16,11 @@ export function notify(text: string, tone: Tone = 'neutral'): void {
 }
 
 /**
- * The live region, fixed to the page's bottom corner; one per document.
+ * The live region, fixed to the page's bottom corner; one per document. It is
+ * a passive layer while it shows something: on the overlay stack for its
+ * z-order (above every modal), never focused, never made inert by a modal,
+ * and transparent to Escape and outside pointers — clicking a notice over a
+ * dialog dismisses the notice, not the dialog.
  * Defined on first use: the kernel reaches this module (busy → notify), so
  * `block` is not yet bound while the modules load.
  */
@@ -25,10 +29,11 @@ const defineRegion = () => block<Record<never, never>>('nisli-notices', {
   host: () => ({ display: 'contents' }),
   render: (_props, ctx) => {
     const { metrics } = ctx;
+    const overlay = ctx.overlay({ kind: 'passive', open: computed(() => notices.value.length > 0), onDismiss: () => {} });
     return el('div', {
       role: 'status',
       'aria-live': 'polite',
-      style: ctx.part([], {
+      style: ctx.part([], () => ({
         position: 'fixed',
         left: metrics.space[4],
         right: metrics.space[4],
@@ -38,8 +43,8 @@ const defineRegion = () => block<Record<never, never>>('nisli-notices', {
         alignItems: 'flex-end',
         gap: metrics.space[2],
         pointerEvents: 'none',
-        zIndex: 200,
-      }),
+        zIndex: overlay.z.value,
+      })),
     }, [
       each(notices, (n) => n.id, (n) =>
         el('div', {
@@ -55,7 +60,7 @@ const defineRegion = () => block<Record<never, never>>('nisli-notices', {
 });
 
 function mountRegion(): void {
-  if (region || typeof document === 'undefined') return;
+  if (region?.isConnected || typeof document === 'undefined') return;
   region = document.createElement('div');
   document.body.appendChild(region);
   NoticeRegion ??= defineRegion();

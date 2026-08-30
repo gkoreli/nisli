@@ -128,7 +128,8 @@ Read it top to bottom:
    `element.style`; the one sanctioned imperative write is `lockScroll()`
    on `<body>`. `kernel.test.ts` scans every file under `src/blocks/` for a
    violation: no `css`/`look`/`apply` import, no `element.style`, no string
-   `style:`, no module `metrics`, no second `display: contents` root.
+   `style:`, no module `metrics`, no second `display: contents` root, no
+   `document.addEventListener`, no `zIndex:` literal.
 5. **Fitting is a behaviour too.** A row-fitting block (Toolbar, Table) calls
    `ctx.fitRow({ available, items, gap, deps, report })`: one reactive
    measure → `fit()` → plan loop, and when the plan has negative slack the
@@ -140,6 +141,20 @@ Read it top to bottom:
 6. **Async is owned.** `ctx.busy.run(id, handler)` marks an action busy while
    its promise settles and tells the person about a rejection; `ctx.busy.is`
    reads it.
+7. **Floating is a behaviour.** `ctx.overlay({ kind, open, onDismiss, within,
+   anchor, initialFocus })` puts a layer on the document's one overlay stack
+   while `open` is true. The stack (`src/engine/overlay.ts`, pure) decides who
+   an Escape or an outside pointer reaches — the topmost non-passive layer
+   only, so one Escape closes one thing and a notice is never in the way —
+   what a `modal` does (trap focus over its visible controls, lock scroll
+   through the one ref-counted body write, restore focus) against a
+   `popover` (a menu: dismiss, restore focus to its anchor) and a `passive`
+   layer (a notice: never focused, never inert, top of the z-order), where
+   an anchored layer goes (`placeMenu`, kept inside the viewport, `ltr` and
+   `rtl`, re-placed on resize and scroll) and its z-index
+   (`ctx.metrics.layer` base plus stack position, which is the paint order).
+   Dialog, the Toolbar menu, `confirm()` and `notify()` render `z` and
+   `placement`; the kernel owns the only document listeners in the engine.
 
 Where a new need goes: a new *semantic* word on a block (`priority`, `tone`,
 `kind`), a new decision in `space.ts`, a new engine rule read from the tree,
@@ -177,11 +192,66 @@ t.unmount();                 // disposes, restores the measurer, skin and docume
   estimating measurer and returns every `LayoutReport` the engine filed —
   an empty result is the proof.
 
+## Overlays
+
+Anything that floats is a *layer* on the document's one overlay stack
+(`src/engine/overlay.ts`, pure data; `blocks/kernel.ts` is the only code that
+touches the document for it). A block asks for one with `ctx.overlay({ kind,
+open, … })` and gets back `{ z, placement }` — the only two things it renders.
+There are three kinds:
+
+| kind | who | dismiss | focus | background |
+|---|---|---|---|---|
+| `modal` | `Dialog`, `confirm()` | Escape, outside pointer | trapped over its visible controls; restored on close | inert; scroll locked |
+| `popover` | the Toolbar overflow menu | Escape, outside pointer | moves into the menu; restored to its anchor | untouched |
+| `passive` | `notify()` | never (transparent) | never focused | never inert |
+
+**Keyboard model.** Escape reaches the *topmost non-passive* layer only, and
+closes exactly that one — a notice over a dialog is never in the way, and a
+menu open inside a dialog closes before the dialog does. Inside a modal, Tab
+and Shift+Tab cycle over the controls a person can actually see (disabled,
+`hidden`, `display: none`, `visibility: hidden` and zero-size controls are
+skipped). A menu opens on the first item (ArrowDown / Enter / Space) or the
+last (ArrowUp); ArrowUp/ArrowDown wrap, Home/End jump, Tab and Shift+Tab
+leave the menu to the tabbable after or before its trigger. Focus returns to
+the opener on close; if the opener is gone, to the nearest `main` landmark
+(given `tabindex="-1"`), never to `<body>`.
+
+**What the engine guarantees**, each a test in `src/blocks/overlay.test.ts`
+or `src/engine/overlay.test.ts`, with no browser:
+
+- Escape and an outside pointer go to the top non-passive layer, one at a time.
+- A modal traps focus and restores it; a second modal opened beside the first
+  (a DOM sibling) is never inert itself, and the inert set is recomputed from
+  the stack on every open and close — everything beside the topmost trap's
+  ancestor chain, except a subtree holding a notice.
+- Scroll is locked while any modal is open, through one ref-counted body
+  write shared with `lockScroll()`; closing the last modal releases it.
+- Paint order is stack order: `metrics.layer` gives each kind its base
+  (`sticky` < `bar` < `modal` < `popover` < `passive`) and the stack position
+  its offset, so a notice is always above every modal and a menu above the
+  dialog it opened from. No block spells a `zIndex`.
+- An anchored layer is placed by `placeMenu()` inside the viewport, `ltr` or
+  `rtl` from the anchor's computed direction, hidden until placed, and
+  re-placed on resize and on any scroll.
+
 ## Blocks
 
 `App`, `Page`, `Toolbar`, `Section`, `Grid`, `Stat`, `Table`, `Form`,
 `Dialog`, `Meter`, `Bars`, `Columns`, `Empty`, `Text`, `Link`; plus
 `notify()` and `confirm()`.
+
+- **Toolbar** — a title and typed actions; `fit()` decides the row at width
+  (shrink → stack → overflow) and the overflowed actions become a `popover`
+  layer: a `menu` of `menuitem`s, `menuWidth` from metrics, full arrow-key
+  model, closes on Escape, outside pointer or selection.
+- **Dialog** — a `modal` layer: `role="dialog"`, `aria-modal`,
+  `aria-labelledby` its title; `dialogMode()` chooses sheet or centred at
+  width; initial focus on its first visible control that is not Close.
+- **confirm()** — a Dialog mounted at the body, so a modal layer above
+  whatever is open; resolves to the answer, one Escape answers `false`.
+- **notify()** — a `role="status"` live region; a `passive` layer while it
+  shows anything, above every modal, click to dismiss, timed by tone.
 
 - **Form** — a schema of fields (`when`, dependent `options`, `readOnly`,
   `validate`, bounds, `group`, `long`); the engine decides presence, columns

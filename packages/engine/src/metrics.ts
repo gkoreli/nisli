@@ -9,6 +9,13 @@ export const metrics = {
   control: { height: 32, padX: 12, check: 16 },
   /** Average glyph width at body size; used only for estimates. */
   charWidth: 7.2,
+  /**
+   * The z-order of everything that floats or pins. Page chrome pins below
+   * the app bar; overlay kinds are bases a layer adds its stack position to,
+   * and the order is the paint order: a popover above every modal, a notice
+   * above everything.
+   */
+  layer: { sticky: 10, bar: 20, modal: 100, popover: 150, passive: 200 },
   layout: {
     /** Sidebar width when the shell has room for one. */
     sidebarWidth: 232,
@@ -29,6 +36,8 @@ export const metrics = {
     minTextColumn: 96,
     /** A title may truncate down to this. */
     minTitle: 80,
+    /** A menu is never narrower than this; also its size for placement before it is laid out. */
+    menuWidth: 160,
     /** Rows a table shows before asking; a long list is a decision, not a scroll. */
     tablePage: 60,
   },

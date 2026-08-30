@@ -98,7 +98,7 @@ export function mount(target: string | Factory, props: Record<string, unknown>, 
       frame.remove();
       setMeasurer(null);
       if (options.scheme) { useSkin(null); setScheme('system'); }
-      document.body.style.overflow = '';
+      // The scroll lock is released by the block's own cleanup (the one ref-counted writer); nothing here touches <body>.
     },
   };
 }

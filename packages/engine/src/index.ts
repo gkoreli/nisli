@@ -33,5 +33,6 @@ export type { StyleRecord } from './style.js';
 
 export { fit, columnsFor, shellMode, dialogMode, labelColumn, labelEvery, labelWidth, pageSize, type FitInput, type FitItem, type FitPlan, type FitDecision, type FitAction } from './engine/space.js';
 export { onReport, type LayoutReport, type ReportCode } from './engine/report.js';
+export { placeMenu, type Layer, type LayerKind, type LayerStack, type Placement, type PlaceOptions, type Size } from './engine/overlay.js';
 
-export { block, lockScroll, type BlockSpec, type Ctx, type Parts, type Rendered, type FitRowSpec } from './blocks/kernel.js';
+export { block, lockScroll, useOverlay, type BlockSpec, type Ctx, type Parts, type Rendered, type FitRowSpec, type OverlaySpec, type Overlay } from './blocks/kernel.js';

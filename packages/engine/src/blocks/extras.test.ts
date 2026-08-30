@@ -114,7 +114,7 @@ describe('confirm', () => {
     const p = confirm({ title: 'Sure?', message: 'Really.', confirmLabel: 'Yes', destructive: true });
     flushEffects();
     const dlg = document.querySelector('[role=dialog]')!;
-    expect(dlg.getAttribute('aria-label')).toBe('Sure?');
+    expect(document.getElementById(dlg.getAttribute('aria-labelledby')!)!.textContent).toBe('Sure?');
     [...dlg.querySelectorAll('button')].find((b) => b.textContent === 'Yes')!.click();
     expect(await p).toBe(true);
     const q = confirm({ title: 'Again?', message: 'm' }); flushEffects();

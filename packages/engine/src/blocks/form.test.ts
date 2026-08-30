@@ -139,7 +139,7 @@ describe('rule 5 — draft lifecycle (uncontrolled)', () => {
     type(e, 'name', 'b');
     cancel.click(); flushEffects();
     const dialog = document.querySelector<HTMLElement>('[role=dialog]')!;
-    expect(dialog.getAttribute('aria-label')).toBe('Discard changes?');
+    expect(document.getElementById(dialog.getAttribute('aria-labelledby')!)!.textContent).toBe('Discard changes?');
     expect(cancelled).toBe(1);
     [...dialog.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Discard')!.click();
     await settle();

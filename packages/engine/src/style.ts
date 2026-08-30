@@ -50,6 +50,8 @@ export const buttonBox = (): StyleRecord => ({
 /** A menu item's box: a left-aligned, un-buttoned row; no look. */
 export const menuItemBox = (): StyleRecord => ({
   textAlign: 'left',
+  minHeight: metrics.control.height,
+  boxSizing: 'border-box',
   padding: `${metrics.space[2]}px ${metrics.space[3]}px`,
   border: 'none',
   background: 'transparent',

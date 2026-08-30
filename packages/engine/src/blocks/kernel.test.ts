@@ -168,7 +168,7 @@ describe('block kernel', () => {
     expect(t.styleOf('i').display).toBe('inline');
   });
 
-  it('lockScroll: body overflow follows `open` and is cleared on dispose', () => {
+  it('lockScroll: body overflow follows `open` and is cleared on dispose', async () => {
     locked.value = false;
     const t = up(Locking, { label: 'x' }, {});
     expect(document.body.style.overflow).toBe('');
@@ -179,6 +179,7 @@ describe('block kernel', () => {
     locked.value = true; flushEffects();
     expect(document.body.style.overflow).toBe('hidden');
     t.unmount(); mounted.pop();
+    await new Promise<void>((r) => queueMicrotask(r));   // the element's cleanup runs a microtask after removal
     expect(document.body.style.overflow).toBe('');
     locked.value = false; flushEffects();
   });
@@ -197,16 +198,20 @@ describe('block kernel', () => {
   //   3. carry a string style literal  style: '…'                   (a style outside ctx.part)
   //   4. import metrics from ../metrics.js                          (structure comes from ctx.metrics)
   //   5. wrap its own root in display:contents                     (the kernel's root is the only one)
+  //   6. add a document listener                                    (the overlay manager owns the document)
+  //   7. carry a z-index literal                                    (z comes from ctx.metrics.layer or overlay.z)
   const RULES: readonly RegExp[] = [
     /import \{[^}]*\b(apply|css|look)\b[^}]*\} from '\.\.\/(style|skin)\.js'/,
     /\.style\s*[.\[]/,
     /style:\s*['"`]/,
     /import \{[^}]*\bmetrics\b[^}]*\} from '\.\.\/metrics\.js'/,
     /display:\s*contents/,
+    /document\.addEventListener/,
+    /zIndex:\s*-?\d/,
   ];
   // Every block is on the kernel; the files that are not blocks hold intent and state, no DOM.
   const NOT_BLOCKS = new Set(['kernel.ts', 'status.ts', 'surface.ts', 'types.ts']);
-  it('no block styles by hand: every block file is on the kernel, and none has a style writer, element.style, string style, module metrics or its own root', () => {
+  it('no block styles by hand: every block file is on the kernel, and none has a style writer, element.style, string style, module metrics, its own root, a document listener or a z-index literal', () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const files = readdirSync(here)
       .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts') && f !== 'kernel.ts')
