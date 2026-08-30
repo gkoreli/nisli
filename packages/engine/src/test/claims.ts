@@ -27,7 +27,10 @@ export type ClaimCode =
   | 'DIALOG_ARIA'       // a dialog without aria-modal or a resolving aria-labelledby
   | 'MENU_ITEM_ROLE'    // a control inside a menu that is not a menuitem
   | 'BLOCK_ERROR'       // a block whose setup failed (data-nisli-error)
-  | 'UNREACHABLE';      // an interactive element a keyboard cannot reach
+  | 'UNREACHABLE'       // an interactive element a keyboard cannot reach
+  | 'SORT_UNREACHABLE'  // a sortable header with no control a keyboard can reach
+  | 'POPUP_ARIA'        // an expanding control without a resolving aria-controls, or expanded over a hidden target
+  | 'LIVE_TONE';        // a notice announced at the wrong urgency for its tone
 
 export type Severity = 'error' | 'warning';
 
@@ -50,6 +53,10 @@ export interface Checker {
 
 export const INTERACTIVE = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
 export const NAMED = 'a[href], button, input:not([type=hidden]), select, textarea';
+/** A non-native element a keyboard can land on (a focusable `tr`, `div`): it must be named by its author. */
+export const FOCUSABLE_NON_NATIVE = '[tabindex]:not([tabindex="-1"]):not(a):not(button):not(input):not(select):not(textarea)';
+/** What a `label[for]` may point at. */
+const LABELABLE = new Set(['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON', 'METER', 'OUTPUT', 'PROGRESS']);
 
 /** The nearest block a node sits in, else its own tag. */
 export const blockOf = (el: Element): string => {
@@ -158,12 +165,28 @@ export const overflowText: Checker = {
   },
 };
 
-/** Every button, link and input has an accessible name. */
+/** A name the author gave: `aria-label`, or `aria-labelledby` that resolves to text. Content does not count. */
+const authoredName = (el: Element): string => {
+  const by = el.getAttribute('aria-labelledby');
+  const named = by ? by.split(/\s+/).map((id) => text(el.ownerDocument.getElementById(id))).filter(Boolean).join(' ') : '';
+  return named || (el.getAttribute('aria-label')?.trim() ?? '');
+};
+
+/**
+ * Every button, link and input has an accessible name; every non-native
+ * element a keyboard can land on (`tabindex`, not -1) has one from its
+ * author — a `<tr>` full of cell text has content, not a name.
+ */
 export const accessibleNames: Checker = {
   code: 'NAME_MISSING',
-  check: (root) => [...root.querySelectorAll(NAMED)]
-    .filter((el) => !isHidden(el) && !accessibleName(el))
-    .map((el) => ({ code: 'NAME_MISSING' as const, block: blockOf(el), severity: 'error' as const, detail: `<${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''}> has no accessible name` })),
+  check: (root) => [
+    ...[...root.querySelectorAll(NAMED)]
+      .filter((el) => !isHidden(el) && !accessibleName(el))
+      .map((el) => ({ code: 'NAME_MISSING' as const, block: blockOf(el), severity: 'error' as const, detail: `<${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''}> has no accessible name` })),
+    ...[...root.querySelectorAll(FOCUSABLE_NON_NATIVE)]
+      .filter((el) => !isHidden(el) && !authoredName(el))
+      .map((el) => ({ code: 'NAME_MISSING' as const, block: blockOf(el), severity: 'error' as const, detail: `focusable <${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''}> has no aria-label or resolving aria-labelledby` })),
+  ],
 };
 
 /** No id is used twice: aria references, labels and anchors depend on it. */
@@ -195,6 +218,13 @@ export const formLabels: Checker = {
           || text(input.closest('label'))
         );
         if (!labelled) claims.push({ code: 'LABEL_MISSING', block: blockOf(input), severity: 'error', detail: `<${input.tagName.toLowerCase()}${id ? `#${id}` : ''}> in a form has no label` });
+      }
+      // A label that points at something a label cannot label (a radiogroup div) labels nothing.
+      for (const label of form.querySelectorAll('label[for]')) {
+        const target = root.ownerDocument.getElementById(label.getAttribute('for')!);
+        if (!target || !LABELABLE.has(target.tagName)) {
+          claims.push({ code: 'LABEL_MISSING', block: blockOf(label), severity: 'error', detail: `<label for="${label.getAttribute('for')}"> targets ${target ? `a <${target.tagName.toLowerCase()}>, which is not labelable` : 'no element'}` });
+        }
       }
     }
     return claims;
@@ -262,8 +292,57 @@ export const reachable: Checker = {
   },
 };
 
+/** Every sortable header — `th[aria-sort]`, or a `th` the engine styled `cursor: pointer` — holds a control a keyboard can reach. */
+export const sortReachable: Checker = {
+  code: 'SORT_UNREACHABLE',
+  check: (root) => [...root.querySelectorAll<HTMLElement>('th')]
+    .filter((th) => !isHidden(th) && (th.hasAttribute('aria-sort') || th.style.cursor === 'pointer') && !th.querySelector(INTERACTIVE))
+    .map((th) => ({ code: 'SORT_UNREACHABLE' as const, block: blockOf(th), severity: 'error' as const, detail: `<th> "${text(th)}" is sortable but holds no focusable control` })),
+};
+
+/**
+ * Every visible control that says it expands (`aria-expanded`) or opens a
+ * popup (`aria-haspopup`) controls an element that exists (`aria-controls`),
+ * and one that says it is expanded controls an element that is shown.
+ */
+export const popupAria: Checker = {
+  code: 'POPUP_ARIA',
+  check: (root) => {
+    const claims: Claim[] = [];
+    for (const el of root.querySelectorAll('[aria-expanded], [aria-haspopup]')) {
+      if (isHidden(el)) continue;
+      const controls = el.getAttribute('aria-controls');
+      const target = controls ? root.ownerDocument.getElementById(controls) : null;
+      const name = `<${el.tagName.toLowerCase()}> "${accessibleName(el)}"`;
+      if (!controls) claims.push({ code: 'POPUP_ARIA', block: blockOf(el), severity: 'error', detail: `${name} has ${el.hasAttribute('aria-expanded') ? 'aria-expanded' : 'aria-haspopup'} but no aria-controls` });
+      else if (!target) claims.push({ code: 'POPUP_ARIA', block: blockOf(el), severity: 'error', detail: `${name} aria-controls="${controls}" resolves to no element` });
+      else if (el.getAttribute('aria-expanded') === 'true' && isHidden(target)) claims.push({ code: 'POPUP_ARIA', block: blockOf(el), severity: 'error', detail: `${name} says expanded but #${controls} is hidden` });
+    }
+    return claims;
+  },
+};
+
+/** Every notice is announced at its tone's urgency: `negative` in an assertive `alert`, every other tone in a polite `status`. */
+export const liveTone: Checker = {
+  code: 'LIVE_TONE',
+  check: (root) => {
+    const claims: Claim[] = [];
+    for (const n of root.querySelectorAll('[data-nisli-tone]')) {
+      const tone = n.getAttribute('data-nisli-tone');
+      const assertive = !!n.closest('[aria-live="assertive"], [role="alert"]');
+      const polite = !!n.closest('[aria-live="polite"], [role="status"]');
+      // A negative notice must sit in an assertive container; any other tone in a polite one. No container at all is as wrong as the wrong one.
+      if (tone === 'negative' ? !assertive : !polite) {
+        const how = tone === 'negative' ? (polite ? 'announced politely' : 'not announced') : assertive ? 'announced assertively' : 'not announced';
+        claims.push({ code: 'LIVE_TONE', block: blockOf(n), severity: 'error', detail: `a ${tone} notice "${text(n)}" is ${how}` });
+      }
+    }
+    return claims;
+  },
+};
+
 /** Every checker, in the order they run. */
-export const checkers: readonly Checker[] = [overflowText, accessibleNames, uniqueIds, formLabels, dialogAria, menuItems, blockErrors, reachable];
+export const checkers: readonly Checker[] = [overflowText, accessibleNames, uniqueIds, formLabels, dialogAria, menuItems, blockErrors, reachable, sortReachable, popupAria, liveTone];
 
 /** A layout report as a claim: a fit plan the engine could not satisfy. */
 export const reportClaim = (r: LayoutReport): Claim => ({

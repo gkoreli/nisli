@@ -4,6 +4,50 @@ All notable changes to `@nisli/engine`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Unreleased until the first
 publish.
 
+## 0.6.0 — 2026-08-30
+
+- Table: a row's Enter is `preventDefault`ed so the keystroke that opens the
+  edit dialog cannot also submit it (found by the real-keyboard proof: the
+  keypress landed on the dialog's first input and saved the transaction).
+
+- **Reachability (ADR 0042).** Every decision the engine draws is reachable
+  by keyboard and AT, with no line changing in an app:
+  - `App`: the bar-mode menu is a `popover` layer through `ctx.overlay`
+    (disclosure navigation: `aria-expanded`/`aria-controls`, first/last-link
+    focus, arrows with wrap, Home/End, Escape and outside pointer with focus
+    return to the toggle, Tab leaves past the toggle, navigation closes
+    without moving focus). The sticky sheet and its second `<nav>` are gone.
+    Focus is not returned to the toggle when the sidebar has replaced it.
+  - Overlay manager: a pointer on a layer's anchor counts as inside, so a
+    real tap on an open menu's trigger (pointerdown, then click) closes it
+    once instead of dismissing and reopening — fixed once for the Toolbar
+    menu and the App menu.
+  - `Table`: a `sortable` header is a real `<button>` in the `<th>`
+    (Enter/Space sort; `aria-sort` on the `th`; sort mark `aria-hidden`);
+    an `onSelect` row is named by its primary `<td>` via `aria-labelledby`,
+    Enter and Space select (Space without scrolling), and a control inside a
+    cell keeps its own keys (the row handles only keys aimed at itself); a
+    focused row lights as a hovered one.
+  - `notify()`: a polite `status` and an assertive `alert` container both
+    mounted before the first notice; `negative` → alert. Each notice is a
+    `group` named Error / Success / Warning / Note (human words; the
+    `data-nisli-tone` stamp remains the checker's evidence), with a Dismiss
+    `<button>` in the tab order, Escape dismiss (never reaching a dialog
+    below), a resumable countdown held on hover/focus, and focus return on
+    a keyboard dismiss to where focus came from (else the open dialog, else
+    `main`) — never `<body>`.
+  - `Form`: `<label for>` only targets a labelable control; a segmented
+    group is named by `aria-labelledby` and its heading click focuses the
+    checked option; a checkbox's caption is its `<label for>`.
+  - `Toolbar`: a `primary` action is never overflowed (`FIT_ROW` instead);
+    `fit()` snaps float noise so an exact fit is a fit.
+  - Claims: `SORT_UNREACHABLE`, `POPUP_ARIA`, `LIVE_TONE` (a negative
+    notice not in an assertive container, or any notice in none).
+  - Ledger-visible, with no edit there: at phone widths a selectable row's
+    name is its primary cell *including folded values* ("Aug 1 REI ·
+    Groceries…" at 360, "Aug 1" at 1280); a checkbox field's heading is a
+    `<span>`, so only the caption toggles the box.
+
 ## 0.5.0 — 2026-08-30
 
 - **Proof context re-founded** (issue 0024 un-parked at the engine level).

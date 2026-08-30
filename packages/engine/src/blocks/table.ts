@@ -37,6 +37,7 @@ export interface TableProps<T> {
 }
 
 const RANK = { tertiary: 1, secondary: 2, primary: 20 } as const;
+let nextId = 1;
 const isNumeric = (c: Column<unknown>) => c.kind === 'number' || c.kind === 'money';
 const isText = (c: Column<unknown>) => !isNumeric(c) && c.kind !== 'date';
 /** Rows of bones drawn while the table waits for its first data. */
@@ -54,6 +55,8 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
   host: () => ({ display: 'block', minWidth: 0, overflow: 'hidden' }),
   render: (props, ctx) => {
     const { host, metrics } = ctx;
+    const id = `nisli-table-${nextId++}`;
+    let nextRow = 1;
     const tableEl = ref();
     const columns = computed(() => [...props.columns.value]);
     const allRows = computed(() => [...props.rows.value]);
@@ -120,10 +123,11 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
       maxWidth: measuring.value ? (c.priority === 'primary' ? 'none' : 320) : 'none',
       width: !measuring.value && grid.decision(c.id) && !grid.gone(c.id) ? grid.decision(c.id)!.width : 'auto',
       padding: `${metrics.space[2]}px ${metrics.space[3]}px`,
-      cursor: header && c.sortable ? 'pointer' : 'default',
       userSelect: header ? 'none' : 'auto',
       font: 'inherit',
     }));
+    /** The row's name comes from its first primary cell (else its first cell): the column whose `<td>` carries the row id. */
+    const nameColumn = computed(() => (columns.value.find((c) => c.priority === 'primary') ?? columns.value[0])?.id);
 
     const sortMark = (c: Column<unknown>) => {
       const s = props.sort.value;
@@ -136,18 +140,33 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
     };
 
     const body = each(rows, (r) => props.key.value(r), (row) => {
+      // Per row, from a counter: `each()` keeps a row's element across a keyed reorder, so an index would drift.
+      const rowId = `${id}-r${nextRow++}`;
       const hovered = signal(false);
+      const focused = signal(false);
+      const select = () => props.onSelect.value?.(row.value);
       return el('tr', {
         tabindex: computed(() => (props.onSelect.value ? '0' : false)),
-        style: ctx.part(() => (hovered.value ? ['table.row.hover'] : []), () => ({ cursor: props.onSelect.value ? 'pointer' : 'default' })),
+        // A selectable row is named by its primary cell: a keyboard lands on it and hears what it is.
+        'aria-labelledby': computed(() => (props.onSelect.value && nameColumn.value ? `${rowId}-${nameColumn.value}` : false)),
+        style: ctx.part(() => (hovered.value || focused.value ? ['table.row.hover'] : []), () => ({ cursor: props.onSelect.value ? 'pointer' : 'default' })),
         on: {
-          click: () => props.onSelect.value?.(row.value),
-          keydown: ((e: KeyboardEvent) => { if (e.key === 'Enter') props.onSelect.value?.(row.value); }) as EventListener,
+          click: select,
+          // Enter and Space select, as a button would; both defaults are prevented: Space's is a page scroll, and a
+          // cancelled Enter keydown has no keypress — which would otherwise land in the input the selection just
+          // focused (a dialog's first field) and implicitly submit its form on the same keystroke.
+          // Only on the row itself: a control rendered inside a cell keeps its own keys.
+          keydown: ((e: KeyboardEvent) => {
+            if (!props.onSelect.value || e.target !== e.currentTarget) return;
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(); }
+          }) as EventListener,
           mouseenter: () => { hovered.value = true; },
           mouseleave: () => { hovered.value = false; },
+          focusin: () => { focused.value = true; },
+          focusout: () => { focused.value = false; },
         },
       }, columns.value.map((c) =>
-        el('td', { style: cellStyle(c, false) }, [
+        el('td', { id: `${rowId}-${c.id}`, style: cellStyle(c, false) }, [
           computed(() => c.cell(row.value) as unknown),
           computed(() => {
             // Fold the dropped columns' values under this cell; an empty value is not worth a slot.
@@ -191,8 +210,18 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
               scope: 'col',
               style: cellStyle(c, true),
               'aria-sort': computed(() => { const s = props.sort.value; return s?.by === c.id ? (s.dir === 'asc' ? 'ascending' : 'descending') : false; }),
-              on: { click: () => toggleSort(c) },
-            }, computed(() => c.header + sortMark(c))),
+            }, c.sortable
+              // A sortable header is a real button: Tab reaches it, Enter and Space sort natively; the sort mark is decoration.
+              ? [el('button', {
+                type: 'button',
+                // No button look: a reset over the cell's own `table.header` look, so the header reads as it did (inline-block: measured as the cell's text).
+                style: ctx.part([], {
+                  ...truncate, display: 'inline-block', width: '100%', maxWidth: '100%', boxSizing: 'border-box', padding: 0, margin: 0,
+                  font: 'inherit', color: 'inherit', textAlign: 'inherit', background: 'none', border: 'none', borderRadius: 0, cursor: 'pointer',
+                }),
+                on: { click: () => toggleSort(c) },
+              }, [c.header, el('span', { 'aria-hidden': 'true' }, computed(() => sortMark(c)))])]
+              : c.header),
           )),
         ]),
         el('tbody', { style: ctx.part([], () => ({ display: pending.value ? 'none' : 'table-row-group' })) }, [body]),

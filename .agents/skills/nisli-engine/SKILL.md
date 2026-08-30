@@ -48,14 +48,14 @@ Reference these guidelines when:
 
 ### 2. Blocks (CRITICAL)
 
-- `block-app` - `App({ brand, nav, location, content })` — sidebar or top bar + menu sheet is the engine's call from width; pass `location` as a computed of the router
+- `block-app` - `App({ brand, nav, location, content })` — sidebar or top bar + menu is the engine's call from width; the bar menu is a popover layer (Escape, outside tap, arrows, focus return); pass `location` as a computed of the router
 - `block-page` - `Page({ title, actions?, children, status? })` — a pinned toolbar over a centred content column; `status` refreshing appends "· Updating…" to the title
-- `block-toolbar` - `Toolbar({ title, actions? })` — actions overflow tertiary → secondary, then the title truncates; a primary never leaves
+- `block-toolbar` - `Toolbar({ title, actions? })` — actions overflow tertiary → secondary, then the title truncates; a primary never leaves (`FIT_ROW` instead); the More menu is a popover its trigger toggles
 - `block-section` - `Section({ title?, children, status? })` — a titled surface; nested inside another surface it draws no card
 - `block-grid` - `Grid({ children })` — equal-weight cells; the engine picks the column count (`minColumn` 220)
 - `block-stat` - `Stat({ label, value, delta?: { text, tone }, hint?, status? })` — the tone says whether the change is good news
-- `block-table` - `Table<T>({ columns, rows, key, onSelect?, sort?, onSort?, empty?, status? })` — `Column` carries `kind`, `priority`, `sortable`; 60 rows then "Show N more"
-- `block-form` - `Form<T>({ fields, value | initial+key, onChange?, onSubmit, submitLabel?, onCancel?, destructive?, mode?, ref? })` — see `form-*`
+- `block-table` - `Table<T>({ columns, rows, key, onSelect?, sort?, onSort?, empty?, status? })` — `Column` carries `kind`, `priority`, `sortable`; sortable headers are real buttons, selectable rows are named tab stops (Enter/Space); 60 rows then "Show N more"
+- `block-form` - `Form<T>({ fields, value | initial+key, onChange?, onSubmit, submitLabel?, onCancel?, destructive?, mode?, ref? })` — every control labelled (label/for, aria-labelledby for a segmented group, a checkbox's caption is its label); see `form-*`
 - `block-dialog` - `Dialog({ title, open, onClose, children })` — a centred card, or a full-height sheet below 640; scroll lock, Escape, focus restore are the engine's
 - `block-meter` - `Meter({ label, value, max, detail? })` — tone by ratio: > 1 negative, > 0.85 warning
 - `block-bars` - `Bars({ items: { label, value, text }[] })` — the label column takes up to a third of the block
@@ -63,7 +63,7 @@ Reference these guidelines when:
 - `block-empty` - `Empty({ title, hint?, action? })` — the one place a call-to-action lives when there is nothing
 - `block-text` - `Text({ text, role?: 'body'|'muted'|'heading'|'code', tone? })` — role and tone are words, the skin decides how they read
 - `block-link` - `Link({ href, label })` — a navigation link; the skin's `link` part dresses it
-- `block-notify` - `notify(text, tone?)` — a timed, polite live-region notice; negative stays longer
+- `block-notify` - `notify(text, tone?)` — a timed live-region notice: `negative` is an assertive alert, the rest polite status; a Dismiss button, Escape, timers held on hover/focus, focus returned on dismiss
 - `block-confirm` - `confirm({ title, message, confirmLabel?, destructive? }): Promise<boolean>` — ask before an action that cannot be undone
 
 ### 3. Form Schema (HIGH) — ADR 0037
@@ -103,18 +103,22 @@ Reference these guidelines when:
 - `decide-text-truncates` - Text (titles, text columns) shrinks to a minimum before anything leaves; figures do not
 - `decide-columns-fold` - A dropped table column folds under the primary text cell as a muted line — nothing is lost; do not duplicate it in another column
 - `decide-grids-choose-columns` - `Grid` and `Form` pick their column counts from width; `App` picks sidebar vs bar; `Dialog` picks card vs sheet — do not try to control these
-- `decide-dont-control` - No app knob exists for widths, breakpoints, column counts, sticky, overflow order, segmented-vs-select, or skeleton shape; if you need one, see `intent-new-need-home`
+- `decide-dont-control` - No app knob exists for widths, breakpoints, column counts, sticky, overflow order, segmented-vs-select, skeleton shape, focus, roles or live-region politeness; if you need one, see `intent-new-need-home`
+- `decide-floats-are-layers` - Anything that floats (Dialog, confirm, the Toolbar menu, the App bar menu, notices) is a layer on the one overlay stack: Escape, outside pointer, focus in/return and z-order are the engine's; a tap on an open layer's anchor toggles it, never dismiss-then-reopen — never hand-roll a sheet or a focus trap
+- `decide-reachable-by-keyboard` - Every decision the engine draws is reachable by keyboard and named for AT with no app line: sortable headers are buttons, `onSelect` rows are named tab stops, notices have a Dismiss in the tab order, labels target labelable controls; a keyboard dismiss never drops focus to `<body>`
+- `decide-tone-is-urgency` - `notify(text, 'negative')` is an assertive `alert` (interrupts, 8 s); every other tone a polite `status` (4 s); the spoken name is Error/Success/Warning/Note — pick the tone for its meaning, never for loudness
 
 ### 7. Proof at Width (MEDIUM)
 
 - `prove-screens-with-prove` - `prove(() => Screen({}), { widths, scheme: 'light', turns? })` from `@nisli/engine/test` mounts a screen at each width under the calibrated estimator, turns to a fixed point, `settle()`s the data in, and returns `{ claims, reports, byWidth[{ width, claims, reports, turns }] }`; empty `claims` is the proof — one `it` per screen (Ledger: `screens.proof.test.ts`, nine screens, zero claims)
-- `prove-claims-are-failures` - A `Claim` (`FIT_*`, `OVERFLOW_TEXT`, `FIGURE_TRUNCATED`, `UNSETTLED`, `NAME_MISSING`, `ID_DUPLICATE`, `LABEL_MISSING`, `DIALOG_ARIA`, `MENU_ITEM_ROLE`, `BLOCK_ERROR`, `UNREACHABLE`) is a failing test: fix the intent or the engine, never filter codes or drop widths; a finding that stays is recorded in `KNOWN` by exact text and asserted still present
+- `prove-claims-are-failures` - A `Claim` (`FIT_*`, `OVERFLOW_TEXT`, `FIGURE_TRUNCATED`, `UNSETTLED`, `NAME_MISSING`, `ID_DUPLICATE`, `LABEL_MISSING`, `DIALOG_ARIA`, `MENU_ITEM_ROLE`, `BLOCK_ERROR`, `UNREACHABLE`, `SORT_UNREACHABLE`, `POPUP_ARIA`, `LIVE_TONE`) is a failing test: fix the intent or the engine, never filter codes or drop widths; a finding that stays is recorded in `KNOWN` by exact text and asserted still present
 - `prove-reports-are-failures` - A `LayoutReport` (`FIT_ROW`, `FIT_COLUMNS`, `FIT_CELL`) is a plan the engine could not satisfy; it stamps `data-nisli-report` and the `window.__nisli.reports` ring in dev, `prove()` keeps the ones still standing after settle, `verify()` files `LAYOUT_REPORT` — in a block test `onReport()` and expect `[]`
 - `prove-real-content` - Prove over real data: stub `fetch` for every `/api/*` shape, import store and screens after the stub, `await store.ready`, and assert the fixture reached the DOM (rows, `$12,345.67` at 360) before trusting the proof
 - `prove-mount-at-width` - Prove a block with `mount(tag | factory, props, { width, viewport?, scheme?, text?, measure? })` → `{ el, frame, styleOf(), resize(), unmount() }`; assert on inline styles and DOM, then `unmount()`
 - `prove-text-measurer` - `textMeasurer(charWidth)` makes a block plan arithmetic; `estimator(frame)` (calibrated to Chromium per glyph, style, `tabular-nums`, uppercase/letter-spacing, monospace; `glyphs.test.ts` within 3%) answers a screen — never the other way round
 - `prove-five-widths` - 1280/1024/768/480/360 for screens (or a block's own thresholds); the app's bar is zero claims at five widths and zero `nisli-verify` findings across every route
 - `prove-verify-routes` - `verify({ baseUrl, routes, widths, ignore?, open? })` / `nisli-verify --base … --routes … --widths … [--open route=selector]` loads the running app in Chromium and files `NO_EVIDENCE`, `STILL_LOADING`, `LOAD_FAILED`, `CONSOLE_ERROR`, `PAGE_ERROR`, `BLOCK_ERROR`, `LAYOUT_REPORT`, `HORIZONTAL_SCROLL`, `NAME_MISSING`, `TAB_UNREACHABLE`, `TAB_ESCAPED_DIALOG`; exit 0 only with no findings — the browser half of proof, not a replacement for `prove()`
+- `prove-keyboard-path` - A reachability proof drives the path a person takes — `focus()`, a `keydown` with `key`, a `pointerdown` then `click()` for a real tap — and asserts `document.activeElement`, `__layers`, `aria-expanded`/`aria-sort`, `defaultPrevented` and the callback; an "element exists" or "has role" assertion proves nothing and is not a proof
 - `prove-screenshots-not-proof` - Screenshots and sweeps are for looking; `prove().claims === []` and `verify().ok` are the sources of truth, and neither is retired by something looking right
 
 ### 8. Dogfooding — Ledger (MEDIUM)
@@ -127,14 +131,14 @@ Reference these guidelines when:
 
 | Block | Intent props | Engine decisions |
 |---|---|---|
-| `App` | `brand`, `nav[{label,href}]`, `location`, `content` | sidebar vs top bar + menu; active nav item; sticky bar |
+| `App` | `brand`, `nav[{label,href}]`, `location`, `content` | sidebar vs top bar + popover menu (Escape, outside tap, arrows, focus return); active nav item; sticky bar |
 | `Page` | `title`, `actions?`, `children`, `status?` | pinned toolbar; centred column ≤ 1120; skeleton/failure/updating |
-| `Toolbar` | `title`, `actions?` | overflow by priority; title truncates last; busy actions |
+| `Toolbar` | `title`, `actions?` | overflow by priority, primaries never; title truncates last; busy actions; menu keyboard model |
 | `Section` | `title?`, `children`, `status?` | card, or no card when nested; waiting states |
 | `Grid` | `children` | column count from width (min cell 220); `FIT_CELL` |
 | `Stat` | `label`, `value`, `delta?`, `hint?`, `status?` | nested-surface card; tone of delta; skeleton |
-| `Table` | `columns[{id,header,cell,kind?,priority?,sortable?}]`, `rows`, `key`, `onSelect?`, `sort?`, `onSort?`, `empty?`, `status?` | drop/truncate/fold by priority & kind; numeric alignment; 60-row pages; `FIT_COLUMNS` |
-| `Form` | `fields`, `value` or `initial`+`key`, `onSubmit`, `onChange?`, `submitLabel?`, `onCancel?`, `destructive?`, `mode?`, `ref?` | presence, dependent options, validation timing, ≤3 options segmented, columns, groups, dirty/confirm, busy |
+| `Table` | `columns[{id,header,cell,kind?,priority?,sortable?}]`, `rows`, `key`, `onSelect?`, `sort?`, `onSort?`, `empty?`, `status?` | drop/truncate/fold by priority & kind; numeric alignment; sortable header buttons; named selectable rows; 60-row pages; `FIT_COLUMNS` |
+| `Form` | `fields`, `value` or `initial`+`key`, `onSubmit`, `onChange?`, `submitLabel?`, `onCancel?`, `destructive?`, `mode?`, `ref?` | presence, dependent options, validation timing, ≤3 options segmented, columns, groups, dirty/confirm, busy, every control labelled |
 | `Dialog` | `title`, `open`, `onClose`, `children` | card vs sheet (< 640); scroll lock; Escape; focus |
 | `Meter` | `label`, `value`, `max`, `detail?` | tone by ratio |
 | `Bars` | `items[{label,value,text}]` | label column width; bar scale |
@@ -142,7 +146,7 @@ Reference these guidelines when:
 | `Empty` | `title`, `hint?`, `action?` | centred; busy action |
 | `Text` | `text`, `role?`, `tone?` | part per role/tone; wraps anywhere |
 | `Link` | `href`, `label` | `link` part |
-| `notify()` | `text`, `tone?` | placement, timing, live region |
+| `notify()` | `text`, `tone?` | placement, timing, alert vs status by tone, Dismiss/Escape, focus return |
 | `confirm()` | `title`, `message`, `confirmLabel?`, `destructive?` | a dialog with Cancel/Confirm; resolves the answer |
 
 ## Common mistakes (from this repo's history)

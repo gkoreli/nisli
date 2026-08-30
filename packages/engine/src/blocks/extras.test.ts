@@ -1,9 +1,13 @@
 /** @vitest-environment happy-dom */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { flushEffects } from '@nisli/core';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { flushEffects, html, signal } from '@nisli/core';
 import { setMeasurer } from '../engine/measure.js';
 import { notify, __notices } from './notice.js';
 import { confirm } from './confirm.js';
+import { Dialog } from './dialog.js';
+import { focusables, __layers } from './kernel.js';
+import { liveTone } from '../test/claims.js';
+import { estimator } from '../test/estimate.js';
 import { mount, type Mounted } from '../test/mount.js';
 import './table.js'; import './columns.js'; import './bars.js'; import './meter.js';
 
@@ -99,13 +103,125 @@ describe('charts at a width (mount)', () => {
   });
 });
 
-describe('notify', () => {
-  it('shows, is polite, and is dismissed on click', () => {
+describe('notify — live tone, a Dismiss a keyboard reaches, Escape, paused timers (ADR 0042 c)', () => {
+  const polite = () => document.querySelector<HTMLElement>('[role=status][aria-live=polite]')!;
+  const assertive = () => document.querySelector<HTMLElement>('[role=alert][aria-live=assertive]')!;
+  const noticesIn = (c: HTMLElement) => [...c.querySelectorAll<HTMLElement>('[data-nisli-tone]')];
+  const key = (k: string, target: Element) => { const e = new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }); target.dispatchEvent(e); flushEffects(); return e; };
+  const tick = () => new Promise<void>((r) => queueMicrotask(r));
+  let main: HTMLElement;
+  beforeEach(() => { main = document.createElement('main'); document.body.appendChild(main); });
+  afterEach(() => { __notices.value = []; flushEffects(); vi.useRealTimers(); main.remove(); });
+
+  it('maps tone to urgency: negative is an assertive alert, every other tone a polite status; both containers exist before a notice arrives', () => {
     notify('Saved', 'positive'); flushEffects();
-    const region = document.querySelector('[role=status][aria-live=polite]')!;
-    expect(region.textContent).toContain('Saved');
-    (region.querySelector('each-item > div') as HTMLElement).click(); flushEffects();
+    expect(noticesIn(polite()).map((n) => n.textContent)).toEqual(['Saved×']);
+    expect(noticesIn(assertive())).toEqual([]);                     // the alert container is there, empty
+    notify('Failed', 'negative'); notify('Note'); notify('Careful', 'warning'); flushEffects();
+    expect(noticesIn(assertive()).map((n) => n.getAttribute('data-nisli-tone'))).toEqual(['negative']);
+    expect(noticesIn(polite()).map((n) => n.getAttribute('data-nisli-tone'))).toEqual(['positive', 'neutral', 'warning']);
+    expect(noticesIn(assertive())[0]!.getAttribute('role')).toBe('group');
+    // The spoken name is a human word, not the engine's tone vocabulary; the tone stamp stays as the checker's evidence.
+    expect(noticesIn(assertive())[0]!.getAttribute('aria-label')).toBe('Error');
+    expect(noticesIn(polite()).map((n) => n.getAttribute('aria-label'))).toEqual(['Success', 'Note', 'Warning']);
+    expect(liveTone.check(polite().parentElement!, estimator(800))).toEqual([]);
+  });
+
+  it('each notice has a Dismiss button in the tab order; focusing it and pressing Enter (a click) removes that notice only', () => {
+    notify('One', 'positive'); notify('Two', 'negative'); flushEffects();
+    const region = polite().parentElement!;
+    const dismiss = [...region.querySelectorAll<HTMLElement>('button[aria-label=Dismiss]')];
+    expect(dismiss.length).toBe(2);
+    expect(focusables(region)).toEqual(dismiss);                    // what Tab walks: the two Dismiss buttons, in order
+    dismiss[1]!.focus();
+    expect(document.activeElement).toBe(dismiss[1]);
+    key('Enter', dismiss[1]!); (document.activeElement as HTMLElement).click(); flushEffects();   // Enter on a button is a click
+    expect(__notices.value.map((n) => n.text)).toEqual(['One']);
+    expect(noticesIn(polite()).length).toBe(1);
+    expect(noticesIn(assertive()).length).toBe(0);
+    // Focus did not fall to <body> (WCAG 2.4.3): with no opener and no dialog, the main landmark takes it.
+    expect(document.activeElement).toBe(main);
+    expect(main.getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('a keyboard Dismiss returns focus to where it came from: the control Tab left (Enter), or the page control that was focused (Escape)', () => {
+    const before = document.createElement('button'); before.id = 'before'; main.appendChild(before);
+    notify('One', 'positive'); flushEffects();
+    const dismiss = polite().querySelector<HTMLElement>('button[aria-label=Dismiss]')!;
+    before.focus();
+    dismiss.focus();                                                 // as Tab would: the focusin carries relatedTarget = #before
+    key('Enter', dismiss); (document.activeElement as HTMLElement).click(); flushEffects();
     expect(__notices.value.length).toBe(0);
+    expect(document.activeElement).toBe(before);
+    notify('Two', 'negative'); flushEffects();
+    const d2 = assertive().querySelector<HTMLElement>('button[aria-label=Dismiss]')!;
+    before.focus(); d2.focus();
+    key('Escape', d2);
+    expect(__notices.value.length).toBe(0);
+    expect(document.activeElement).toBe(before);
+    // The origin is gone: the main landmark, never <body>.
+    notify('Three', 'positive'); flushEffects();
+    const d3 = polite().querySelector<HTMLElement>('button[aria-label=Dismiss]')!;
+    before.focus(); d3.focus(); before.remove();
+    key('Escape', d3);
+    expect(document.activeElement).toBe(main);
+  });
+
+  it('Escape on a focused notice dismisses it, is defaultPrevented, and never reaches an open dialog below', async () => {
+    const open = signal(true);
+    const t = mount(Dialog, { title: 'D', open, onClose: () => { open.value = false; }, children: html`<input id="first" />` });
+    try {
+      await tick();
+      expect(document.activeElement?.id).toBe('first');
+      notify('Could not save', 'negative'); flushEffects();
+      expect(__layers.value.map((l) => l.kind)).toEqual(['modal', 'passive']);
+      // A modal's Tab guard never reaches the region (the known limit): focus the Dismiss as a pointer or AT would.
+      const dismiss = assertive().querySelector<HTMLElement>('button[aria-label=Dismiss]')!;
+      dismiss.focus();
+      const e = key('Escape', dismiss);
+      expect(e.defaultPrevented).toBe(true);
+      expect(__notices.value.length).toBe(0);
+      expect(open.value).toBe(true);
+      expect(__layers.value.map((l) => l.kind)).toEqual(['modal']);
+      // Focus was not left on a removed element or dropped to <body>: back in the dialog, on the field it came from.
+      expect(t.el.querySelector('[role=dialog]')!.contains(document.activeElement)).toBe(true);
+      expect(document.activeElement?.id).toBe('first');
+      key('Escape', document.activeElement!);
+      expect(open.value).toBe(false);
+    } finally { t.unmount(); }
+  });
+
+  it('the timer is a resumable countdown: 4 s for a polite tone, 8 s for negative; focus or a pointer holds it and the remaining time resumes', () => {
+    vi.useFakeTimers();
+    notify('Quick', 'positive'); flushEffects();
+    vi.advanceTimersByTime(3999); flushEffects();
+    expect(__notices.value.map((n) => n.text)).toEqual(['Quick']);
+    vi.advanceTimersByTime(1); flushEffects();
+    expect(__notices.value).toEqual([]);
+
+    notify('Held', 'positive'); flushEffects();
+    const held = noticesIn(polite())[0]!;
+    vi.advanceTimersByTime(1000);
+    held.querySelector<HTMLElement>('button')!.focus(); flushEffects();   // focusin bubbles to the notice: paused
+    vi.advanceTimersByTime(10_000); flushEffects();
+    expect(__notices.value.map((n) => n.text)).toEqual(['Held']);
+    (document.activeElement as HTMLElement).blur(); flushEffects();       // focusout: resumes with 3 s left, not 4
+    vi.advanceTimersByTime(2999); flushEffects();
+    expect(__notices.value.map((n) => n.text)).toEqual(['Held']);
+    vi.advanceTimersByTime(1); flushEffects();
+    expect(__notices.value).toEqual([]);
+
+    notify('Hovered', 'negative'); flushEffects();
+    const hovered = noticesIn(assertive())[0]!;
+    vi.advanceTimersByTime(7000);
+    hovered.dispatchEvent(new Event('pointerenter'));
+    vi.advanceTimersByTime(60_000); flushEffects();
+    expect(__notices.value.map((n) => n.text)).toEqual(['Hovered']);
+    hovered.dispatchEvent(new Event('pointerleave'));
+    vi.advanceTimersByTime(999); flushEffects();
+    expect(__notices.value.map((n) => n.text)).toEqual(['Hovered']);
+    vi.advanceTimersByTime(1); flushEffects();
+    expect(__notices.value).toEqual([]);
   });
 });
 

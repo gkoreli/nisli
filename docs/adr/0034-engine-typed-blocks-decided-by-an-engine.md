@@ -89,13 +89,21 @@ Each is one line in code; each is provable at width with `setMeasurer`.
   metrics.layout.minTextColumn)` for text; none for `number`/`money`/`date`.
   `blocks/table.ts` items.
 - **Primaries never leave** — `overflowable: c.priority !== 'primary'`.
-  `blocks/table.ts`.
+  `blocks/table.ts`, and since [0042](./0042-engine-reachability.md) (e)
+  `blocks/toolbar.ts` too: the same word has one meaning.
 - **Dropped columns fold under the primary text cell** — `stackInto` the first
   primary text column; empty values earn no slot; numeric ones fold as
   "Header value". `blocks/table.ts` `stackTarget`, `stackedInto`.
 - **Toolbar taste** — `RANK = { tertiary: 1, secondary: 2, title: 10, primary:
-  20 }`: the title truncates (to `minTitle`) before a primary action leaves.
-  `blocks/toolbar.ts`.
+  20 }`: the title truncates (to `minTitle`) and every non-primary
+  overflows; **a primary is never overflowable** — below the minimum row
+  `FIT_ROW` stands and the primary stays. `blocks/toolbar.ts`. Decided in
+  [0042](./0042-engine-reachability.md) (e), which resolved this bullet's
+  earlier ambiguity ("before a primary action leaves").
+- **Reachability rules** — a sortable header is a button, a selectable row
+  is named, the App menu is a popover layer, notices map tone to urgency and
+  have a Dismiss, labels point at what they label: all in
+  [0042](./0042-engine-reachability.md) §The rules as implemented.
 - **Columns from width** — `columnsFor(width, count, minColumn, gap)` for Grid
   (`minColumn` 220) and Form (`minField` 240, visible fields only; a textarea
   or `long` field spans all). `engine/columns.ts`, `blocks/grid.ts`,

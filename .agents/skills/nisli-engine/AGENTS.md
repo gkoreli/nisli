@@ -5,7 +5,7 @@ Every rule for writing and reviewing application UI built from `@nisli/engine`. 
 **Engine source**: `packages/engine/src` — public surface is exactly what `src/index.ts` exports
 **Test surface**: `@nisli/engine/test` → `packages/engine/src/test/prove.ts` (`prove`, `estimator`, `mount`, `textMeasurer`, `claimsOf`, `checkers`); `@nisli/engine/verify` → `src/verify/index.ts` (`verify`, `format`) and the `nisli-verify` CLI (`bin/nisli-verify.mjs`)
 **Screen proof**: `packages/ledger/src/screens/screens.proof.test.ts` — nine screens × five widths, zero claims
-**ADRs**: `docs/adr/0034-engine-typed-blocks-decided-by-an-engine.md` (contract, language, decision rules), `0035-engine-appearance-layer.md` (skins, parts, axes), `0037-engine-form-intent-capture-domain.md` (the ten Form rules)
+**ADRs**: `docs/adr/0034-engine-typed-blocks-decided-by-an-engine.md` (contract, language, decision rules), `0035-engine-appearance-layer.md` (skins, parts, axes), `0037-engine-form-intent-capture-domain.md` (the ten Form rules), `0040-engine-overlay-domain.md` (layers), `0041-engine-proof-domain.md` (claims, prove, verify), `0042-engine-reachability.md` (keyboard and AT)
 **Worked example**: `packages/ledger` — nine screens, `TENETS.md`
 
 The engine's block kernel (`src/blocks/kernel.ts`, `src/engine/space.ts`) is being refactored; nothing below depends on it. Only the public intent API and the rules are documented.
@@ -105,7 +105,7 @@ Fifteen blocks plus `notify()` and `confirm()` — the whole vocabulary (`src/in
 
 ### `block-app` — `App` is the shell; sidebar vs bar is the engine's
 
-`AppProps { brand; nav: NavItem[]; location; content }` (`blocks/app.ts`). Sidebar iff `width ≥ sidebarWidth + contentMin` (232 + 560), else a sticky top bar with a menu sheet that closes on navigation. The matching nav item gets `aria-current="page"`; `/` matches exactly, others by prefix.
+`AppProps { brand; nav: NavItem[]; location; content }` (`blocks/app.ts`). Sidebar iff `width ≥ sidebarWidth + contentMin` (232 + 560), else a sticky top bar whose menu is a `popover` layer through `ctx.overlay` (ADR 0042): the toggle is `aria-expanded` + `aria-controls`, open focuses the first link (ArrowUp: the last), arrows wrap, Home/End jump, Escape and an outside tap close and return focus to the toggle, Tab leaves past the toggle, navigation closes without moving focus. The matching nav item gets `aria-current="page"`; `/` matches exactly, others by prefix.
 
 ```typescript
 // ❌ WRONG — the app choosing the shell shape
@@ -138,7 +138,7 @@ return Page({
 
 ### `block-toolbar` — `Toolbar` ranks actions above the title, primaries above all
 
-`ToolbarProps { title; actions? }`; `Action { id; label; priority?; destructive?; onSelect? }` (`blocks/toolbar.ts`, `blocks/types.ts`). Rank `tertiary 1 < secondary 2 < title 10 < primary 20`: tertiaries overflow into the "More actions" menu first (later ones first), then secondaries, then the title truncates to `minTitle` (80). A primary never leaves. A busy action is `aria-busy` and disabled. Reports `FIT_ROW` when even that fails.
+`ToolbarProps { title; actions? }`; `Action { id; label; priority?; destructive?; onSelect? }` (`blocks/toolbar.ts`, `blocks/types.ts`). Rank `tertiary 1 < secondary 2 < title 10 < primary 20`: tertiaries overflow into the "More actions" menu first (later ones first), then secondaries, then the title truncates to `minTitle` (80). A primary never leaves — it is not overflowable; the plan reports `FIT_ROW` instead. A busy action is `aria-busy` and disabled. The More menu is a `popover` layer its trigger toggles (a tap on the open trigger closes, never reopens).
 
 ```typescript
 // ✅ CORRECT — packages/engine/README.md; proven at 1024/768/600/480/360 in toolbar.test.ts
@@ -188,7 +188,7 @@ Stat({ label: 'Spending', value: computed(() => money(spendNow.value)), delta: s
 
 ### `block-table` — `Table` drops, truncates and folds by column meaning
 
-`TableProps<T> { columns: Column<T>[]; rows; key; onSelect?; sort?; onSort?; empty?; status? }`; `Column<T> { id; header; cell; kind?; priority?; sortable? }`; `Sort { by; dir }` (`blocks/table.ts`). Decisions: text columns truncate to `minTextColumn` (96), figures and dates never; non-primary columns leave by priority (tertiary first, later first) and **fold under the first primary text column** as a muted line (numeric ones as "Header value"; empties earn no slot); primaries never leave (`FIT_COLUMNS` if they cannot fit); `kind: 'number' | 'money'` aligns right with tabular numerals; 60 rows then "Show N more of M"; `onSelect` makes rows focusable and Enter-selectable; `sortable` headers toggle `onSort` with `aria-sort`.
+`TableProps<T> { columns: Column<T>[]; rows; key; onSelect?; sort?; onSort?; empty?; status? }`; `Column<T> { id; header; cell; kind?; priority?; sortable? }`; `Sort { by; dir }` (`blocks/table.ts`). Decisions: text columns truncate to `minTextColumn` (96), figures and dates never; non-primary columns leave by priority (tertiary first, later first) and **fold under the first primary text column** as a muted line (numeric ones as "Header value"; empties earn no slot); primaries never leave (`FIT_COLUMNS` if they cannot fit); `kind: 'number' | 'money'` aligns right with tabular numerals; 60 rows then "Show N more of M"; `onSelect` makes rows tab stops named by their primary `<td>` (`aria-labelledby`), selected by Enter or Space (Space without scrolling; a control inside a cell keeps its own keys) and lit while focused; `sortable` headers hold a real `<button>` so Enter/Space toggle `onSort`, with `aria-sort` on the `th`.
 
 ```typescript
 // ✅ CORRECT — packages/ledger/src/screens/transactions.ts
@@ -205,7 +205,7 @@ Table<Transaction>({ columns, rows, key: (t) => t.id, sort, onSort: (s) => { sor
 
 ### `block-form` — `Form` is a schema; the engine decides the rest
 
-`FormProps<T> { fields; value? | initial? + key?; onChange?; onSubmit; submitLabel?; onCancel?; destructive?; mode?; ref? }`; `FormHandle { reset(); submit() }` (`blocks/form.ts`, `blocks/form/schema.ts`). The ten rules are section 3. Columns from the visible field count (`minField` 240); `FIT_CELL` below it.
+`FormProps<T> { fields; value? | initial? + key?; onChange?; onSubmit; submitLabel?; onCancel?; destructive?; mode?; ref? }`; `FormHandle { reset(); submit() }` (`blocks/form.ts`, `blocks/form/schema.ts`). The ten rules are section 3. Columns from the visible field count (`minField` 240); `FIT_CELL` below it. Every control is labelled by the engine: `<label for>` for a labelable control, `aria-labelledby` for a segmented group (its heading click focuses the checked option), and a checkbox's caption is its own `<label for>`.
 
 ```typescript
 // ✅ CORRECT — packages/ledger/src/screens/accounts.ts (owned draft in a dialog)
@@ -290,7 +290,7 @@ Link({ href: AppRouter.routes.account.href({ params: { id: a.id } }), label: 'Vi
 
 ### `block-notify` — `notify()` tells the person something happened
 
-`notify(text, tone = 'neutral')` (`blocks/notice.ts`). A polite live region at the bottom; 4 s, 8 s for negative; click dismisses. Busy actions call it on rejection for you.
+`notify(text, tone = 'neutral')` (`blocks/notice.ts`). Two live regions at the bottom, both mounted before the first notice: `negative` is an assertive `alert` (8 s), every other tone a polite `status` (4 s). Each notice is a `group` named Error / Success / Warning / Note with a Dismiss `<button>` in the tab order; Escape dismisses (and never reaches a dialog below); the countdown pauses while hovered or focused; a keyboard dismiss returns focus to where it came from — else the open dialog, else `main`, never `<body>`. Busy actions call it on rejection for you.
 
 ```typescript
 // ✅ CORRECT — packages/ledger/src/screens/transaction-dialog.ts
@@ -600,7 +600,44 @@ children: [Grid({ children: cards })]
 
 ### `decide-dont-control` — What NOT to try to control
 
-No app word exists for: pixel widths, breakpoints, column counts, sticky/fixed, overflow order beyond `priority`, segmented-vs-select (the count decides), skeleton shape, notice placement or timing, dialog size, focus management, numeric alignment. If a screen seems to need one, it is a gap: `intent-new-need-home`, then `dogfood-issue-then-engine`.
+No app word exists for: pixel widths, breakpoints, column counts, sticky/fixed, overflow order beyond `priority`, segmented-vs-select (the count decides), skeleton shape, notice placement or timing, dialog size, focus management, roles and live-region politeness, numeric alignment. If a screen seems to need one, it is a gap: `intent-new-need-home`, then `dogfood-issue-then-engine`.
+
+### `decide-floats-are-layers` — Anything that floats is a layer
+
+Dialog, `confirm()`, the Toolbar menu, the App bar-mode menu and notices are all layers on the one overlay stack (`engine/overlay.ts`, driven only by `blocks/kernel.ts`; ADR 0040, 0042). The stack gives each Escape, outside-pointer dismiss, focus in and focus return, z-order and inertness — and treats a pointer on a layer's *anchor* as inside, so a real tap on an open menu's trigger closes it once rather than dismissing on pointerdown and reopening on click. Never hand-roll a sheet, a focus trap or a third focus model; an app never sees any of it.
+
+```typescript
+// ❌ WRONG — a screen rolling its own floating panel
+const open = signal(false);
+html`<div style="position:fixed;bottom:0" hidden=${() => !open.value}>…</div>`;   // no Escape, no focus, pushes nothing back
+
+// ✅ CORRECT — packages/ledger/src/main.ts: the App decides; at 360 its menu is a popover layer with no app line
+const app = App({ brand: 'Ledger', nav, location: computed(() => router.url.value.pathname), content: AppRouter({}) });
+```
+
+### `decide-reachable-by-keyboard` — Every decision is reachable by keyboard and named for AT
+
+If the engine draws something a person can act on, a keyboard reaches it and a reader can name it, with no app line (ADR 0042): a `sortable` header is a real `<button>` (Enter/Space sort, `aria-sort` on the `th`); an `onSelect` row is a tab stop named by its primary cell; every notice has a Dismiss in the tab order and answers Escape; every Form control is labelled by a `<label for>` or `aria-labelledby`; a keyboard dismiss never drops focus to `<body>`. Ledger's Transactions screen gains keyboard sorting and named rows without a change.
+
+```typescript
+// ✅ CORRECT — packages/ledger/src/screens/transactions.ts: `sortable` and `onSelect` are the whole intent
+{ id: 'date', header: 'Date', kind: 'date', cell: (t) => shortDate(t.date), priority: 'primary', sortable: true },
+…
+Table<Transaction>({ columns, rows, key: (t) => t.id, sort, onSort: (s) => { sort.value = s; }, onSelect: (t) => { editing.value = t; open.value = true; } })
+```
+
+### `decide-tone-is-urgency` — A notice's tone is its urgency
+
+`notify(text, 'negative')` interrupts: an assertive `role="alert"`, 8 s, spoken as "Error"; `positive`/`warning`/`neutral` wait their turn in the polite `status`, 4 s, spoken as Success/Warning/Note. Choose the tone for what happened, never to make a message louder; the `LIVE_TONE` claim fails a notice in the wrong container or in none.
+
+```typescript
+// ❌ WRONG — negative to make "Saved" stand out
+notify('Saved', 'negative');
+
+// ✅ CORRECT — packages/ledger/src/screens/transaction-dialog.ts (a busy action's rejection is filed 'negative' for you)
+notify(existing ? 'Transaction saved' : 'Transaction added', 'positive');
+notify('Transaction deleted');
+```
 
 ---
 
@@ -628,7 +665,7 @@ for (const [name, make] of Object.entries(screens)) {
 
 ### `prove-claims-are-failures` — A claim is a failing test, never noise
 
-A `Claim { code, block, detail, severity, width? }` is the engine saying something a person would otherwise catch by eye or keyboard is wrong. Codes (`src/test/claims.ts`, each checker unit-tested on a positive and a negative fixture): the fit reports `FIT_ROW` / `FIT_COLUMNS` / `FIT_CELL` (a plan still unsatisfied once the screen settled), `OVERFLOW_TEXT` (a one-line text wider than its box with no ellipsis), `FIGURE_TRUNCATED` (a `tabular-nums` figure — money, date, a Stat's value — under an ellipsis narrower than it: a text may truncate, a number may not), `UNSETTLED`, `NAME_MISSING`, `ID_DUPLICATE`, `LABEL_MISSING`, `DIALOG_ARIA`, `MENU_ITEM_ROLE`, `BLOCK_ERROR`, `UNREACHABLE`. Fix the intent (a `tertiary`? a shorter header?) or the engine (Settings @360 filed `FIGURE_TRUNCATED` on a folded backup name — the bug was `table.ts` inheriting `tabular-nums` into the fold, fixed there). Never loosen the proof.
+A `Claim { code, block, detail, severity, width? }` is the engine saying something a person would otherwise catch by eye or keyboard is wrong. Codes (`src/test/claims.ts`, each checker unit-tested on a positive and a negative fixture): the fit reports `FIT_ROW` / `FIT_COLUMNS` / `FIT_CELL` (a plan still unsatisfied once the screen settled), `OVERFLOW_TEXT` (a one-line text wider than its box with no ellipsis), `FIGURE_TRUNCATED` (a `tabular-nums` figure — money, date, a Stat's value — under an ellipsis narrower than it: a text may truncate, a number may not), `UNSETTLED`, `NAME_MISSING`, `ID_DUPLICATE`, `LABEL_MISSING`, `DIALOG_ARIA`, `MENU_ITEM_ROLE`, `BLOCK_ERROR`, `UNREACHABLE`, `SORT_UNREACHABLE` (a sortable header a keyboard cannot reach), `POPUP_ARIA` (`aria-expanded` without a shown/hidden controlled element), `LIVE_TONE` (a negative notice outside an assertive container, or any notice outside a live container). Fix the intent (a `tertiary`? a shorter header?) or the engine (Settings @360 filed `FIGURE_TRUNCATED` on a folded backup name — the bug was `table.ts` inheriting `tabular-nums` into the fold, fixed there). Never loosen the proof.
 
 ```typescript
 // ❌ WRONG — silencing a claim by widening the width list or filtering codes
@@ -720,6 +757,25 @@ expect(sidebarAt(metrics.layout.sidebarWidth + metrics.layout.contentMin - 1)).t
 nisli-verify --base http://localhost:5200 --routes / /accounts /transactions /budgets /import /rules /connections /settings \
   --widths 1280 768 360 --open '/transactions=[data-nisli-action=add]'
 # ok: 24 loads, no findings   (exit 0; 1 with findings; 2 on usage)
+```
+
+
+### `prove-keyboard-path` — A reachability proof drives the path a person takes
+
+A proof of a keyboard or AT guarantee exercises it: `focus()` the control, dispatch the `keydown` with its `key`, dispatch `pointerdown` then `click()` for a real tap, and assert what a person would feel — `document.activeElement`, `__layers`, `aria-expanded`/`aria-sort`, `e.defaultPrevented`, the callback count. Asserting that an element exists or carries a role proves nothing about reachability and is not a proof (review gate of ADR 0042). happy-dom does not synthesise a button's Enter/Space click: send the key, then `click()` the active element, and pin that it is a real `<button>` via `focusables()`.
+
+```typescript
+// ❌ WRONG — vacuous: the header could be an unfocusable div with the attribute
+expect(th.getAttribute('aria-sort')).toBe('ascending');
+
+// ✅ CORRECT — packages/engine/src/blocks/overlay.test.ts: the App menu, a real tap on the open toggle
+await open();
+pointer(toggle);                       // the anchor is inside the layer: nothing dismissed yet
+expect(__layers.value.map((l) => l.kind)).toEqual(['popover']);
+toggle.click(); flushEffects(); await tick();
+expect(__layers.value.length).toBe(0);
+expect(toggle.getAttribute('aria-expanded')).toBe('false');
+expect(document.activeElement).toBe(toggle);
 ```
 
 ### `prove-screenshots-not-proof` — Screenshots are for looking

@@ -8,6 +8,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { flushEffects } from '@nisli/core';
 import { Toolbar, type Action } from './toolbar.js';
+import { onReport, type LayoutReport } from '../engine/report.js';
+import { setDevMode, devOverride } from '../engine/dev.js';
 import { mount as mountBlock, textMeasurer, type Mounted } from '../test/mount.js';
 
 // Text is 8px a character; a button adds its padding, so the '⋯' trigger is 8 + 24 = 32.
@@ -105,5 +107,42 @@ describe('Toolbar behaviour', () => {
     Toolbar({ title: 't', actions: [], style: 'color:red' });
     // @ts-expect-error — actions carry no visual fields
     Toolbar({ title: 't', actions: [{ id: 'a', label: 'a', align: 'right' }] });
+  });
+});
+
+describe('the minimum row: a primary never leaves (ADR 0042 e)', () => {
+  // minimum row = minTitle 80 + gap 8 + trigger 32 + gap 8 + Save recipe 112 = 240 available → 272 wide with padding.
+  const reporting = (fn: () => void) => { const reports: LayoutReport[] = []; const stop = onReport((r) => reports.push(r)); try { fn(); } finally { stop(); } return reports; };
+  it('below the minimum row the primary stays, the title is at minTitle, the trigger shows and FIT_ROW stands', () => {
+    const dev = devOverride(); setDevMode(true);
+    try {
+      const reports = reporting(() => { mount(220); });
+      const t = mounted!;
+      const shown = [...t.el.querySelectorAll<HTMLElement>('[data-nisli-action]')].filter((b) => b.style.display !== 'none').map((b) => b.getAttribute('data-nisli-action'));
+      expect(shown).toEqual(['save']);
+      expect(t.el.querySelector<HTMLElement>('[data-nisli-action="save"]')!.style.display).toBe('inline-flex');
+      expect(t.el.querySelector<HTMLElement>('h2')!.style.width).toBe('80px');
+      expect(t.el.querySelector<HTMLElement>('[aria-label="More actions"]')!.style.display).toBe('inline-flex');
+      expect([...t.el.querySelectorAll('[role=menuitem]')].map((b) => b.textContent)).toEqual(['Share', 'Export', 'Edit']);
+      expect(reports.map((r) => r.code)).toContain('FIT_ROW');
+      expect(reports.at(-1)!.deficit).toBe(240 - (220 - 32));
+      expect(t.el.getAttribute('data-nisli-report')).toBe('FIT_ROW');
+    } finally { setDevMode(dev); }
+  });
+  it('a toolbar with only a primary at that width has no trigger and still reports', () => {
+    const reports = reporting(() => { mount(150, { title: 'Grandmother’s lasagne al forno', actions: [{ id: 'save', label: 'Save recipe', priority: 'primary' }] }); });
+    const t = mounted!;
+    expect(t.el.querySelector<HTMLElement>('[data-nisli-action="save"]')!.style.display).toBe('inline-flex');
+    expect(t.el.querySelector<HTMLElement>('[aria-label="More actions"]')!.style.display).toBe('none');
+    expect(t.el.querySelectorAll('[role=menuitem]').length).toBe(0);
+    expect(reports.map((r) => r.code)).toEqual(['FIT_ROW']);
+  });
+  it('two primaries are both kept; the later one is not demoted', () => {
+    const reports = reporting(() => { mount(200, { title: 'T', actions: [{ id: 'a', label: 'Alpha', priority: 'tertiary' }, { id: 'p1', label: 'Publish now', priority: 'primary' }, { id: 'p2', label: 'Save draft', priority: 'primary' }] }); });
+    const t = mounted!;
+    const shown = [...t.el.querySelectorAll<HTMLElement>('[data-nisli-action]')].filter((b) => b.style.display !== 'none').map((b) => b.getAttribute('data-nisli-action'));
+    expect(shown).toEqual(['p1', 'p2']);
+    expect([...t.el.querySelectorAll('[role=menuitem]')].map((b) => b.textContent)).toEqual(['Alpha']);
+    expect(reports.map((r) => r.code)).toEqual(['FIT_ROW']);
   });
 });

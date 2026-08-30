@@ -110,11 +110,12 @@ on close; re-places anchored layers on resize and on any scroll (capture).
 | `Dialog` | `modal` | the `role=dialog` element | — | `initialFocus`: first visible control that is not Close |
 | `confirm()` | `modal` (via Dialog) | — | — | body-mounted, so a second modal layer above whatever is open |
 | `Toolbar` overflow menu | `popover` | the `role=menu` element | the More-actions trigger | `align: 'trailing'`, `size` from `metrics.layout.menuWidth`; `restoreFocus: () => !leaving` |
-| `notify()` region | `passive` | — | — | open while it shows anything; never focused, never inert |
+| `App` menu (bar mode) | `popover` | the `<nav aria-label="Primary">` | the Menu toggle | full-width sheet by `placement.top`; `restoreFocus: () => !leaving` on Tab/navigation — [0042](./0042-engine-reachability.md) (a) |
+| `notify()` region | `passive` | — | — | open while it shows anything; never focused *by the engine* (a person may Tab to a notice's Dismiss while no modal is open — [0042](./0042-engine-reachability.md) (c)), never inert |
 
 ## Design principles applied
 
-**Composition — one behaviour, four consumers.** As with `ctx.fitRow`
+**Composition — one behaviour, five consumers** (the App menu joined in 0042). As with `ctx.fitRow`
 (0038), floating is a `Ctx` method, not an `OverlayBlock` base. Dialog and
 the Toolbar menu share nothing but the stack, and `confirm()` and `notify()`
 are not even blocks in the app's vocabulary — they get the behaviour by
@@ -215,8 +216,9 @@ move with wrap, Home/End jump; Enter/Space activate and close; Escape closes
 and returns focus to the trigger; Tab closes and leaves forwards (Shift+Tab
 backwards); an outside pointer closes.
 
-**Status region** — `role="status" aria-live="polite"`, a passive layer.
-Tone-based assertiveness and keyboard dismissal remain open (below).
+**Status region** — a passive layer holding a `role="status" aria-live="polite"`
+and a `role="alert" aria-live="assertive"` container; tone decides which
+and every notice has a Dismiss — closed by [0042](./0042-engine-reachability.md) (c).
 
 ## Consequences
 
@@ -261,9 +263,11 @@ sibling-modal inert, focus on open/close/opener-gone, the menu's full key
 set, placement from fallback size, scroll re-placement, one ref-counted
 lock, and notices over a modal — all through `mount()` in happy-dom.
 
-**Still open** (recorded, not absorbed): a `negative` notice is still
-`polite`, and notices are dismissed by pointer only; both are notice-block
-work, not stack work.
+**Closed by [0042](./0042-engine-reachability.md) (c)** (was "still open"
+here): a `negative` notice is `alert`/assertive, every notice has a
+keyboard-reachable Dismiss and Escape, and the countdown pauses while
+hovered or focused — notice-block work, as recorded; the stack was not
+touched.
 
 ## Long-term plan
 
@@ -274,7 +278,10 @@ work, not stack work.
 2. **Tooltips and general popovers would reuse the `popover` kind** — an
    anchored, non-trapping, restoring layer is exactly what `useOverlay`
    already provides. **They are not being added**: 0034's rule holds, a
-   block arrives only when a Ledger screen needs it.
+   block arrives only when a Ledger screen needs it. **Done for the App
+   menu** ([0042](./0042-engine-reachability.md) (a)): the second real
+   popover, and it needed nothing `useOverlay` lacked — only the manager
+   learned that a layer's anchor counts as inside on `pointerdown`.
 3. **`prove()` over screens** (0038 plan 2) gains the stack for free: a
    screen mounted at width can assert its layers' z, placement and Escape
    routing from `__layers`, the manager's test seam.

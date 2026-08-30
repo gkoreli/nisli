@@ -10,6 +10,8 @@ import { setMeasurer } from '../engine/measure.js';
 import { metrics } from '../metrics.js';
 import { __notices } from './notice.js';
 import { Form, type Field, type FormHandle } from './form.js';
+import { accessibleName, formLabels } from '../test/claims.js';
+import { estimator } from '../test/estimate.js';
 
 let width = 800;
 /** The mounted form's id prefix: field ids are `${F}-<key>` (per instance, so two forms never share an id). */
@@ -278,5 +280,46 @@ describe('controlled draft', () => {
     F = fidOf(e);
     type(e, 'q', 'b');
     expect(value.value).toEqual({ q: 'b' });
+  });
+});
+
+describe('labels point at what they label (ADR 0042 d)', () => {
+  const opts = (n: number) => Array.from({ length: n }, (_, i) => ({ value: `v${i}`, label: `V${i}` }));
+  it('a segmented group has a <span> label with no for=, named through aria-labelledby; clicking the label focuses the checked segment', () => {
+    const e = owned([{ key: 'three', label: 'Three', kind: 'select', options: opts(3) }, { key: 'four', label: 'Four', kind: 'select', options: opts(4) }], { three: 'v1' });
+    const label = e.querySelector<HTMLElement>(`#${F}-three-label`)!;
+    expect(label.tagName).toBe('SPAN');
+    expect(e.querySelector(`label[for=${F}-three]`)).toBeNull();
+    const group = e.querySelector<HTMLElement>(`#${F}-three`)!;
+    expect(accessibleName(group)).toBe('Three');
+    label.click(); flushEffects();
+    expect(document.activeElement).toBe(group.querySelectorAll('[role=radio]')[1]);
+    expect(document.activeElement!.getAttribute('aria-checked')).toBe('true');
+    // A native select keeps a real <label for>.
+    expect(e.querySelector<HTMLElement>(`label[for=${F}-four]`)!.tagName).toBe('LABEL');
+    expect(accessibleName(e.querySelector(`select#${F}-four`)!)).toBe('Four');
+    expect(formLabels.check(e, estimator(800))).toEqual([]);
+  });
+  it('the label follows the decision: options shrinking from 4 to 3 turns the <label for> into a <span>, and back', () => {
+    const e = owned([{ key: 'n', label: 'N', kind: 'select', options: (d) => opts(d.many ? 4 : 3) }, { key: 'many', label: 'Many', kind: 'checkbox' }], { many: true });
+    expect(e.querySelector<HTMLElement>(`#${F}-n-label`)!.tagName).toBe('LABEL');
+    const many = e.querySelector<HTMLInputElement>(`#${F}-many`)!; many.checked = false; many.dispatchEvent(new Event('change')); flushEffects();
+    expect(e.querySelector<HTMLElement>(`#${F}-n-label`)!.tagName).toBe('SPAN');
+    expect(e.querySelector(`#${F}-n`)!.getAttribute('role')).toBe('radiogroup');
+    expect(formLabels.check(e, estimator(800))).toEqual([]);
+  });
+  it('a checkbox caption is its <label for>: the name is field label plus caption, clicking the caption toggles the draft', () => {
+    const seen: Record<string, unknown>[] = [];
+    const e = owned([{ key: 'income', label: 'Kind', kind: 'checkbox', placeholder: 'This is income' }], { income: false }, { onChange: (v: Record<string, unknown>) => seen.push(v) });
+    const box = e.querySelector<HTMLInputElement>(`#${F}-income`)!;
+    expect(accessibleName(box)).toBe('Kind This is income');
+    expect(box.hasAttribute('placeholder')).toBe(false);
+    const caption = e.querySelector<HTMLLabelElement>(`label[for=${F}-income]`)!;
+    expect(caption.textContent).toBe('This is income');
+    expect(e.querySelector<HTMLElement>(`#${F}-income-label`)!.tagName).toBe('SPAN');
+    caption.click(); flushEffects();                                // a label click toggles its control
+    expect(box.checked).toBe(true);
+    expect(seen).toEqual([{ income: true }]);
+    expect(formLabels.check(e, estimator(800))).toEqual([]);
   });
 });

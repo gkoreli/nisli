@@ -12,7 +12,7 @@ export interface ToolbarProps {
 }
 
 // The block's taste, expressed as ranks the engine walks. The title gives
-// ground before a primary action leaves the row; everything else leaves first.
+// ground (to `minTitle`) and everything else leaves first; a primary never leaves.
 const RANK = { tertiary: 1, secondary: 2, title: 10, primary: 20 } as const;
 const rank = (a: Action) => RANK[a.priority ?? 'secondary'];
 const variantOf = (a: Action) => (a.destructive ? 'danger' : a.priority === 'primary' ? 'primary' : 'plain');
@@ -49,7 +49,8 @@ export const Toolbar = block<ToolbarProps>('nisli-toolbar', {
         const titleWidth = titleEl.current ? measure(titleEl.current as HTMLElement) : 0;
         return [
           { id: 'title', width: titleWidth, minWidth: Math.min(titleWidth, metrics.layout.minTitle), priority: RANK.title },
-          ...actions.value.map((a, i) => ({ id: a.id, width: buttons[i] ? measure(buttons[i]!) : 0, priority: rank(a), overflowable: true })),
+          // A primary never leaves the row (ADR 0042): below the minimum row the plan reports FIT_ROW rather than hiding the verb.
+          ...actions.value.map((a, i) => ({ id: a.id, width: buttons[i] ? measure(buttons[i]!) : 0, priority: rank(a), overflowable: a.priority !== 'primary' })),
         ];
       },
       deps: () => { actions.value; props.title.value; },

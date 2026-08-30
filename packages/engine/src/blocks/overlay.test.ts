@@ -9,6 +9,9 @@ import { el, html, signal, flushEffects } from '@nisli/core';
 import { block, lockScroll } from './kernel.js';
 import { Dialog } from './dialog.js';
 import { Toolbar } from './toolbar.js';
+import { App } from './app.js';
+import { popupAria, isHidden } from '../test/claims.js';
+import { estimator } from '../test/estimate.js';
 import { confirm } from './confirm.js';
 import { notify, __notices } from './notice.js';
 import { __layers } from './kernel.js';
@@ -255,6 +258,18 @@ describe('overlay — the menu keyboard model', () => {
     expect(menu.style.display).toBe('none');
   });
 
+  it('a real tap on the trigger while open (pointerdown, then click) closes the menu, empties the stack and leaves focus on the trigger — it does not reopen', async () => {
+    const { trigger, menu } = await menuUp();
+    expect(__layers.value.map((l) => l.kind)).toEqual(['popover']);
+    pointer(trigger);                                                // the manager sees the anchor as inside: no dismiss here
+    expect(__layers.value.length).toBe(1);
+    trigger.click(); flushEffects(); await tick();                   // the trigger's own toggle closes it
+    expect(__layers.value.length).toBe(0);
+    expect(menu.style.display).toBe('none');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it('the menu is a fixed layer placed by the engine, not an absolute offset', async () => {
     const { menu } = await menuUp();
     expect(menu.style.position).toBe('fixed');
@@ -417,16 +432,17 @@ describe('overlay — confirm() and notify() as layers', () => {
     expect(document.activeElement?.id).toBe('first');
     notify('Saved', 'positive'); flushEffects();
     await tick();
-    const region = document.querySelector<HTMLElement>('[role=status][aria-live=polite]')!;
+    const live = document.querySelector<HTMLElement>('[role=status][aria-live=polite]')!;
+    const region = live.parentElement!;                             // the fixed box holding both live containers
     expect(__layers.value.map((l) => l.kind)).toEqual(['modal', 'passive']);
     expect(document.activeElement?.id).toBe('first');
     expect(region.closest('[inert]')).toBeNull();
     expect(Number(region.style.zIndex)).toBeGreaterThan(Number(t.styleOf('[role=presentation]').zIndex));
     expect(region.style.zIndex).toBe(String(metrics.layer.passive + 1));
-    const notice = region.querySelector<HTMLElement>('each-item > div')!;
+    const notice = live.querySelector<HTMLElement>('each-item > div')!;
     pointer(notice);
     expect(open.value).toBe(true);                                  // a pointer on the notice is not outside the dialog
-    notice.click(); flushEffects();
+    notice.querySelector<HTMLElement>('button[aria-label=Dismiss]')!.click(); flushEffects();
     expect(__notices.value.length).toBe(0);
     expect(__layers.value.map((l) => l.kind)).toEqual(['modal']);
     expect(open.value).toBe(true);
@@ -448,5 +464,123 @@ describe('overlay — confirm() and notify() as layers', () => {
     expect(region.closest('[inert]')).toBeNull();
     __notices.value = []; flushEffects();
     expect(region.closest('[inert]')).not.toBeNull();
+  });
+});
+
+describe('overlay — the App menu is a popover layer (ADR 0042 a)', () => {
+  const nav = [{ label: 'Overview', href: '/' }, { label: 'Accounts', href: '/accounts' }, { label: 'Settings', href: '/settings' }];
+  const shell = async (width: number) => {
+    const location = signal('/');
+    const t = up(App, { brand: 'Ledger', nav, location, content: html`<button id="after">after</button>` }, { width, viewport: width });
+    const toggle = t.el.querySelector<HTMLElement>('button[aria-label="Menu"]')!;
+    const menu = t.el.querySelector<HTMLElement>('nav[aria-label="Primary"]')!;
+    const links = () => [...menu.querySelectorAll<HTMLElement>('a[href]')];
+    const open = async () => { toggle.click(); flushEffects(); await tick(); flushEffects(); };
+    return { t, toggle, menu, links, open, location };
+  };
+
+  it('at 360 the toggle controls the nav; opening pushes one popover, shows the sheet as a fixed full-width layer and focuses the first link', async () => {
+    const { t, toggle, menu, links, open } = await shell(360);
+    expect(isHidden(toggle)).toBe(false);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.getAttribute('aria-controls')).toBe(menu.id);
+    expect(toggle.hasAttribute('aria-haspopup')).toBe(false);       // disclosure navigation, not a menu
+    expect(menu.style.display).toBe('none');
+    expect(popupAria.check(t.frame, estimator(360))).toEqual([]);
+    await open();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(__layers.value.map((l) => l.kind)).toEqual(['popover']);
+    expect(document.activeElement).toBe(links()[0]);
+    expect(menu.style.display).toBe('flex');
+    expect(menu.style.position).toBe('fixed');
+    expect(menu.style.left).toBe('0px');
+    expect(menu.style.right).toBe('0px');
+    expect(menu.style.visibility).toBe('visible');                  // placed, a microtask after open
+    expect(menu.style.zIndex).toBe(String(metrics.layer.popover));
+    expect(menu.getAttribute('role')).toBeNull();                   // links are links: no role=menu
+    expect(popupAria.check(t.frame, estimator(360))).toEqual([]);   // expanded, and the controlled nav is shown
+  });
+
+  it('ArrowDown/ArrowUp walk the links with wrap, Home/End jump; Escape closes, empties the stack and returns focus to the toggle', async () => {
+    const { toggle, menu, links, open } = await shell(360);
+    await open();
+    key('ArrowDown', document.activeElement!);
+    key('ArrowDown', document.activeElement!);
+    expect(document.activeElement).toBe(links()[2]);
+    key('ArrowDown', document.activeElement!);
+    expect(document.activeElement).toBe(links()[0]);                // wrapped
+    key('End', document.activeElement!);
+    expect(document.activeElement).toBe(links()[2]);
+    key('ArrowUp', document.activeElement!);
+    expect(document.activeElement).toBe(links()[1]);
+    key('Home', document.activeElement!);
+    expect(document.activeElement).toBe(links()[0]);
+    key('Escape', document.activeElement!);
+    expect(__layers.value.length).toBe(0);
+    expect(menu.style.display).toBe('none');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(toggle);
+  });
+
+  it('an outside pointer closes it with focus back on the toggle; Tab leaves to the tabbable after the toggle; ArrowUp on the toggle opens on the last link', async () => {
+    const { t, toggle, menu, links, open } = await shell(360);
+    await open();
+    pointer(t.el.querySelector('#after')!);
+    expect(menu.style.display).toBe('none');
+    expect(document.activeElement).toBe(toggle);
+    await open();
+    key('Tab', document.activeElement!);
+    await tick(); flushEffects();
+    expect(menu.style.display).toBe('none');
+    expect(document.activeElement?.id).toBe('after');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    toggle.focus();
+    key('ArrowUp', toggle); await tick();
+    expect(__layers.value.map((l) => l.kind)).toEqual(['popover']);
+    expect(document.activeElement).toBe(links()[2]);
+    key('Tab', document.activeElement!, { shiftKey: true });
+    await tick(); flushEffects();
+    expect(document.activeElement).toBe(toggle);                    // nothing tabbable before the toggle: it stays there
+    expect(menu.style.display).toBe('none');
+  });
+
+  it('a real tap on the toggle while open (pointerdown, then click) closes the sheet, empties the stack and leaves focus on the toggle — it does not reopen', async () => {
+    const { toggle, menu, links, open } = await shell(360);
+    await open();
+    expect(document.activeElement).toBe(links()[0]);
+    pointer(toggle);                                                 // the anchor is inside the layer: nothing dismissed yet
+    expect(__layers.value.map((l) => l.kind)).toEqual(['popover']);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    toggle.click(); flushEffects(); await tick(); flushEffects();    // the toggle's own click closes
+    expect(__layers.value.length).toBe(0);
+    expect(menu.style.display).toBe('none');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(toggle);
+  });
+
+  it('a location change closes it without moving focus to the toggle — the router owns focus on navigation', async () => {
+    const { toggle, menu, links, open, location } = await shell(360);
+    await open();
+    expect(document.activeElement).toBe(links()[0]);
+    location.value = '/accounts'; flushEffects();
+    expect(menu.style.display).toBe('none');
+    expect(__layers.value.length).toBe(0);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).not.toBe(toggle);
+    expect(links()[1]!.getAttribute('aria-current')).toBe('page');
+  });
+
+  it('at 1280 the nav is the sidebar: the toggle is hidden, the sheet never floats and no layer is ever pushed', async () => {
+    const { t, toggle, menu, open } = await shell(1280);
+    expect(isHidden(toggle)).toBe(true);                            // the whole top bar is gone
+    expect(toggle.closest('header')!.style.display).toBe('none');
+    expect(menu.style.display).toBe('flex');
+    expect(menu.style.position).toBe('sticky');
+    expect(menu.style.width).toBe(`${metrics.layout.sidebarWidth}px`);
+    await open();                                                   // a stray click on the hidden toggle
+    expect(__layers.value.length).toBe(0);
+    expect(menu.style.position).toBe('sticky');
+    expect(t.el.querySelectorAll('nav[aria-label="Primary"]').length).toBe(1);
+    expect(popupAria.check(t.frame, estimator(1280))).toEqual([]);
   });
 });

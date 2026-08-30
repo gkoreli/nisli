@@ -356,9 +356,14 @@ function onPointerdown(e: Event): void {
   const target = reach(s);
   const entry = entryOf(target);
   if (!target || !entry) return;
-  // Inside the target or any layer above it (a menu over a dialog, a notice over anything) is inside.
+  // Inside the target or any layer above it (a menu over a dialog, a notice over anything) is inside —
+  // and so is a layer's anchor: a tap on the trigger that opened a menu is the trigger's own toggle
+  // (pointerdown, then click), never an outside pointer that dismisses first and lets the click reopen.
   const node = e.target as Node;
-  const inside = s.slice(s.indexOf(target)).some((l) => { const x = entries.get(l.id); return !!x && surfaceOf(x).contains(node); });
+  const inside = s.slice(s.indexOf(target)).some((l) => {
+    const x = entries.get(l.id);
+    return !!x && (surfaceOf(x).contains(node) || !!x.spec.anchor?.()?.contains(node));
+  });
   if (pointerTarget(s, inside)) entry.spec.onDismiss();
 }
 

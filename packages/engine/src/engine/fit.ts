@@ -64,6 +64,9 @@ export interface FitPlan {
 }
 
 const sum = (n: readonly number[]) => n.reduce((a, b) => a + b, 0);
+/** Below this a difference is float noise, not a deficit: a title that gave exactly what was asked has fit. */
+const EPSILON = 1e-6;
+const snap = (v: number) => (Math.abs(v) < EPSILON ? 0 : v);
 
 export function fit(input: FitInput): FitPlan {
   const { available, gap, items, triggerWidth } = input;
@@ -84,7 +87,7 @@ export function fit(input: FitInput): FitPlan {
     .map(({ item }) => item);
 
   for (const item of order) {
-    let deficit = usedNow() - available;
+    let deficit = snap(usedNow() - available);
     if (deficit <= 0) break;
 
     if (item.minWidth !== undefined && item.minWidth < item.width) {
@@ -129,5 +132,5 @@ export function fit(input: FitInput): FitPlan {
     const t = into.get(i.id);
     if (t) stacked.set(t, [...(stacked.get(t) ?? []), i.id]);
   }
-  return { decisions, overflowed, stacked, slack: available - usedNow() };
+  return { decisions, overflowed, stacked, slack: snap(available - usedNow()) };
 }

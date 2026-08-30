@@ -299,7 +299,7 @@ There are three kinds:
 | kind | who | dismiss | focus | background |
 |---|---|---|---|---|
 | `modal` | `Dialog`, `confirm()` | Escape, outside pointer | trapped over its visible controls; restored on close | inert; scroll locked |
-| `popover` | the Toolbar overflow menu | Escape, outside pointer | moves into the menu; restored to its anchor | untouched |
+| `popover` | the Toolbar overflow menu, the App bar-mode menu | Escape, outside pointer (a tap on the anchor is the anchor's own toggle) | moves into the menu; restored to its anchor | untouched |
 | `passive` | `notify()` | never (transparent) | never focused | never inert |
 
 **Keyboard model.** Escape reaches the *topmost non-passive* layer only, and
@@ -330,6 +330,54 @@ or `src/engine/overlay.test.ts`, with no browser:
 - An anchored layer is placed by `placeMenu()` inside the viewport, `ltr` or
   `rtl` from the anchor's computed direction, hidden until placed, and
   re-placed on resize and on any scroll.
+- A pointer on a layer's *anchor* is inside that layer: a real tap on the
+  trigger of an open menu (pointerdown, then click) closes it once and leaves
+  focus on the trigger — it is never dismissed by the pointerdown and reopened
+  by the click.
+
+## Accessibility
+
+What the engine guarantees for a keyboard or an assistive-technology user,
+with no line in app code (ADR 0042). Each item is a test that drives the
+keyboard or pointer path — never an "element exists" assertion — in
+`src/blocks/{overlay,table,extras,form}.test.ts` and `src/test/claims.test.ts`.
+
+- **Layers.** Anything that floats is on the one overlay stack, so it has
+  Escape, outside-pointer dismiss, focus in and focus return. The App's
+  bar-mode menu (every viewport under 792, so every phone) is a `popover`
+  layer with the APG disclosure-navigation model: the toggle is
+  `aria-expanded` + `aria-controls`; open focuses the first link (ArrowUp on
+  the toggle: the last); arrows wrap, Home/End jump; Escape and an outside
+  pointer close and return focus to the toggle; Tab leaves to the tabbable
+  after the toggle; navigation closes without moving focus (the router owns
+  it). The sheet never pushes content and never adds a second `<nav>`.
+- **Sortable headers.** A `sortable` column's header holds a real `<button>`
+  (no button look), so Tab reaches it and Enter/Space sort natively;
+  `aria-sort` stays on the `<th>` and the sort mark is `aria-hidden`.
+- **Selectable rows.** An `onSelect` row is a tab stop named by its primary
+  `<td>` (`aria-labelledby`), so a reader hears what it is; Enter and Space
+  select, Space without scrolling. A control rendered inside a cell keeps its
+  own keys — the row only answers keys aimed at the row itself.
+- **Live regions.** `notify()` keeps a polite `status` and an assertive
+  `alert` container mounted before any notice arrives; `negative` goes to the
+  alert, every other tone to the status (`LIVE_TONE` claims a notice in the
+  wrong container, or in none). Each notice is a `group` named with a human
+  word — Error, Success, Warning, Note — with a Dismiss `<button>` in the tab
+  order; Escape on a focused notice dismisses it and never reaches a dialog
+  below. Its timer is a resumable countdown, held while hovered or focused.
+  A keyboard dismiss returns focus to where it came from (the control Tab
+  left, or the dialog field that was focused); when that is gone, to the open
+  dialog, else the `main` landmark — never to `<body>`.
+- **Labels.** A field's `<label for>` targets only a labelable control. A
+  segmented group is named through `aria-labelledby` and clicking its heading
+  focuses the checked option; a checkbox's caption is its own `<label for>`
+  (clicking toggles) and its name is heading + caption.
+- **Focus ring and hover.** A focused row lights the same `table.row.hover`
+  part as a hovered one; focus is the skin's `focus` part, never removed by
+  a block. Focus is only ever moved by the overlay manager or by a block
+  answering a key — never on render.
+- **Primary actions.** A `primary` Toolbar action never leaves the row: below
+  the minimum the plan reports `FIT_ROW` rather than hide the verb in a menu.
 
 ## Blocks
 
@@ -337,23 +385,40 @@ or `src/engine/overlay.test.ts`, with no browser:
 `Dialog`, `Meter`, `Bars`, `Columns`, `Empty`, `Text`, `Link`; plus
 `notify()` and `confirm()`.
 
+- **App** — the shell: sidebar at ≥ 792, else a top bar whose menu is a
+  `popover` layer (disclosure navigation: `aria-expanded`/`aria-controls`,
+  arrows, Home/End, Escape, outside pointer, focus return to the toggle,
+  closes on navigation); the active link is `aria-current="page"`.
 - **Toolbar** — a title and typed actions; `fit()` decides the row at width
   (shrink → stack → overflow) and the overflowed actions become a `popover`
   layer: a `menu` of `menuitem`s, `menuWidth` from metrics, full arrow-key
-  model, closes on Escape, outside pointer or selection.
+  model, closes on Escape, outside pointer, a tap on its trigger, or
+  selection. A `primary` action is never overflowed (`FIT_ROW` instead).
+- **Table** — columns drop, truncate and fold by `priority` and `kind`; a
+  `sortable` header is a real `<button>` inside the `<th>` (`aria-sort` on
+  the `th`); an `onSelect` row is a tab stop named by its primary cell,
+  selected by Enter/Space, lit while focused as while hovered.
 - **Dialog** — a `modal` layer: `role="dialog"`, `aria-modal`,
   `aria-labelledby` its title; `dialogMode()` chooses sheet or centred at
   width; initial focus on its first visible control that is not Close.
 - **confirm()** — a Dialog mounted at the body, so a modal layer above
   whatever is open; resolves to the answer, one Escape answers `false`.
-- **notify()** — a `role="status"` live region; a `passive` layer while it
-  shows anything, above every modal, click to dismiss, timed by tone.
+- **notify()** — two live regions, a polite `status` and an assertive
+  `alert`, mounted before the first notice; `negative` is an alert, every
+  other tone a status. A `passive` layer while it shows anything, above every
+  modal. Each notice is a `group` (Error / Success / Warning / Note) with a
+  Dismiss button in the tab order; Escape dismisses; the countdown (4 s,
+  8 s for negative) pauses on hover and focus; a keyboard dismiss returns
+  focus to where it came from, never to `<body>`.
 
 - **Form** — a schema of fields (`when`, dependent `options`, `readOnly`,
   `validate`, bounds, `group`, `long`); the engine decides presence, columns
   at width, segmented group vs. select, validation timing and announcement,
   and — when given `initial`/`key` instead of `value` — owns the draft,
-  its dirtiness and its reset. Domain in `src/blocks/form/`.
+  its dirtiness and its reset. Every control is labelled: `<label for>` for
+  a labelable control, `aria-labelledby` for a segmented group (its heading
+  click focuses the checked option), and a checkbox's caption is a
+  `<label for>` that toggles it. Domain in `src/blocks/form/`.
 
 ## Status
 

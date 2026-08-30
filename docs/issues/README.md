@@ -31,3 +31,4 @@ of numbering.
 | [0023 — Dialogs have no action row; screens fake one with a fieldless `Form`](./0023-actions-block-for-dialogs.md) | open | P2 |
 | [0024 — `prove()` exists but is parked: screen-level proof is not yet a test](./0024-prove-harness-parked.md) | resolved (ADR 0041) | P2 |
 | [0025 — A JSON `POST` through the Vite dev proxy hung with `Accept: */*`](./0025-vite-proxy-accept-header-hang.md) | open (unexplained) | P3 |
+| [0026 — Five engine decisions are not reachable by keyboard or AT](./0026-reachability-defects.md) | resolved (ADR 0042) | P1 |

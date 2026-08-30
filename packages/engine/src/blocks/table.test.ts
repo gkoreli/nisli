@@ -1,7 +1,10 @@
 /** @vitest-environment happy-dom */
 import { describe, it, expect, afterEach } from 'vitest';
-import { flushEffects } from '@nisli/core';
-import { type Column } from './table.js';
+import { flushEffects, html } from '@nisli/core';
+import { type Column, type Sort } from './table.js';
+import { focusables } from './kernel.js';
+import { accessibleName, accessibleNames, sortReachable } from '../test/claims.js';
+import { estimator } from '../test/estimate.js';
 import { mount as mountBlock, type Mounted } from '../test/mount.js';
 
 interface Row { id: string; date: string; payee: string; category: string; account: string; note: string; amount: number }
@@ -81,5 +84,96 @@ describe('Table drops columns by priority', () => {
     tr.dispatchEvent(new Event('mouseleave'));
     flushEffects();
     expect(tr.getAttribute('style')).toBe(before);
+  });
+});
+
+describe('Table is reachable by keyboard (ADR 0042 b)', () => {
+  const key = (k: string, target: Element, init: KeyboardEventInit = {}) => { const e = new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...init }); target.dispatchEvent(e); flushEffects(); return e; };
+  // Enter/Space on a focused native button is a click: happy-dom does not synthesise it, so the proof does what the browser would.
+  const activate = (k: 'Enter' | ' ') => { const b = document.activeElement as HTMLElement; key(k, b); b.click(); flushEffects(); };
+  const sortable: Column<Row>[] = columns.map((c) => (c.id === 'date' || c.id === 'amount' ? { ...c, sortable: true } : c));
+
+  it('a sortable header is a button a keyboard reaches; Enter sorts ascending, Space flips to descending, aria-sort follows on the th', () => {
+    const sorts: Sort[] = [];
+    // The app owns the sort: onSort hands the engine the new one, as a screen would.
+    mounted = mountBlock('nisli-table', { columns: sortable, rows, key: (r: Row) => r.id, onSort: (s: Sort) => { sorts.push(s); (mounted!.el as any)._setProp('sort', s); } }, { width: 1000, text });
+    const ths = [...mounted.el.querySelectorAll<HTMLElement>('thead th')];
+    expect(ths.map((th) => !!th.querySelector('button'))).toEqual([true, false, false, false, false, true]);
+    const order = focusables(mounted.el);
+    expect(order[0]).toBe(ths[0]!.querySelector('button'));         // the first Tab stop in the table is the Date header
+    order[0]!.focus();
+    expect(document.activeElement).toBe(ths[0]!.querySelector('button'));
+    expect(accessibleName(document.activeElement!)).toBe('Date');
+    activate('Enter');
+    expect(sorts).toEqual([{ by: 'date', dir: 'asc' }]);
+    expect(ths[0]!.getAttribute('aria-sort')).toBe('ascending');
+    expect(ths[0]!.querySelector('[aria-hidden=true]')!.textContent).toBe(' ↑');
+    activate(' ');
+    expect(sorts).toEqual([{ by: 'date', dir: 'asc' }, { by: 'date', dir: 'desc' }]);
+    expect(ths[0]!.getAttribute('aria-sort')).toBe('descending');
+    expect(ths[1]!.hasAttribute('aria-sort')).toBe(false);
+    expect(ths[0]!.style.cursor).not.toBe('pointer');               // the pointer affordance is the button's, not the cell's
+    expect(ths[0]!.querySelector<HTMLElement>('button')!.style.cursor).toBe('pointer');
+    expect(sortReachable.check(mounted.el, estimator(1000))).toEqual([]);
+  });
+
+  it('a selectable row is a named tab stop after the headers; Enter and Space each select once, Space without scrolling the page; focus lights it up', () => {
+    const selected: Row[] = [];
+    mounted = mountBlock('nisli-table', { columns: sortable, rows, key: (r: Row) => r.id, onSelect: (r: Row) => selected.push(r) }, { width: 1000, text, scheme: 'light' });
+    const order = focusables(mounted.el);
+    const tr = mounted.el.querySelector<HTMLElement>('tbody tr')!;
+    expect(order[2]).toBe(tr);                                      // Date, Amount headers, then the row
+    const before = tr.getAttribute('style');
+    tr.focus(); flushEffects();
+    expect(document.activeElement).toBe(tr);
+    expect(accessibleName(tr)).toBe('Aug 1');                       // named by its first primary cell
+    expect(document.getElementById(tr.getAttribute('aria-labelledby')!)!.tagName).toBe('TD');
+    expect(tr.getAttribute('style')).not.toBe(before);              // the hover part, while focused
+    const enter = key('Enter', tr);
+    expect(selected.length).toBe(1);
+    expect(enter.defaultPrevented).toBe(true);                      // no keypress reaches the field the selection focuses
+    const space = key(' ', tr);
+    expect(selected.length).toBe(2);
+    expect(space.defaultPrevented).toBe(true);
+    expect(key('a', tr).defaultPrevented).toBe(false);
+    expect(selected.length).toBe(2);
+    tr.blur(); flushEffects();
+    expect(tr.getAttribute('style')).toBe(before);
+    expect(accessibleNames.check(mounted.el, estimator(1000))).toEqual([]);
+  });
+
+  it('a control inside a cell keeps its own keys: Space on it is not prevented and does not select the row; on the row it does', () => {
+    const selected: Row[] = [];
+    const withControl: Column<Row>[] = columns.map((c) => (c.id === 'note' ? { ...c, cell: () => html`<button id="in">x</button>` } : c));
+    mounted = mountBlock('nisli-table', { columns: withControl, rows, key: (r: Row) => r.id, onSelect: (r: Row) => selected.push(r) }, { width: 1000, text });
+    const tr = mounted.el.querySelector<HTMLElement>('tbody tr')!;
+    const inner = mounted.el.querySelector<HTMLElement>('#in')!;
+    expect(focusables(mounted.el)).toContain(inner);
+    inner.focus();
+    expect(key(' ', inner).defaultPrevented).toBe(false);
+    expect(key('Enter', inner).defaultPrevented).toBe(false);
+    expect(selected.length).toBe(0);
+    tr.focus();
+    expect(key(' ', tr).defaultPrevented).toBe(true);
+    expect(selected.length).toBe(1);
+  });
+
+  it('a table without onSelect has no focusable rows and no row names; without sortable no header buttons', () => {
+    mounted = mountBlock('nisli-table', { columns, rows, key: (r: Row) => r.id }, { width: 1000, text });
+    expect(mounted.el.querySelector('tbody tr')!.hasAttribute('tabindex')).toBe(false);
+    expect(mounted.el.querySelector('tbody tr')!.hasAttribute('aria-labelledby')).toBe(false);
+    expect(mounted.el.querySelectorAll('thead button').length).toBe(0);
+    expect(focusables(mounted.el)).toEqual([]);
+  });
+
+  it('row ids come from a counter, so a keyed reorder keeps every id unique', () => {
+    const two = [...rows, { id: '2', date: 'Aug 2', payee: 'Uber', category: 'Transport', account: 'Card', note: '', amount: -7 }];
+    mounted = mountBlock('nisli-table', { columns, rows: two, key: (r: Row) => r.id, onSelect: () => {} }, { width: 1000, text });
+    const ids = () => [...mounted!.el.querySelectorAll<HTMLElement>('tbody tr')].map((tr) => tr.getAttribute('aria-labelledby'));
+    const first = ids();
+    (mounted.el as any)._setProp('rows', [two[1], two[0]]); flushEffects();
+    expect(ids()).toEqual([first[1], first[0]]);                    // the elements moved with their rows
+    expect(new Set(ids()).size).toBe(2);
+    expect([...mounted.el.querySelectorAll<HTMLElement>('tbody tr')].map((tr) => accessibleName(tr))).toEqual(['Aug 2', 'Aug 1']);
   });
 });

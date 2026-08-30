@@ -196,17 +196,21 @@ const FormImpl = block<ImplProps>('nisli-form', {
       }
       if (f.kind === 'checkbox') {
         const r = ref<HTMLElement>();
+        // The caption (`placeholder`, the engine's rule for a checkbox) is the box's own `<label for>`: clicking it toggles,
+        // and the name is the field label plus the caption ("Kind This is income") through aria-labelledby.
         return el('span', { style: ctx.part([], { display: 'flex', alignItems: 'center', gap: metrics.space[2], height: metrics.control.height }) }, [
           el('input', {
             ref: r,
             ...common,
+            placeholder: false,
+            'aria-labelledby': `${id}-label ${id}-caption`,
             type: 'checkbox',
             disabled: computed(() => (readOnly.value ? 'disabled' : false)),
             style: ctx.part([], { width: metrics.control.check, height: metrics.control.check, margin: 0 }),
             checked: computed(() => sync(r, 'checked', !!value()[f.key])),
             on: on('change', (e) => draft.set(f.key, (e.target as HTMLInputElement).checked)),
           }),
-          el('span', { style: ctx.part('text') }, f.placeholder ?? ''),
+          el('label', { for: id, id: `${id}-caption`, style: ctx.part('text', { cursor: 'pointer' }) }, f.placeholder ?? ''),
         ]);
       }
       if (f.kind === 'textarea') {
@@ -292,12 +296,24 @@ const FormImpl = block<ImplProps>('nisli-form', {
 
     // ── Fields, groups, the grid ─────────────────────────────────────────
 
+    /** Whether the field's control is offered as a segmented group (the same decision `control()` makes). */
+    const segmentedOf = (f: Field<Rec>) => computed(() => { if (f.kind !== 'select') return false; const n = optionsOf(f, value()).length; return n >= 2 && n <= SEGMENTED_MAX; });
+
     const fieldEl = (f: Field<Rec>) => {
       const id = `${fid}-${f.key}`;
+      const text = f.required ? `${f.label} *` : f.label;
+      const segmented = segmentedOf(f);
+      // `<label for>` only for a labelable element. A segmented group is named through its aria-labelledby, and a
+      // checkbox's field label is the first half of its name (the caption is the label): both get a `<span id>`.
+      const heading = f.kind === 'checkbox'
+        ? el('span', { id: `${id}-label`, style: ctx.part('text.muted') }, text)
+        : computed(() => (segmented.value
+          ? el('span', { id: `${id}-label`, style: ctx.part('text.muted', { cursor: 'default' }), on: { click: () => focusField(f.key) } }, text)
+          : el('label', { for: id, id: `${id}-label`, style: ctx.part('text.muted') }, text)));
       return el('div', {
         style: ctx.part([], { display: 'flex', flexDirection: 'column', gap: metrics.space[1], minWidth: 0, gridColumn: spansRow(f) ? '1 / -1' : 'auto' }),
       }, [
-        el('label', { for: id, id: `${id}-label`, style: ctx.part('text.muted') }, f.required ? `${f.label} *` : f.label),
+        heading,
         control(f),
         el('span', {
           id: `${id}-note`,

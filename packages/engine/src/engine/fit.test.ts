@@ -68,6 +68,30 @@ describe('fit() decides one toolbar row at five widths', () => {
     expect(a.overflowed).toEqual(['share', 'export', 'edit']);
   });
 
+  it('the Toolbar case: a rigid primary that is not overflowable stays when even it cannot fit, and the slack says so', () => {
+    // A title at its minimum beside a primary the row cannot hold: nothing overflows, the plan reports.
+    const plan = fit({
+      available: 150, gap: 8, triggerWidth: 32,
+      items: [{ id: 'title', width: 240, minWidth: 80, priority: 10 }, { id: 'save', width: 112, priority: 20 }],
+    });
+    expect(plan.overflowed).toEqual([]);
+    expect(plan.decisions).toEqual([{ id: 'title', action: 'shrink', width: 80 }, { id: 'save', action: 'keep', width: 112 }]);
+    expect(plan.slack).toBe(150 - (80 + 8 + 112));
+  });
+
+  it('a shrink that gives exactly the deficit leaves zero slack, not float noise — a fitted row is never reported', () => {
+    // The estimator's widths for "Budgets · August 2026" / "Add budget" / "⋯" at 360: the title gives 2.057 and the
+    // row is exactly 328 in arithmetic, -5.7e-14 in floats — which, reported, would keep a settled screen "moving".
+    const plan = fit({
+      available: 328, gap: 8, triggerWidth: 37.421,
+      items: [{ id: 'title', width: 174.993, minWidth: 80, priority: 10 }, { id: 'add', width: 101.643, priority: 20 }, { id: 'prev', width: 92.198, priority: 2, overflowable: true }],
+    });
+    expect(plan.overflowed).toEqual(['prev']);
+    expect(plan.decisions.find((d) => d.id === 'title')!.action).toBe('shrink');
+    expect(plan.slack).toBe(0);
+    expect(Object.is(plan.slack, -0)).toBe(false);
+  });
+
   it('does not overflow items that are not overflowable', () => {
     const plan = fit({
       available: 50, gap: 0, triggerWidth: 20,
