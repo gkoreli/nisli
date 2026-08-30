@@ -9,6 +9,9 @@ code; the engine lays it out, the skin dresses it.
 pnpm --filter @nisli/ledger dev:all     # ledger server on :5201 + Vite on :5200
 ```
 
+`dev:all` supervises both processes: stopping it stops the API and Vite
+together, so a later run does not inherit an orphaned listener on port 5201.
+
 The server (`server/index.mjs`, zero dependencies) is the system of record;
 `pnpm dev` alone runs Vite against whatever cache the browser holds, in the
 `offline` state, and syncs once the server is back.
@@ -24,13 +27,21 @@ The server (`server/index.mjs`, zero dependencies) is the system of record;
   data directory.
 - `PORT` (default 5201) and the Plaid variables below are the rest of the env.
 
+For a production-shaped local run, build once and let the same server deliver
+the app and API on port 5201:
+
+```sh
+pnpm --filter @nisli/ledger build
+pnpm --filter @nisli/ledger start
+```
+
 ## Data & backups
 
 - The ledger is one JSON document, `server/data/ledger.json`, with a version
   number. Every write is a temp-file-and-rename, so it is durable before the
   browser hears "saved"; every write carries the version it was based on and
-  a stale one is refused (409) — the browser then reloads the server's copy
-  and says so.
+  a stale one is refused (409) — the browser then replays owner edits over the
+  newer server projection and retries, without overriding bank-owned facts.
 - The browser keeps a read cache in `localStorage` (`ledger.v1`) and works
   from it while offline; edits are retried until they land. An existing
   0.1.0 cache is migrated to the server on first boot.
@@ -52,41 +63,95 @@ The server (`server/index.mjs`, zero dependencies) is the system of record;
   a bank credential and the server only ever sees the resulting token.
 - Access tokens live in `server/data/items.json`, encrypted with AES-256-GCM
   (`server/crypto.mjs`); they are decrypted in memory for a sync and never
-  sent to the browser (`publicItem` strips them from every response).
+  sent to the browser. Opaque provider checkpoints are server-only too.
 - Secrets are env (`PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV`,
   `LEDGER_KEY`); nothing is in code or git.
-- The server binds localhost or your tailnet address only (see Run).
-- Logs are one line per request — method, path, status, milliseconds — never
-  a token, a payee or an amount.
+- The server refuses LAN/public bind addresses, validates write origins and
+  JSON content types, and accepts localhost or tailnet hosts only (see Run).
+- Logs are one line per request — method, redacted route, status, milliseconds
+  — never a connection id, token, payee or amount.
 
 Rationale and the full table of rules: [ADR 0036](../../docs/adr/0036-ledger-system-of-record-and-security-posture.md).
 
-## Bank connections (Plaid)
+## Connect real accounts with Plaid
 
 The browser never holds a bank secret. The server owns the Plaid credentials
 and the per-connection access tokens. The app only sees item ids and account
 summaries through `/api/bank/*`, proxied by Vite. Providers sit behind one
-adapter shape (`server/providers/mock.mjs`, `server/providers/plaid.mjs`:
-link → accounts → sync-with-cursor → remove), chosen by env.
+normalized adapter shape (`server/providers/mock.mjs`,
+`server/providers/plaid.mjs`): link → signed-minor-unit accounts and
+transactions → sync-with-checkpoint → remove. The active provider is chosen by
+env; persisted simulated connections continue to use the mock adapter.
 
 - **Mock mode** (default, no env): "Connect a bank" instantly links a pretend
   Chase with three accounts and generates realistic transactions on every
   sync. Everything else — mapping to ledger accounts, deduping, rules,
   reconciliation — runs for real.
-- **Plaid mode**: set `PLAID_CLIENT_ID`, `PLAID_SECRET` and optionally
-  `PLAID_ENV` (`sandbox` default). Get keys at dashboard.plaid.com. In
-  sandbox, Plaid Link accepts any institution with `user_good` / `pass_good`.
-  Chase (and other OAuth banks) in `development`/`production` needs your Plaid
-  app approved for OAuth — a Plaid dashboard step, not a code change.
+- **Plaid mode**: copy `.env.example` to `.env`, make it owner-readable only,
+  and enter the keys from dashboard.plaid.com. The Node server loads this file;
+  it is git-ignored. In Sandbox, Plaid Link accepts its test credentials.
+- A new Item requests 730 days of Transactions history. Do not create a real
+  Production Item with older Ledger code: Plaid does not let an Item increase
+  `days_requested` later, and removing an Item does not restore a Trial slot.
 
 ```sh
-PLAID_CLIENT_ID=… PLAID_SECRET=… PLAID_ENV=sandbox pnpm --filter @nisli/ledger dev:all
+cd packages/ledger
+cp .env.example .env
+chmod 600 .env
+# Edit .env locally; never paste its values into chat or git.
+pnpm dev:all
 ```
 
+The safe sequence is:
+
+1. Put the Sandbox client id and Sandbox secret in `.env`, keep
+   `PLAID_ENV=sandbox`, and prove Connect → Sync → Disconnect with test data.
+2. Apply for Plaid Trial and wait until Production and Chase OAuth are enabled.
+3. Replace only the secret with the Production secret, set
+   `PLAID_ENV=production`, restart Ledger, then connect Chase once. Select
+   checking, savings, and Sapphire in that single Chase authorization.
+4. Banks will call the projection **Mixed** if seed, Sandbox, CSV, or manual
+   facts remain. Choose **Start fresh with live data** there. Ledger fetches a
+   complete snapshot first, creates a named restorable server backup, reuses
+   the existing Production Item, preserves categories/budgets/rules/preferences,
+   and removes simulated connections.
+5. Confirm all selected masks and balances, sync, and inspect history older than
+   90 days before treating setup as complete.
+
 Sync uses Plaid's `/transactions/sync` cursor, so each sync brings only what
-changed; the ledger dedupes on the bank's transaction id and keeps each
-account's opening balance such that opening + transactions = the bank's
-reported balance.
+changed. The server atomically dedupes, replaces pending transactions when they
+post, applies rules, and keeps each account's opening balance such that opening
++ transactions = the bank's reported balance. It also syncs once per local day
+at 06:00 (or after wake/restart if that run was missed); `LEDGER_SYNC_HOUR`
+changes the hour. Initial historical loading is retried every 15 minutes until
+Plaid reports it complete. Provider changes are retained in an audit history,
+and accounts no longer reported by a bank remain visible as inactive rather
+than disappearing with their transaction history.
+
+## Private phone access
+
+Install Tailscale on the Mac and phone and sign both into the same tailnet.
+Enable MagicDNS and HTTPS certificates in the Tailscale admin DNS page, then
+keep Ledger on localhost and proxy it privately:
+
+```sh
+tailscale serve --bg 5201
+tailscale serve status
+```
+
+Use the shown `https://<machine>.<tailnet>.ts.net` address. Add its exact
+`/connections` URL to Plaid Dashboard → API → Allowed redirect URIs, then put
+that same URL in `.env` as `PLAID_REDIRECT_URI` and restart Ledger. This enables
+OAuth resumption on mobile; do not use Tailscale Funnel.
+
+To keep the built server running at login without storing secrets in the
+LaunchAgent plist:
+
+```sh
+pnpm --filter @nisli/ledger service:install
+# later, to remove it:
+pnpm --filter @nisli/ledger service:remove
+```
 
 ## Insight
 
@@ -115,7 +180,8 @@ switches the whole app — native controls included — from that one setting, a
 Architecture and rationale live in the ADRs:
 [0034 — typed blocks decided by an engine](../../docs/adr/0034-engine-typed-blocks-decided-by-an-engine.md),
 [0035 — the appearance layer](../../docs/adr/0035-engine-appearance-layer.md)
-and [0036 — system of record and security posture](../../docs/adr/0036-ledger-system-of-record-and-security-posture.md).
+and [0036 — system of record and security posture](../../docs/adr/0036-ledger-system-of-record-and-security-posture.md),
+[0039 — bank connectivity domain](../../docs/adr/0039-ledger-bank-connectivity-domain.md).
 
 ## Privacy
 

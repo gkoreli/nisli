@@ -3,6 +3,42 @@
 All notable changes to `@nisli/ledger`. Keep-a-changelog-lite — one section
 per version, human-readable highlights.
 
+## Unreleased
+
+- Bank sync is now applied atomically by the server, shared by manual sync
+  and a daily 06:00 local-time scheduler. Pending-to-posted replacements keep
+  their local identity and category, and provider reauthentication is visible.
+- Plaid Link requests 730 days before Item creation, supports update mode and
+  a configured HTTPS OAuth return on mobile, and preserves the Trial plan's
+  scarce Production Items by making Sandbox the documented first gate.
+- The zero-dependency server serves the production client as well as `/api`;
+  an opt-in macOS LaunchAgent keeps it running without putting secrets in its
+  plist. Tailscale Serve remains the private phone-access path.
+- Banks can replace demo/Sandbox/local financial state from existing live
+  connections, behind confirmation, while preserving categories, budgets,
+  rules, and preferences. The server fetches every live snapshot first, writes
+  a named backup, reuses the existing Plaid Items, and removes simulated
+  connections.
+- Bank connectivity now has an explicit domain boundary: provider adapters
+  normalize signed integer amounts, currency, account kinds, transaction
+  names, and opaque checkpoints before projection. Connections and bank facts
+  carry provenance, so Banks can say whether the ledger is live, simulated, or
+  mixed; credentials and checkpoints never reach the browser.
+- Store writes use private fsynced temp files and fail closed on corrupt JSON.
+  Sync, disconnect, and live-data replacement use ordered, replay-safe state
+  transitions across the ledger and encrypted connection store.
+- Browser edits now cross an owner-only write boundary and are replayed over a
+  concurrent bank sync; bank amounts, dates, accounts, provenance, and prior
+  observations remain server-owned. Restore forces complete per-connection
+  rebuilds, removed accounts become explicitly inactive, and provider changes
+  are archived instead of silently discarded.
+- Plaid synchronization has bounded network retries/timeouts, restarts a
+  pagination pass after concurrent mutation, waits for historical readiness,
+  and never marks reauthorization healthy before a successful sync. API writes
+  enforce local/tailnet origins and logs redact connection identifiers.
+- `dev:all` now supervises the API and Vite together, preventing the orphaned
+  API process that previously caused repeated `EADDRINUSE` failures.
+
 ## 0.2.0 — 2026-08-29
 
 - The server is the system of record: the ledger is a versioned JSON

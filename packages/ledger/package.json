@@ -17,8 +17,11 @@
     "build": "vite build --configLoader runner",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --typecheck",
-    "server": "node server/index.mjs",
-    "dev:all": "node server/index.mjs & vite --configLoader runner",
-    "server:tailscale": "HOST=${HOST:?set HOST to your tailscale IP} node server/index.mjs"
+    "server": "node --env-file-if-exists=.env server/index.mjs",
+    "start": "node --env-file-if-exists=.env server/index.mjs",
+    "dev:all": "node scripts/dev.mjs",
+    "server:tailscale": "HOST=${HOST:?set HOST to your tailscale IP} node --env-file-if-exists=.env server/index.mjs",
+    "service:install": "pnpm build && node scripts/service.mjs install",
+    "service:remove": "node scripts/service.mjs remove"
   }
 }

@@ -1,7 +1,7 @@
 import { component, signal, computed } from '@nisli/core';
 import { Page, Grid, Section, Stat, Link, Dialog, Form, type Field } from '@nisli/engine';
 import type { Account, AccountKind } from '../data/model.js';
-import { accounts, balance, addAccount } from '../data/store.js';
+import { accounts, balance, addAccount, settings } from '../data/store.js';
 import { money } from '../data/format.js';
 import { AppRouter } from '../router.js';
 
@@ -27,7 +27,14 @@ export const AccountsScreen = component('ledger-accounts', () => {
       Section({
         title: a.name,
         children: [
-          Stat({ label: KIND_LABEL[a.kind], value: money(balance(a.id)), hint: (a as { external?: { institution?: string } }).external ? `${a.institution} · connected` : a.institution, delta: a.kind === 'credit' && balance(a.id) < 0 ? { text: 'Balance owed', tone: 'warning' } : undefined }),
+          Stat({
+            label: KIND_LABEL[a.kind],
+            value: money(balance(a.id)),
+            hint: a.external ? `${a.institution} · ${a.external.status === 'inactive' ? 'no longer reported by bank' : 'connected'}` : a.institution,
+            delta: a.external?.status === 'inactive'
+              ? { text: 'Inactive bank account', tone: 'warning' }
+              : a.kind === 'credit' && balance(a.id) < 0 ? { text: 'Balance owed', tone: 'warning' } : undefined,
+          }),
           Link({ href: AppRouter.routes.account.href({ params: { id: a.id } }), label: 'View transactions →' }),
         ],
       }),
@@ -45,7 +52,7 @@ export const AccountsScreen = component('ledger-accounts', () => {
         children: computed(() => [
           Form<Draft>({
             fields, initial: empty, key: opens.value,
-            onSubmit: (d) => { addAccount({ name: d.name, institution: d.institution, kind: d.kind, opening: Math.round((d.opening ?? 0) * 100) }); adding.value = false; },
+            onSubmit: (d) => { addAccount({ name: d.name, institution: d.institution, kind: d.kind, opening: Math.round((d.opening ?? 0) * 100), currency: settings.value.currency }); adding.value = false; },
             submitLabel: 'Add account', onCancel: () => { adding.value = false; },
           }),
         ]),

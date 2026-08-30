@@ -7,6 +7,11 @@
 **Code**: [`server/index.mjs`](../../packages/ledger/server/index.mjs), [`server/store.mjs`](../../packages/ledger/server/store.mjs), [`server/crypto.mjs`](../../packages/ledger/server/crypto.mjs), [`server/providers/mock.mjs`](../../packages/ledger/server/providers/mock.mjs), [`server/providers/plaid.mjs`](../../packages/ledger/server/providers/plaid.mjs), [`src/data/api.ts`](../../packages/ledger/src/data/api.ts), [`src/data/store.ts`](../../packages/ledger/src/data/store.ts), [`src/data/insights.ts`](../../packages/ledger/src/data/insights.ts), [`src/screens/settings.ts`](../../packages/ledger/src/screens/settings.ts), [`src/screens/overview.ts`](../../packages/ledger/src/screens/overview.ts)
 **Tests**: [`src/data/store.test.ts`](../../packages/ledger/src/data/store.test.ts), [`src/data/insights.test.ts`](../../packages/ledger/src/data/insights.test.ts)
 
+> **2026-08-29 extension:** ADR 0039 replaces the provider-facing Item/cursor
+> vocabulary below with the BankConnection/checkpoint domain, adds normalized
+> signed-minor-unit adapters, provenance, and replay-safe projection rebuilds.
+> The system-of-record and security decisions in this ADR remain in force.
+
 ## Context
 
 Ledger 0.1.0 ([CHANGELOG](../../packages/ledger/CHANGELOG.md)) kept the whole
@@ -80,10 +85,10 @@ only where the data lives:
   `PUT` with the current version. Success bumps the version and
   `lastSavedAt`. A write that lands during an in-flight `PUT` marks the store
   dirty and is flushed afterwards.
-- **Conflict**: on 409 the store adopts the server's ledger and version,
-  sets `syncState` to `conflict`, and notifies "Reloaded newer data from the
-  server". Last-writer-wins with the *server's* copy, never the browser's,
-  because the browser does not own the data (tenet 2).
+- **Conflict**: on 409 the store adopts the newer server version, replays the
+  owner's changes against it, and retries. Server-owned bank observations win;
+  owner-owned categories, budgets, rules, settings, local facts, and the
+  category/note overlay on bank transactions survive the race (ADR 0039).
 - **Offline**: network failure sets `offline` and retries at 2/4/8/16 s,
   capped at 30 s. Nothing is dropped; the local state stays and the next
   attempt carries it (tenet 3).
@@ -100,7 +105,7 @@ Settings adopt server state without going through a write.
 
 | rule | where |
 |---|---|
-| Binds `HOST ?? 127.0.0.1` on `PORT ?? 5201`; never `0.0.0.0` on a public network. Tailscale access is `HOST=<tailscale IP>` (`pnpm server:tailscale` refuses to start without `HOST`) or `tailscale serve` in front of localhost. | `server/index.mjs` header comment and `listen`; `package.json` `server:tailscale` |
+| Binds `HOST ?? 127.0.0.1` on `PORT ?? 5201`; startup rejects anything except loopback or a Tailscale IP/name. Write requests also reject cross-site origins and non-JSON bodies. | `server/index.mjs`; `package.json` `server:tailscale` |
 | Provider access tokens are sealed at rest with **AES-256-GCM**, format `v1:<iv>:<tag>:<data>` hex. Items are decrypted only in memory on load and re-sealed on every save; a plaintext token left by 0.1.0 is sealed on the next save. | `server/crypto.mjs`; `loadItems` / `saveItems` in `store.mjs` |
 | Key from `LEDGER_KEY` (64 hex, validated) or generated once into `server/data/.key` with mode `0o600`. | `crypto.mjs` `loadKey` |
 | Secrets are env only: `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV`, `LEDGER_KEY`. `server/data/` is git-ignored. | `index.mjs`; `.gitignore` |
@@ -180,16 +185,16 @@ already on the screen (tenets 11, 12).
 ## Consequences
 
 - A second browser (a phone on the tailnet) sees the same ledger, and a race
-  between two tabs resolves to the server's copy with a visible warning.
+  between a browser edit and bank projection preserves both bounded owners'
+  changes with a visible merge warning.
 - `localStorage` migrates itself once, then stops mattering; a cleared
   browser loses nothing.
 - Restoring a backup is reversible: the pre-restore copy is listed and
   restorable like any other.
-- Known gaps, to be tracked as issues rather than solved here: conflict
-  handling is adopt-and-notify, not a merge; a backup written "tonight" means
-  the first write of the next day, so an edit-free day writes none; the
-  Settings "About" line still describes the 0.1.0 browser-only storage.
-- Verified: 8 store tests (boot, migration, optimistic write, conflict,
-  offline retry) and 13 insight tests (`store.test.ts`, `insights.test.ts`);
+- A backup written "tonight" means the first write of the next day, so an
+  edit-free day writes none; destructive bank and restore commands create
+  unconditional named backups instead.
+- Verified: 7 store tests (boot, migration, optimistic write, ownership-aware
+  conflict replay, offline retry), 24 banking tests, and 13 insight tests;
   the server was smoke-tested end to end — health, GET/PUT, stale-PUT 409,
   backup listing, restore, pre-restore copy — before this ADR was written.

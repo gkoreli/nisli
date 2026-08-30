@@ -22,7 +22,10 @@ function loadKey() {
   try {
     const hex = readFileSync(KEY_FILE, 'utf8').trim();
     if (/^[0-9a-fA-F]{64}$/.test(hex)) return (key = Buffer.from(hex, 'hex'));
-  } catch { /* generate below */ }
+    throw new Error('Stored Ledger encryption key is invalid; refusing to replace it');
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
   key = randomBytes(32);
   mkdirSync(dirname(KEY_FILE), { recursive: true });
   writeFileSync(KEY_FILE, key.toString('hex') + '\n', { mode: 0o600 });

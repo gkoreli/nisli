@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { seed } from './seed.js';
-import type { Ledger } from './model.js';
+import type { Account, Ledger } from './model.js';
 
 vi.mock('@nisli/engine', () => ({ notify: vi.fn() }));
 
@@ -82,7 +82,22 @@ describe('store as a client of the server', () => {
     expect(calls.filter((c) => c.method === 'PUT')[1]!.body!.version).toBe(6);
   });
 
-  it('on 409 takes the server state and flags the conflict', async () => {
+  it('migrates legacy bank provenance and makes account currency explicit', async () => {
+    type LegacyAccount = Omit<Account, 'currency' | 'external'> & { currency?: string; external?: { provider: string; itemId: string; accountId: string } };
+    type LegacyLedger = Omit<Ledger, 'accounts'> & { accounts: LegacyAccount[] };
+    const legacy = seed() as unknown as LegacyLedger;
+    legacy.accounts[0] = { ...legacy.accounts[0]!, currency: undefined, external: { provider: 'plaid', itemId: 'connection-1', accountId: 'bank-account-1' } };
+    legacy.transactions[0] = { ...legacy.transactions[0]!, accountId: legacy.accounts[0]!.id, externalId: 'bank-transaction-1' };
+    handler = (c) => c.method === 'GET'
+      ? { status: 200, body: { version: 2, ledger: legacy } }
+      : { status: 500, body: {} };
+
+    const store = await loadStore();
+    expect(store.accounts.value[0]).toMatchObject({ currency: 'USD', external: { provider: 'plaid', connectionId: 'connection-1', accountId: 'bank-account-1' } });
+    expect(store.transactions.value[0]!.bank).toEqual({ provider: 'plaid', connectionId: 'connection-1', transactionId: 'bank-transaction-1' });
+  });
+
+  it('on 409 replays owner edits over newer server data and retries with its version', async () => {
     const { notify } = await import('@nisli/engine');
     const newer = stored(seed());
     handler = (c) =>
@@ -94,15 +109,46 @@ describe('store as a client of the server', () => {
     expect(store.categories.value.some((c) => c.id === 'bikes')).toBe(true);
     await flushAll(400);
     expect(store.syncState.value).toBe('conflict');
-    expect(store.categories.value.some((c) => c.id === 'bikes')).toBe(false);
+    expect(store.categories.value.some((c) => c.id === 'bikes')).toBe(true);
     expect(store.settings.value.name).toBe('From server');
-    expect(notify).toHaveBeenCalledWith('Reloaded newer data from the server', 'warning');
-    // Subsequent writes use the server's version.
+    expect(notify).toHaveBeenCalledWith('Merged your changes with newer server data', 'warning');
+    // The replay and a subsequent edit are saved together using the server version.
     handler = () => ({ status: 200, body: { version: 3 } });
     store.addCategory('Boats');
     await flushAll(400);
     expect(calls.at(-1)!.body!.version).toBe(2);
+    expect(calls.at(-1)!.body!.ledger.categories.map((category) => category.id)).toEqual(expect.arrayContaining(['bikes', 'boats']));
     expect(store.syncState.value).toBe('saved');
+  });
+
+  it('replays only owner overlays while retaining a concurrent bank observation', async () => {
+    handler = (c) => c.method === 'GET'
+      ? { status: 200, body: { version: 1, ledger: seed() } }
+      : { status: 500, body: {} };
+    const store = await loadStore();
+    const base = seed();
+    base.accounts[0] = {
+      ...base.accounts[0]!,
+      external: { provider: 'plaid', environment: 'production', connectionId: 'bank', accountId: 'account', status: 'active' },
+    };
+    base.transactions[0] = {
+      ...base.transactions[0]!, accountId: base.accounts[0]!.id,
+      bank: { provider: 'plaid', environment: 'production', connectionId: 'bank', transactionId: 'transaction' },
+    };
+    const local = structuredClone(base);
+    local.transactions[0] = { ...local.transactions[0]!, categoryId: 'dining', note: 'owner note', amount: 999 };
+    local.categories.push({ id: 'travel', name: 'Travel' });
+    const remote = structuredClone(base);
+    remote.accounts[0] = { ...remote.accounts[0]!, opening: 42_000 };
+    remote.transactions[0] = { ...remote.transactions[0]!, amount: -4321, payee: 'New provider name' };
+
+    const replayed = store.replayOwnerChanges(base, local, remote);
+    expect(replayed.accounts[0]!.opening).toBe(42_000);
+    expect(replayed.transactions[0]).toMatchObject({ amount: -4321, payee: 'New provider name', categoryId: 'dining', note: 'owner note' });
+    expect(replayed.categories).toContainEqual({ id: 'travel', name: 'Travel' });
+
+    const providerRemoved = store.replayOwnerChanges(base, local, { ...remote, transactions: [] });
+    expect(providerRemoved.transactions).toEqual([]);
   });
 
   it('goes offline on a network failure and recovers with backoff', async () => {

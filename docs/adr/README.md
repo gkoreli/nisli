@@ -44,4 +44,5 @@ They moved with the framework when `@nisli/core` became a standalone package.
 - [0036. Ledger — System of Record and Security Posture](./0036-ledger-system-of-record-and-security-posture.md) - Accepted - 2026-08-29
 - [0037. `Form` — The Intent-Capture Domain](./0037-engine-form-intent-capture-domain.md) - Accepted - 2026-08-29
 - [0038. Engine Block Kernel and the Space Domain](./0038-engine-block-kernel-and-space-domain.md) - Accepted - 2026-08-29
+- [0039. Ledger Bank Connectivity — Connections, Provider Boundary, and Projections](./0039-ledger-bank-connectivity-domain.md) - Accepted - 2026-08-29
 - [0040. Engine Overlay Domain — Layers, One Stack, Native Inert](./0040-engine-overlay-domain.md) - Accepted - 2026-08-29

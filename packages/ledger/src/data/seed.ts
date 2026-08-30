@@ -65,10 +65,10 @@ export function seed(): Ledger {
   transactions.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   return {
     accounts: [
-      { id: 'checking', name: 'Everyday Checking', kind: 'checking', opening: 412000, institution: 'Chase' },
-      { id: 'savings', name: 'High-Yield Savings', kind: 'savings', opening: 1850000, institution: 'Marcus' },
-      { id: 'credit', name: 'Sapphire Card', kind: 'credit', opening: -64000, institution: 'Chase' },
-      { id: 'brokerage', name: 'Index Funds', kind: 'investment', opening: 4120000, institution: 'Vanguard' },
+      { id: 'checking', name: 'Everyday Checking', kind: 'checking', opening: 412000, institution: 'Chase', currency: 'USD' },
+      { id: 'savings', name: 'High-Yield Savings', kind: 'savings', opening: 1850000, institution: 'Marcus', currency: 'USD' },
+      { id: 'credit', name: 'Sapphire Card', kind: 'credit', opening: -64000, institution: 'Chase', currency: 'USD' },
+      { id: 'brokerage', name: 'Index Funds', kind: 'investment', opening: 4120000, institution: 'Vanguard', currency: 'USD' },
     ],
     categories: [
       { id: 'groceries', name: 'Groceries' }, { id: 'dining', name: 'Dining out' }, { id: 'transport', name: 'Transport' },

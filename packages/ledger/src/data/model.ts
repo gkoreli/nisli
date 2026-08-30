@@ -7,8 +7,10 @@ export interface Account {
   /** Opening balance, in cents. Current balance = opening + sum(transactions). */
   opening: number;
   institution: string;
+  /** ISO 4217 code; amounts remain integer minor units. */
+  currency: string;
   /** Present when a bank connection owns this account. */
-  external?: { provider: 'plaid'; itemId: string; accountId: string };
+  external?: { provider: string; environment?: string; connectionId: string; accountId: string; status?: 'active' | 'inactive' };
 }
 
 export interface Category {
@@ -28,8 +30,10 @@ export interface Transaction {
   amount: number;
   payee: string;
   note?: string;
-  /** The bank's own id, when synced; dedupes and lets removals apply. */
+  /** Legacy/CSV external id. New bank projections use `bank`. */
   externalId?: string;
+  /** Explicit provenance for a transaction projected from a bank connection. */
+  bank?: { provider: string; environment?: string; connectionId: string; transactionId: string };
 }
 
 export interface Budget {
@@ -63,8 +67,22 @@ export interface Ledger {
   budgets: Budget[];
   rules: Rule[];
   settings: Settings;
-  /** Last sync per bank connection (item id). */
+  /** Last sync per bank connection id. */
   sync?: Record<string, { at: string; added: number }>;
+  /** Prior provider observations retained when the active projection changes. */
+  bankHistory?: Array<{
+    id: string;
+    observedAt: string;
+    change: 'modified' | 'removed' | 'replaced';
+    provider: string;
+    environment: string;
+    connectionId: string;
+    transactionId?: string;
+    replacementId?: string;
+    transaction: Transaction;
+  }>;
+  /** Connections that must rebuild from a null checkpoint after restore. */
+  pendingBankRebuild?: string[];
 }
 
 export const UNCATEGORIZED = 'uncategorized';

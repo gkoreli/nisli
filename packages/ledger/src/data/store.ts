@@ -9,14 +9,45 @@ const KEY = 'ledger.v1';
 /** Bring any stored shape up to the current model. */
 function migrate(raw: Partial<Ledger>): Ledger {
   const base = seed();
+  const currency = raw.settings?.currency ?? base.settings.currency;
+  const migratedAccounts = (raw.accounts ?? base.accounts).map((account) => {
+    const external = account.external as (typeof account.external & { itemId?: string }) | undefined;
+    return {
+      ...account,
+      currency: account.currency ?? currency,
+      ...(external ? { external: {
+        provider: external.provider,
+        environment: external.environment,
+        connectionId: external.connectionId ?? external.itemId!,
+        accountId: external.accountId,
+        status: external.status ?? 'active',
+      } } : {}),
+    };
+  });
+  const accountById = new Map(migratedAccounts.map((account) => [account.id, account]));
+  const migratedTransactions = (raw.transactions ?? base.transactions).map((transaction) => {
+    if (transaction.bank || !transaction.externalId) return transaction;
+    const account = accountById.get(transaction.accountId);
+    return account?.external ? {
+      ...transaction,
+      bank: {
+        provider: account.external.provider,
+        environment: account.external.environment,
+        connectionId: account.external.connectionId,
+        transactionId: transaction.externalId,
+      },
+    } : transaction;
+  });
   const l: Ledger = {
-    accounts: raw.accounts ?? base.accounts,
+    accounts: migratedAccounts,
     categories: raw.categories ?? base.categories,
-    transactions: raw.transactions ?? base.transactions,
+    transactions: migratedTransactions,
     budgets: raw.budgets ?? base.budgets,
     rules: raw.rules ?? [],
     settings: { ...base.settings, appearance: 'system', ...(raw.settings ?? {}) },
     sync: raw.sync ?? {},
+    bankHistory: raw.bankHistory ?? [],
+    pendingBankRebuild: raw.pendingBankRebuild ?? [],
   };
   if (!l.categories.some((c) => c.id === UNCATEGORIZED)) l.categories = [...l.categories, { id: UNCATEGORIZED, name: 'Uncategorized' }];
   return l;
@@ -32,6 +63,7 @@ const readCache = (): Ledger | undefined => {
 const writeCache = (l: Ledger) => { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch { /* storage unavailable */ } };
 
 const state = signal<Ledger>(readCache() ?? seed());
+let acknowledged = structuredClone(state.value);
 let version = 0;
 let pending: { timer: ReturnType<typeof setTimeout> | undefined; retry: number; inflight: boolean; dirty: boolean } =
   { timer: undefined, retry: 0, inflight: false, dirty: false };
@@ -48,6 +80,7 @@ export const lastSavedAt: ReadonlySignal<string | undefined> = _lastSavedAt;
 /** Take the server's state as truth (after a 409 or a reload). */
 const adopt = (l: Ledger, v: number) => {
   state.value = migrate(l);
+  acknowledged = structuredClone(state.value);
   version = v;
   pending.dirty = false;
   writeCache(state.value);
@@ -55,15 +88,25 @@ const adopt = (l: Ledger, v: number) => {
 
 async function flush(): Promise<void> {
   if (pending.inflight) { pending.dirty = true; return; }
+  if (!pending.dirty) return;
   pending.inflight = true;
   pending.dirty = false;
   _syncState.value = 'saving';
   const snapshot = state.value;
   try {
-    const { version: v } = await api.putLedger(version, snapshot);
+    const { version: v, ledger: saved } = await api.putLedger(version, snapshot);
+    const accepted = migrate(saved ?? snapshot);
+    const localAfterSave = state.value;
     version = v;
+    acknowledged = structuredClone(accepted);
+    if (pending.dirty) {
+      state.value = replayOwnerChanges(snapshot, localAfterSave, accepted);
+      pending.dirty = !same(state.value, accepted);
+    } else {
+      state.value = accepted;
+    }
     pending.retry = 0;
-    writeCache(snapshot);
+    writeCache(state.value);
     _lastSavedAt.value = new Date().toISOString();
     _syncState.value = 'saved';
     pending.inflight = false;
@@ -71,13 +114,30 @@ async function flush(): Promise<void> {
   } catch (e) {
     pending.inflight = false;
     if (e instanceof api.ConflictError) {
+      const local = state.value;
+      const base = acknowledged;
       pending.retry = 0;
-      if (e.ledger) adopt(e.ledger, e.version); else version = e.version;
+      if (e.ledger) {
+        const remote = migrate(e.ledger);
+        const replayed = replayOwnerChanges(base, local, remote);
+        adopt(remote, e.version);
+        if (JSON.stringify(replayed) !== JSON.stringify(remote)) {
+          state.value = replayed;
+          pending.dirty = true;
+          writeCache(replayed);
+          schedule();
+        }
+      } else {
+        version = e.version;
+        pending.dirty = true;
+        schedule();
+      }
       _syncState.value = 'conflict';
-      notify('Reloaded newer data from the server', 'warning');
+      notify('Merged your changes with newer server data', 'warning');
       return;
     }
     _syncState.value = 'offline';
+    pending.dirty = true;
     const wait = BACKOFF[Math.min(pending.retry, BACKOFF.length - 1)]!;
     pending.retry++;
     clearTimeout(pending.timer);
@@ -93,8 +153,75 @@ const schedule = () => {
 /** Apply locally at once; the server catches up. */
 const persist = (next: Ledger) => {
   state.value = next;
+  writeCache(next);
+  pending.dirty = true;
   schedule();
 };
+
+const same = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
+const replayCollection = <T extends { id: string }>(
+  base: T[],
+  local: T[],
+  remote: T[],
+  options: { preserveRemote?: (value: T) => boolean; merge?: (current: T, desired: T) => T } = {},
+): T[] => {
+  const before = new Map(base.map((value) => [value.id, value]));
+  const desired = new Map(local.map((value) => [value.id, value]));
+  const out = new Map(remote.map((value) => [value.id, value]));
+  for (const [id, value] of desired) {
+    const original = before.get(id);
+    if (!original || !same(original, value)) {
+      const current = out.get(id);
+      // A missing server-owned row means the provider removed it while the
+      // owner was editing. Never resurrect it, and never replay newly forged
+      // provenance into the client projection.
+      if (!current && options.preserveRemote?.(value)) continue;
+      if (current && options.preserveRemote?.(current)) out.set(id, options.merge?.(current, value) ?? current);
+      else out.set(id, value);
+    }
+  }
+  for (const id of before.keys()) {
+    if (desired.has(id)) continue;
+    const current = out.get(id);
+    if (!current || !options.preserveRemote?.(current)) out.delete(id);
+  }
+  return [...out.values()];
+};
+
+/** Replay owner changes over a newer server projection after a version conflict. */
+export function replayOwnerChanges(base: Ledger, local: Ledger, remote: Ledger): Ledger {
+  return {
+    ...remote,
+    accounts: replayCollection(base.accounts, local.accounts, remote.accounts, {
+      preserveRemote: (account) => !!account.external,
+    }),
+    categories: replayCollection(base.categories, local.categories, remote.categories),
+    transactions: replayCollection(base.transactions, local.transactions, remote.transactions, {
+      preserveRemote: (transaction) => !!transaction.bank,
+      merge: (current, desired) => ({ ...current, categoryId: desired.categoryId, note: desired.note }),
+    }),
+    budgets: replayCollection(base.budgets, local.budgets, remote.budgets),
+    rules: replayCollection(base.rules, local.rules, remote.rules),
+    settings: same(base.settings, local.settings) ? remote.settings : local.settings,
+    sync: remote.sync,
+    bankHistory: remote.bankHistory,
+    pendingBankRebuild: remote.pendingBankRebuild,
+  };
+}
+
+/** Make pending owner edits durable before an explicit server-side command. */
+export async function flushNow(): Promise<void> {
+  clearTimeout(pending.timer);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    while (pending.inflight) await new Promise((resolve) => setTimeout(resolve, 10));
+    if (!pending.dirty) break;
+    await flush();
+  }
+  while (pending.inflight) await new Promise((resolve) => setTimeout(resolve, 10));
+  if (pending.dirty || _syncState.value === 'offline') {
+    throw new Error('Ledger could not save your pending changes; wait for it to reconnect before changing bank data.');
+  }
+}
 
 async function boot(): Promise<void> {
   try {
@@ -213,8 +340,8 @@ export const updateAccount = (a: Account) => patch({ accounts: state.value.accou
 /** Remove an account and everything in it. */
 export const removeAccount = (id: string) =>
   patch({ accounts: state.value.accounts.filter((a) => a.id !== id), transactions: state.value.transactions.filter((t) => t.accountId !== id) });
-export const findAccountByExternal = (itemId: string, accountId: string): Account | undefined =>
-  state.value.accounts.find((a) => a.external?.itemId === itemId && a.external.accountId === accountId);
+export const findAccountByExternal = (connectionId: string, accountId: string): Account | undefined =>
+  state.value.accounts.find((account) => account.external?.connectionId === connectionId && account.external.accountId === accountId);
 
 export const saveBudget = (b: Omit<Budget, 'id'> & { id?: string }) =>
   patch({
@@ -249,7 +376,6 @@ export const addCategory = (name: string, income = false) => {
 };
 
 export const saveSettings = (s: Settings) => patch({ settings: s });
-export const resetToSeed = () => persist(seed());
 
 export const exportBackup = (): string => JSON.stringify(state.value, null, 2);
 export const importBackup = (json: string): Ledger => {

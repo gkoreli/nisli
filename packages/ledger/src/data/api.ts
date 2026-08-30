@@ -35,7 +35,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const getHealth = () => request<Health>('/api/health');
 export const getLedger = () => request<LedgerResponse>('/api/ledger');
 export const putLedger = (version: number, ledger: Ledger) =>
-  request<{ version: number }>('/api/ledger', { method: 'PUT', body: JSON.stringify({ version, ledger }) });
+  request<{ version: number; ledger?: Ledger }>('/api/ledger', { method: 'PUT', body: JSON.stringify({ version, ledger }) });
 export const listBackups = () => request<BackupInfo[]>('/api/backups');
 export const restoreBackup = (name: string) =>
   request<{ version: number; ledger: Ledger }>('/api/backups/restore', { method: 'POST', body: JSON.stringify({ name }) });

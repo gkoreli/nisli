@@ -1,7 +1,7 @@
 import { component, signal, computed, query } from '@nisli/core';
 import { Page, Section, Form, Text, Dialog, Stat, Table, confirm, notify, type Field, type Column } from '@nisli/engine';
 import type { Settings } from '../data/model.js';
-import { settings, saveSettings, resetToSeed, exportBackup, importBackup, syncState, lastSavedAt, applyRestored } from '../data/store.js';
+import { settings, saveSettings, exportBackup, importBackup, syncState, lastSavedAt, applyRestored, flushNow } from '../data/store.js';
 import { listBackups, restoreBackup } from '../data/api.js';
 import { today } from '../data/format.js';
 
@@ -42,28 +42,24 @@ export const SettingsScreen = component('ledger-settings', () => {
   ];
   const backups = query(() => ['ledger', 'backups'], () => listBackups());
   const backupRows = computed<ServerBackup[]>(() => backups.data.value ?? []);
-  const chosen = signal<ServerBackup | undefined>(undefined);
-  const restoring = signal(false);
   const backupColumns: Column<ServerBackup>[] = [
     { id: 'date', header: 'Date', kind: 'date', cell: (b) => backupDate(b.date), priority: 'primary' },
     { id: 'size', header: 'Size', kind: 'number', cell: (b) => kilobytes(b.bytes) },
     { id: 'name', header: 'Name', cell: (b) => b.name, priority: 'tertiary' },
   ];
-  const restoreFromServer = async () => {
-    const b = chosen.value;
-    if (!b) return;
+  const restoreFromServer = async (backup: ServerBackup) => {
     try {
-      const { ledger, version } = await restoreBackup(b.name);
+      await flushNow();
+      const { ledger, version } = await restoreBackup(backup.name);
       applyRestored(ledger, version);
       draft.value = { ...settings.value };
-      restoring.value = false;
-      notify(`Restored backup from ${backupDate(b.date)}`, 'positive');
+      notify(`Restored backup from ${backupDate(backup.date)}`, 'positive');
     } catch (err) {
       notify(err instanceof Error ? err.message : 'Could not restore that backup.', 'negative');
     }
   };
   const backupFields: Field<BackupDraft>[] = [
-    { key: 'file', label: 'Backup file', kind: 'file', accept: '.json,application/json', required: true, hint: 'A file exported from Ledger. It replaces everything currently stored.' },
+    { key: 'file', label: 'Backup file', kind: 'file', accept: '.json,application/json', required: true, hint: 'A file exported from Ledger. It replaces owner-managed data; current bank observations stay server-owned.' },
   ];
 
   const download = () => {
@@ -92,10 +88,6 @@ export const SettingsScreen = component('ledger-settings', () => {
     actions: [
       { id: 'export', label: 'Export backup', priority: 'secondary', onSelect: download },
       { id: 'import', label: 'Import backup', priority: 'tertiary', onSelect: () => { backup.value = { file: undefined }; importing.value = true; } },
-      { id: 'reset', label: 'Reset demo data', priority: 'tertiary', destructive: true, onSelect: async () => {
-        if (!(await confirm({ title: 'Reset all data?', message: 'This replaces everything with the demo data. Export a backup first if you need it.', confirmLabel: 'Reset', destructive: true }))) return;
-        resetToSeed(); draft.value = { ...settings.value }; notify('Demo data restored');
-      } },
     ],
     children: [
       Section({
@@ -114,22 +106,21 @@ export const SettingsScreen = component('ledger-settings', () => {
             rows: backupRows,
             key: (b) => b.name,
             status: backups,
-            onSelect: (b) => { chosen.value = b; restoring.value = true; },
+            onSelect: async (backup) => {
+              if (!(await confirm({
+                title: 'Restore this backup?',
+                message: `From ${backupDate(backup.date)} (${kilobytes(backup.bytes)}). Everything stored now is replaced, after Ledger saves a pre-restore copy.`,
+                confirmLabel: 'Restore',
+                destructive: true,
+              }))) return;
+              await restoreFromServer(backup);
+            },
             empty: 'No backups yet. The first one is written tonight.',
           }),
           Text({ text: 'Backups are written on the Mac daily, under server/data/backups. Restoring replaces what is stored now with that day’s copy; export a backup first if you want to keep today.', role: 'muted' }),
         ]),
       }),
-      Section({ title: 'About', children: [Text({ text: 'Ledger keeps everything in this browser. Nothing leaves your device. Export a backup to keep a copy.', role: 'muted' })] }),
-      Dialog({
-        title: 'Restore this backup?',
-        open: restoring,
-        onClose: () => { restoring.value = false; },
-        children: computed(() => [
-          Text({ text: chosen.value ? `From ${backupDate(chosen.value.date)} (${kilobytes(chosen.value.bytes)}). Everything stored now is replaced.` : '', role: 'muted' }),
-          Form<Record<string, never>>({ fields: [], value: {}, onChange: () => {}, onSubmit: restoreFromServer, submitLabel: 'Restore', onCancel: () => { restoring.value = false; } }),
-        ]),
-      }),
+      Section({ title: 'About', children: [Text({ text: 'Ledger keeps its system of record on your Mac. The browser is a local cache, and bank access tokens stay encrypted on the server.', role: 'muted' })] }),
       Dialog({
         title: 'Import backup',
         open: importing,

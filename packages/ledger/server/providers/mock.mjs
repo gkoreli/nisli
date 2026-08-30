@@ -2,9 +2,9 @@
 import { randomUUID, createHash } from 'node:crypto';
 
 const MOCK_ACCOUNTS = [
-  { name: 'Chase Total Checking', mask: '4821', type: 'depository', subtype: 'checking', balance: 5230.18 },
-  { name: 'Chase Savings', mask: '9017', type: 'depository', subtype: 'savings', balance: 12840.55 },
-  { name: 'Chase Sapphire Preferred', mask: '3305', type: 'credit', subtype: 'credit card', balance: 1466.02 },
+  { name: 'Chase Total Checking', mask: '4821', kind: 'checking', type: 'depository', subtype: 'checking', balanceMinor: 523018, currency: 'USD' },
+  { name: 'Chase Savings', mask: '9017', kind: 'savings', type: 'depository', subtype: 'savings', balanceMinor: 1284055, currency: 'USD' },
+  { name: 'Chase Sapphire Preferred', mask: '3305', kind: 'credit', type: 'credit', subtype: 'credit card', balanceMinor: -146602, currency: 'USD' },
 ];
 const PAYEES = {
   checking: [['WHOLE FOODS MKT #10233', 20, 140], ['UBER *TRIP HELP.UBER.COM', 8, 40], ['TRADER JOE S #145', 15, 90], ['PG&E WEB ONLINE', 60, 220], ['ZELLE PAYMENT FROM ALEX M', -200, -40], ['DIRECT DEP ACME CORP PAYROLL', -3400, -3400], ['CHASE CREDIT CRD AUTOPAY', 400, 900], ['SHELL OIL 57444', 30, 75]],
@@ -20,7 +20,8 @@ const isoDaysAgo = (n) => { const d = new Date(); d.setUTCDate(d.getUTCDate() - 
 export function mockItem(institution) {
   const id = randomUUID();
   return {
-    id, institution: institution || 'Chase', cursor: null, createdAt: new Date().toISOString(),
+    id, provider: 'mock', environment: 'mock', institution: institution || 'Chase', checkpoint: null,
+    status: 'ok', createdAt: new Date().toISOString(),
     accounts: MOCK_ACCOUNTS.map((a, i) => ({ id: `${id.slice(0, 8)}-acct-${i}`, ...a })),
   };
 }
@@ -39,13 +40,23 @@ export function mockSync(item) {
       const date = isoDaysAgo(daysAgo);
       // Stable id per (account, payee, date, slot): a re-sync on the same day repeats, later days add.
       const id = createHash('sha1').update(`${acct.id}|${name}|${date}|${i}`).digest('hex').slice(0, 24);
-      added.push({ id, account_id: acct.id, date, name, amount, pending: daysAgo < 2 });
+      added.push({
+        id,
+        accountId: acct.id,
+        bookedOn: date,
+        description: name,
+        amountMinor: -Math.round(amount * 100),
+        currency: acct.currency,
+        pending: daysAgo < 2,
+      });
     }
   }
-  return { added, modified: [], removed: [], accounts: item.accounts, cursor: item.cursor ?? null };
+  return {
+    added, modified: [], removed: [], accounts: item.accounts, checkpoint: item.checkpoint ?? null,
+    complete: true, updateStatus: 'HISTORICAL_UPDATE_COMPLETE', historyReady: true,
+  };
 }
 
-/** @type {import('./plaid.mjs').Provider} */
 export const mock = {
   name: 'mock',
   env: 'mock',
