@@ -10,39 +10,148 @@ import {
   isLiveConnection,
   normalizeConnection,
   projectBankSync,
-} from './banking/domain.mjs';
+} from './banking/domain.ts';
+import type {
+  BankConnection,
+  BankConnectionInput,
+  BankSyncResult,
+  BankSyncSummary,
+  ConnectionView,
+  FinancialComposition,
+  PublicBankingError,
+} from './banking/domain.ts';
+import type { Ledger } from '../src/data/model.ts';
 import { createHash } from 'node:crypto';
 
-export { projectBankSync, shouldRunDaily } from './banking/domain.mjs';
+export { projectBankSync, shouldRunDaily } from './banking/domain.ts';
 
-const publicError = (error) => ({ code: error?.code ?? 'SYNC_FAILED', message: error?.message ?? 'Bank sync failed' });
-const needsReauth = (error) => ['ITEM_LOGIN_REQUIRED', 'INVALID_ACCESS_TOKEN'].includes(error?.code);
+type Awaitable<T> = T | Promise<T>;
+type BankErrorLike = { code?: string; message?: string };
+export type AuthenticatedBankConnection = BankConnection & { access_token: string };
+
+export interface BankingProvider {
+  name: string;
+  env: string;
+  linkToken(connection?: AuthenticatedBankConnection): Promise<{ link_token: string }>;
+  exchange(body: LinkCompletion): Promise<BankConnectionInput>;
+  sync(connection: AuthenticatedBankConnection): Promise<BankSyncResult>;
+  remove(connection: AuthenticatedBankConnection): Promise<void>;
+}
+
+export interface LinkCompletion extends Record<string, unknown> {
+  public_token?: string;
+  institution?: string;
+}
+
+export interface LedgerDocument {
+  version: number;
+  ledger: Ledger | null;
+}
+
+export interface LedgerUpdateResult extends LedgerDocument {
+  backup?: string;
+}
+
+export interface BankingServiceDependencies {
+  activeProvider: BankingProvider;
+  providerFor(connection: BankConnection): BankingProvider;
+  loadConnections(): Promise<BankConnection[]>;
+  updateConnections(update: (connections: BankConnection[]) => Awaitable<BankConnection[]>): Promise<BankConnection[]>;
+  getLedger(): Promise<LedgerDocument>;
+  updateLedger(
+    update: (ledger: Ledger) => Awaitable<Ledger>,
+    options?: { backupLabel?: string },
+  ): Promise<LedgerUpdateResult>;
+}
+
+export interface PersistedSyncSummary extends BankSyncSummary {
+  backup?: string;
+}
+
+export interface ConnectionSyncSummary extends PersistedSyncSummary {
+  connectionId: string;
+  ok: true;
+}
+
+export interface FailedConnectionSyncSummary {
+  connectionId: string;
+  ok: false;
+  error: PublicBankingError;
+}
+
+export interface LiveDataReplacementSummary {
+  added: number;
+  modified: number;
+  unmatched: number;
+  removed: number;
+  accounts: number;
+  connections: number;
+  backup?: string;
+}
+
+export interface BankingService {
+  list(): Promise<ConnectionView[]>;
+  composition(): Promise<FinancialComposition>;
+  beginLink(connectionId?: string): Promise<{ link_token: string }>;
+  connect(body: LinkCompletion): Promise<ConnectionView>;
+  syncOne(connectionId: string): Promise<PersistedSyncSummary>;
+  rebuildOne(connectionId: string): Promise<PersistedSyncSummary>;
+  syncAll(): Promise<Array<ConnectionSyncSummary | FailedConnectionSyncSummary>>;
+  useLiveDataOnly(): Promise<LiveDataReplacementSummary>;
+  disconnect(connectionId: string): Promise<{ ok: true }>;
+}
+
+const asBankError = (error: unknown): BankErrorLike => error instanceof Error
+  ? { code: 'code' in error && typeof error.code === 'string' ? error.code : undefined, message: error.message }
+  : (typeof error === 'object' && error !== null ? error as BankErrorLike : {});
+const publicError = (error: unknown): PublicBankingError => {
+  const value = asBankError(error);
+  return { code: value.code ?? 'SYNC_FAILED', message: value.message ?? 'Bank sync failed' };
+};
+const needsReauth = (error: unknown): boolean => ['ITEM_LOGIN_REQUIRED', 'INVALID_ACCESS_TOKEN'].includes(asBankError(error).code ?? '');
 
 export class BankingError extends Error {
-  constructor(message, status = 400, code = 'BANKING_ERROR') {
+  readonly status: number;
+  readonly code: string;
+
+  constructor(message: string, status = 400, code = 'BANKING_ERROR') {
     super(message);
     this.status = status;
     this.code = code;
   }
 }
 
-export function createBankingService({ activeProvider, providerFor, loadConnections, updateConnections, getLedger, updateLedger }) {
-  let chain = Promise.resolve();
-  const serial = (work) => (chain = chain.then(work, work));
-  const getConnection = async (id) => {
+export function createBankingService({ activeProvider, providerFor, loadConnections, updateConnections, getLedger, updateLedger }: BankingServiceDependencies): BankingService {
+  let chain: Promise<unknown> = Promise.resolve();
+  const serial = <T>(work: () => Promise<T>): Promise<T> => {
+    const next = chain.then(work, work);
+    chain = next;
+    return next;
+  };
+  const getConnection = async (id: string): Promise<BankConnection> => {
     const connection = (await loadConnections()).find((candidate) => candidate.id === id);
     if (!connection) throw new BankingError('Unknown bank connection', 404, 'CONNECTION_NOT_FOUND');
     return normalizeConnection(connection, { liveProvider: activeProvider.name, liveEnvironment: activeProvider.env });
   };
-  const recordFailure = async (connection, error) => {
+  const authenticated = (connection: BankConnection): AuthenticatedBankConnection => {
+    if (!connection.access_token) {
+      throw new BankingError('Bank connection credentials are unavailable', 409, 'CONNECTION_CREDENTIAL_MISSING');
+    }
+    return connection as AuthenticatedBankConnection;
+  };
+  const recordFailure = async (connection: BankConnection, error: unknown): Promise<void> => {
     await updateConnections((current) => current.map((candidate) => candidate.id === connection.id ? {
       ...candidate,
       status: needsReauth(error) ? 'reauth-required' : 'error',
       error: publicError(error),
     } : candidate));
   };
-  const persistResult = async (connection, result, { rebuild = false, backupLabel } = {}) => {
-    let summary;
+  const persistResult = async (
+    connection: BankConnection,
+    result: BankSyncResult,
+    { rebuild = false, backupLabel }: { rebuild?: boolean; backupLabel?: string } = {},
+  ): Promise<PersistedSyncSummary> => {
+    let summary!: BankSyncSummary;
     const updated = await updateLedger((ledger) => {
       const applied = projectBankSync(ledger, connection, result, { rebuild });
       summary = applied.summary;
@@ -60,19 +169,22 @@ export function createBankingService({ activeProvider, providerFor, loadConnecti
     } : candidate));
     return { ...summary, backup: updated.backup };
   };
-  const syncConnection = async (connection, { rebuild = false, backupLabel } = {}) => {
+  const syncConnection = async (
+    connection: BankConnection,
+    { rebuild = false, backupLabel }: { rebuild?: boolean; backupLabel?: string } = {},
+  ): Promise<PersistedSyncSummary> => {
     try {
       const provider = providerFor(connection);
       const pendingRestore = (await getLedger()).ledger?.pendingBankRebuild?.includes(connection.id) ?? false;
       const effectiveRebuild = rebuild || pendingRestore;
       const input = effectiveRebuild ? { ...connection, checkpoint: null } : connection;
-      const result = await provider.sync(input);
+      const result = await provider.sync(authenticated(input));
       if (effectiveRebuild && result.historyReady !== true) {
         throw new BankingError(`${connection.institution} is still preparing historical transactions; sync again shortly`, 409, 'HISTORY_NOT_READY');
       }
       return await persistResult(connection, result, { rebuild: effectiveRebuild, backupLabel });
     } catch (error) {
-      if (error?.code !== 'HISTORY_NOT_READY') await recordFailure(connection, error);
+      if (asBankError(error).code !== 'HISTORY_NOT_READY') await recordFailure(connection, error);
       throw error;
     }
   };
@@ -89,7 +201,7 @@ export function createBankingService({ activeProvider, providerFor, loadConnecti
     beginLink: (connectionId) => serial(async () => {
       if (!connectionId) return activeProvider.linkToken();
       const connection = await getConnection(connectionId);
-      return providerFor(connection).linkToken(connection);
+      return providerFor(connection).linkToken(authenticated(connection));
     }),
 
     connect: (body) => serial(async () => {
@@ -120,7 +232,7 @@ export function createBankingService({ activeProvider, providerFor, loadConnecti
 
     syncAll: () => serial(async () => {
       const connections = await loadConnections();
-      const summaries = [];
+      const summaries: Array<ConnectionSyncSummary | FailedConnectionSyncSummary> = [];
       for (const raw of connections) {
         const connection = normalizeConnection(raw, { liveProvider: activeProvider.name, liveEnvironment: activeProvider.env });
         if (!canSynchronize(connection)) continue;
@@ -138,24 +250,24 @@ export function createBankingService({ activeProvider, providerFor, loadConnecti
      * then replace financial projections once, behind an always-created backup.
      * No new provider connection is created and retired mock metadata is dropped.
      */
-    useLiveDataOnly: () => serial(async () => {
+    useLiveDataOnly: () => serial(async (): Promise<LiveDataReplacementSummary> => {
       const all = (await loadConnections()).map((connection) => normalizeConnection(connection, {
         liveProvider: activeProvider.name,
         liveEnvironment: activeProvider.env,
       }));
       const live = all.filter(isLiveConnection);
       if (!live.length) throw new BankingError('Connect a bank before replacing legacy sample data', 409, 'NO_LIVE_CONNECTION');
-      const snapshots = [];
+      const snapshots: Array<{ connection: BankConnection; result: BankSyncResult }> = [];
       for (const connection of live) {
         if (!canSynchronize(connection)) throw new BankingError(`${connection.institution} must be reconnected first`, 409, 'REAUTH_REQUIRED');
         try {
-          const result = await providerFor(connection).sync({ ...connection, checkpoint: null });
+          const result = await providerFor(connection).sync(authenticated({ ...connection, checkpoint: null }));
           if (result.historyReady !== true) {
             throw new BankingError(`${connection.institution} is still preparing historical transactions; sync again shortly`, 409, 'HISTORY_NOT_READY');
           }
           snapshots.push({ connection, result });
         } catch (error) {
-          if (error?.code !== 'HISTORY_NOT_READY') await recordFailure(connection, error);
+          if (asBankError(error).code !== 'HISTORY_NOT_READY') await recordFailure(connection, error);
           throw error;
         }
       }
@@ -166,12 +278,13 @@ export function createBankingService({ activeProvider, providerFor, loadConnecti
         : { ...connection, status: 'disabled', error: undefined }));
 
       const totals = { added: 0, modified: 0, unmatched: 0, removed: 0, accounts: 0 };
+      const totalKeys = ['added', 'modified', 'unmatched', 'removed', 'accounts'] as const;
       const updated = await updateLedger((ledger) => {
         let projection = financialBlank(ledger);
         for (const snapshot of snapshots) {
           const applied = projectBankSync(projection, snapshot.connection, snapshot.result, { rebuild: true });
           projection = applied.ledger;
-          for (const key of Object.keys(totals)) totals[key] += applied.summary[key];
+          for (const key of totalKeys) totals[key] += applied.summary[key];
         }
         return projection;
       }, { backupLabel: 'pre-live-data' });
@@ -193,7 +306,7 @@ export function createBankingService({ activeProvider, providerFor, loadConnecti
         ? { ...candidate, status: 'disabled', error: undefined }
         : candidate));
       try {
-        await providerFor(connection).remove(connection);
+        await providerFor(connection).remove(authenticated(connection));
         await updateConnections((current) => current.filter((candidate) => candidate.id !== connection.id));
       } catch (error) {
         await updateConnections((current) => current.map((candidate) => candidate.id === connection.id

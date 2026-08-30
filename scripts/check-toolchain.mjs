@@ -35,13 +35,16 @@ if (declared && !pkgPnpm) {
 
 const misePnpm = mise.match(/^\s*pnpm\s*=\s*"([^"]+)"/m)?.[1];
 const miseNode = mise.match(/^\s*node\s*=\s*"([^"]+)"/m)?.[1];
+const miseBun = mise.match(/^\s*bun\s*=\s*"([^"]+)"/m)?.[1];
 
-for (const [name, value] of [['pnpm', misePnpm], ['node', miseNode]]) {
+for (const [name, value] of [['pnpm', misePnpm], ['node', miseNode], ['bun', miseBun]]) {
   if (!value) problems.push(`mise.toml does not pin ${name}.`);
   else if (value === 'latest' || value === '*') {
     problems.push(`mise.toml pins ${name} = "${value}"; floating versions are what caused the last drift.`);
   }
 }
+
+if (miseBun !== '1.4.0') problems.push(`mise.toml must pin Bun 1.4.0 for Ledger; found ${miseBun ?? 'nothing'}.`);
 
 if (pkgPnpm && misePnpm && pkgPnpm !== misePnpm) {
   problems.push(
@@ -74,4 +77,4 @@ if (problems.length) {
   process.exit(1);
 }
 
-console.log(`toolchain OK: pnpm ${pkgPnpm} (package.json == mise.toml), node ${miseNode} (CI floor ${Math.min(...ciNodes)})`);
+console.log(`toolchain OK: pnpm ${pkgPnpm} (package.json == mise.toml), node ${miseNode} (CI floor ${Math.min(...ciNodes)}), bun ${miseBun}`);

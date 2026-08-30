@@ -4,13 +4,22 @@
 **Status**: Accepted
 **Depends on**: [0034-engine-typed-blocks-decided-by-an-engine](./0034-engine-typed-blocks-decided-by-an-engine.md)
 **Governed by**: [`packages/ledger/TENETS.md`](../../packages/ledger/TENETS.md) — tenet numbers below refer to it
-**Code**: [`server/index.mjs`](../../packages/ledger/server/index.mjs), [`server/store.mjs`](../../packages/ledger/server/store.mjs), [`server/crypto.mjs`](../../packages/ledger/server/crypto.mjs), [`server/providers/mock.mjs`](../../packages/ledger/server/providers/mock.mjs), [`server/providers/plaid.mjs`](../../packages/ledger/server/providers/plaid.mjs), [`src/data/api.ts`](../../packages/ledger/src/data/api.ts), [`src/data/store.ts`](../../packages/ledger/src/data/store.ts), [`src/data/insights.ts`](../../packages/ledger/src/data/insights.ts), [`src/screens/settings.ts`](../../packages/ledger/src/screens/settings.ts), [`src/screens/overview.ts`](../../packages/ledger/src/screens/overview.ts)
+**Code**: [`server/index.ts`](../../packages/ledger/server/index.ts), [`server/store.ts`](../../packages/ledger/server/store.ts), [`server/crypto.ts`](../../packages/ledger/server/crypto.ts), [`server/providers/plaid.ts`](../../packages/ledger/server/providers/plaid.ts), [`src/data/api.ts`](../../packages/ledger/src/data/api.ts), [`src/data/store.ts`](../../packages/ledger/src/data/store.ts), [`src/data/insights.ts`](../../packages/ledger/src/data/insights.ts), [`src/screens/settings.ts`](../../packages/ledger/src/screens/settings.ts), [`src/screens/overview.ts`](../../packages/ledger/src/screens/overview.ts)
 **Tests**: [`src/data/store.test.ts`](../../packages/ledger/src/data/store.test.ts), [`src/data/insights.test.ts`](../../packages/ledger/src/data/insights.test.ts)
 
 > **2026-08-29 extension:** ADR 0039 replaces the provider-facing Item/cursor
 > vocabulary below with the BankConnection/checkpoint domain, adds normalized
 > signed-minor-unit adapters, provenance, and replay-safe projection rebuilds.
 > The system-of-record and security decisions in this ADR remain in force.
+
+> **2026-08-30 runtime extension:** Ledger pins Bun 1.4.0. `server/index.ts`
+> uses native `Bun.serve`; supervised processes use `Bun.spawn`; and Vite runs
+> with Bun's documented `bunx --bun` integration. pnpm remains the workspace
+> package manager. Every executable Ledger source file is strict TypeScript.
+> Automatic `.env` discovery is disabled and the server receives one explicit
+> `.env`, preventing the client tooling process from inheriting provider
+> secrets. This follows Bun's primary TypeScript, environment, HTTP server,
+> child-process, and Vite documentation.
 
 ## Context
 
@@ -31,7 +40,7 @@ nothing about appearance; the screens remain engine-block compositions per
 
 ### 1. The server is the system of record
 
-`server/store.mjs` owns one **ledger document**:
+`server/store.ts` owns one **ledger document**:
 
 ```
 { version: number, ledger: Ledger | null, savedAt: ISO, restoredFrom?: name }
@@ -45,8 +54,8 @@ stored at `server/data/ledger.json` (git-ignored via
   `{ version, ledger }` and succeeds only when `version` equals the stored
   one, answering `{ version: n+1 }`. A stale version is a **409** whose body
   carries the current `{ version, ledger }`, so the loser of a race gets the
-  truth in the same round-trip (`StoreError` in `store.mjs`, mapped in
-  `index.mjs`).
+  truth in the same round-trip (`StoreError` in `store.ts`, mapped in
+  `index.ts`).
 - **Atomic write.** `writeAtomic` writes a `.tmp` beside the target and
   `rename`s over it; every mutation runs through one promise chain
   (`serial`) so version checks and renames never interleave. The write is
@@ -78,7 +87,7 @@ only where the data lives:
 
 - **Boot** (`boot()`, awaited as `ready` in `main.ts` before the skin is
   wired): `GET /api/ledger`. If the server holds a ledger, adopt it. If the
-  server is at version 0, migrate the `localStorage` cache (or the seed) with
+  server is at version 0, migrate the `localStorage` cache (or the empty initial ledger) with
   one `PUT` — the one-time move off the stopgap. If the server is
   unreachable, run from the cache in the `offline` state.
 - **Writes** apply locally at once (`persist`) and schedule a 400 ms-debounced
@@ -105,17 +114,17 @@ Settings adopt server state without going through a write.
 
 | rule | where |
 |---|---|
-| Binds `HOST ?? 127.0.0.1` on `PORT ?? 5201`; startup rejects anything except loopback or a Tailscale IP/name. Write requests also reject cross-site origins and non-JSON bodies. | `server/index.mjs`; `package.json` `server:tailscale` |
-| Provider access tokens are sealed at rest with **AES-256-GCM**, format `v1:<iv>:<tag>:<data>` hex. Items are decrypted only in memory on load and re-sealed on every save; a plaintext token left by 0.1.0 is sealed on the next save. | `server/crypto.mjs`; `loadItems` / `saveItems` in `store.mjs` |
-| Key from `LEDGER_KEY` (64 hex, validated) or generated once into `server/data/.key` with mode `0o600`. | `crypto.mjs` `loadKey` |
-| Secrets are env only: `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV`, `LEDGER_KEY`. `server/data/` is git-ignored. | `index.mjs`; `.gitignore` |
-| The browser never receives a token: `publicItem` strips `access_token` from every item response. | `store.mjs` `publicItem`; `index.mjs` bank routes |
-| Logs are one line per request — `METHOD path → status (ms)` — never a token, payee or amount. Errors return the message only. | `index.mjs` `createServer` `finally` |
-| Bank logins happen only in the provider's own Link window; Ledger exchanges the resulting `public_token` server-side and stores the result. No Ledger form ever asks for a bank credential. | `providers/plaid.mjs` `exchange`; tenet 4 |
+| Binds `HOST ?? 127.0.0.1` on `PORT ?? 5201`; startup rejects anything except loopback or a Tailscale IP/name. Write requests also reject cross-site origins and non-JSON bodies. | `server/index.ts`; `package.json` `server:tailscale` |
+| Provider access tokens are sealed at rest with **AES-256-GCM**, format `v1:<iv>:<tag>:<data>` hex. Connections are decrypted only in memory on load and re-sealed on every save; a plaintext token left by 0.1.0 is sealed on the next save. | `server/crypto.ts`; `loadConnections` / `saveConnections` in `store.ts` |
+| Key from `LEDGER_KEY` (64 hex, validated) or generated once into `server/data/.key` with mode `0o600`. | `crypto.ts` `loadKey` |
+| Secrets are env only: `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV`, `LEDGER_KEY`. `server/data/` is git-ignored. | `index.ts`; `.gitignore` |
+| The browser never receives a token: the bank application service returns a credential-free `ConnectionView`; checkpoints are also server-only. | `bank-sync.ts`; `index.ts` bank routes |
+| Logs are one line per request — `METHOD path → status (ms)` — never a token, payee or amount. Errors return the message only. | `index.ts` `Bun.serve` `finally` |
+| Bank logins happen only in the provider's own Link window; Ledger exchanges the resulting `public_token` server-side and stores the result. No Ledger form ever asks for a bank credential. | `providers/plaid.ts` `exchange`; tenet 4 |
 
 ### 4. The provider adapter
 
-One provider port is implemented by `plaid.mjs`; test doubles exercise the port
+One provider port is implemented by `plaid.ts`; test doubles exercise the port
 only in automated tests. Runtime startup requires `PLAID_CLIENT_ID`,
 `PLAID_SECRET`, and a real-data environment (`development` or `production`):
 
@@ -128,7 +137,7 @@ only in automated tests. Runtime startup requires `PLAID_CLIENT_ID`,
   remove(item) }
 ```
 
-`index.mjs` is routing only and knows no provider detail; items are handed to
+`index.ts` is routing only and knows no provider detail; connections are handed to
 the adapter with the token already decrypted. Historical mock records are
 quarantined and can only be removed by the backed-up cleanup command. This is
 the *link → accounts → sync-with-cursor → remove* contract of tenet 7;

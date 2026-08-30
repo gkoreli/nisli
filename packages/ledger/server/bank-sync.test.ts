@@ -1,19 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { projectBankSync, shouldRunDaily } from './bank-sync.mjs';
-import { financialBlank, financialComposition, mergeOwnerLedgerWrite, normalizeConnection } from './banking/domain.mjs';
-import { plaidProvider } from './providers/plaid.mjs';
+import { projectBankSync, shouldRunDaily } from './bank-sync.ts';
+import { financialBlank, financialComposition, mergeOwnerLedgerWrite, normalizeConnection } from './banking/domain.ts';
+import type { BankConnection, BankSyncResult, ProviderTransaction } from './banking/domain.ts';
+import { plaidProvider } from './providers/plaid.ts';
+import type { Ledger } from '../src/data/model.ts';
 
-const ledger = () => ({
+const ledger = (): Ledger => ({
   accounts: [],
   categories: [{ id: 'uncategorized', name: 'Uncategorized' }, { id: 'food', name: 'Food' }],
   transactions: [], budgets: [], rules: [{ id: 'r1', match: 'coffee', categoryId: 'food' }],
   settings: { name: 'Owner', currency: 'USD', locale: 'en-US' }, sync: {},
 });
-const item = {
+const item: BankConnection = {
   id: 'item-1', provider: 'plaid', environment: 'sandbox', institution: 'Chase', status: 'ok', checkpoint: null, createdAt: '2026-08-29T00:00:00.000Z',
   accounts: [{ id: 'bank-checking', name: 'Chase Total Checking', mask: '1234', kind: 'checking', type: 'depository', subtype: 'checking', balanceMinor: 10_000, currency: 'USD' }],
 };
-const result = (transactions, extra = {}) => ({
+const result = (transactions: ProviderTransaction[], extra: Partial<BankSyncResult> = {}): BankSyncResult => ({
   added: transactions, modified: [], removed: [], accounts: item.accounts, checkpoint: 'cursor-1', complete: true,
   updateStatus: 'HISTORICAL_UPDATE_COMPLETE', historyReady: true, ...extra,
 });
@@ -26,22 +28,22 @@ describe('server-owned bank sync fold', () => {
     ]), { createId: () => `id-${++id}`, now: () => '2026-08-29T13:00:00.000Z' });
 
     expect(applied.summary).toMatchObject({ added: 1, accounts: 1 });
-    expect(applied.ledger.transactions[0]).toMatchObject({ amount: -1234, categoryId: 'food', note: 'pending', bank: { provider: 'plaid', connectionId: 'item-1', transactionId: 'pending-1' } });
-    expect(applied.ledger.accounts[0].opening).toBe(11_234);
-    expect(applied.ledger.sync['item-1']).toEqual({ at: '2026-08-29T13:00:00.000Z', added: 1 });
+    expect(applied.ledger.transactions[0]!).toMatchObject({ amount: -1234, categoryId: 'food', note: 'pending', bank: { provider: 'plaid', connectionId: 'item-1', transactionId: 'pending-1' } });
+    expect(applied.ledger.accounts[0]!.opening).toBe(11_234);
+    expect(applied.ledger.sync?.['item-1']).toEqual({ at: '2026-08-29T13:00:00.000Z', added: 1 });
   });
 
   it('replaces a pending transaction without losing its category or local identity', () => {
     const first = projectBankSync(ledger(), item, result([
       { id: 'pending-1', accountId: 'bank-checking', bookedOn: '2026-08-28', description: 'Coffee', amountMinor: -1000, currency: 'USD', pending: true },
     ]), { createId: () => 'stable-id' }).ledger;
-    first.transactions[0].categoryId = 'food';
+    first.transactions[0]!.categoryId = 'food';
     const posted = projectBankSync(first, item, result([
       { id: 'posted-1', accountId: 'bank-checking', bookedOn: '2026-08-29', description: 'Coffee', amountMinor: -1000, currency: 'USD', pending: false, replacesId: 'pending-1' },
     ]), { createId: () => 'wrong-id' });
 
     expect(posted.ledger.transactions).toHaveLength(1);
-    expect(posted.ledger.transactions[0]).toMatchObject({ id: 'stable-id', bank: { transactionId: 'posted-1' }, categoryId: 'food' });
+    expect(posted.ledger.transactions[0]!).toMatchObject({ id: 'stable-id', bank: { transactionId: 'posted-1' }, categoryId: 'food' });
     expect(posted.ledger.bankHistory).toEqual([
       expect.objectContaining({ change: 'replaced', transactionId: 'pending-1', replacementId: 'posted-1', transaction: expect.objectContaining({ id: 'stable-id' }) }),
     ]);
@@ -54,7 +56,7 @@ describe('server-owned bank sync fold', () => {
     const removed = projectBankSync(first, item, result([], { removed: ['gone'] }));
     expect(removed.summary.removed).toBe(1);
     expect(removed.ledger.transactions).toHaveLength(0);
-    expect(removed.ledger.bankHistory.at(-1)).toMatchObject({ change: 'removed', transactionId: 'gone', transaction: { id: 'local-id' } });
+    expect(removed.ledger.bankHistory?.at(-1)).toMatchObject({ change: 'removed', transactionId: 'gone', transaction: { id: 'local-id' } });
   });
 
   it('rebuilds a complete projection while preserving local identity, category, and note', () => {
@@ -62,7 +64,7 @@ describe('server-owned bank sync fold', () => {
       { id: 'keep', accountId: 'bank-checking', bookedOn: '2026-08-20', description: 'Coffee', amountMinor: -800, currency: 'USD', pending: false },
       { id: 'stale', accountId: 'bank-checking', bookedOn: '2026-08-19', description: 'Old', amountMinor: -500, currency: 'USD', pending: false },
     ]), { createId: (() => { let n = 0; return () => `id-${++n}`; })() }).ledger;
-    const keep = first.transactions.find((transaction) => transaction.bank?.transactionId === 'keep');
+    const keep = first.transactions.find((transaction) => transaction.bank?.transactionId === 'keep')!;
     keep.categoryId = 'food';
     keep.note = 'owner note';
 
@@ -71,7 +73,7 @@ describe('server-owned bank sync fold', () => {
     ]), { rebuild: true, createId: () => 'wrong-id' });
 
     expect(rebuilt.ledger.transactions).toHaveLength(1);
-    expect(rebuilt.ledger.transactions[0]).toMatchObject({ id: keep.id, categoryId: 'food', note: 'owner note', amount: -900 });
+    expect(rebuilt.ledger.transactions[0]!).toMatchObject({ id: keep.id, categoryId: 'food', note: 'owner note', amount: -900 });
     expect(rebuilt.summary.removed).toBe(1);
   });
 
@@ -107,20 +109,20 @@ describe('daily sync eligibility', () => {
   it('does not run before 6 or after an item already synced today', () => {
     expect(shouldRunDaily([item], ledger(), new Date(2026, 7, 29, 5, 59), 6)).toBe(false);
     const current = ledger();
-    current.sync['item-1'] = { at: new Date(2026, 7, 29, 6, 30).toISOString(), added: 0 };
+    current.sync!['item-1'] = { at: new Date(2026, 7, 29, 6, 30).toISOString(), added: 0 };
     expect(shouldRunDaily([item], current, now, 6)).toBe(false);
   });
 
   it('runs after the configured hour when restore requires a bank rebuild, even if it synced today', () => {
     const current = ledger();
-    current.sync['item-1'] = { at: new Date(2026, 7, 29, 6, 30).toISOString(), added: 0 };
+    current.sync!['item-1'] = { at: new Date(2026, 7, 29, 6, 30).toISOString(), added: 0 };
     current.pendingBankRebuild = ['item-1'];
     expect(shouldRunDaily([item], current, now, 6)).toBe(true);
   });
 
   it('retries an incomplete historical import after fifteen minutes on the same day', () => {
     const current = ledger();
-    current.sync['item-1'] = { at: new Date(2026, 7, 29, 6, 30).toISOString(), added: 0 };
+    current.sync!['item-1'] = { at: new Date(2026, 7, 29, 6, 30).toISOString(), added: 0 };
     expect(shouldRunDaily([{ ...item, historyStatus: 'NOT_READY' }], current, now, 6)).toBe(true);
   });
 });
@@ -135,7 +137,7 @@ describe('owner ledger write boundary', () => {
     current.pendingBankRebuild = ['item-1'];
     const proposed = structuredClone(current);
     proposed.accounts = [];
-    proposed.transactions[0] = { ...proposed.transactions[0], date: '1999-01-01', amount: 999, payee: 'Forged', categoryId: 'food', note: 'owner note' };
+    proposed.transactions[0] = { ...proposed.transactions[0]!, date: '1999-01-01', amount: 999, payee: 'Forged', categoryId: 'food', note: 'owner note' };
     proposed.sync = {};
 
     const merged = mergeOwnerLedgerWrite(current, proposed);
@@ -149,7 +151,7 @@ describe('owner ledger write boundary', () => {
     const current = bankLedger();
     const proposed = structuredClone(current);
     proposed.transactions.push({
-      id: 'forged', accountId: current.accounts[0].id, categoryId: 'uncategorized', date: '2026-08-29', amount: -1,
+      id: 'forged', accountId: current.accounts[0]!.id, categoryId: 'uncategorized', date: '2026-08-29', amount: -1,
       payee: 'Forged', bank: { provider: 'plaid', environment: 'production', connectionId: 'item-1', transactionId: 'forged' },
     });
     expect(() => mergeOwnerLedgerWrite(current, proposed)).toThrow('cannot create or rebind a bank transaction');
@@ -183,7 +185,7 @@ describe('financial provenance', () => {
   });
 
   it('quarantines retired mock metadata and removes only unchanged sample configuration', () => {
-    expect(normalizeConnection({ id: 'old', provider: 'mock', environment: 'mock', status: 'ok' })).toMatchObject({ status: 'disabled' });
+    expect(normalizeConnection({ id: 'old', institution: 'Demo', provider: 'mock', environment: 'mock', status: 'ok' })).toMatchObject({ status: 'disabled' });
     const current = ledger();
     current.budgets = [
       { id: 'b1', categoryId: 'groceries', limit: 60_000 },
@@ -203,9 +205,9 @@ describe('Plaid link configuration', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('requests 730 days and the configured OAuth redirect for a new Item', async () => {
-    let body;
-    vi.stubGlobal('fetch', vi.fn(async (_url, init) => {
-      body = JSON.parse(init.body);
+    let body: Record<string, unknown> | undefined;
+    vi.stubGlobal('fetch', vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       return { ok: true, json: async () => ({ link_token: 'link-token' }) };
     }));
     const provider = plaidProvider({ clientId: 'client', secret: 'secret', env: 'sandbox', redirectUri: 'https://ledger.example/connections' });
@@ -217,16 +219,16 @@ describe('Plaid link configuration', () => {
   });
 
   it('uses the existing access token in update mode without re-requesting products', async () => {
-    let body;
-    vi.stubGlobal('fetch', vi.fn(async (_url, init) => {
-      body = JSON.parse(init.body);
+    let body: Record<string, unknown> | undefined;
+    vi.stubGlobal('fetch', vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       return { ok: true, json: async () => ({ link_token: 'update-token' }) };
     }));
     const provider = plaidProvider({ clientId: 'client', secret: 'secret' });
     await provider.linkToken({ access_token: 'access-token' });
-    expect(body.access_token).toBe('access-token');
-    expect(body.products).toBeUndefined();
-    expect(body.transactions).toBeUndefined();
+    expect(body?.access_token).toBe('access-token');
+    expect(body?.products).toBeUndefined();
+    expect(body?.transactions).toBeUndefined();
   });
 
   it('normalizes Plaid signs, cents, currency, names, and checkpoint at the adapter boundary', async () => {
@@ -252,7 +254,7 @@ describe('Plaid link configuration', () => {
       };
     }));
     const provider = plaidProvider({ clientId: 'client', secret: 'secret' });
-    const synced = await provider.sync({ access_token: 'access-token', checkpoint: 'old-checkpoint', accounts: [] });
+    const synced = await provider.sync({ access_token: 'access-token', checkpoint: 'old-checkpoint' });
 
     expect(synced).toMatchObject({ checkpoint: 'next-checkpoint', complete: true, historyReady: true, updateStatus: 'HISTORICAL_UPDATE_COMPLETE', removed: ['removed-1'] });
     expect(synced.added[0]).toEqual({
@@ -273,17 +275,17 @@ describe('Plaid link configuration', () => {
     } : { ok: true, json: async () => ({ accounts: [] }) }));
     const provider = plaidProvider({ clientId: 'client', secret: 'secret' });
 
-    await expect(provider.sync({ access_token: 'access-token', checkpoint: null, accounts: [] })).resolves.toMatchObject({
+    await expect(provider.sync({ access_token: 'access-token', checkpoint: null })).resolves.toMatchObject({
       complete: true, historyReady: false, updateStatus: 'NOT_READY', added: [], checkpoint: '',
     });
   });
 
   it('restarts pagination from the original checkpoint after a mutation error', async () => {
-    const cursors = [];
+    const cursors: Array<string | undefined> = [];
     let transactionCalls = 0;
-    vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       if (!String(url).endsWith('/transactions/sync')) return { ok: true, json: async () => ({ accounts: [] }) };
-      const body = JSON.parse(init.body);
+      const body = JSON.parse(String(init?.body)) as { cursor?: string };
       cursors.push(body.cursor);
       transactionCalls++;
       if (transactionCalls === 2) return {
@@ -302,7 +304,7 @@ describe('Plaid link configuration', () => {
       };
     }));
     const provider = plaidProvider({ clientId: 'client', secret: 'secret' });
-    const synced = await provider.sync({ access_token: 'access-token', checkpoint: 'original', accounts: [] });
+    const synced = await provider.sync({ access_token: 'access-token', checkpoint: 'original' });
 
     expect(cursors).toEqual(['original', 'middle', 'original']);
     expect(synced.added.map((transaction) => transaction.id)).toEqual(['kept']);

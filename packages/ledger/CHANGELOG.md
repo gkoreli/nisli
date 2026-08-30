@@ -5,6 +5,12 @@ per version, human-readable highlights.
 
 ## Unreleased
 
+- Ledger now pins Bun 1.4.0 for both sides of the application: the API/static
+  server uses native `Bun.serve`, and Vite runs through `bunx --bun`. All
+  executable Ledger server, provider, persistence, test, development, and
+  service code is strict TypeScript; pnpm remains the workspace package manager.
+  Bun's environment loading is made explicit so only the server process sees
+  `.env`, and a guarded isolated data directory makes server verification safe.
 - Ledger no longer has a runtime mock provider or generated starter finances.
   A new ledger has reference categories but no accounts, transactions, budgets,
   or rules; missing Plaid credentials and Plaid Sandbox configuration fail at

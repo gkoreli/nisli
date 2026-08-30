@@ -1,40 +1,47 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createBankingService } from '../bank-sync.mjs';
+import { createBankingService } from '../bank-sync.ts';
+import type { AuthenticatedBankConnection, BankingProvider } from '../bank-sync.ts';
+import type { BankConnection, BankSyncResult, ProviderAccount } from './domain.ts';
+import type { Ledger } from '../../src/data/model.ts';
 
-const account = (id, balanceMinor = 10_000) => ({
+const account = (id: string, balanceMinor = 10_000): ProviderAccount => ({
   id, name: 'Checking', mask: '1234', kind: 'checking', type: 'depository', subtype: 'checking',
   balanceMinor, currency: 'USD',
 });
-const connection = (id, provider, accounts = [account(`${id}-account`)]) => ({
+const connection = (id: string, provider: string, accounts = [account(`${id}-account`)]): BankConnection => ({
   id, provider, environment: provider === 'mock' ? 'mock' : 'production', institution: provider === 'mock' ? 'Demo Bank' : 'Live Bank',
-  checkpoint: 'old-checkpoint', status: 'ok', createdAt: '2026-08-29T00:00:00.000Z', accounts,
+  checkpoint: 'old-checkpoint', status: 'ok', createdAt: '2026-08-29T00:00:00.000Z', accounts, access_token: `${id}-access-token`,
 });
-const ledger = () => ({
+const ledger = (): Ledger => ({
   accounts: [{ id: 'demo', name: 'Demo checking', kind: 'checking', opening: 100, institution: 'Demo', currency: 'USD' }],
   categories: [{ id: 'uncategorized', name: 'Uncategorized' }],
   transactions: [{ id: 'demo-tx', accountId: 'demo', categoryId: 'uncategorized', date: '2026-08-01', amount: -100, payee: 'Demo' }],
   budgets: [{ id: 'budget', categoryId: 'uncategorized', limit: 5000 }],
   rules: [], settings: { name: 'Owner', currency: 'USD', locale: 'en-US' }, sync: {},
 });
-const snapshot = (connectionId) => ({
+const snapshot = (connectionId: string): BankSyncResult => ({
   added: [{ id: `${connectionId}-tx`, accountId: `${connectionId}-account`, bookedOn: '2026-08-29', description: 'Grocer', amountMinor: -1250, currency: 'USD', pending: false }],
   modified: [], removed: [], accounts: [account(`${connectionId}-account`, 8750)], checkpoint: 'fresh-checkpoint', complete: true,
   updateStatus: 'HISTORICAL_UPDATE_COMPLETE', historyReady: true,
 });
 
-function harness({ failLive = false, historyReady = true } = {}) {
-  let connections = [connection('simulated', 'mock'), connection('live', 'plaid')];
-  let currentLedger = ledger();
-  const backupLabels = [];
-  const plaid = {
-    name: 'plaid', env: 'production', linkToken: vi.fn(), exchange: vi.fn(async () => connection('live', 'plaid')), remove: vi.fn(),
-    sync: vi.fn(async (candidate) => {
+function harness({ failLive = false, historyReady = true }: { failLive?: boolean; historyReady?: boolean } = {}) {
+  let connections: BankConnection[] = [connection('simulated', 'mock'), connection('live', 'plaid')];
+  let currentLedger: Ledger = ledger();
+  const backupLabels: Array<string | undefined> = [];
+  const plaid: BankingProvider = {
+    name: 'plaid',
+    env: 'production',
+    linkToken: vi.fn(async () => ({ link_token: 'link-token' })),
+    exchange: vi.fn(async () => connection('live', 'plaid')),
+    remove: vi.fn(async () => undefined),
+    sync: vi.fn(async (candidate: AuthenticatedBankConnection) => {
       expect(candidate.checkpoint).toBeNull();
       if (failLive) throw Object.assign(new Error('provider unavailable'), { code: 'PROVIDER_DOWN' });
       return { ...snapshot(candidate.id), historyReady, updateStatus: historyReady ? 'HISTORICAL_UPDATE_COMPLETE' : 'NOT_READY' };
     }),
   };
-  const providerFor = vi.fn((candidate) => {
+  const providerFor = vi.fn((candidate: BankConnection): BankingProvider => {
     if (candidate.provider !== 'plaid') throw new Error(`Retired provider ${candidate.provider} cannot run`);
     return plaid;
   });
@@ -62,11 +69,11 @@ describe('banking application service', () => {
     expect(h.providerFor).not.toHaveBeenCalledWith(expect.objectContaining({ provider: 'mock' }));
     expect(h.backupLabels).toEqual(['pre-live-data']);
     expect(h.connections()).toHaveLength(1);
-    expect(h.connections()[0]).toMatchObject({ id: 'live', checkpoint: 'fresh-checkpoint' });
+    expect(h.connections()[0]!).toMatchObject({ id: 'live', checkpoint: 'fresh-checkpoint' });
     expect(h.ledger().accounts).toHaveLength(1);
-    expect(h.ledger().accounts[0].external).toMatchObject({ connectionId: 'live', provider: 'plaid' });
+    expect(h.ledger().accounts[0]!.external).toMatchObject({ connectionId: 'live', provider: 'plaid' });
     expect(h.ledger().transactions).toHaveLength(1);
-    expect(h.ledger().transactions[0].bank).toMatchObject({ connectionId: 'live', transactionId: 'live-tx' });
+    expect(h.ledger().transactions[0]!.bank).toMatchObject({ connectionId: 'live', transactionId: 'live-tx' });
     expect(h.ledger().budgets).toHaveLength(1);
     expect(outcome).toMatchObject({ connections: 1, accounts: 1, added: 1, backup: 'ledger.pre-live-data.json' });
   });

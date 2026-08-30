@@ -4,7 +4,7 @@
 **Status**: Accepted
 **Extends**: [0036-ledger-system-of-record-and-security-posture](./0036-ledger-system-of-record-and-security-posture.md)
 **Governed by**: [`packages/ledger/TENETS.md`](../../packages/ledger/TENETS.md)
-**Code**: [`server/banking/domain.mjs`](../../packages/ledger/server/banking/domain.mjs), [`server/bank-sync.mjs`](../../packages/ledger/server/bank-sync.mjs), [`server/providers`](../../packages/ledger/server/providers), [`src/data/bank.ts`](../../packages/ledger/src/data/bank.ts), [`src/screens/connections.ts`](../../packages/ledger/src/screens/connections.ts)
+**Code**: [`server/banking/domain.ts`](../../packages/ledger/server/banking/domain.ts), [`server/bank-sync.ts`](../../packages/ledger/server/bank-sync.ts), [`server/providers`](../../packages/ledger/server/providers), [`src/data/bank.ts`](../../packages/ledger/src/data/bank.ts), [`src/screens/connections.ts`](../../packages/ledger/src/screens/connections.ts)
 **Tests**: [`server/bank-sync.test.mjs`](../../packages/ledger/server/bank-sync.test.mjs), [`server/banking/application.test.mjs`](../../packages/ledger/server/banking/application.test.mjs)
 
 ## Context
@@ -37,7 +37,7 @@ accounts carry `{ provider, connectionId, accountId }`; bank transactions carry
 reference. The reference is provenance, not a provider object leaking into the
 Ledger model.
 
-The application service in `server/bank-sync.mjs` coordinates the contexts. It
+The application service in `server/bank-sync.ts` coordinates the contexts. It
 serializes the commands `Connect`, `Synchronize`, `RebuildAfterRestore`,
 `RebuildProjection`, `StartFreshWithLiveData`, and `Disconnect`. HTTP routes are
 delivery adapters for those commands; screens never mutate provider or

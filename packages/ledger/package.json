@@ -2,26 +2,30 @@
   "name": "@nisli/ledger",
   "version": "0.2.0",
   "private": true,
-  "description": "Ledger \u2014 a personal-finance app built with @nisli/engine, with no visual decisions in app code.",
+  "description": "Ledger — a personal-finance app built with @nisli/engine, with no visual decisions in app code.",
   "type": "module",
   "license": "MIT",
+  "engines": {
+    "bun": "1.4.0"
+  },
   "devDependencies": {
     "@nisli/core": "workspace:*",
     "@nisli/engine": "workspace:*",
     "@nisli/router": "workspace:*",
+    "@types/bun": "1.4.0",
     "@types/node": "^22.0.0",
     "vite": "^7.1.5"
   },
   "scripts": {
-    "dev": "vite --configLoader runner",
-    "build": "vite build --configLoader runner",
+    "dev": "bunx --bun --no-install vite --configLoader runner",
+    "build": "bunx --bun --no-install vite build --configLoader runner",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --typecheck",
-    "server": "node --env-file-if-exists=.env server/index.mjs",
-    "start": "node --env-file-if-exists=.env server/index.mjs",
-    "dev:all": "node scripts/dev.mjs",
-    "server:tailscale": "HOST=${HOST:?set HOST to your tailscale IP} node --env-file-if-exists=.env server/index.mjs",
-    "service:install": "pnpm build && node scripts/service.mjs install",
-    "service:remove": "node scripts/service.mjs remove"
+    "server": "bun --no-env-file --env-file=.env server/index.ts",
+    "start": "bun --no-env-file --env-file=.env server/index.ts",
+    "dev:all": "bun --no-env-file scripts/dev.ts",
+    "server:tailscale": "HOST=${HOST:?set HOST to your tailscale IP} bun --no-env-file --env-file=.env server/index.ts",
+    "service:install": "bun run build && bun --no-env-file scripts/service.ts install",
+    "service:remove": "bun --no-env-file scripts/service.ts remove"
   }
 }

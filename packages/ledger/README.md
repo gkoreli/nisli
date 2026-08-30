@@ -6,13 +6,19 @@ code; the engine lays it out, the skin dresses it.
 ## Run
 
 ```sh
+mise install                              # Bun 1.4.0, Node 22, pnpm 10.17.1
 pnpm --filter @nisli/ledger dev:all     # ledger server on :5201 + Vite on :5200
 ```
 
 `dev:all` supervises both processes: stopping it stops the API and Vite
 together, so a later run does not inherit an orphaned listener on port 5201.
 
-The server (`server/index.mjs`, zero runtime dependencies) is the system of record;
+Ledger pins Bun 1.4.0 exactly. pnpm remains the repository's workspace/package
+manager; Bun runs Ledger's typed server and, through the officially supported
+`bunx --bun vite` path, the client dev/build toolchain. The executable Ledger
+surface is TypeScript — there are no `.mjs` server or service scripts.
+
+The server (`server/index.ts`, zero runtime dependencies) is the system of record;
 `pnpm dev` alone runs Vite against whatever cache the browser holds, in the
 `offline` state, and syncs once the server is back.
 
@@ -62,7 +68,7 @@ pnpm --filter @nisli/ledger start
 - Bank logins happen only in Plaid's own Link window. No Ledger form asks for
   a bank credential and the server only ever sees the resulting token.
 - Access tokens live in `server/data/items.json`, encrypted with AES-256-GCM
-  (`server/crypto.mjs`); they are decrypted in memory for a sync and never
+  (`server/crypto.ts`); they are decrypted in memory for a sync and never
   sent to the browser. Opaque provider checkpoints are server-only too.
 - Secrets are env (`PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV`,
   `LEDGER_KEY`); nothing is in code or git.
@@ -78,7 +84,7 @@ Rationale and the full table of rules: [ADR 0036](../../docs/adr/0036-ledger-sys
 The browser never holds a bank secret. The server owns the Plaid credentials
 and the per-connection access tokens. The app only sees item ids and account
 summaries through `/api/bank/*`, proxied by Vite. Providers sit behind one
-normalized adapter shape (`server/providers/plaid.mjs`): link →
+normalized adapter shape (`server/providers/plaid.ts`): link →
 signed-minor-unit accounts and transactions → sync-with-checkpoint → remove.
 There is no runtime mock provider and no sample ledger. A fresh installation
 starts with reference categories and empty accounts, transactions, rules, and
@@ -181,6 +187,15 @@ Architecture and rationale live in the ADRs:
 [0035 — the appearance layer](../../docs/adr/0035-engine-appearance-layer.md)
 and [0036 — system of record and security posture](../../docs/adr/0036-ledger-system-of-record-and-security-posture.md),
 [0039 — bank connectivity domain](../../docs/adr/0039-ledger-bank-connectivity-domain.md).
+
+The Bun integration follows Bun's primary documentation for
+[TypeScript](https://bun.com/docs/typescript),
+[explicit environment files](https://bun.com/docs/runtime/environment-variables),
+[Bun.serve](https://bun.com/docs/runtime/http/server),
+[child processes](https://bun.com/docs/runtime/child-process), and
+[Vite](https://bun.com/docs/guides/ecosystem/vite). Bun 1.4 is pinned rather
+than floating; its release rationale and compatibility changes are recorded in
+the [official Bun 1.4 release](https://bun.com/blog/bun-v1.4).
 
 ## Privacy
 
