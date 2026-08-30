@@ -3,6 +3,7 @@ import { Dialog, Form, Text, confirm, notify, type Field } from '@nisli/engine';
 import { UNCATEGORIZED, type Transaction } from '../data/model.js';
 import { accounts, categories, addTransaction, updateTransaction, removeTransaction, categoryDecisionFor } from '../data/store.js';
 import { today, money } from '../data/format.js';
+import { needsSpendingReview, spendingReviewCause } from '../data/review.js';
 
 /** The form's shape: what a person fills in, not what is stored. */
 interface Draft {
@@ -40,6 +41,7 @@ export const TransactionDialog = component<TransactionDialogProps>('ledger-trans
   const opens = signal(0);
   props.open.subscribe((open) => { if (open) opens.value++; });
   const draftKey = computed(() => props.transaction.value?.id ?? `new-${opens.value}`);
+  const reviewCause = computed(() => props.transaction.value ? spendingReviewCause(props.transaction.value) : undefined);
 
   const fields = computed<Field<Draft>[]>(() => {
     const bankOwned = !!props.transaction.value?.bank;
@@ -70,10 +72,15 @@ export const TransactionDialog = component<TransactionDialogProps>('ledger-trans
         : rule
           ? { source: 'rule' as const, ruleId: rule.ruleId }
           : { source: 'unassigned' as const, reason: 'no-rule-or-provider-category' as const };
-    const base = { date: d.date, amount, payee: d.payee, accountId: d.accountId, categoryId, classification, note: d.note || undefined };
+    const base = {
+      date: d.date, amount, payee: d.payee, accountId: d.accountId, categoryId, classification,
+      note: d.note || undefined,
+      ...(existing ? { reviewedAt: new Date().toISOString() } : {}),
+    };
+    const confirming = !!existing && needsSpendingReview(existing);
     if (existing) updateTransaction({ ...existing, ...base }); else addTransaction(base);
     props.onClose.value();
-    notify(existing ? 'Transaction saved' : 'Transaction added', 'positive');
+    notify(confirming ? 'Category confirmed' : existing ? 'Transaction saved' : 'Transaction added', 'positive');
   };
 
   return Dialog({
@@ -82,20 +89,32 @@ export const TransactionDialog = component<TransactionDialogProps>('ledger-trans
     onClose: props.onClose,
     children: computed(() => [
       ...(props.transaction.value?.bank ? [Text({ text: 'Date, amount, payee, and account are bank observations. You can change only your category and note; provider corrections are retained in local history.', role: 'note' })] : []),
+      ...(reviewCause.value ? [Text({
+        text: props.transaction.value?.reviewedAt
+          ? `${reviewCause.value.label}. This category was reviewed; choose Review again to return it to the queue.`
+          : `Category review needed: ${reviewCause.value.label}. Saving confirms the selected category while retaining its classification provenance.`,
+        role: 'note',
+      })] : []),
       Form<Draft>({
         fields,
         initial: toDraft(props.transaction.value, props.accountId.value),
         key: draftKey.value,
         onSubmit: submit,
-        submitLabel: props.transaction.value ? 'Save changes' : 'Add transaction',
+        submitLabel: props.transaction.value && needsSpendingReview(props.transaction.value) ? 'Confirm category' : props.transaction.value ? 'Save changes' : 'Add transaction',
         onCancel: () => props.onClose.value(),
-        actions: props.transaction.value && !props.transaction.value.bank
-          ? [{ id: 'delete', label: 'Delete', destructive: true, onSelect: async () => {
+        actions: [
+          ...(props.transaction.value && !props.transaction.value.bank ? [{ id: 'delete', label: 'Delete', destructive: true, onSelect: async () => {
               const t = props.transaction.value!;
               if (!(await confirm({ title: 'Delete transaction?', text: `${t.payee} · ${money(t.amount)}`, action: { label: 'Delete', destructive: true } }))) return;
               removeTransaction(t.id); props.onClose.value(); notify('Transaction deleted');
-            } }]
-          : [],
+            } }] : []),
+          ...(props.transaction.value?.reviewedAt && reviewCause.value ? [{ id: 'review-again', label: 'Review again', onSelect: () => {
+            const transaction = props.transaction.value!;
+            updateTransaction({ ...transaction, reviewedAt: undefined });
+            props.onClose.value();
+            notify('Returned to category review');
+          } }] : []),
+        ],
       }),
     ]),
   });

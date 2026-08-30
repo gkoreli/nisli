@@ -3,6 +3,7 @@ import { UNCATEGORIZED, type Account, type Budget, type Category, type Ledger, t
 import { notify } from '@nisli/engine';
 import * as api from './api.js';
 import { initialLedger } from './initial-ledger.js';
+import { sameReviewBasis } from './review.js';
 
 const KEY = 'ledger.v2';
 
@@ -163,7 +164,7 @@ const replayCollection = <T extends { id: string }>(
   base: T[],
   local: T[],
   remote: T[],
-  options: { preserveRemote?: (value: T) => boolean; merge?: (current: T, desired: T) => T } = {},
+  options: { preserveRemote?: (value: T) => boolean; merge?: (current: T, desired: T, original: T | undefined) => T } = {},
 ): T[] => {
   const before = new Map(base.map((value) => [value.id, value]));
   const desired = new Map(local.map((value) => [value.id, value]));
@@ -176,7 +177,7 @@ const replayCollection = <T extends { id: string }>(
       // owner was editing. Never resurrect it, and never replay newly forged
       // provenance into the client projection.
       if (!current && options.preserveRemote?.(value)) continue;
-      if (current && options.preserveRemote?.(current)) out.set(id, options.merge?.(current, value) ?? current);
+      if (current && options.preserveRemote?.(current)) out.set(id, options.merge?.(current, value, original) ?? current);
       else out.set(id, value);
     }
   }
@@ -198,7 +199,19 @@ export function replayOwnerChanges(base: Ledger, local: Ledger, remote: Ledger):
     categories: replayCollection(base.categories, local.categories, remote.categories),
     transactions: replayCollection(base.transactions, local.transactions, remote.transactions, {
       preserveRemote: (transaction) => !!transaction.bank,
-      merge: (current, desired) => ({ ...current, categoryId: desired.categoryId, note: desired.note }),
+      merge: (current, desired, original) => {
+        if (!original) return current;
+        const categoryChanged = desired.categoryId !== original.categoryId
+          || JSON.stringify(desired.classification) !== JSON.stringify(original.classification);
+        const noteChanged = desired.note !== original.note;
+        const reviewChanged = desired.reviewedAt !== original.reviewedAt;
+        return {
+          ...current,
+          ...(categoryChanged ? { categoryId: desired.categoryId, classification: desired.classification } : {}),
+          ...(noteChanged ? { note: desired.note } : {}),
+          ...(reviewChanged && sameReviewBasis(current, original) ? { reviewedAt: desired.reviewedAt } : {}),
+        };
+      },
     }),
     budgets: replayCollection(base.budgets, local.budgets, remote.budgets),
     rules: replayCollection(base.rules, local.rules, remote.rules),

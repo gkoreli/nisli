@@ -7,6 +7,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { Account, AccountKind, Budget, CategoryDecision, Ledger, Rule, Transaction } from '../../src/data/model.ts';
+import { sameReviewBasis } from '../../src/data/review.ts';
 import { categorizeProviderFact } from './categorization.ts';
 import { projectBankFacts } from './fact-projection.ts';
 import type { BankFactStore } from './facts.ts';
@@ -416,15 +417,9 @@ export function projectBankSync(
       note: previous?.note,
       bank: { provider: connection.provider, environment: connection.environment, connectionId: connection.id, transactionId: bank.id },
     };
+    if (existing?.reviewedAt && sameReviewBasis(existing, row)) row.reviewedAt = existing.reviewedAt;
     if (existing) {
-      if (existing.accountId !== row.accountId
-        || existing.date !== row.date
-        || existing.authorizedDate !== row.authorizedDate
-        || existing.amount !== row.amount
-        || existing.currency !== row.currency
-        || existing.payee !== row.payee
-        || existing.pending !== row.pending
-        || JSON.stringify(existing.classification) !== JSON.stringify(row.classification)) {
+      if (!sameReviewBasis(existing, row)) {
         archive(existing, 'modified');
       }
       next.transactions[existingIndex] = row;
@@ -503,7 +498,7 @@ const sameBankReference = (left: Transaction['bank'], right: Transaction['bank']
 /**
  * Browser PUTs carry owner decisions, never authority over bank observations.
  * Preserve provider-owned account/transaction fields and accept only the
- * category/note overlay on an existing bank transaction.
+ * category, note, and review overlay on an existing bank transaction.
  */
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 const isLedgerWrite = (value: unknown): value is Ledger => isObject(value)
@@ -575,6 +570,7 @@ export function mergeOwnerLedgerWrite(current: Ledger | null, proposed: unknown)
       categoryId: transaction.categoryId,
       ...(decision ? { classification: decision } : {}),
       note: transaction.note,
+      reviewedAt: transaction.reviewedAt,
     };
   });
   for (const transaction of currentBankTransactions.values()) {

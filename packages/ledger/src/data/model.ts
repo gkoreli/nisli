@@ -54,6 +54,8 @@ export interface Transaction {
   note?: string;
   /** Explainable, reversible category projection. */
   classification?: CategoryDecision;
+  /** Canonical ISO instant when the owner affirmed the current review basis. */
+  reviewedAt?: string;
   /** Legacy/CSV external id. New bank projections use `bank`. */
   externalId?: string;
   /** Explicit provenance for a transaction projected from a bank connection. */

@@ -106,6 +106,7 @@ describe('ledger persistence validation', () => {
         mappingVersion: 'ledger-pfc-v2-1', primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_RESTAURANTS',
         confidence: 'VERY_HIGH',
       },
+      reviewedAt: '2026-08-30T12:00:00.000Z',
     }];
     await writeFile(join(directory, 'ledger.json'), JSON.stringify({ version: 2, ledger: projected }));
 
@@ -114,6 +115,11 @@ describe('ledger persistence validation', () => {
     const invalid = structuredClone(projected) as unknown as { transactions: Array<Record<string, unknown>> };
     invalid.transactions[0]!.classification = { source: 'provider', provider: 'plaid', confidence: 99 };
     await writeFile(join(directory, 'ledger.json'), JSON.stringify({ version: 3, ledger: invalid }));
+    await expect(store.getLedger()).rejects.toMatchObject({ name: 'StoreError', status: 500 });
+
+    const invalidReview = structuredClone(projected) as unknown as { transactions: Array<Record<string, unknown>> };
+    invalidReview.transactions[0]!.reviewedAt = 'August 30';
+    await writeFile(join(directory, 'ledger.json'), JSON.stringify({ version: 4, ledger: invalidReview }));
     await expect(store.getLedger()).rejects.toMatchObject({ name: 'StoreError', status: 500 });
   });
 

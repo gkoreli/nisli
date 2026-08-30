@@ -161,6 +161,39 @@ describe('store as a client of the server', () => {
     expect(providerRemoved.transactions).toEqual([]);
   });
 
+  it('replays review only while the bank review basis is still current', async () => {
+    handler = (c) => c.method === 'GET'
+      ? { status: 200, body: { version: 1, ledger: ledgerFixture() } }
+      : { status: 500, body: {} };
+    const store = await loadStore();
+    const base = ledgerFixture();
+    base.transactions[0] = {
+      ...base.transactions[0]!,
+      classification: {
+        source: 'provider', provider: 'plaid', taxonomy: 'personal_finance_category', taxonomyVersion: 'v2',
+        mappingVersion: 'plaid-pfc-v2-ledger-v2', primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_GROCERIES',
+        confidence: 'LOW',
+      },
+      bank: { provider: 'plaid', environment: 'production', connectionId: 'bank', transactionId: 'provider-transaction' },
+    };
+    const localReview = structuredClone(base);
+    localReview.transactions[0]!.reviewedAt = '2026-08-30T12:00:00.000Z';
+
+    expect(store.replayOwnerChanges(base, localReview, structuredClone(base)).transactions[0]!.reviewedAt)
+      .toBe('2026-08-30T12:00:00.000Z');
+    const changedRemote = structuredClone(base);
+    changedRemote.transactions[0]!.amount = -200;
+    expect(store.replayOwnerChanges(base, localReview, changedRemote).transactions[0]!.reviewedAt).toBeUndefined();
+
+    const localNote = structuredClone(base);
+    localNote.transactions[0]!.note = 'owner note';
+    const remotelyReviewed = structuredClone(base);
+    remotelyReviewed.transactions[0]!.reviewedAt = '2026-08-30T13:00:00.000Z';
+    expect(store.replayOwnerChanges(base, localNote, remotelyReviewed).transactions[0]).toMatchObject({
+      note: 'owner note', reviewedAt: '2026-08-30T13:00:00.000Z',
+    });
+  });
+
   it('goes offline on a network failure and recovers with backoff', async () => {
     let down = false;
     handler = (c) => {

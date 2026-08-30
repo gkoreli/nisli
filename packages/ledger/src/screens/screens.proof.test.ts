@@ -34,8 +34,23 @@ const CONNECTION = 'conn-chase';
 const transactions: Transaction[] = [
   { id: 't01', accountId: 'checking', categoryId: 'salary', date: day(1), amount: 685_000, payee: 'ACME Corp Payroll' },
   { id: 't02', accountId: 'checking', categoryId: 'housing', date: day(2), amount: -245_000, payee: 'Mission Street Apartments LLC' },
-  { id: 't03', accountId: 'card', categoryId: 'groceries', date: day(3), amount: -12_345, payee: 'Whole Foods Market #10235', bank: { provider: 'plaid', environment: 'production', connectionId: CONNECTION, transactionId: 'p1' } },
-  { id: 't04', accountId: 'card', categoryId: 'dining', date: day(4), amount: -4_850, payee: 'Grandmother’s Lasagne al Forno', note: 'birthday dinner with the whole family', bank: { provider: 'plaid', environment: 'production', connectionId: CONNECTION, transactionId: 'p2' } },
+  {
+    id: 't03', accountId: 'card', categoryId: 'groceries', date: day(3), amount: -12_345, payee: 'Whole Foods Market #10235',
+    classification: {
+      source: 'provider', provider: 'plaid', taxonomy: 'personal_finance_category', taxonomyVersion: 'v2', mappingVersion: 'plaid-pfc-v2-ledger-v2',
+      primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_GROCERIES', confidence: 'LOW',
+    },
+    bank: { provider: 'plaid', environment: 'production', connectionId: CONNECTION, transactionId: 'p1' },
+  },
+  {
+    id: 't04', accountId: 'card', categoryId: 'dining', date: day(4), amount: -4_850, payee: 'Grandmother’s Lasagne al Forno', note: 'birthday dinner with the whole family',
+    classification: {
+      source: 'provider', provider: 'plaid', taxonomy: 'personal_finance_category', taxonomyVersion: 'v2', mappingVersion: 'plaid-pfc-v2-ledger-v2',
+      primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_RESTAURANTS', confidence: 'LOW',
+    },
+    reviewedAt: '2026-08-30T12:00:00.000Z',
+    bank: { provider: 'plaid', environment: 'production', connectionId: CONNECTION, transactionId: 'p2' },
+  },
   { id: 't05', accountId: 'card', categoryId: 'transport', date: day(5), amount: -6_700, payee: 'Uber' },
   { id: 't06', accountId: 'checking', categoryId: 'utilities', date: day(6), amount: -18_900, payee: 'Pacific Gas & Electric Company' },
   { id: 't07', accountId: 'card', categoryId: 'shopping', date: day(8), amount: -1_234_567, payee: 'REI' },
@@ -177,6 +192,36 @@ describe('the screens carry the fixture, so the proof is over real content', () 
       expect(t.frame.querySelectorAll('tbody tr').length).toBeGreaterThanOrEqual(transactions.length);
       expect(t.frame.textContent).toContain('$12,345.67');
       expect(t.frame.textContent).toContain('Grandmother’s Lasagne al Forno');
+    } finally { t.unmount(); }
+  });
+  it('the category review filter exposes the reason and ranks spending impact at 360', () => {
+    const t = mount(() => TransactionsScreen({}), {}, { width: 360, scheme: 'light', measure: estimator(360) });
+    try {
+      const review = [...t.frame.querySelectorAll('button')].find((button) => button.textContent?.includes('Review categories'));
+      expect(review).toBeDefined();
+      review!.click();
+      flushEffects();
+      const rows = [...t.frame.querySelectorAll<HTMLTableRowElement>('tbody tr')];
+      expect(t.frame.textContent).toContain('3 need category review');
+      expect(t.frame.textContent).toContain('Low category confidence');
+      expect(rows[0]?.textContent).toContain('Whole Foods Market');
+      expect(t.frame.textContent).not.toContain('Grandmother’s Lasagne al Forno');
+      rows[0]!.click();
+      flushEffects();
+      expect(t.frame.textContent).toContain('Category review needed: Low category confidence');
+      expect([...t.frame.querySelectorAll('button')].some((button) => button.textContent?.includes('Confirm category'))).toBe(true);
+    } finally { t.unmount(); }
+  });
+  it('a reviewed category can be returned to the queue', () => {
+    const t = mount(() => TransactionsScreen({}), {}, { width: 360, scheme: 'light', measure: estimator(360) });
+    try {
+      const reviewed = [...t.frame.querySelectorAll<HTMLTableRowElement>('tbody tr')]
+        .find((row) => row.textContent?.includes('Grandmother’s Lasagne al Forno'));
+      expect(reviewed).toBeDefined();
+      reviewed!.click();
+      flushEffects();
+      expect(t.frame.textContent).toContain('This category was reviewed');
+      expect([...t.frame.querySelectorAll('button')].some((button) => button.textContent?.includes('Review again'))).toBe(true);
     } finally { t.unmount(); }
   });
   it('the overview shows stats and bars, and the connections screen the bank once its queries settle', async () => {

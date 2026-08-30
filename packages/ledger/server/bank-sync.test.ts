@@ -42,15 +42,38 @@ describe('server-owned bank sync fold', () => {
       { id: 'pending-1', accountId: 'bank-checking', bookedOn: '2026-08-28', description: 'Coffee', amountMinor: -1000, currency: 'USD', pending: true },
     ]), { createId: () => 'stable-id' }).ledger;
     first.transactions[0]!.categoryId = 'food';
+    first.transactions[0]!.reviewedAt = '2026-08-29T12:00:00.000Z';
     const posted = projectBankSync(first, item, result([
       { id: 'posted-1', accountId: 'bank-checking', bookedOn: '2026-08-29', description: 'Coffee', amountMinor: -1000, currency: 'USD', pending: false, replacesId: 'pending-1' },
     ]), { createId: () => 'wrong-id' });
 
     expect(posted.ledger.transactions).toHaveLength(1);
     expect(posted.ledger.transactions[0]!).toMatchObject({ id: 'stable-id', bank: { transactionId: 'posted-1' }, categoryId: 'food' });
+    expect(posted.ledger.transactions[0]!.reviewedAt).toBeUndefined();
     expect(posted.ledger.bankHistory).toEqual([
       expect.objectContaining({ change: 'replaced', transactionId: 'pending-1', replacementId: 'posted-1', transaction: expect.objectContaining({ id: 'stable-id' }) }),
     ]);
+  });
+
+  it('preserves review across an identical projection and clears it when a provider fact changes', () => {
+    const observation: ProviderTransaction = {
+      id: 'reviewed', accountId: 'bank-checking', bookedOn: '2026-08-28', description: 'Synthetic merchant',
+      amountMinor: -2500, currency: 'USD', pending: false,
+    };
+    const first = projectBankSync(ledger(), item, result([observation]), { createId: () => 'stable-id' }).ledger;
+    first.transactions[0]!.reviewedAt = '2026-08-29T12:00:00.000Z';
+
+    const unchanged = projectBankSync(first, item, result([], { modified: [observation] })).ledger;
+    expect(unchanged.transactions[0]!.reviewedAt).toBe('2026-08-29T12:00:00.000Z');
+
+    const changed = projectBankSync(unchanged, item, result([], {
+      modified: [{ ...observation, amountMinor: -2600 }],
+    })).ledger;
+    expect(changed.transactions[0]!.reviewedAt).toBeUndefined();
+    expect(changed.bankHistory?.at(-1)).toMatchObject({
+      change: 'modified',
+      transaction: { id: 'stable-id', reviewedAt: '2026-08-29T12:00:00.000Z' },
+    });
   });
 
   it('projects PFCv2 through the versioned mapping while retaining the exact provider fact server-side', () => {
@@ -251,17 +274,26 @@ describe('owner ledger write boundary', () => {
     { id: 'bank-tx', accountId: 'bank-checking', bookedOn: '2026-08-28', description: 'Coffee', amountMinor: -1000, currency: 'USD', pending: false },
   ]), { createId: (() => { let id = 0; return () => `id-${++id}`; })() }).ledger;
 
-  it('preserves bank observations and accepts only category/note overlays', () => {
+  it('preserves bank observations and accepts only category, note, and review overlays', () => {
     const current = bankLedger();
     current.pendingBankRebuild = ['item-1'];
     const proposed = structuredClone(current);
     proposed.accounts = [];
-    proposed.transactions[0] = { ...proposed.transactions[0]!, date: '1999-01-01', amount: 999, payee: 'Forged', categoryId: 'food', note: 'owner note' };
+    proposed.transactions[0] = {
+      ...proposed.transactions[0]!, date: '1999-01-01', amount: 999, payee: 'Forged', categoryId: 'food', note: 'owner note',
+      reviewedAt: '2026-08-30T12:00:00.000Z',
+    };
     proposed.sync = {};
 
     const merged = mergeOwnerLedgerWrite(current, proposed);
     expect(merged.accounts).toEqual(current.accounts);
-    expect(merged.transactions[0]).toMatchObject({ date: '2026-08-28', amount: -1000, payee: 'Coffee', categoryId: 'food', note: 'owner note' });
+    expect(merged.transactions[0]).toMatchObject({
+      date: '2026-08-28', amount: -1000, payee: 'Coffee', categoryId: 'food', note: 'owner note',
+      reviewedAt: '2026-08-30T12:00:00.000Z',
+    });
+    const cleared = structuredClone(merged);
+    cleared.transactions[0]!.reviewedAt = undefined;
+    expect(mergeOwnerLedgerWrite(merged, cleared).transactions[0]!.reviewedAt).toBeUndefined();
     expect(merged.sync).toEqual(current.sync);
     expect(merged.pendingBankRebuild).toEqual(['item-1']);
   });

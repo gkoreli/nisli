@@ -151,6 +151,11 @@ const isBoolean = (value: unknown): value is boolean => typeof value === 'boolea
 const isInteger = (value: unknown): value is number => Number.isInteger(value);
 const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 const isOptional = <T>(value: unknown, validate: (candidate: unknown) => candidate is T): value is T | undefined => value === undefined || validate(value);
+const isCanonicalInstant = (value: unknown): value is string => {
+  if (!isString(value)) return false;
+  const instant = Date.parse(value);
+  return Number.isFinite(instant) && new Date(instant).toISOString() === value;
+};
 const isStringArray = (value: unknown): value is string[] => Array.isArray(value) && value.every(isString);
 const isOneOf = <T extends string>(values: readonly T[]) => (value: unknown): value is T => isString(value) && values.includes(value as T);
 
@@ -208,6 +213,7 @@ function isTransaction(value: unknown): boolean {
     && isOptional(value.pending, isBoolean)
     && isOptional(value.note, isString)
     && isOptional(value.classification, isCategoryDecision)
+    && isOptional(value.reviewedAt, isCanonicalInstant)
     && isOptional(value.externalId, isString)
     && (bank === undefined || (isRecord(bank)
       && isString(bank.provider)

@@ -155,6 +155,11 @@ const isBoolean = (value: unknown): value is boolean => typeof value === 'boolea
 const isInteger = (value: unknown): value is number => Number.isSafeInteger(value);
 const isOptional = <T>(value: unknown, validate: (candidate: unknown) => candidate is T): value is T | undefined =>
   value === undefined || validate(value);
+const isCanonicalInstant = (value: unknown): value is string => {
+  if (!isString(value)) return false;
+  const instant = Date.parse(value);
+  return Number.isFinite(instant) && new Date(instant).toISOString() === value;
+};
 const hasOnly = (value: JsonObject, keys: readonly string[]): boolean => Object.keys(value).every((key) => keys.includes(key));
 const isCategoryDecision = (value: unknown): value is CategoryDecision => {
   if (!isRecord(value) || !isString(value.source)) return false;
@@ -189,7 +194,8 @@ const isLedger = (value: unknown): value is Ledger => {
       && isString(transaction.date) && isOptional(transaction.authorizedDate, isString)
       && isInteger(transaction.amount) && isOptional(transaction.currency, isString)
       && isString(transaction.payee) && isOptional(transaction.pending, isBoolean)
-      && isOptional(transaction.classification, isCategoryDecision))
+      && isOptional(transaction.classification, isCategoryDecision)
+      && isOptional(transaction.reviewedAt, isCanonicalInstant))
     && value.budgets.every((budget) => isRecord(budget)
       && isString(budget.id) && isString(budget.categoryId) && isInteger(budget.limit))
     && value.rules.every((rule) => isRecord(rule)
