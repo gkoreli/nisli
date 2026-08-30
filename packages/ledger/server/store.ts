@@ -6,16 +6,30 @@
 import { copyFile, mkdir, open, readFile, readdir, rename, stat, unlink } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, parse, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Ledger } from '../src/data/model.ts';
+import type { CategoryDecision, Ledger } from '../src/data/model.ts';
 import { canSynchronize, mergeOwnerLedgerWrite, normalizeConnection } from './banking/domain.ts';
 import type { BankConnection, BankConnectionInput } from './banking/domain.ts';
+import { emptyBankFactStore, isBankFactStore, isJsonValue } from './banking/facts.ts';
+import type { BankFactStore } from './banking/facts.ts';
 import { decrypt, encrypt, isSealed } from './crypto.ts';
 
 export interface LedgerDocument {
   version: number;
   ledger: Ledger | null;
+  /** Server-only provider evidence. Never serialize through a public API. */
+  bankFacts?: BankFactStore;
   savedAt?: string;
   restoredFrom?: string;
+}
+
+export interface PublicLedgerDocument {
+  version: number;
+  ledger: Ledger | null;
+}
+
+export interface InternalLedgerState {
+  ledger: Ledger;
+  bankFacts: BankFactStore;
 }
 
 export interface LedgerSnapshot {
@@ -129,6 +143,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+const hasOnly = (value: Record<string, unknown>, keys: readonly string[]): boolean =>
+  Object.keys(value).every((key) => keys.includes(key));
+
 const isString = (value: unknown): value is string => typeof value === 'string';
 const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
 const isInteger = (value: unknown): value is number => Number.isInteger(value);
@@ -137,8 +154,28 @@ const isOptional = <T>(value: unknown, validate: (candidate: unknown) => candida
 const isStringArray = (value: unknown): value is string[] => Array.isArray(value) && value.every(isString);
 const isOneOf = <T extends string>(values: readonly T[]) => (value: unknown): value is T => isString(value) && values.includes(value as T);
 
-const isAccountKind = isOneOf(['checking', 'savings', 'credit', 'investment'] as const);
+const isAccountKind = isOneOf(['checking', 'savings', 'credit', 'investment', 'loan'] as const);
 const isConnectionStatus = isOneOf(['ok', 'error', 'reauth-required', 'disabled', 'disconnect-pending'] as const);
+
+function isCategoryDecision(value: unknown): value is CategoryDecision {
+  if (!isRecord(value) || !isString(value.source)) return false;
+  if (value.source === 'owner') return hasOnly(value, ['source']);
+  if (value.source === 'rule') return hasOnly(value, ['source', 'ruleId']) && isString(value.ruleId);
+  if (value.source === 'provider') return hasOnly(value, [
+    'source', 'provider', 'taxonomy', 'taxonomyVersion', 'mappingVersion',
+    'primary', 'detailed', 'confidence',
+  ])
+    && isString(value.provider)
+    && isString(value.taxonomy)
+    && isString(value.taxonomyVersion)
+    && isString(value.mappingVersion)
+    && isString(value.primary)
+    && isString(value.detailed)
+    && (value.confidence === null || isString(value.confidence));
+  return value.source === 'unassigned'
+    && hasOnly(value, ['source', 'reason'])
+    && isOneOf(['no-rule-or-provider-category', 'unmapped-provider-category'] as const)(value.reason);
+}
 
 function isAccount(value: unknown): boolean {
   if (!isRecord(value)) return false;
@@ -164,9 +201,13 @@ function isTransaction(value: unknown): boolean {
     && isString(value.accountId)
     && isString(value.categoryId)
     && isString(value.date)
+    && isOptional(value.authorizedDate, isString)
     && isInteger(value.amount)
+    && isOptional(value.currency, isString)
     && isString(value.payee)
+    && isOptional(value.pending, isBoolean)
     && isOptional(value.note, isString)
+    && isOptional(value.classification, isCategoryDecision)
     && isOptional(value.externalId, isString)
     && (bank === undefined || (isRecord(bank)
       && isString(bank.provider)
@@ -176,7 +217,7 @@ function isTransaction(value: unknown): boolean {
 }
 
 function isLedger(value: unknown): value is Ledger {
-  if (!isRecord(value)) return false;
+  if (!isRecord(value) || Object.hasOwn(value, 'bankFacts')) return false;
   const settings = value.settings;
   const sync = value.sync;
   const history = value.bankHistory;
@@ -255,19 +296,29 @@ function normalizePersistedLedger(value: unknown): Ledger | undefined {
 }
 
 function normalizeLedgerDocument(value: unknown): LedgerDocument | undefined {
-  if (!isRecord(value) || !isInteger(value.version) || value.version < 0
+  if (!isRecord(value) || !hasOnly(value, ['version', 'ledger', 'bankFacts', 'savedAt', 'restoredFrom'])
+    || !isInteger(value.version) || value.version < 0
+    || !isOptional(value.bankFacts, isBankFactStore)
     || !isOptional(value.savedAt, isString) || !isOptional(value.restoredFrom, isString)) return undefined;
   const ledger = value.ledger === null ? null : normalizePersistedLedger(value.ledger);
   if (ledger === undefined) return undefined;
   return {
     version: value.version,
     ledger,
+    ...(value.bankFacts ? { bankFacts: structuredClone(value.bankFacts) } : {}),
     ...(isString(value.savedAt) ? { savedAt: value.savedAt } : {}),
     ...(isString(value.restoredFrom) ? { restoredFrom: value.restoredFrom } : {}),
   };
 }
 
+const isProviderObservationInput = (value: unknown): value is NonNullable<BankConnectionInput['accountObservation']> => isRecord(value)
+  && isString(value.schema)
+  && isString(value.schemaVersion)
+  && isRecord(value.payload)
+  && isJsonValue(value.payload);
+
 function isProviderAccountInput(value: unknown): boolean {
+  const source = isRecord(value) ? value.source : undefined;
   return isRecord(value)
     && isString(value.id)
     && isString(value.name)
@@ -277,7 +328,8 @@ function isProviderAccountInput(value: unknown): boolean {
     && (value.subtype === undefined || value.subtype === null || isString(value.subtype))
     && isOptional(value.balanceMinor, isInteger)
     && isOptional(value.balance, isFiniteNumber)
-    && isOptional(value.currency, isString);
+    && isOptional(value.currency, isString)
+    && (source === undefined || isProviderObservationInput(source));
 }
 
 function isBankConnectionInput(value: unknown): value is BankConnectionInput {
@@ -295,6 +347,7 @@ function isBankConnectionInput(value: unknown): value is BankConnectionInput {
     && isOptional(value.access_token, isString)
     && isOptional(value.completionKey, isString)
     && isOptional(value.historyStatus, isString)
+    && isOptional(value.accountObservation, isProviderObservationInput)
     && (error === undefined || (isRecord(error) && isString(error.code) && isString(error.message)));
 }
 
@@ -308,6 +361,9 @@ async function readDoc(): Promise<LedgerDocument> {
 }
 
 export const getLedger = (): Promise<LedgerDocument> => readDoc();
+
+/** Explicit public DTO: persistence metadata and provider evidence stay server-side. */
+export const publicLedgerDocument = ({ version, ledger }: LedgerDocument): PublicLedgerDocument => ({ version, ledger });
 
 async function pruneBackups(): Promise<void> {
   const names = (await readdir(BACKUP_DIR).catch((error: unknown) => {
@@ -370,13 +426,15 @@ export function putLedger(version: number, ledger: Ledger): Promise<LedgerSnapsh
   return serial(async () => {
     const current = await readDoc();
     if (version !== current.version) {
-      throw new StoreError('Stale version — reload and retry', 409, { ...current });
+      throw new StoreError('Stale version — reload and retry', 409, { version: current.version, ledger: current.ledger });
     }
+    if (!isLedger(ledger)) throw new StoreError('The owner ledger has an invalid shape', 400);
     await backupToday();
     const accepted = mergeOwnerLedgerWrite(current.ledger, ledger) as Ledger;
     const next: LedgerDocument = {
       version: current.version + 1,
       ledger: accepted,
+      ...(current.bankFacts ? { bankFacts: current.bankFacts } : {}),
       savedAt: new Date().toISOString(),
     };
     await writeAtomic(LEDGER_FILE, next);
@@ -386,21 +444,34 @@ export function putLedger(version: number, ledger: Ledger): Promise<LedgerSnapsh
 
 /** Atomically replace the current ledger from a trusted server-side operation. */
 export function updateLedger(
-  update: (ledger: Ledger) => Ledger | Promise<Ledger>,
+  update: (
+    ledger: Ledger,
+    bankFacts: BankFactStore,
+  ) => Ledger | InternalLedgerState | Promise<Ledger | InternalLedgerState>,
   { backupLabel }: { backupLabel?: string } = {},
 ): Promise<LedgerUpdateResult> {
   return serial(async () => {
     const current = await readDoc();
-    if (current.ledger === null) throw new StoreError('Ledger is not initialized', 409, { ...current });
-    const ledger = await update(structuredClone(current.ledger));
+    if (current.ledger === null) {
+      throw new StoreError('Ledger is not initialized', 409, { version: current.version, ledger: current.ledger });
+    }
+    const existingFacts = structuredClone(current.bankFacts ?? emptyBankFactStore());
+    const output = await update(structuredClone(current.ledger), existingFacts);
+    const state = isRecord(output) && Object.hasOwn(output, 'ledger') && Object.hasOwn(output, 'bankFacts')
+      ? output as unknown as InternalLedgerState
+      : { ledger: output as Ledger, bankFacts: existingFacts };
+    if (!isLedger(state.ledger) || !isBankFactStore(state.bankFacts)) {
+      throw new StoreError('A trusted ledger update produced an invalid internal document', 500);
+    }
     const backup = backupLabel ? await backupNamed(backupLabel) : (await backupToday(), undefined);
     const next: LedgerDocument = {
       version: current.version + 1,
-      ledger,
+      ledger: state.ledger,
+      bankFacts: structuredClone(state.bankFacts),
       savedAt: new Date().toISOString(),
     };
     await writeAtomic(LEDGER_FILE, next);
-    return { version: next.version, ledger, ...(backup ? { backup } : {}) };
+    return { version: next.version, ledger: state.ledger, ...(backup ? { backup } : {}) };
   });
 }
 
@@ -432,6 +503,7 @@ export function restoreBackup(name: string): Promise<LedgerSnapshot> {
     const next: LedgerDocument = {
       version: current.version + 1,
       ledger: restoredLedger,
+      ...(normalized.bankFacts ? { bankFacts: normalized.bankFacts } : {}),
       savedAt: new Date().toISOString(),
       restoredFrom: name,
     };

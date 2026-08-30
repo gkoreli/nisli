@@ -6,7 +6,7 @@ export interface BankAccount {
   mask: string;
   type: string;
   subtype: string | null;
-  kind: 'checking' | 'savings' | 'credit' | 'investment';
+  kind: 'checking' | 'savings' | 'credit' | 'investment' | 'loan';
   /** Signed current balance in integer minor units. */
   balanceMinor: number;
   currency: string;

@@ -1,4 +1,4 @@
-export type AccountKind = 'checking' | 'savings' | 'credit' | 'investment';
+export type AccountKind = 'checking' | 'savings' | 'credit' | 'investment' | 'loan';
 
 export interface Account {
   id: string;
@@ -20,16 +20,40 @@ export interface Category {
   income?: boolean;
 }
 
+/** Why the effective Ledger category was selected. Provider facts remain server-owned. */
+export type CategoryDecision =
+  | { source: 'owner' }
+  | { source: 'rule'; ruleId: string }
+  | {
+    source: 'provider';
+    provider: string;
+    taxonomy: string;
+    taxonomyVersion: string;
+    mappingVersion: string;
+    primary: string;
+    detailed: string;
+    confidence: string | null;
+  }
+  | { source: 'unassigned'; reason: 'no-rule-or-provider-category' | 'unmapped-provider-category' };
+
 export interface Transaction {
   id: string;
   accountId: string;
   categoryId: string;
   /** ISO date, YYYY-MM-DD. */
   date: string;
+  /** Provider authorization date when it differs from the posted date. */
+  authorizedDate?: string;
   /** Cents; negative is money out. */
   amount: number;
+  /** ISO 4217 or provider-defined currency code for this transaction. */
+  currency?: string;
   payee: string;
+  /** Provider lifecycle state; never encoded into the owner's note. */
+  pending?: boolean;
   note?: string;
+  /** Explainable, reversible category projection. */
+  classification?: CategoryDecision;
   /** Legacy/CSV external id. New bank projections use `bank`. */
   externalId?: string;
   /** Explicit provenance for a transaction projected from a bank connection. */

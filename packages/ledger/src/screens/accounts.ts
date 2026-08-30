@@ -5,7 +5,7 @@ import { accounts, balance, addAccount, settings } from '../data/store.js';
 import { money } from '../data/format.js';
 import { AppRouter } from '../router.js';
 
-const KIND_LABEL: Record<AccountKind, string> = { checking: 'Checking', savings: 'Savings', credit: 'Credit card', investment: 'Investment' };
+const KIND_LABEL: Record<AccountKind, string> = { checking: 'Checking', savings: 'Savings', credit: 'Credit card', investment: 'Investment', loan: 'Loan' };
 
 type Draft = { name: string; institution: string; kind: AccountKind; opening: number | undefined };
 const empty: Draft = { name: '', institution: '', kind: 'checking', opening: undefined };

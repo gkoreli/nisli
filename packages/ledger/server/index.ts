@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { assertLedgerBunRuntime } from '../runtime.ts';
 import {
   getLedger,
+  publicLedgerDocument,
   putLedger,
   listBackups,
   restoreBackup,
@@ -40,8 +41,8 @@ import {
   type BankingServiceDependencies,
   type LinkCompletion,
 } from './bank-sync.ts';
-import type { BankConnection } from './banking/domain.ts';
-import type { Ledger } from '../src/data/model.ts';
+import type { BankConnection, ConnectionView } from './banking/domain.ts';
+import type { CategoryDecision, Ledger } from '../src/data/model.ts';
 
 assertLedgerBunRuntime();
 
@@ -126,21 +127,69 @@ const allowedOrigin = (header = ''): boolean => {
 type JsonObject = Record<string, unknown>;
 type RouteResult = readonly [status: number, body: unknown];
 
+/** Allowlist the transport contract so provider evidence can never leak by spread. */
+const publicConnectionView = (connection: ConnectionView) => ({
+  id: connection.id,
+  provider: connection.provider,
+  environment: connection.environment,
+  institution: connection.institution,
+  status: connection.status,
+  accounts: connection.accounts.map((account) => ({
+    id: account.id,
+    name: account.name,
+    mask: account.mask,
+    kind: account.kind,
+    type: account.type,
+    subtype: account.subtype,
+    balanceMinor: account.balanceMinor,
+    currency: account.currency,
+  })),
+  ...(connection.createdAt ? { createdAt: connection.createdAt } : {}),
+  ...(connection.historyStatus ? { historyStatus: connection.historyStatus } : {}),
+  ...(connection.error ? { error: { code: connection.error.code, message: connection.error.message } } : {}),
+});
+
 const isRecord = (value: unknown): value is JsonObject => typeof value === 'object' && value !== null && !Array.isArray(value);
 const isString = (value: unknown): value is string => typeof value === 'string';
+const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
 const isInteger = (value: unknown): value is number => Number.isSafeInteger(value);
+const isOptional = <T>(value: unknown, validate: (candidate: unknown) => candidate is T): value is T | undefined =>
+  value === undefined || validate(value);
+const hasOnly = (value: JsonObject, keys: readonly string[]): boolean => Object.keys(value).every((key) => keys.includes(key));
+const isCategoryDecision = (value: unknown): value is CategoryDecision => {
+  if (!isRecord(value) || !isString(value.source)) return false;
+  if (value.source === 'owner') return hasOnly(value, ['source']);
+  if (value.source === 'rule') return hasOnly(value, ['source', 'ruleId']) && isString(value.ruleId);
+  if (value.source === 'provider') return hasOnly(value, [
+    'source', 'provider', 'taxonomy', 'taxonomyVersion', 'mappingVersion',
+    'primary', 'detailed', 'confidence',
+  ])
+    && isString(value.provider)
+    && isString(value.taxonomy)
+    && isString(value.taxonomyVersion)
+    && isString(value.mappingVersion)
+    && isString(value.primary)
+    && isString(value.detailed)
+    && (value.confidence === null || isString(value.confidence));
+  return value.source === 'unassigned'
+    && hasOnly(value, ['source', 'reason'])
+    && ['no-rule-or-provider-category', 'unmapped-provider-category'].includes(String(value.reason));
+};
 const isLedger = (value: unknown): value is Ledger => {
   if (!isRecord(value) || !Array.isArray(value.accounts) || !Array.isArray(value.categories)
     || !Array.isArray(value.transactions) || !Array.isArray(value.budgets) || !Array.isArray(value.rules)
-    || !isRecord(value.settings)) return false;
-  const accountKinds = new Set(['checking', 'savings', 'credit', 'investment']);
+    || !isRecord(value.settings) || Object.hasOwn(value, 'bankFacts')) return false;
+  const accountKinds = new Set(['checking', 'savings', 'credit', 'investment', 'loan']);
   return value.accounts.every((account) => isRecord(account)
       && isString(account.id) && isString(account.name) && isString(account.kind) && accountKinds.has(account.kind)
       && isInteger(account.opening) && isString(account.institution) && isString(account.currency))
     && value.categories.every((category) => isRecord(category) && isString(category.id) && isString(category.name))
     && value.transactions.every((transaction) => isRecord(transaction)
       && isString(transaction.id) && isString(transaction.accountId) && isString(transaction.categoryId)
-      && isString(transaction.date) && isInteger(transaction.amount) && isString(transaction.payee))
+      && isString(transaction.date) && isOptional(transaction.authorizedDate, isString)
+      && isInteger(transaction.amount) && isOptional(transaction.currency, isString)
+      && isString(transaction.payee) && isOptional(transaction.pending, isBoolean)
+      && isOptional(transaction.classification, isCategoryDecision))
     && value.budgets.every((budget) => isRecord(budget)
       && isString(budget.id) && isString(budget.categoryId) && isInteger(budget.limit))
     && value.rules.every((rule) => isRecord(rule)
@@ -179,7 +228,7 @@ async function readJson(request: Request): Promise<JsonObject> {
 
 async function route(method: string, path: string, body: JsonObject): Promise<RouteResult> {
   if (method === 'GET' && path === '/api/health') return [200, { ok: true, mode: activeProvider.name, host: HOST, version: VERSION }];
-  if (method === 'GET' && path === '/api/ledger') return [200, await getLedger()];
+  if (method === 'GET' && path === '/api/ledger') return [200, publicLedgerDocument(await getLedger())];
   if (method === 'PUT' && path === '/api/ledger') {
     if (typeof body.version !== 'number' || !isLedger(body.ledger)) return bad('body must be { version: number, ledger: Ledger }');
     return [200, await putLedger(body.version, body.ledger)];
@@ -196,8 +245,8 @@ async function route(method: string, path: string, body: JsonObject): Promise<Ro
   if (method === 'POST' && path === '/api/bank/link-token') {
     return [200, await banking.beginLink(typeof body.connectionId === 'string' ? body.connectionId : undefined)];
   }
-  if (method === 'POST' && path === '/api/bank/exchange') return [200, await banking.connect(body as LinkCompletion)];
-  if (method === 'GET' && path === '/api/bank/connections') return [200, await banking.list()];
+  if (method === 'POST' && path === '/api/bank/exchange') return [200, publicConnectionView(await banking.connect(body as LinkCompletion))];
+  if (method === 'GET' && path === '/api/bank/connections') return [200, (await banking.list()).map(publicConnectionView)];
   if (method === 'GET' && path === '/api/bank/composition') return [200, await banking.composition()];
   if (method === 'POST' && path === '/api/bank/sync-all') return [200, await banking.syncAll()];
   if (method === 'POST' && path === '/api/bank/use-live-data') return [200, await banking.useLiveDataOnly()];

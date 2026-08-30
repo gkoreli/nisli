@@ -28,7 +28,11 @@ describe('server-owned bank sync fold', () => {
     ]), { createId: () => `id-${++id}`, now: () => '2026-08-29T13:00:00.000Z' });
 
     expect(applied.summary).toMatchObject({ added: 1, accounts: 1 });
-    expect(applied.ledger.transactions[0]!).toMatchObject({ amount: -1234, categoryId: 'food', note: 'pending', bank: { provider: 'plaid', connectionId: 'item-1', transactionId: 'pending-1' } });
+    expect(applied.ledger.transactions[0]!).toMatchObject({
+      amount: -1234, categoryId: 'food', pending: true, note: undefined,
+      classification: { source: 'rule', ruleId: 'r1' },
+      bank: { provider: 'plaid', connectionId: 'item-1', transactionId: 'pending-1' },
+    });
     expect(applied.ledger.accounts[0]!.opening).toBe(11_234);
     expect(applied.ledger.sync?.['item-1']).toEqual({ at: '2026-08-29T13:00:00.000Z', added: 1 });
   });
@@ -47,6 +51,84 @@ describe('server-owned bank sync fold', () => {
     expect(posted.ledger.bankHistory).toEqual([
       expect.objectContaining({ change: 'replaced', transactionId: 'pending-1', replacementId: 'posted-1', transaction: expect.objectContaining({ id: 'stable-id' }) }),
     ]);
+  });
+
+  it('projects PFCv2 through the versioned mapping while retaining the exact provider fact server-side', () => {
+    const current = ledger();
+    current.rules = [];
+    const source = {
+      schema: 'plaid.Transaction', schemaVersion: '2020-09-14',
+      payload: {
+        transaction_id: 'categorized', account_id: 'bank-checking', name: 'RAW CAFE', merchant_name: 'Cafe',
+        amount: 12.34, iso_currency_code: 'USD', pending: false,
+        original_description: 'RAW CAFE 001', location: { city: 'Oakland', region: 'CA' },
+        personal_finance_category: {
+          primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_COFFEE', confidence_level: 'LOW',
+        },
+      },
+    };
+    const applied = projectBankSync(current, item, result([{
+      id: 'categorized', accountId: 'bank-checking', bookedOn: '2026-08-28', authorizedOn: '2026-08-27',
+      description: 'Cafe', amountMinor: -1234, currency: 'USD', pending: false,
+      providerCategory: {
+        taxonomy: 'personal_finance_category',
+        primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_COFFEE', confidenceLevel: 'LOW', version: 'v2',
+      },
+      source,
+    }]), { now: () => '2026-08-30T12:00:00.000Z' });
+
+    expect(applied.ledger.transactions[0]).toMatchObject({
+      categoryId: 'dining', authorizedDate: '2026-08-27', currency: 'USD', pending: false,
+      classification: {
+        source: 'provider', provider: 'plaid', taxonomy: 'personal_finance_category', taxonomyVersion: 'v2',
+        mappingVersion: 'plaid-pfc-v2-ledger-v1', primary: 'FOOD_AND_DRINK',
+        detailed: 'FOOD_AND_DRINK_COFFEE', confidence: 'LOW',
+      },
+    });
+    expect(applied.ledger.categories).toContainEqual({ id: 'dining', name: 'Dining out' });
+    const observation = Object.values(applied.bankFacts.observations).find((candidate) => candidate.endpoint === 'plaid.Transaction');
+    expect(observation?.payload).toEqual(source.payload);
+    expect(Object.values(applied.bankFacts.current.transactions)[0]?.value).toMatchObject({
+      authorizedOn: '2026-08-27', pending: false, providerCategory: { detailed: 'FOOD_AND_DRINK_COFFEE' },
+    });
+  });
+
+  it('preserves owner authority but reprojects legacy automatic uncategorized rows', () => {
+    const current = ledger();
+    current.rules = [];
+    const initial = projectBankSync(current, item, result([{
+      id: 'provider-row', accountId: 'bank-checking', bookedOn: '2026-08-28', description: 'Market',
+      amountMinor: -2000, currency: 'USD', pending: false,
+      providerCategory: {
+        taxonomy: 'personal_finance_category',
+        primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_GROCERIES', confidenceLevel: 'VERY_HIGH', version: 'v2',
+      },
+    }])).ledger;
+    const row = initial.transactions[0]!;
+    row.categoryId = 'food';
+    row.classification = { source: 'owner' };
+
+    const ownerRebuilt = projectBankSync(initial, item, result([{
+      id: 'provider-row', accountId: 'bank-checking', bookedOn: '2026-08-28', description: 'Market',
+      amountMinor: -2000, currency: 'USD', pending: false,
+      providerCategory: {
+        taxonomy: 'personal_finance_category',
+        primary: 'GENERAL_MERCHANDISE', detailed: 'GENERAL_MERCHANDISE_SUPERSTORES', confidenceLevel: 'VERY_HIGH', version: 'v2',
+      },
+    }]), { rebuild: true }).ledger.transactions[0]!;
+    expect(ownerRebuilt).toMatchObject({ categoryId: 'food', classification: { source: 'owner' } });
+
+    row.categoryId = 'uncategorized';
+    row.classification = undefined;
+    const legacyRebuilt = projectBankSync(initial, item, result([{
+      id: 'provider-row', accountId: 'bank-checking', bookedOn: '2026-08-28', description: 'Market',
+      amountMinor: -2000, currency: 'USD', pending: false,
+      providerCategory: {
+        taxonomy: 'personal_finance_category',
+        primary: 'GENERAL_MERCHANDISE', detailed: 'GENERAL_MERCHANDISE_SUPERSTORES', confidenceLevel: 'VERY_HIGH', version: 'v2',
+      },
+    }]), { rebuild: true }).ledger.transactions[0]!;
+    expect(legacyRebuilt).toMatchObject({ categoryId: 'shopping', classification: { source: 'provider' } });
   });
 
   it('removes provider-deleted transactions', () => {
@@ -252,37 +334,64 @@ describe('Plaid link configuration', () => {
   });
 
   it('normalizes Plaid signs, cents, currency, names, and checkpoint at the adapter boundary', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (url) => {
+    const syncRequests: RequestInit[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+      if (String(url).endsWith('/transactions/sync')) syncRequests.push(init ?? {});
       if (String(url).endsWith('/transactions/sync')) return {
         ok: true,
         json: async () => ({
           added: [{
             transaction_id: 'transaction-1', account_id: 'account-1', date: '2026-08-29', authorized_date: '2026-08-28',
             merchant_name: 'Coffee', name: 'COFFEE 123', amount: 12.34, iso_currency_code: 'USD', pending: false,
-            pending_transaction_id: 'pending-1', personal_finance_category: { primary: 'FOOD_AND_DRINK' },
+            pending_transaction_id: 'pending-1', original_description: 'POS COFFEE 123',
+            personal_finance_category: {
+              primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_COFFEE', confidence_level: 'VERY_HIGH',
+            },
           }],
-          modified: [], removed: [{ transaction_id: 'removed-1' }], next_cursor: 'next-checkpoint', has_more: false,
-          transactions_update_status: 'HISTORICAL_UPDATE_COMPLETE',
+          modified: [], removed: [{ transaction_id: 'removed-1', account_id: 'account-1' }], next_cursor: 'next-checkpoint', has_more: false,
+          transactions_update_status: 'HISTORICAL_UPDATE_COMPLETE', request_id: 'request-1',
         }),
-      };
+      } as Response;
       return {
         ok: true,
         json: async () => ({ accounts: [{
           account_id: 'account-1', name: 'Checking', mask: '1234', type: 'depository', subtype: 'checking',
           balances: { current: 87.66, iso_currency_code: 'USD' },
         }] }),
-      };
+      } as Response;
     }));
     const provider = plaidProvider({ clientId: 'client', secret: 'secret', env: 'development' });
     const synced = await provider.sync({ access_token: 'access-token', checkpoint: 'old-checkpoint' });
 
-    expect(synced).toMatchObject({ checkpoint: 'next-checkpoint', complete: true, historyReady: true, updateStatus: 'HISTORICAL_UPDATE_COMPLETE', removed: ['removed-1'] });
-    expect(synced.added[0]).toEqual({
+    expect(synced).toMatchObject({
+      checkpoint: 'next-checkpoint', complete: true, historyReady: true, updateStatus: 'HISTORICAL_UPDATE_COMPLETE',
+      removed: [{ id: 'removed-1', accountId: 'account-1' }],
+      receipt: { schema: 'plaid.TransactionsSync', schemaVersion: '2020-09-14', pages: [{
+        requestId: 'request-1', cursor: 'old-checkpoint', nextCursor: 'next-checkpoint', hasMore: false,
+        updateStatus: 'HISTORICAL_UPDATE_COMPLETE',
+      }] },
+    });
+    expect(synced.added[0]).toMatchObject({
       id: 'transaction-1', accountId: 'account-1', bookedOn: '2026-08-29', authorizedOn: '2026-08-28',
       description: 'Coffee', amountMinor: -1234, currency: 'USD', pending: false, replacesId: 'pending-1',
-      providerCategory: 'FOOD_AND_DRINK',
+      providerCategory: {
+        taxonomy: 'personal_finance_category',
+        primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_COFFEE', confidenceLevel: 'VERY_HIGH', version: 'v2',
+      },
+      source: { schema: 'plaid.Transaction', schemaVersion: '2020-09-14', payload: {
+        transaction_id: 'transaction-1', original_description: 'POS COFFEE 123',
+      } },
     });
-    expect(synced.accounts[0]).toMatchObject({ kind: 'checking', balanceMinor: 8766, currency: 'USD' });
+    expect(synced.added[0]?.source.payload.personal_finance_category).not.toHaveProperty('version');
+    expect(synced.removed[0]?.source.payload).toEqual({ transaction_id: 'removed-1', account_id: 'account-1' });
+    expect(synced.accounts[0]).toMatchObject({
+      kind: 'checking', balanceMinor: 8766, currency: 'USD',
+      source: { schema: 'plaid.AccountBase', schemaVersion: '2020-09-14', payload: { account_id: 'account-1' } },
+    });
+    const syncBody = JSON.parse(String(syncRequests[0]?.body)) as Record<string, unknown>;
+    expect(syncBody.options).toEqual({ include_original_description: true, personal_finance_category_version: 'v2' });
+    expect(syncRequests[0]?.headers).toMatchObject({ 'Plaid-Version': '2020-09-14' });
+    expect(JSON.stringify(synced)).not.toContain('access-token');
   });
 
   it('does not call an empty initial Plaid response historical history', async () => {
@@ -300,13 +409,40 @@ describe('Plaid link configuration', () => {
     });
   });
 
+  it('uses ISO currency fraction digits without inventing a default currency', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url) => String(url).endsWith('/transactions/sync') ? {
+      ok: true,
+      json: async () => ({
+        added: [{
+          transaction_id: 'yen-transaction', account_id: 'yen-account', date: '2026-08-29', name: 'Rail',
+          amount: 1234, iso_currency_code: 'JPY', pending: false,
+        }],
+        modified: [], removed: [], next_cursor: 'yen-cursor', has_more: false,
+        transactions_update_status: 'HISTORICAL_UPDATE_COMPLETE',
+      }),
+    } : {
+      ok: true,
+      json: async () => ({ accounts: [{
+        account_id: 'yen-account', name: 'JPY Checking', mask: null, type: 'depository', subtype: 'checking',
+        balances: { current: 5678, iso_currency_code: 'JPY' },
+      }] }),
+    }));
+    const provider = plaidProvider({ clientId: 'client', secret: 'secret', env: 'development' });
+
+    const synced = await provider.sync({ access_token: 'access-token', checkpoint: null });
+    expect(synced.added[0]).toMatchObject({ amountMinor: -1234, currency: 'JPY' });
+    expect(synced.accounts[0]).toMatchObject({ balanceMinor: 5678, currency: 'JPY' });
+  });
+
   it('restarts pagination from the original checkpoint after a mutation error', async () => {
     const cursors: Array<string | undefined> = [];
+    const options: unknown[] = [];
     let transactionCalls = 0;
     vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       if (!String(url).endsWith('/transactions/sync')) return { ok: true, json: async () => ({ accounts: [] }) };
-      const body = JSON.parse(String(init?.body)) as { cursor?: string };
+      const body = JSON.parse(String(init?.body)) as { cursor?: string; options?: unknown };
       cursors.push(body.cursor);
+      options.push(body.options);
       transactionCalls++;
       if (transactionCalls === 2) return {
         ok: false, status: 400,
@@ -316,8 +452,8 @@ describe('Plaid link configuration', () => {
         ok: true,
         json: async () => ({
           added: transactionCalls === 1
-            ? [{ transaction_id: 'discarded', account_id: 'a', date: '2026-08-28', name: 'Discarded', amount: 1, pending: false }]
-            : [{ transaction_id: 'kept', account_id: 'a', date: '2026-08-29', name: 'Kept', amount: 2, pending: false }],
+            ? [{ transaction_id: 'discarded', account_id: 'a', date: '2026-08-28', name: 'Discarded', amount: 1, iso_currency_code: 'USD', pending: false }]
+            : [{ transaction_id: 'kept', account_id: 'a', date: '2026-08-29', name: 'Kept', amount: 2, iso_currency_code: 'USD', pending: false }],
           modified: [], removed: [], next_cursor: transactionCalls === 1 ? 'middle' : 'done',
           has_more: transactionCalls === 1, transactions_update_status: 'HISTORICAL_UPDATE_COMPLETE',
         }),
@@ -327,6 +463,10 @@ describe('Plaid link configuration', () => {
     const synced = await provider.sync({ access_token: 'access-token', checkpoint: 'original' });
 
     expect(cursors).toEqual(['original', 'middle', 'original']);
+    expect(options).toEqual(Array.from({ length: 3 }, () => ({
+      include_original_description: true,
+      personal_finance_category_version: 'v2',
+    })));
     expect(synced.added.map((transaction) => transaction.id)).toEqual(['kept']);
     expect(synced.checkpoint).toBe('done');
   });

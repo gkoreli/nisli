@@ -3,6 +3,7 @@ import { createBankingService } from '../bank-sync.ts';
 import type { AuthenticatedBankConnection, BankingProvider } from '../bank-sync.ts';
 import type { BankConnection, BankSyncResult, ProviderAccount } from './domain.ts';
 import type { Ledger } from '../../src/data/model.ts';
+import { emptyBankFactStore } from './facts.ts';
 
 const account = (id: string, balanceMinor = 10_000): ProviderAccount => ({
   id, name: 'Checking', mask: '1234', kind: 'checking', type: 'depository', subtype: 'checking',
@@ -28,6 +29,7 @@ const snapshot = (connectionId: string): BankSyncResult => ({
 function harness({ failLive = false, historyReady = true }: { failLive?: boolean; historyReady?: boolean } = {}) {
   let connections: BankConnection[] = [connection('simulated', 'mock'), connection('live', 'plaid')];
   let currentLedger: Ledger = ledger();
+  let currentFacts = emptyBankFactStore();
   const backupLabels: Array<string | undefined> = [];
   const plaid: BankingProvider = {
     name: 'plaid',
@@ -51,10 +53,16 @@ function harness({ failLive = false, historyReady = true }: { failLive?: boolean
     providerFor,
     loadConnections: async () => structuredClone(connections),
     updateConnections: async (update) => { connections = await update(structuredClone(connections)); return connections; },
-    getLedger: async () => ({ version: 1, ledger: structuredClone(currentLedger) }),
+    getLedger: async () => ({ version: 1, ledger: structuredClone(currentLedger), bankFacts: structuredClone(currentFacts) }),
     updateLedger: async (update, options = {}) => {
       backupLabels.push(options.backupLabel);
-      currentLedger = await update(structuredClone(currentLedger));
+      const output = await update(structuredClone(currentLedger), structuredClone(currentFacts));
+      if ('ledger' in output && 'bankFacts' in output) {
+        currentLedger = output.ledger;
+        currentFacts = output.bankFacts;
+      } else {
+        currentLedger = output;
+      }
       return { version: 2, ledger: currentLedger, backup: 'ledger.pre-live-data.json' };
     },
   });
@@ -168,7 +176,10 @@ describe('banking application service', () => {
         return structuredClone(connections);
       },
       getLedger: async () => ({ version: 1, ledger: ledger() }),
-      updateLedger: async (update) => ({ version: 2, ledger: await update(ledger()) }),
+      updateLedger: async (update) => {
+        const output = await update(ledger(), emptyBankFactStore());
+        return { version: 2, ledger: 'ledger' in output ? output.ledger : output };
+      },
     });
     const completion = { public_token: 'single-use-production-token', institution: 'Selected Bank' };
 

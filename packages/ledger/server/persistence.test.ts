@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
 import type { Ledger } from '../src/data/model.ts';
+import type { BankFactStore } from './banking/facts.ts';
 
 const originalDataDirectory = process.env.LEDGER_DATA_DIR;
 const originalKey = process.env.LEDGER_KEY;
@@ -17,6 +18,35 @@ const ledger = (): Ledger => ({
   budgets: [],
   rules: [],
   settings: { name: 'Owner', currency: 'USD', locale: 'en-US' },
+});
+
+const bankFacts = (): BankFactStore => ({
+  schemaVersion: 1,
+  observations: {
+    observation: {
+      id: 'observation', provider: 'plaid', environment: 'production', connectionId: 'connection',
+      endpoint: '/transactions/sync', observedAt: '2026-08-30T12:00:00.000Z', apiVersion: '2020-09-14',
+      taxonomyVersion: 'v2', requestId: 'request', payload: { added: [], has_more: false },
+    },
+  },
+  current: {
+    accounts: {
+      account: {
+        id: 'account', kind: 'account', providerId: 'provider-account', connectionId: 'connection',
+        observationId: 'observation', observedAt: '2026-08-30T12:00:00.000Z', value: { currentMinor: 10_000 },
+      },
+    },
+    transactions: {},
+  },
+  history: [],
+  tombstones: [],
+  syncReceipts: [{
+    id: 'receipt', provider: 'plaid', environment: 'production', connectionId: 'connection',
+    startedAt: '2026-08-30T11:59:59.000Z', completedAt: '2026-08-30T12:00:00.000Z',
+    complete: true, updateStatus: 'HISTORICAL_UPDATE_COMPLETE', checkpointBefore: null,
+    checkpointAfter: 'cursor', requestIds: ['request'], observationIds: ['observation'],
+    added: [], modified: [], removed: [],
+  }],
 });
 
 async function isolatedStore() {
@@ -43,6 +73,99 @@ afterEach(async () => {
 });
 
 describe('ledger persistence validation', () => {
+  it('persists provider facts internally while the public document omits them', async () => {
+    const { directory, store } = await isolatedStore();
+    await writeFile(join(directory, 'ledger.json'), JSON.stringify({ version: 2, ledger: ledger(), bankFacts: bankFacts() }));
+
+    const internal = await store.getLedger();
+    expect(internal.bankFacts).toEqual(bankFacts());
+    expect(store.publicLedgerDocument(internal)).toEqual({ version: 2, ledger: ledger() });
+    expect(store.publicLedgerDocument(internal)).not.toHaveProperty('bankFacts');
+  });
+
+  it('rejects malformed nested fact stores instead of accepting partial evidence', async () => {
+    const { directory, store } = await isolatedStore();
+    const malformed = bankFacts() as unknown as { current: { accounts: Record<string, unknown> } };
+    malformed.current.accounts.wrongKey = malformed.current.accounts.account;
+    delete malformed.current.accounts.account;
+    await writeFile(join(directory, 'ledger.json'), JSON.stringify({ version: 2, ledger: ledger(), bankFacts: malformed }));
+
+    await expect(store.getLedger()).rejects.toMatchObject({
+      name: 'StoreError', message: 'Stored ledger.json has an invalid shape', status: 500,
+    });
+  });
+
+  it('validates and retains explainable transaction projection fields', async () => {
+    const { directory, store } = await isolatedStore();
+    const projected = ledger();
+    projected.transactions = [{
+      id: 'transaction', accountId: 'account', categoryId: 'dining', date: '2026-08-30',
+      authorizedDate: '2026-08-29', amount: -2_500, currency: 'USD', payee: 'Restaurant', pending: false,
+      classification: {
+        source: 'provider', provider: 'plaid', taxonomy: 'personal_finance_category', taxonomyVersion: 'v2',
+        mappingVersion: 'ledger-pfc-v2-1', primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_RESTAURANTS',
+        confidence: 'VERY_HIGH',
+      },
+    }];
+    await writeFile(join(directory, 'ledger.json'), JSON.stringify({ version: 2, ledger: projected }));
+
+    await expect(store.getLedger()).resolves.toMatchObject({ ledger: { transactions: projected.transactions } });
+
+    const invalid = structuredClone(projected) as unknown as { transactions: Array<Record<string, unknown>> };
+    invalid.transactions[0]!.classification = { source: 'provider', provider: 'plaid', confidence: 99 };
+    await writeFile(join(directory, 'ledger.json'), JSON.stringify({ version: 3, ledger: invalid }));
+    await expect(store.getLedger()).rejects.toMatchObject({ name: 'StoreError', status: 500 });
+  });
+
+  it('preserves facts across owner writes and rejects attempts to forge them inside the owner ledger', async () => {
+    const { directory, store } = await isolatedStore();
+    await writeFile(join(directory, 'ledger.json'), JSON.stringify({ version: 2, ledger: ledger(), bankFacts: bankFacts() }));
+    const ownerEdit = { ...ledger(), settings: { ...ledger().settings, name: 'Edited' } };
+
+    await expect(store.putLedger(2, ownerEdit)).resolves.toMatchObject({ version: 3, ledger: ownerEdit });
+    expect((await store.getLedger()).bankFacts).toEqual(bankFacts());
+
+    const forged = { ...ownerEdit, bankFacts: { schemaVersion: 999 } } as unknown as Ledger;
+    await expect(store.putLedger(3, forged)).rejects.toMatchObject({ name: 'StoreError', status: 400 });
+    expect((await store.getLedger()).bankFacts).toEqual(bankFacts());
+  });
+
+  it('atomically updates the projection and facts in one serialized document write', async () => {
+    const { directory, store } = await isolatedStore();
+    await writeFile(join(directory, 'ledger.json'), JSON.stringify({ version: 4, ledger: ledger() }));
+    const facts = bankFacts();
+
+    await store.updateLedger((current, currentFacts) => {
+      expect(currentFacts).toEqual({
+        schemaVersion: 1, observations: {}, current: { accounts: {}, transactions: {} },
+        history: [], tombstones: [], syncReceipts: [],
+      });
+      return {
+        ledger: { ...current, settings: { ...current.settings, name: 'Projected' } },
+        bankFacts: facts,
+      };
+    });
+
+    const stored = JSON.parse(await readFile(join(directory, 'ledger.json'), 'utf8')) as Record<string, unknown>;
+    expect(stored).toMatchObject({ version: 5, ledger: { settings: { name: 'Projected' } }, bankFacts: facts });
+  });
+
+  it('never exposes facts in stale-write conflicts or restore responses', async () => {
+    const { directory, store } = await isolatedStore();
+    await writeFile(join(directory, 'ledger.json'), JSON.stringify({ version: 4, ledger: ledger(), bankFacts: bankFacts() }));
+
+    const conflict = await store.putLedger(3, ledger()).catch((error: unknown) => error) as Record<string, unknown>;
+    expect(conflict).toMatchObject({ name: 'StoreError', status: 409, version: 4, ledger: ledger() });
+    expect(conflict).not.toHaveProperty('bankFacts');
+
+    await mkdir(join(directory, 'backups'));
+    const name = 'ledger-2026-08-30.pre-provider-facts.json';
+    await writeFile(join(directory, 'backups', name), JSON.stringify({ version: 2, ledger: ledger(), bankFacts: bankFacts() }));
+    const restored = await store.restoreBackup(name);
+    expect(restored).not.toHaveProperty('bankFacts');
+    expect((await store.getLedger()).bankFacts).toEqual(bankFacts());
+  });
+
   it('normalizes pre-domain account currency, connection identity, and transaction provenance', async () => {
     const { directory, store } = await isolatedStore();
     const legacy = ledger() as unknown as Record<string, unknown>;

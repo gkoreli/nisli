@@ -6,6 +6,21 @@
 
 export type PlaidEnvironment = 'development' | 'production';
 
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+export interface JsonObject {
+  [key: string]: JsonValue | undefined;
+}
+
+export const PLAID_API_VERSION = '2020-09-14' as const;
+
+/** Exact provider response data retained beside Ledger's normalized projection. */
+export interface ProviderObservation<TPayload extends JsonObject = JsonObject> {
+  schema: string;
+  schemaVersion: typeof PLAID_API_VERSION;
+  payload: TPayload;
+}
+
 export interface ProviderErrorOptions {
   status?: number;
   code?: string;
@@ -32,27 +47,33 @@ export class ProviderError extends Error {
 
 type PlaidAccountType = 'credit' | 'investment' | 'brokerage' | string;
 
-interface PlaidBalances {
+interface PlaidBalances extends JsonObject {
   current?: number | null;
   available?: number | null;
+  limit?: number | null;
   iso_currency_code?: string | null;
   unofficial_currency_code?: string | null;
+  last_updated_datetime?: string | null;
 }
 
-interface PlaidAccountResponse {
+interface PlaidAccountResponse extends JsonObject {
   account_id: string;
   name: string;
   mask?: string | null;
+  official_name?: string | null;
   type: PlaidAccountType;
   subtype?: string | null;
   balances?: PlaidBalances | null;
 }
 
-interface PlaidPersonalFinanceCategory {
-  primary?: string | null;
+interface PlaidPersonalFinanceCategory extends JsonObject {
+  primary: string;
+  detailed: string;
+  confidence_level?: string | null;
+  version?: string | null;
 }
 
-interface PlaidTransactionResponse {
+interface PlaidTransactionResponse extends JsonObject {
   transaction_id: string;
   account_id: string;
   date: string;
@@ -67,8 +88,9 @@ interface PlaidTransactionResponse {
   personal_finance_category?: PlaidPersonalFinanceCategory | null;
 }
 
-interface PlaidRemovedTransactionResponse {
+interface PlaidRemovedTransactionResponse extends JsonObject {
   transaction_id: string;
+  account_id: string;
 }
 
 interface PlaidErrorResponse {
@@ -78,9 +100,10 @@ interface PlaidErrorResponse {
   request_id?: string;
 }
 
-interface PlaidAccountsResponse {
+interface PlaidAccountsResponse extends JsonObject {
   accounts: PlaidAccountResponse[];
-  item?: { institution_name?: string | null };
+  item?: (JsonObject & { institution_name?: string | null }) | undefined;
+  request_id?: string;
 }
 
 interface PlaidLinkTokenResponse {
@@ -92,16 +115,17 @@ interface PlaidExchangeResponse {
   item_id: string;
 }
 
-interface PlaidSyncResponse {
+interface PlaidSyncResponse extends JsonObject {
   added: PlaidTransactionResponse[];
   modified: PlaidTransactionResponse[];
   removed: PlaidRemovedTransactionResponse[];
   next_cursor: string;
   has_more: boolean;
   transactions_update_status?: string | null;
+  request_id?: string;
 }
 
-export type ProviderAccountKind = 'checking' | 'savings' | 'credit' | 'investment';
+export type ProviderAccountKind = 'checking' | 'savings' | 'credit' | 'investment' | 'loan';
 
 export interface ProviderAccount {
   id: string;
@@ -112,6 +136,15 @@ export interface ProviderAccount {
   subtype: string | null;
   balanceMinor: number;
   currency: string;
+  source: ProviderObservation<PlaidAccountResponse>;
+}
+
+export interface ProviderCategory {
+  taxonomy: 'personal_finance_category';
+  primary: string;
+  detailed: string;
+  confidenceLevel: string | null;
+  version: string;
 }
 
 export interface ProviderTransaction {
@@ -124,7 +157,29 @@ export interface ProviderTransaction {
   currency: string;
   pending: boolean;
   replacesId?: string;
-  providerCategory?: string;
+  providerCategory?: ProviderCategory;
+  source: ProviderObservation<PlaidTransactionResponse>;
+}
+
+export interface ProviderRemoval {
+  id: string;
+  accountId: string;
+  source: ProviderObservation<PlaidRemovedTransactionResponse>;
+}
+
+export interface PlaidSyncPageReceipt {
+  requestId: string | null;
+  cursor: string | null;
+  nextCursor: string;
+  hasMore: boolean;
+  updateStatus: string;
+  source: ProviderObservation<PlaidSyncResponse>;
+}
+
+export interface PlaidSyncReceipt {
+  schema: 'plaid.TransactionsSync';
+  schemaVersion: typeof PLAID_API_VERSION;
+  pages: PlaidSyncPageReceipt[];
 }
 
 export interface PlaidItemCredential {
@@ -151,17 +206,20 @@ export interface PlaidConnection extends PlaidItemCredential {
 export interface PlaidAccountSnapshot {
   accounts: ProviderAccount[];
   institution?: string;
+  source: ProviderObservation<PlaidAccountsResponse>;
 }
 
 export interface PlaidSyncResult {
   added: ProviderTransaction[];
   modified: ProviderTransaction[];
-  removed: string[];
+  removed: ProviderRemoval[];
   accounts: ProviderAccount[];
   checkpoint: string | null;
   complete: true;
   updateStatus: string;
   historyReady: boolean;
+  receipt: PlaidSyncReceipt;
+  accountObservation: ProviderObservation<PlaidAccountsResponse>;
 }
 
 export interface PlaidProvider {
@@ -184,12 +242,64 @@ export interface PlaidProviderOptions {
 const accountKind = (account: PlaidAccountResponse): ProviderAccountKind => {
   if (account.type === 'credit') return 'credit';
   if (account.type === 'investment' || account.type === 'brokerage') return 'investment';
+  if (account.type === 'loan') return 'loan';
   if (account.subtype === 'savings' || account.subtype === 'money market' || account.subtype === 'cd') return 'savings';
   return 'checking';
 };
 
+const observation = <TPayload extends JsonObject>(schema: string, payload: TPayload): ProviderObservation<TPayload> => ({
+  schema,
+  schemaVersion: PLAID_API_VERSION,
+  payload: structuredClone(payload),
+});
+
+const isoCurrency = (
+  isoCode: string | null | undefined,
+  unofficialCode: string | null | undefined,
+  schema: string,
+): string => {
+  if (isoCode) return isoCode;
+  if (unofficialCode) {
+    throw new ProviderError(`${schema} uses unsupported unofficial currency ${unofficialCode}`, {
+      code: 'PLAID_UNSUPPORTED_CURRENCY',
+    });
+  }
+  throw new ProviderError(`${schema} did not provide a currency`, { code: 'PLAID_CONTRACT_ERROR' });
+};
+
+const minorUnits = (amount: number, currency: string, schema: string): number => {
+  let fractionDigits: number;
+  try {
+    const resolved = new Intl.NumberFormat('en', { style: 'currency', currency })
+      .resolvedOptions().maximumFractionDigits;
+    if (resolved === undefined) throw new RangeError('Currency fraction digits are unavailable');
+    fractionDigits = resolved;
+  } catch {
+    throw new ProviderError(`${schema} provided invalid ISO currency ${currency}`, {
+      code: 'PLAID_CONTRACT_ERROR',
+    });
+  }
+  const normalized = Math.round(amount * (10 ** fractionDigits));
+  if (!Number.isSafeInteger(normalized)) {
+    throw new ProviderError(`${schema} amount exceeds Ledger's safe integer range`, {
+      code: 'PLAID_CONTRACT_ERROR',
+    });
+  }
+  return normalized;
+};
+
 const plaidAccount = (account: PlaidAccountResponse): ProviderAccount => {
-  const balance = account.balances?.current ?? account.balances?.available ?? 0;
+  const balance = account.balances?.current ?? account.balances?.available;
+  if (balance === null || balance === undefined) {
+    throw new ProviderError('plaid.AccountBase did not provide a current or available balance', {
+      code: 'PLAID_CONTRACT_ERROR',
+    });
+  }
+  const currency = isoCurrency(
+    account.balances?.iso_currency_code,
+    account.balances?.unofficial_currency_code,
+    'plaid.AccountBase',
+  );
   return {
     id: account.account_id,
     name: account.name,
@@ -197,24 +307,47 @@ const plaidAccount = (account: PlaidAccountResponse): ProviderAccount => {
     kind: accountKind(account),
     type: account.type,
     subtype: account.subtype ?? null,
-    balanceMinor: Math.round(balance * 100) * (account.type === 'credit' ? -1 : 1),
-    currency: account.balances?.iso_currency_code ?? account.balances?.unofficial_currency_code ?? 'USD',
+    balanceMinor: minorUnits(balance, currency, 'plaid.AccountBase') * (account.type === 'credit' ? -1 : 1),
+    currency,
+    source: observation('plaid.AccountBase', account),
   };
 };
 
-const plaidTransaction = (transaction: PlaidTransactionResponse): ProviderTransaction => ({
-  id: transaction.transaction_id,
-  accountId: transaction.account_id,
-  bookedOn: transaction.date,
-  ...(transaction.authorized_date ? { authorizedOn: transaction.authorized_date } : {}),
-  description: transaction.merchant_name || transaction.name,
-  amountMinor: -Math.round(transaction.amount * 100),
-  currency: transaction.iso_currency_code ?? transaction.unofficial_currency_code ?? 'USD',
-  pending: !!transaction.pending,
-  ...(transaction.pending_transaction_id ? { replacesId: transaction.pending_transaction_id } : {}),
-  ...(transaction.personal_finance_category?.primary
-    ? { providerCategory: transaction.personal_finance_category.primary }
-    : {}),
+const plaidTransaction = (transaction: PlaidTransactionResponse): ProviderTransaction => {
+  const currency = isoCurrency(
+    transaction.iso_currency_code,
+    transaction.unofficial_currency_code,
+    'plaid.Transaction',
+  );
+  return {
+    id: transaction.transaction_id,
+    accountId: transaction.account_id,
+    bookedOn: transaction.date,
+    ...(transaction.authorized_date ? { authorizedOn: transaction.authorized_date } : {}),
+    description: transaction.merchant_name || transaction.name,
+    amountMinor: -minorUnits(transaction.amount, currency, 'plaid.Transaction'),
+    currency,
+    pending: !!transaction.pending,
+    ...(transaction.pending_transaction_id ? { replacesId: transaction.pending_transaction_id } : {}),
+    ...(transaction.personal_finance_category
+    ? { providerCategory: {
+      taxonomy: 'personal_finance_category',
+      primary: transaction.personal_finance_category.primary,
+        detailed: transaction.personal_finance_category.detailed,
+        confidenceLevel: transaction.personal_finance_category.confidence_level ?? null,
+        // The request pins PFCv2. Older responses can omit this otherwise
+        // redundant value; the exact omission remains visible in `source`.
+        version: transaction.personal_finance_category.version ?? 'v2',
+      } }
+      : {}),
+    source: observation('plaid.Transaction', transaction),
+  };
+};
+
+const plaidRemoval = (removed: PlaidRemovedTransactionResponse): ProviderRemoval => ({
+  id: removed.transaction_id,
+  accountId: removed.account_id,
+  source: observation('plaid.RemovedTransaction', removed),
 });
 
 const errorName = (error: unknown): string => error instanceof Error ? error.name : '';
@@ -252,7 +385,10 @@ export function plaidProvider({
       try {
         response = await fetch(`https://${env}.plaid.com${path}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Plaid-Version': PLAID_API_VERSION,
+          },
           body: JSON.stringify({ client_id: clientId, secret, ...body }),
           signal: AbortSignal.timeout(30_000),
         });
@@ -299,6 +435,7 @@ export function plaidProvider({
     return {
       accounts: response.accounts.map(plaidAccount),
       ...(response.item?.institution_name ? { institution: response.item.institution_name } : {}),
+      source: observation('plaid.AccountsGetResponse', response),
     };
   };
 
@@ -355,24 +492,39 @@ export function plaidProvider({
       };
       let updateStatus = 'TRANSACTIONS_UPDATE_STATUS_UNKNOWN';
       let complete = false;
+      let pages: PlaidSyncPageReceipt[] = [];
 
       for (let pass = 0; pass < 2; pass++) {
         cursor = initialCheckpoint;
         output = { added: [], modified: [], removed: [] };
         updateStatus = 'TRANSACTIONS_UPDATE_STATUS_UNKNOWN';
         complete = false;
+        pages = [];
         try {
           for (let page = 0; page < 50; page++) {
+            const pageCursor = cursor ?? null;
             const response = await call<PlaidSyncResponse>('/transactions/sync', {
               access_token: accessToken(item),
               cursor,
               count: 500,
+              options: {
+                include_original_description: true,
+                personal_finance_category_version: 'v2',
+              },
             });
             output.added.push(...response.added.map(plaidTransaction));
             output.modified.push(...response.modified.map(plaidTransaction));
-            output.removed.push(...response.removed.map((removed) => removed.transaction_id));
+            output.removed.push(...response.removed.map(plaidRemoval));
             cursor = response.next_cursor;
             updateStatus = response.transactions_update_status ?? updateStatus;
+            pages.push({
+              requestId: response.request_id ?? null,
+              cursor: pageCursor,
+              nextCursor: response.next_cursor,
+              hasMore: response.has_more,
+              updateStatus,
+              source: observation('plaid.TransactionsSyncResponse', response),
+            });
             if (!response.has_more) {
               complete = true;
               break;
@@ -399,6 +551,12 @@ export function plaidProvider({
         complete: true,
         updateStatus,
         historyReady: updateStatus === 'HISTORICAL_UPDATE_COMPLETE',
+        receipt: {
+          schema: 'plaid.TransactionsSync',
+          schemaVersion: PLAID_API_VERSION,
+          pages,
+        },
+        accountObservation: currentAccounts.source,
       };
     },
 

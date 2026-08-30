@@ -22,6 +22,8 @@ import type {
   PublicBankingError,
 } from './banking/domain.ts';
 import type { Ledger } from '../src/data/model.ts';
+import { emptyBankFactStore } from './banking/facts.ts';
+import type { BankFactStore } from './banking/facts.ts';
 import { createHash } from 'node:crypto';
 
 export { projectBankSync, shouldRunDaily } from './banking/domain.ts';
@@ -35,7 +37,7 @@ export interface BankingProvider {
   env: string;
   linkToken(connection?: AuthenticatedBankConnection): Promise<{ link_token: string }>;
   exchange(body: LinkCompletion): Promise<BankConnectionInput>;
-  accounts(connection: AuthenticatedBankConnection): Promise<{ accounts: ProviderAccount[]; institution?: string }>;
+  accounts(connection: AuthenticatedBankConnection): Promise<{ accounts: ProviderAccount[]; institution?: string; source?: import('./banking/domain.ts').ProviderObservation }>;
   sync(connection: AuthenticatedBankConnection): Promise<BankSyncResult>;
   remove(connection: AuthenticatedBankConnection): Promise<void>;
 }
@@ -48,6 +50,7 @@ export interface LinkCompletion extends Record<string, unknown> {
 export interface LedgerDocument {
   version: number;
   ledger: Ledger | null;
+  bankFacts?: BankFactStore;
 }
 
 export interface LedgerUpdateResult extends LedgerDocument {
@@ -61,7 +64,7 @@ export interface BankingServiceDependencies {
   updateConnections(update: (connections: BankConnection[]) => Awaitable<BankConnection[]>): Promise<BankConnection[]>;
   getLedger(): Promise<LedgerDocument>;
   updateLedger(
-    update: (ledger: Ledger) => Awaitable<Ledger>,
+    update: (ledger: Ledger, bankFacts: BankFactStore) => Awaitable<Ledger | { ledger: Ledger; bankFacts: BankFactStore }>,
     options?: { backupLabel?: string },
   ): Promise<LedgerUpdateResult>;
 }
@@ -154,16 +157,17 @@ export function createBankingService({ activeProvider, providerFor, loadConnecti
     { rebuild = false, backupLabel }: { rebuild?: boolean; backupLabel?: string } = {},
   ): Promise<PersistedSyncSummary> => {
     let summary!: BankSyncSummary;
-    const updated = await updateLedger((ledger) => {
-      const applied = projectBankSync(ledger, connection, result, { rebuild });
+    const updated = await updateLedger((ledger, bankFacts) => {
+      const applied = projectBankSync(ledger, connection, result, { rebuild, bankFacts });
       summary = applied.summary;
-      return applied.ledger;
+      return { ledger: applied.ledger, bankFacts: applied.bankFacts };
     }, { backupLabel });
     await updateConnections((current) => current.map((candidate) => candidate.id === connection.id ? {
       ...candidate,
       provider: connection.provider,
       environment: connection.environment,
       accounts: result.accounts,
+      ...(result.accountObservation ? { accountObservation: result.accountObservation } : {}),
       checkpoint: result.checkpoint ?? candidate.checkpoint,
       historyStatus: result.updateStatus ?? candidate.historyStatus,
       status: 'ok',
@@ -249,6 +253,7 @@ export function createBankingService({ activeProvider, providerFor, loadConnecti
             ...candidate,
             institution: details.institution || candidate.institution,
             accounts: details.accounts,
+            ...(details.source ? { accountObservation: details.source } : {}),
             status: 'ok',
             error: undefined,
           }
@@ -318,17 +323,20 @@ export function createBankingService({ activeProvider, providerFor, loadConnecti
       const totalKeys = ['added', 'modified', 'unmatched', 'removed', 'accounts'] as const;
       const updated = await updateLedger((ledger) => {
         let projection = financialBlank(ledger);
+        let bankFacts = emptyBankFactStore();
         for (const snapshot of snapshots) {
-          const applied = projectBankSync(projection, snapshot.connection, snapshot.result, { rebuild: true });
+          const applied = projectBankSync(projection, snapshot.connection, snapshot.result, { rebuild: true, bankFacts });
           projection = applied.ledger;
+          bankFacts = applied.bankFacts;
           for (const key of totalKeys) totals[key] += applied.summary[key];
         }
-        return projection;
+        return { ledger: projection, bankFacts };
       }, { backupLabel: 'pre-live-data' });
 
       await updateConnections(() => snapshots.map(({ connection, result }) => ({
         ...connection,
         accounts: result.accounts,
+        ...(result.accountObservation ? { accountObservation: result.accountObservation } : {}),
         checkpoint: result.checkpoint ?? connection.checkpoint,
         historyStatus: result.updateStatus ?? connection.historyStatus,
         status: 'ok',

@@ -302,6 +302,12 @@ export const categorize = (payee: string): string | undefined => {
   return rules.value.find((r) => r.match && p.includes(r.match.toLowerCase()))?.categoryId;
 };
 
+export const categoryDecisionFor = (payee: string): { categoryId: string; ruleId: string } | undefined => {
+  const p = payee.toLowerCase();
+  const rule = rules.value.find((candidate) => candidate.match && p.includes(candidate.match.toLowerCase()));
+  return rule ? { categoryId: rule.categoryId, ruleId: rule.id } : undefined;
+};
+
 export const addTransaction = (t: Omit<Transaction, 'id'>) =>
   patch({ transactions: [{ ...t, id: uid() }, ...state.value.transactions].sort(byDateDesc) });
 export const updateTransaction = (t: Transaction) =>
@@ -361,10 +367,10 @@ export const applyRules = (): number => {
   let n = 0;
   const next = state.value.transactions.map((t) => {
     if (t.categoryId !== UNCATEGORIZED) return t;
-    const c = categorize(t.payee);
-    if (!c) return t;
+    const decision = categoryDecisionFor(t.payee);
+    if (!decision) return t;
     n++;
-    return { ...t, categoryId: c };
+    return { ...t, categoryId: decision.categoryId, classification: { source: 'rule' as const, ruleId: decision.ruleId } };
   });
   if (n) patch({ transactions: next });
   return n;

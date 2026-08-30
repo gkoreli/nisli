@@ -1,7 +1,7 @@
 import { component, signal, computed } from '@nisli/core';
 import { Dialog, Form, Text, confirm, notify, type Field } from '@nisli/engine';
 import { UNCATEGORIZED, type Transaction } from '../data/model.js';
-import { accounts, categories, addTransaction, updateTransaction, removeTransaction, categorize } from '../data/store.js';
+import { accounts, categories, addTransaction, updateTransaction, removeTransaction, categoryDecisionFor } from '../data/store.js';
 import { today, money } from '../data/format.js';
 
 /** The form's shape: what a person fills in, not what is stored. */
@@ -60,8 +60,17 @@ export const TransactionDialog = component<TransactionDialogProps>('ledger-trans
 
   const submit = (d: Draft) => {
     const amount = Math.round((d.amount ?? 0) * 100) * (d.kind === 'income' ? 1 : -1);
-    const base = { date: d.date, amount, payee: d.payee, accountId: d.accountId, categoryId: d.categoryId || categorize(d.payee) || UNCATEGORIZED, note: d.note || undefined };
     const existing = props.transaction.value;
+    const rule = d.categoryId ? undefined : categoryDecisionFor(d.payee);
+    const categoryId = d.categoryId || rule?.categoryId || UNCATEGORIZED;
+    const classification = existing && categoryId === existing.categoryId
+      ? existing.classification
+      : d.categoryId
+        ? { source: 'owner' as const }
+        : rule
+          ? { source: 'rule' as const, ruleId: rule.ruleId }
+          : { source: 'unassigned' as const, reason: 'no-rule-or-provider-category' as const };
+    const base = { date: d.date, amount, payee: d.payee, accountId: d.accountId, categoryId, classification, note: d.note || undefined };
     if (existing) updateTransaction({ ...existing, ...base }); else addTransaction(base);
     props.onClose.value();
     notify(existing ? 'Transaction saved' : 'Transaction added', 'positive');

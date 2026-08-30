@@ -6,7 +6,10 @@
  * references. No Plaid response shape is allowed into the ledger projection.
  */
 import { randomUUID } from 'node:crypto';
-import type { Account, AccountKind, Budget, Ledger, Rule, Transaction } from '../../src/data/model.ts';
+import type { Account, AccountKind, Budget, CategoryDecision, Ledger, Rule, Transaction } from '../../src/data/model.ts';
+import { categorizeProviderFact } from './categorization.ts';
+import { projectBankFacts } from './fact-projection.ts';
+import type { BankFactStore } from './facts.ts';
 
 export const UNCATEGORIZED = 'uncategorized';
 /** Read-only compatibility marker for connections created by the retired runtime mock provider. */
@@ -28,6 +31,8 @@ export interface ProviderAccount {
   subtype: string | null;
   balanceMinor: number;
   currency: string;
+  /** Exact provider object retained by the server-side fact store. */
+  source?: ProviderObservation;
 }
 
 export interface ProviderAccountInput extends Partial<Omit<ProviderAccount, 'id' | 'name'>> {
@@ -48,6 +53,7 @@ export interface BankConnection {
   access_token?: string;
   completionKey?: string;
   historyStatus?: string;
+  accountObservation?: ProviderObservation;
   error?: PublicBankingError;
 }
 
@@ -68,18 +74,53 @@ export interface ProviderTransaction {
   currency: string;
   pending: boolean;
   replacesId?: string;
-  providerCategory?: string;
+  providerCategory?: {
+    taxonomy: string;
+    primary: string;
+    detailed: string;
+    confidenceLevel: string | null;
+    version: string | null;
+  };
+  /** Exact provider object retained by the server-side fact store. */
+  source?: ProviderObservation;
+}
+
+export interface ProviderObservation {
+  schema: string;
+  schemaVersion: string;
+  payload: Record<string, unknown>;
+}
+
+export interface ProviderRemoval {
+  id: string;
+  accountId?: string;
+  source?: ProviderObservation;
+}
+
+export interface BankSyncReceipt {
+  schema: string;
+  schemaVersion: string;
+  pages: Array<{
+    requestId: string | null;
+    cursor: string | null;
+    nextCursor: string;
+    hasMore: boolean;
+    updateStatus: string;
+    source?: ProviderObservation;
+  }>;
 }
 
 export interface BankSyncResult {
   added: ProviderTransaction[];
   modified: ProviderTransaction[];
-  removed: string[];
+  removed: Array<string | ProviderRemoval>;
   accounts: ProviderAccount[];
   checkpoint: string | null;
   complete: boolean;
   updateStatus: string;
   historyReady: boolean;
+  receipt?: BankSyncReceipt;
+  accountObservation?: ProviderObservation;
 }
 
 export interface BankSyncSummary {
@@ -95,11 +136,22 @@ export interface BankSyncSummary {
 
 export interface ProjectionOptions {
   rebuild?: boolean;
+  bankFacts?: BankFactStore;
   createId?: () => string;
   now?: () => string;
 }
 
-export interface ConnectionView extends Omit<BankConnection, 'access_token' | 'checkpoint' | 'completionKey'> {}
+export interface ConnectionView {
+  id: string;
+  provider: string;
+  environment: string;
+  institution: string;
+  status: ConnectionStatus;
+  createdAt?: string;
+  accounts: Array<Omit<ProviderAccount, 'source'>>;
+  historyStatus?: string;
+  error?: PublicBankingError;
+}
 
 export interface FinancialComposition {
   accounts: Record<'live' | 'legacy' | 'unowned', number>;
@@ -125,13 +177,15 @@ const bankTransactionId = (transaction: Transaction, connection: BankConnection,
   if (transaction.externalId && ownedAccountIds.has(transaction.accountId)) return transaction.externalId;
   return undefined;
 };
-const categoryFor = (ledger: Ledger, payee: string): string => {
+const categoryFor = (ledger: Ledger, payee: string): { categoryId: string; decision: CategoryDecision } | undefined => {
   const normalized = payee.toLowerCase();
-  return ledger.rules.find((rule) => rule.match && normalized.includes(rule.match.toLowerCase()))?.categoryId ?? UNCATEGORIZED;
+  const rule = ledger.rules.find((candidate) => candidate.match && normalized.includes(candidate.match.toLowerCase()));
+  return rule ? { categoryId: rule.categoryId, decision: { source: 'rule', ruleId: rule.id } } : undefined;
 };
 const accountKind = (account: ProviderAccountInput): AccountKind => {
   if (account.kind) return account.kind;
   if (account.type === 'credit') return 'credit';
+  if (account.type === 'loan') return 'loan';
   if (account.type === 'investment' || account.type === 'brokerage') return 'investment';
   if (account.subtype === 'savings' || account.subtype === 'money market' || account.subtype === 'cd') return 'savings';
   return 'checking';
@@ -147,6 +201,46 @@ const normalizeProviderAccount = (account: ProviderAccountInput): ProviderAccoun
   type: account.type ?? 'depository',
   subtype: account.subtype ?? null,
 });
+
+const ownerCategory = (transaction: Transaction | undefined): { categoryId: string; decision: CategoryDecision } | undefined => {
+  if (!transaction) return undefined;
+  if (transaction.classification?.source === 'owner' || transaction.classification?.source === 'rule') {
+    return { categoryId: transaction.categoryId, decision: transaction.classification };
+  }
+  // Rows written before decision provenance existed are migration facts. A
+  // non-default category may be an owner decision, so preserve it. The old
+  // automatic `uncategorized` fallback is safe to reproject during a rebuild.
+  if (!transaction.classification && transaction.categoryId !== UNCATEGORIZED) {
+    return { categoryId: transaction.categoryId, decision: { source: 'owner' } };
+  }
+  return undefined;
+};
+
+const effectiveCategory = (
+  ledger: Ledger,
+  providerName: string,
+  transaction: ProviderTransaction,
+  previous: Transaction | undefined,
+): { categoryId: string; decision: CategoryDecision; categoryName?: string } => {
+  const owner = ownerCategory(previous);
+  if (owner) return owner;
+  const rule = categoryFor(ledger, transaction.description);
+  if (rule) return rule;
+  const provider = transaction.providerCategory;
+  if (provider?.primary && provider.detailed && provider.version) {
+    const mapped = categorizeProviderFact({
+      provider: providerName,
+      taxonomy: provider.taxonomy,
+      version: provider.version,
+      primary: provider.primary,
+      detailed: provider.detailed,
+      confidence: provider.confidenceLevel,
+    });
+    if (mapped) return { categoryId: mapped.categoryId, categoryName: mapped.categoryName, decision: mapped.decision };
+    return { categoryId: UNCATEGORIZED, decision: { source: 'unassigned', reason: 'unmapped-provider-category' } };
+  }
+  return { categoryId: UNCATEGORIZED, decision: { source: 'unassigned', reason: 'no-rule-or-provider-category' } };
+};
 
 /** Migrate a stored provider Item into the BankConnection aggregate. */
 export function normalizeConnection(
@@ -172,8 +266,17 @@ export function normalizeConnection(
 /** The browser gets identity and health, never credentials or sync internals. */
 export function connectionView(raw: BankConnectionInput): ConnectionView {
   const connection = normalizeConnection(raw);
-  const { access_token, checkpoint, completionKey, ...visible } = connection;
-  return visible;
+  return {
+    id: connection.id,
+    provider: connection.provider,
+    environment: connection.environment,
+    institution: connection.institution,
+    status: connection.status,
+    ...(connection.createdAt ? { createdAt: connection.createdAt } : {}),
+    accounts: connection.accounts.map(({ source: _source, ...account }) => account),
+    ...(connection.historyStatus ? { historyStatus: connection.historyStatus } : {}),
+    ...(connection.error ? { error: connection.error } : {}),
+  };
 }
 
 export const isLiveConnection = (connection: Pick<BankConnection, 'provider'>): boolean => connection.provider !== LEGACY_SIMULATED_PROVIDER;
@@ -190,8 +293,8 @@ export function projectBankSync(
   ledger: Ledger,
   rawConnection: BankConnectionInput,
   result: BankSyncResult,
-  { rebuild = false, createId = randomUUID, now = () => new Date().toISOString() }: ProjectionOptions = {},
-): { ledger: Ledger; summary: BankSyncSummary } {
+  { rebuild = false, bankFacts, createId = randomUUID, now = () => new Date().toISOString() }: ProjectionOptions = {},
+): { ledger: Ledger; bankFacts: BankFactStore; summary: BankSyncSummary } {
   const connection = normalizeConnection(rawConnection);
   if (rebuild && (!result.complete || result.historyReady !== true)) {
     throw new Error('A bank projection can only be rebuilt after its complete history is ready');
@@ -200,6 +303,7 @@ export function projectBankSync(
   next.sync ??= {};
   const bankHistory = next.bankHistory ??= [];
   const observedAt = now();
+  const nextBankFacts = projectBankFacts(bankFacts, connection, result, observedAt);
   const providerAccounts = result.accounts;
   const currentProviderAccountIds = new Set(providerAccounts.map((account) => account.id));
   const ledgerAccountFor = new Map<string, string>();
@@ -229,9 +333,12 @@ export function projectBankSync(
       next.accounts.push(account);
       accountsAdded++;
     } else {
-      // Single-write the modern provenance/currency shape as old rows are seen.
+      const institutionPrefix = bank.name.toLowerCase().startsWith(connection.institution.toLowerCase()) ? '' : `${connection.institution} `;
+      account.name = `${institutionPrefix}${bank.name} ···${bank.mask}`;
+      account.kind = bank.kind;
+      account.institution = connection.institution;
+      account.currency = bank.currency;
       account.external = { provider: connection.provider, environment: connection.environment, connectionId: connection.id, accountId: bank.id, status: 'active' };
-      account.currency ??= bank.currency;
     }
     ledgerAccountFor.set(bank.id, account.id);
   }
@@ -243,7 +350,7 @@ export function projectBankSync(
     if (id) priorByBankId.set(id, transaction);
   }
 
-  const removedIds = new Set(result.removed);
+  const removedIds = new Set(result.removed.map((removed) => typeof removed === 'string' ? removed : removed.id));
   const replacementFor = new Map<string, string>([...result.added, ...result.modified]
     .flatMap((transaction) => transaction.replacesId ? [[transaction.replacesId, transaction.id] as const] : []));
   const archived = new Set<string>();
@@ -291,18 +398,33 @@ export function projectBankSync(
     const existingIndex = next.transactions.findIndex((transaction) => bankTransactionId(transaction, connection, ownedAccountIds) === bank.id);
     const existing = existingIndex >= 0 ? next.transactions[existingIndex] : undefined;
     const previous = existing ?? pending;
+    const classification = effectiveCategory(next, connection.provider, bank, previous);
+    if (classification.categoryName && !next.categories.some((category) => category.id === classification.categoryId)) {
+      next.categories.push({ id: classification.categoryId, name: classification.categoryName });
+    }
     const row: Transaction = {
       id: previous?.id ?? createId(),
       accountId,
-      categoryId: previous?.categoryId ?? categoryFor(next, bank.description),
+      categoryId: classification.categoryId,
+      classification: classification.decision,
       date: bank.bookedOn,
+      ...(bank.authorizedOn ? { authorizedDate: bank.authorizedOn } : {}),
       amount: bank.amountMinor,
+      currency: bank.currency,
       payee: bank.description,
-      note: bank.pending ? (previous?.note ?? 'pending') : previous?.note === 'pending' ? undefined : previous?.note,
+      pending: bank.pending,
+      note: previous?.note,
       bank: { provider: connection.provider, environment: connection.environment, connectionId: connection.id, transactionId: bank.id },
     };
     if (existing) {
-      if (existing.accountId !== row.accountId || existing.date !== row.date || existing.amount !== row.amount || existing.payee !== row.payee) {
+      if (existing.accountId !== row.accountId
+        || existing.date !== row.date
+        || existing.authorizedDate !== row.authorizedDate
+        || existing.amount !== row.amount
+        || existing.currency !== row.currency
+        || existing.payee !== row.payee
+        || existing.pending !== row.pending
+        || JSON.stringify(existing.classification) !== JSON.stringify(row.classification)) {
         archive(existing, 'modified');
       }
       next.transactions[existingIndex] = row;
@@ -337,7 +459,11 @@ export function projectBankSync(
   if (rebuild && next.pendingBankRebuild) {
     next.pendingBankRebuild = next.pendingBankRebuild.filter((connectionId) => connectionId !== connection.id);
   }
-  return { ledger: next, summary: { added, modified, unmatched, removed, accounts: accountsAdded, inactiveAccounts: accountsInactive, at, historyStatus: result.updateStatus } };
+  return {
+    ledger: next,
+    bankFacts: nextBankFacts,
+    summary: { added, modified, unmatched, removed, accounts: accountsAdded, inactiveAccounts: accountsInactive, at, historyStatus: result.updateStatus },
+  };
 }
 
 const LEGACY_BUDGETS = new Set([
@@ -417,6 +543,17 @@ export function mergeOwnerLedgerWrite(current: Ledger | null, proposed: unknown)
     transaction.bank || (transaction.externalId && currentBankAccountIds.has(transaction.accountId)),
   ).map((transaction) => [transaction.id, transaction]));
   const proposedTransactionIds = new Set<string>();
+  const validRuleDecision = (transaction: Transaction): CategoryDecision | undefined => {
+    const classification = transaction.classification;
+    if (classification?.source !== 'rule') return undefined;
+    const rule = proposed.rules.find((candidate) => candidate.id === classification.ruleId);
+    return rule
+      && rule.categoryId === transaction.categoryId
+      && rule.match
+      && transaction.payee.toLowerCase().includes(rule.match.toLowerCase())
+      ? classification
+      : undefined;
+  };
   const transactions = proposed.transactions.map((transaction) => {
     proposedTransactionIds.add(transaction.id);
     const existing = currentBankTransactions.get(transaction.id);
@@ -426,7 +563,19 @@ export function mergeOwnerLedgerWrite(current: Ledger | null, proposed: unknown)
     if (!existing && transaction.externalId && currentBankAccountIds.has(transaction.accountId)) {
       throw conflict('The browser cannot create a provider id inside a bank account', 'BANK_OWNERSHIP');
     }
-    return existing ? { ...structuredClone(existing), categoryId: transaction.categoryId, note: transaction.note } : structuredClone(transaction);
+    if (!existing) return structuredClone(transaction);
+    const categoryChanged = transaction.categoryId !== existing.categoryId;
+    const decision = categoryChanged
+      ? validRuleDecision(transaction) ?? { source: 'owner' as const }
+      : transaction.classification?.source === 'owner'
+        ? transaction.classification
+        : existing.classification;
+    return {
+      ...structuredClone(existing),
+      categoryId: transaction.categoryId,
+      ...(decision ? { classification: decision } : {}),
+      note: transaction.note,
+    };
   });
   for (const transaction of currentBankTransactions.values()) {
     if (!proposedTransactionIds.has(transaction.id)) transactions.push(structuredClone(transaction));
