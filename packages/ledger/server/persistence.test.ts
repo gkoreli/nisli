@@ -43,6 +43,29 @@ afterEach(async () => {
 });
 
 describe('ledger persistence validation', () => {
+  it('normalizes pre-domain account currency, connection identity, and transaction provenance', async () => {
+    const { directory, store } = await isolatedStore();
+    const legacy = ledger() as unknown as Record<string, unknown>;
+    legacy.accounts = [{
+      id: 'account', name: 'Checking', kind: 'checking', opening: 0, institution: 'Bank',
+      external: { provider: 'plaid', itemId: 'connection', accountId: 'provider-account' },
+    }];
+    legacy.transactions = [{
+      id: 'transaction', accountId: 'account', categoryId: 'uncategorized', date: '2026-08-30',
+      amount: -100, payee: 'Merchant', externalId: 'provider-transaction',
+    }];
+    await writeFile(join(directory, 'ledger.json'), JSON.stringify({ version: 3, ledger: legacy }));
+
+    const loaded = await store.getLedger();
+    expect(loaded.ledger?.accounts[0]).toMatchObject({
+      currency: 'USD',
+      external: { provider: 'plaid', connectionId: 'connection', accountId: 'provider-account' },
+    });
+    expect(loaded.ledger?.transactions[0]?.bank).toEqual({
+      provider: 'plaid', connectionId: 'connection', transactionId: 'provider-transaction',
+    });
+  });
+
   it('rejects valid JSON whose nested ledger fields do not match the persisted Ledger shape', async () => {
     const { directory, store } = await isolatedStore();
     await writeFile(join(directory, 'ledger.json'), JSON.stringify({

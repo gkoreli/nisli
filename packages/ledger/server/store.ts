@@ -208,13 +208,63 @@ function isLedger(value: unknown): value is Ledger {
     && isOptional(value.pendingBankRebuild, isStringArray);
 }
 
-function isLedgerDocument(value: unknown): value is LedgerDocument {
-  return isRecord(value)
-    && isInteger(value.version)
-    && value.version >= 0
-    && (value.ledger === null || isLedger(value.ledger))
-    && isOptional(value.savedAt, isString)
-    && isOptional(value.restoredFrom, isString);
+/** Normalize persisted shapes written before currency and explicit bank provenance. */
+function normalizePersistedLedger(value: unknown): Ledger | undefined {
+  if (!isRecord(value) || !isRecord(value.settings) || !isString(value.settings.currency)
+    || !Array.isArray(value.accounts) || !Array.isArray(value.transactions)) return undefined;
+  const currency = value.settings.currency;
+  const accounts = value.accounts.map((account) => {
+    if (!isRecord(account)) return account;
+    const legacyExternal = isRecord(account.external) ? account.external : undefined;
+    const connectionId = legacyExternal && (isString(legacyExternal.connectionId)
+      ? legacyExternal.connectionId
+      : isString(legacyExternal.itemId) ? legacyExternal.itemId : undefined);
+    const external = legacyExternal && connectionId
+      ? {
+        provider: legacyExternal.provider,
+        ...(isString(legacyExternal.environment) ? { environment: legacyExternal.environment } : {}),
+        connectionId,
+        accountId: legacyExternal.accountId,
+        ...(isOneOf(['active', 'inactive'] as const)(legacyExternal.status) ? { status: legacyExternal.status } : {}),
+      }
+      : account.external;
+    return {
+      ...account,
+      currency: isString(account.currency) ? account.currency : currency,
+      ...(external === undefined ? {} : { external }),
+    };
+  });
+  const accountById = new Map(accounts.filter(isRecord).map((account) => [account.id, account]));
+  const transactions = value.transactions.map((transaction) => {
+    if (!isRecord(transaction) || transaction.bank !== undefined || !isString(transaction.externalId)) return transaction;
+    const account = accountById.get(transaction.accountId);
+    const external = isRecord(account?.external) ? account.external : undefined;
+    if (!external || !isString(external.provider) || !isString(external.connectionId)) return transaction;
+    return {
+      ...transaction,
+      bank: {
+        provider: external.provider,
+        ...(isString(external.environment) ? { environment: external.environment } : {}),
+        connectionId: external.connectionId,
+        transactionId: transaction.externalId,
+      },
+    };
+  });
+  const normalized = { ...value, accounts, transactions };
+  return isLedger(normalized) ? normalized : undefined;
+}
+
+function normalizeLedgerDocument(value: unknown): LedgerDocument | undefined {
+  if (!isRecord(value) || !isInteger(value.version) || value.version < 0
+    || !isOptional(value.savedAt, isString) || !isOptional(value.restoredFrom, isString)) return undefined;
+  const ledger = value.ledger === null ? null : normalizePersistedLedger(value.ledger);
+  if (ledger === undefined) return undefined;
+  return {
+    version: value.version,
+    ledger,
+    ...(isString(value.savedAt) ? { savedAt: value.savedAt } : {}),
+    ...(isString(value.restoredFrom) ? { restoredFrom: value.restoredFrom } : {}),
+  };
 }
 
 function isProviderAccountInput(value: unknown): boolean {
@@ -252,8 +302,9 @@ function isBankConnectionInput(value: unknown): value is BankConnectionInput {
 async function readDoc(): Promise<LedgerDocument> {
   const document = await readJson(LEDGER_FILE, null);
   if (document === null) return { version: 0, ledger: null };
-  if (!isLedgerDocument(document)) throw new StoreError('Stored ledger.json has an invalid shape', 500);
-  return document;
+  const normalized = normalizeLedgerDocument(document);
+  if (!normalized) throw new StoreError('Stored ledger.json has an invalid shape', 500);
+  return normalized;
 }
 
 export const getLedger = (): Promise<LedgerDocument> => readDoc();
@@ -371,12 +422,13 @@ export function restoreBackup(name: string): Promise<LedgerSnapshot> {
     if (basename(name) !== name || !ANY_BACKUP.test(name)) throw new StoreError('Unknown backup', 400);
     const source = join(BACKUP_DIR, name);
     const stored = await readJson(source, null);
-    if (!isLedgerDocument(stored) || stored.ledger === null) throw new StoreError('Unknown backup', 404);
+    const normalized = normalizeLedgerDocument(stored);
+    if (!normalized || normalized.ledger === null) throw new StoreError('Unknown backup', 404);
     const current = await readDoc();
     if (current.ledger !== null) await backupNamed('pre-restore');
     // The version keeps moving forward so a client holding the old number gets a clean 409, never a silent overwrite.
     const activeConnections = (await loadConnections()).filter(canSynchronize).map((connection) => connection.id);
-    const restoredLedger: Ledger = { ...stored.ledger, pendingBankRebuild: activeConnections };
+    const restoredLedger: Ledger = { ...normalized.ledger, pendingBankRebuild: activeConnections };
     const next: LedgerDocument = {
       version: current.version + 1,
       ledger: restoredLedger,
