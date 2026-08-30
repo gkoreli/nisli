@@ -67,58 +67,15 @@ describe('the engine is visual-less', () => {
   });
 });
 
-// ── Completeness: every part a block asks for, both schemes define ──────
-import { readFileSync, readdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { PARTS, scheme, setScheme, type Part } from './skin.js';
-
-const here = dirname(fileURLToPath(import.meta.url));
-/** Template-literal families a block builds at runtime, with every variant it can produce. */
-const FAMILIES: Record<string, string[]> = {
-  'tone.': ['positive', 'negative', 'warning', 'neutral'],
-  'chart.bar.': ['positive', 'negative', 'warning'],
-  'meter.fill.': ['warning', 'negative'],
-  'notice.': ['positive', 'negative', 'warning'],
-  'menu.item.': ['danger'],
-  'button.': ['primary', 'plain', 'quiet', 'danger', 'busy'],
-};
-
-function partsAskedFor(): Set<string> {
-  const files = [
-    ...readdirSync(join(here, 'blocks')).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts')).map((f) => join(here, 'blocks', f)),
-    join(here, 'style.ts'),
-  ];
-  const asked = new Set<string>();
-  for (const file of files) {
-    const src = readFileSync(file, 'utf8');
-    for (const call of src.matchAll(/look\(([\s\S]*?)\)/g)) {
-      const args = call[1]!;
-      // A bare word inside look(...) may be a key into a role map ('body'); only part-shaped literals count.
-      for (const lit of args.matchAll(/'([a-z][a-z.]*)'/g)) {
-        const name = lit[1]!;
-        if (name.includes('.') || PARTS.includes(name as Part)) asked.add(name);
-      }
-      for (const tpl of args.matchAll(/`([a-z][a-z.]*\.)\$\{/g)) {
-        const family = tpl[1]!;
-        for (const v of FAMILIES[family] ?? []) asked.add(family + v);
-        if (!FAMILIES[family]) throw new Error(`unknown template family ${family} in ${file}`);
-      }
-    }
-  }
-  return asked;
-}
+// ── Completeness: the default skin defines every declared part ──────────
+// Which parts a block may ask for is enforced by the types: `ctx.part()` and
+// `look()` take `Part`, and a skin is `Record<Part, …>`; the seam holds in
+// both directions without a scanner.
+import { PARTS, scheme, setScheme } from './skin.js';
 
 describe('the default skin is complete', () => {
   const light = (defaultSkin as (a: { scheme: 'light' | 'dark' }) => Record<string, unknown>)({ scheme: 'light' });
   const dark = (defaultSkin as (a: { scheme: 'light' | 'dark' }) => Record<string, unknown>)({ scheme: 'dark' });
-  it('defines every part a block can ask for, in both schemes', () => {
-    const asked = [...partsAskedFor()].sort();
-    expect(asked.length).toBeGreaterThan(30);
-    expect(asked.filter((p) => !(p in light))).toEqual([]);
-    expect(asked.filter((p) => !(p in dark))).toEqual([]);
-    expect(asked.filter((p) => !PARTS.includes(p as Part))).toEqual([]);
-  });
   it('defines every declared part and nothing else', () => {
     expect(Object.keys(light).sort()).toEqual([...PARTS].sort());
     expect(Object.keys(dark).sort()).toEqual([...PARTS].sort());

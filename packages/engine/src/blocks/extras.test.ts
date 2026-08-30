@@ -4,7 +4,8 @@ import { flushEffects } from '@nisli/core';
 import { setMeasurer } from '../engine/measure.js';
 import { notify, __notices } from './notice.js';
 import { confirm } from './confirm.js';
-import './table.js'; import './columns.js';
+import { mount, type Mounted } from '../test/mount.js';
+import './table.js'; import './columns.js'; import './bars.js'; import './meter.js';
 
 let width = 1000;
 beforeEach(() => { document.body.innerHTML = ''; setMeasurer((el) => (el.tagName === 'TH' ? 60 : width)); });
@@ -53,6 +54,48 @@ describe('Columns', () => {
     const bars = [...el.querySelectorAll<HTMLElement>('[role=img] [title] > div')];
     expect(bars.at(-1)!.style.height).toBe('100%');
     expect(bars[0]!.style.height).toBe(`${(1 / 12) * 100}%`);
+  });
+});
+
+describe('charts at a width (mount)', () => {
+  const mounted: Mounted[] = [];
+  const up = (...args: Parameters<typeof mount>) => { const m = mount(...args); mounted.push(m); return m; };
+  afterEach(() => { while (mounted.length) mounted.pop()!.unmount(); });
+
+  it('Columns: label thinning is labelEvery(slot, longest) at every width', () => {
+    const labels = Array.from({ length: 12 }, (_, i) => `Month ${i + 1}`); // 8 chars → 65.6px each
+    const props = { labels, series: [{ name: 'A', values: labels.map((_, i) => i + 1) }], text: String };
+    const shown = (m: Mounted) => [...m.el.querySelectorAll<HTMLElement>('span')].filter((s) => labels.includes(s.textContent ?? '') && s.style.visibility === 'visible').length;
+    expect(shown(up('nisli-columns', props, { width: 1200 }))).toBe(12); // slot 100 ≥ 65.6
+    expect(shown(up('nisli-columns', props, { width: 400 }))).toBe(6);   // slot 33 → every 2nd
+    expect(shown(up('nisli-columns', props, { width: 240 }))).toBe(3);   // slot 20 → every 4th
+    expect(shown(up('nisli-columns', props, { width: 0 }))).toBe(6);     // unmeasured: 48px slot → every 2nd
+  });
+
+  it('Bars: the label column is labelColumn(width, longest) — natural, then a third, never under minLabel', () => {
+    const items = [{ label: 'Groceries and household', value: 3, text: '3' }, { label: 'Rent', value: 9, text: '9' }];
+    const longest = 23 * 7.2 + 8; // 173.6
+    const label = (m: Mounted) => m.styleOf('each-item span').width;
+    expect(label(up('nisli-bars', { items }, { width: 900 }))).toBe(`${longest}px`);
+    expect(label(up('nisli-bars', { items }, { width: 300 }))).toBe('100px');
+    expect(label(up('nisli-bars', { items }, { width: 120 }))).toBe('64px');
+    expect(label(up('nisli-bars', { items }, { width: 0 }))).toBe(`${longest}px`);
+    const fills = [...up('nisli-bars', { items }, { width: 900 }).el.querySelectorAll<HTMLElement>('[style*="height:100%"]')];
+    expect(fills.map((f) => f.style.width)).toEqual([`${(3 / 9) * 100}%`, '100%']);
+  });
+
+  it('Meter: tone is the block\'s ratio decision; the fill is clamped; aria mirrors the numbers', () => {
+    const track = (m: Mounted) => m.el.querySelector<HTMLElement>('[role=meter] > div')!.style;
+    const neutral = up('nisli-meter', { label: 'Food', value: 40, max: 100, detail: '40 of 100' }, { scheme: 'light' });
+    expect(neutral.el.querySelector('[role=meter]')!.getAttribute('aria-valuenow')).toBe('40');
+    expect(neutral.el.querySelector('[role=meter]')!.getAttribute('aria-valuemax')).toBe('100');
+    expect(track(neutral).width).toBe('40%');
+    const warn = up('nisli-meter', { label: 'Food', value: 90, max: 100 }, { scheme: 'light' });
+    const over = up('nisli-meter', { label: 'Food', value: 120, max: 100 }, { scheme: 'light' });
+    expect(track(over).width).toBe('100%');
+    expect(track(warn).background).not.toBe(track(neutral).background);
+    expect(track(over).background).not.toBe(track(warn).background);
+    expect(track(up('nisli-meter', { label: 'Food', value: 1, max: 0 }, {})).width).toBe('0%');
   });
 });
 

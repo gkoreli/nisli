@@ -1,10 +1,8 @@
-import { component, el, computed, effect, onCleanup } from '@nisli/core';
-import { metrics } from '../metrics.js';
-import { css, apply, cardStyle, truncate } from '../style.js';
-import { look } from '../skin.js';
-import { surfaceDepth } from './surface.js';
+import { el, computed } from '@nisli/core';
+import { truncate, cardBox, cardPart } from '../style.js';
+import { block } from './kernel.js';
 import type { Tone } from './types.js';
-import { viewOf, skeleton, bone, failure, type Status } from './status.js';
+import type { Status } from './status.js';
 
 export interface StatProps {
   label: string;
@@ -15,22 +13,21 @@ export interface StatProps {
   status?: Status;
 }
 
-export const Stat = component<StatProps>('nisli-stat', (props, host) => {
-  const nested = surfaceDepth(host) > 0;
-  const stop = effect(() => apply(host, { display: 'flex', flexDirection: 'column', gap: metrics.space[1], ...cardStyle(nested) }));
-  onCleanup(stop);
-  const view = computed(() => viewOf(props.status.value));
-  return el('div', { style: 'display:contents' }, [
-    el('div', { style: computed(() => css(look('text.label'))) }, props.label),
-    computed(() => (view.value.failed ? failure(view.value.failed, view.value.retry) : null)),
-    computed(() => (view.value.pending
-      ? skeleton([bone(metrics.control.height, '60%')])
-      : el('div', { style: computed(() => css({ ...truncate, ...look('text.display') })) }, props.value))),
-    el('div', {
-      style: computed(() => css({ display: props.delta.value ? 'block' : 'none', ...look('text.muted', `tone.${props.delta.value?.tone ?? 'neutral'}`) })),
-    }, computed(() => props.delta.value?.text ?? '')),
-    el('div', {
-      style: computed(() => css({ display: props.hint.value ? 'block' : 'none', ...look('text.faint') })),
-    }, computed(() => props.hint.value ?? '')),
-  ]);
+export const Stat = block<StatProps>('nisli-stat', {
+  status: { skeleton: (ctx) => ctx.skeleton([ctx.bone(ctx.metrics.control.height, '60%')]) },
+  host: (ctx) => ({ display: 'flex', flexDirection: 'column', gap: ctx.metrics.space[1], ...cardBox(ctx.nested) }),
+  hostParts: (ctx) => cardPart(ctx.nested),
+  render: (props, ctx) => {
+    return [
+      el('div', { style: ctx.part('text.label') }, props.label),
+      ctx.failure,
+      ctx.waiting(() => el('div', { style: ctx.part('text.display', truncate) }, props.value)),
+      el('div', {
+        style: ctx.part(() => ['text.muted', `tone.${props.delta.value?.tone ?? 'neutral'}` as const], () => ({ display: props.delta.value ? 'block' : 'none' })),
+      }, computed(() => props.delta.value?.text ?? '')),
+      el('div', {
+        style: ctx.part('text.faint', () => ({ display: props.hint.value ? 'block' : 'none' })),
+      }, computed(() => props.hint.value ?? '')),
+    ];
+  },
 });

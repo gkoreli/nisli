@@ -1,8 +1,7 @@
-import { component, el, each, computed } from '@nisli/core';
-import { metrics } from '../metrics.js';
-import { css, apply, truncate } from '../style.js';
-import { look } from '../skin.js';
-import { useWidth } from '../engine/measure.js';
+import { el, each, computed } from '@nisli/core';
+import { truncate } from '../style.js';
+import { labelColumn, labelWidth } from '../engine/space.js';
+import { block } from './kernel.js';
 
 export interface BarItem {
   readonly label: string;
@@ -16,23 +15,25 @@ export interface BarsProps {
 }
 
 /** Horizontal bars. The engine sizes the label column to what fits. */
-export const Bars = component<BarsProps>('nisli-bars', (props, host) => {
-  const width = useWidth(host);
-  apply(host, { display: 'flex', flexDirection: 'column', gap: metrics.space[2], minWidth: 0 });
-  const items = computed(() => [...props.items.value]);
-  const max = computed(() => Math.max(0, ...items.value.map((i) => i.value)));
-  const longest = computed(() => Math.max(0, ...items.value.map((i) => i.label.length)) * metrics.charWidth + metrics.space[2]);
-  // The label column takes what it wants up to a third of the block.
-  const labelWidth = computed(() => (width.value === 0 ? longest.value : Math.min(longest.value, Math.max(64, width.value / 3))));
-  return el('div', { style: 'display:contents' }, [
-    each(items, (i) => i.label, (item) =>
-      el('div', { style: css({ display: 'flex', alignItems: 'center', gap: metrics.space[3], minWidth: 0 }) }, [
-        el('span', { style: computed(() => css({ width: labelWidth.value, flex: 'none', ...truncate, ...look('text.muted') })) }, computed(() => item.value.label)),
-        el('div', { style: computed(() => css({ flex: '1 1 0', minWidth: 0, height: 14, overflow: 'hidden', ...look('meter.track') })) }, [
-          el('div', { style: computed(() => css({ height: '100%', width: `${max.value > 0 ? (item.value.value / max.value) * 100 : 0}%`, ...look('meter.fill') })) }),
+export const Bars = block<BarsProps>('nisli-bars', {
+  measure: 'width',
+  host: ({ metrics }) => ({ display: 'flex', flexDirection: 'column', gap: metrics.space[2], minWidth: 0 }),
+  render: (props, ctx) => {
+    const { metrics } = ctx;
+    const items = computed(() => [...props.items.value]);
+    const max = computed(() => Math.max(0, ...items.value.map((i) => i.value)));
+    const longest = computed(() => Math.max(metrics.space[2], ...items.value.map((i) => labelWidth(i.label, metrics.space[2], metrics.charWidth))));
+    const column = computed(() => labelColumn(ctx.width.value, longest.value, metrics.layout));
+    return [
+      each(items, (i) => i.label, (item) =>
+        el('div', { style: ctx.part([], { display: 'flex', alignItems: 'center', gap: metrics.space[3], minWidth: 0 }) }, [
+          el('span', { style: ctx.part('text.muted', () => ({ width: column.value, flex: 'none', ...truncate })) }, computed(() => item.value.label)),
+          el('div', { style: ctx.part('meter.track', { flex: '1 1 0', minWidth: 0, height: 14, overflow: 'hidden' }) }, [
+            el('div', { style: ctx.part('meter.fill', () => ({ height: '100%', width: `${max.value > 0 ? (item.value.value / max.value) * 100 : 0}%` })) }),
+          ]),
+          el('span', { style: ctx.part('text.muted', { flex: 'none', minWidth: 56, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }) }, computed(() => item.value.text)),
         ]),
-        el('span', { style: computed(() => css({ flex: 'none', minWidth: 56, textAlign: 'right', fontVariantNumeric: 'tabular-nums', ...look('text.muted') })) }, computed(() => item.value.text)),
-      ]),
-    ),
-  ]);
+      ),
+    ];
+  },
 });

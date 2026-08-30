@@ -5,7 +5,8 @@
  */
 export const metrics = {
   space: { 1: 4, 2: 8, 3: 12, 4: 16, 5: 24, 6: 32 },
-  control: { height: 32, padX: 12 },
+  /** A control's height and horizontal padding; `check` is a checkbox's side. */
+  control: { height: 32, padX: 12, check: 16 },
   /** Average glyph width at body size; used only for estimates. */
   charWidth: 7.2,
   layout: {
@@ -19,6 +20,8 @@ export const metrics = {
     minColumn: 220,
     /** A form field narrower than this is not worth a column. */
     minField: 240,
+    /** A bar-chart label column is never narrower than this. */
+    minLabel: 64,
     /** A dialog becomes a full-screen sheet below this viewport width. */
     dialogMin: 640,
     dialogWidth: 520,
@@ -26,6 +29,8 @@ export const metrics = {
     minTextColumn: 96,
     /** A title may truncate down to this. */
     minTitle: 80,
+    /** Rows a table shows before asking; a long list is a decision, not a scroll. */
+    tablePage: 60,
   },
 } as const;
 

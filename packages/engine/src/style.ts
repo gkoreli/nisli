@@ -1,10 +1,10 @@
 /**
- * The engine's only way to touch appearance: a typed style record applied to
- * an element. Structural helpers here carry no visual value; visuals come
- * from `look()` (the installed skin) and are layered on top.
+ * Style records and the structural boxes blocks share. Nothing here carries a
+ * visual value: a box is size and alignment from `metrics`, and the kernel
+ * layers the skin's look over it in `ctx.part()`. Boxes are read at call time
+ * so an axis (density) can move them.
  */
 import { metrics } from './metrics.js';
-import { look } from './skin.js';
 
 export type StyleRecord = Partial<Record<keyof CSSStyleDeclaration & string, string | number>>;
 
@@ -31,41 +31,48 @@ export function apply(el: HTMLElement, record: StyleRecord): void {
 /** Text that must stay on one line and truncate with an ellipsis. */
 export const truncate: StyleRecord = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 };
 
-export type ButtonVariant = 'primary' | 'plain' | 'quiet' | 'danger';
+/** A control's box: size and alignment from metrics, un-buttoned; no look. */
+export const buttonBox = (): StyleRecord => ({
+  flex: 'none',
+  height: metrics.control.height,
+  padding: `0 ${metrics.control.padX}px`,
+  whiteSpace: 'nowrap',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: metrics.space[2],
+  cursor: 'pointer',
+  font: 'inherit',
+  background: 'none',
+  border: 'none',
+  color: 'inherit',
+});
 
-/** A control's box: size and alignment from metrics; look from the skin. */
-export function buttonStyle(variant: ButtonVariant): StyleRecord {
-  return {
-    flex: 'none',
-    height: metrics.control.height,
-    padding: `0 ${metrics.control.padX}px`,
-    whiteSpace: 'nowrap',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: metrics.space[2],
-    cursor: 'pointer',
-    font: 'inherit',
-    background: 'none',
-    border: 'none',
-    color: 'inherit',
-    ...look('button', `button.${variant}`),
-  };
-}
+/** A menu item's box: a left-aligned, un-buttoned row; no look. */
+export const menuItemBox = (): StyleRecord => ({
+  textAlign: 'left',
+  padding: `${metrics.space[2]}px ${metrics.space[3]}px`,
+  border: 'none',
+  background: 'transparent',
+  font: 'inherit',
+  color: 'inherit',
+  cursor: 'pointer',
+});
 
-export const inputStyle = (invalid = false): StyleRecord => ({
+/** A text control's box: control height, full width, un-styled; the look is `input` (+ `.invalid`, `.readonly`). */
+export const inputBox = (): StyleRecord => ({
   height: metrics.control.height,
   padding: `0 ${metrics.space[3]}px`,
   width: '100%',
   boxSizing: 'border-box',
   font: 'inherit',
-  ...look('input'),
-  ...(invalid ? look('input.invalid') : {}),
 });
 
-/** A surface. Nested inside another surface it stops being a card (engine rule). */
-export const cardStyle = (nested: boolean): StyleRecord => ({
+/** A surface's box. Nested inside another surface it stops being a card (engine rule); no look. */
+export const cardBox = (nested: boolean): StyleRecord => ({
   padding: nested ? 0 : metrics.space[4],
   boxSizing: 'border-box',
   minWidth: 0,
-  ...look(nested ? 'card.nested' : 'card'),
 });
+
+/** The part a surface asks for at this nesting. */
+export const cardPart = (nested: boolean): 'card' | 'card.nested' => (nested ? 'card.nested' : 'card');

@@ -31,6 +31,7 @@ export { useSkin, setScheme, look, scheme, PARTS, type Skin, type SkinParts, typ
 export { defaultSkin, lightPalette, darkPalette, partsOf } from './skin/default.js';
 export type { StyleRecord } from './style.js';
 
-export { fit, type FitInput, type FitItem, type FitPlan, type FitDecision, type FitAction } from './engine/fit.js';
-export { columnsFor } from './engine/columns.js';
+export { fit, columnsFor, shellMode, dialogMode, labelColumn, labelEvery, labelWidth, pageSize, type FitInput, type FitItem, type FitPlan, type FitDecision, type FitAction } from './engine/space.js';
 export { onReport, type LayoutReport, type ReportCode } from './engine/report.js';
+
+export { block, lockScroll, type BlockSpec, type Ctx, type Parts, type Rendered, type FitRowSpec } from './blocks/kernel.js';

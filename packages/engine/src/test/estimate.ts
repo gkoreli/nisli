@@ -5,6 +5,7 @@
  * enough to find every plan the engine cannot satisfy.
  */
 import { metrics } from '../metrics.js';
+import { labelWidth } from '../engine/space.js';
 import type { Measurer } from '../engine/measure.js';
 
 const px = (v: string | undefined) => (v && v.endsWith('px') ? parseFloat(v) : undefined);
@@ -40,7 +41,7 @@ export function estimator(frame: number): Measurer {
   return (el) => {
     if (TEXTUAL.has(el.tagName) && el.style.display !== 'block' && el.style.display !== 'flex') {
       const text = (el.textContent ?? '').trim();
-      return text.length * metrics.charWidth + horizontalPadding(el);
+      return labelWidth(text, horizontalPadding(el));
     }
     return boxWidth(el);
   };

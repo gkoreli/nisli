@@ -1,7 +1,5 @@
 import { el, signal, each, computed } from '@nisli/core';
-import { metrics } from '../metrics.js';
-import { css } from '../style.js';
-import { look } from '../skin.js';
+import { block } from './kernel.js';
 import type { Tone } from './types.js';
 
 interface Notice { id: number; text: string; tone: Tone }
@@ -17,38 +15,51 @@ export function notify(text: string, tone: Tone = 'neutral'): void {
   mountRegion();
 }
 
+/**
+ * The live region, fixed to the page's bottom corner; one per document.
+ * Defined on first use: the kernel reaches this module (busy → notify), so
+ * `block` is not yet bound while the modules load.
+ */
+let NoticeRegion: ReturnType<typeof defineRegion> | undefined;
+const defineRegion = () => block<Record<never, never>>('nisli-notices', {
+  host: () => ({ display: 'contents' }),
+  render: (_props, ctx) => {
+    const { metrics } = ctx;
+    return el('div', {
+      role: 'status',
+      'aria-live': 'polite',
+      style: ctx.part([], {
+        position: 'fixed',
+        left: metrics.space[4],
+        right: metrics.space[4],
+        bottom: metrics.space[4],
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-end',
+        gap: metrics.space[2],
+        pointerEvents: 'none',
+        zIndex: 200,
+      }),
+    }, [
+      each(notices, (n) => n.id, (n) =>
+        el('div', {
+          style: ctx.part(
+            () => ['notice', ...(n.value.tone === 'neutral' ? [] : [`notice.${n.value.tone}` as const])],
+            { maxWidth: 420, padding: `${metrics.space[2]}px ${metrics.space[3]}px`, pointerEvents: 'auto' },
+          ),
+          on: { click: () => { notices.value = notices.value.filter((x) => x.id !== n.value.id); } },
+        }, computed(() => n.value.text)),
+      ),
+    ]);
+  },
+});
+
 function mountRegion(): void {
   if (region || typeof document === 'undefined') return;
   region = document.createElement('div');
   document.body.appendChild(region);
-  el('div', {
-    role: 'status',
-    'aria-live': 'polite',
-    style: css({
-      position: 'fixed',
-      left: metrics.space[4],
-      right: metrics.space[4],
-      bottom: metrics.space[4],
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'flex-end',
-      gap: metrics.space[2],
-      pointerEvents: 'none',
-      zIndex: 200,
-    }),
-  }, [
-    each(notices, (n) => n.id, (n) =>
-      el('div', {
-        style: computed(() => css({
-          maxWidth: 420,
-          padding: `${metrics.space[2]}px ${metrics.space[3]}px`,
-          pointerEvents: 'auto',
-          ...look('notice', ...(n.value.tone === 'neutral' ? [] : [`notice.${n.value.tone}` as const])),
-        })),
-        on: { click: () => { notices.value = notices.value.filter((x) => x.id !== n.value.id); } },
-      }, computed(() => n.value.text)),
-    ),
-  ]).mount(region);
+  NoticeRegion ??= defineRegion();
+  el('div', {}, [NoticeRegion({})]).mount(region);
 }
 
 /** Test seam. */

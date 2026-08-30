@@ -40,7 +40,7 @@ export type ControlPart =
   | 'input' | 'input.invalid' | 'input.readonly';
 /** Navigation — how a person moves between screens. */
 export type NavigationPart =
-  | 'nav.link' | 'nav.link.active' | 'bar'
+  | 'nav.link' | 'nav.link.active' | 'nav.side' | 'bar'
   | 'menu' | 'menu.item' | 'menu.item.danger';
 /** Data — tables, meters and charts. */
 export type DataPart =
@@ -63,7 +63,7 @@ export const PARTS: readonly Part[] = [
   // Control
   'button', 'button.primary', 'button.plain', 'button.quiet', 'button.danger', 'button.busy', 'input', 'input.invalid', 'input.readonly',
   // Navigation
-  'nav.link', 'nav.link.active', 'bar', 'menu', 'menu.item', 'menu.item.danger',
+  'nav.link', 'nav.link.active', 'nav.side', 'bar', 'menu', 'menu.item', 'menu.item.danger',
   // Data
   'table.header', 'table.cell', 'table.row.hover', 'meter.track', 'meter.fill', 'meter.fill.warning', 'meter.fill.negative',
   'chart.axis', 'chart.bar', 'chart.bar.positive', 'chart.bar.negative', 'chart.bar.warning',

@@ -30,6 +30,17 @@ export function onReport(listener: Listener): () => void {
   return () => listeners.delete(listener);
 }
 
+/**
+ * The one way a block reports an unsatisfiable decision: hand it the plan
+ * (anything with a `slack`) and the report is filed iff the slack is negative.
+ * Returns whether it was. Blocks never call `report()` by hand.
+ */
+export function reportIf(plan: { readonly slack: number }, r: Omit<LayoutReport, 'deficit'>): boolean {
+  if (plan.slack >= 0) return false;
+  report({ ...r, deficit: -plan.slack });
+  return true;
+}
+
 export function report(r: LayoutReport): void {
   for (const l of listeners) l(r);
   if (listeners.size === 0) {

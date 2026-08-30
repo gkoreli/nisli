@@ -7,11 +7,15 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { flushEffects, html } from '@nisli/core';
 import { setMeasurer } from '../engine/measure.js';
 import { metrics } from '../metrics.js';
+import { mount, type Mounted } from '../test/mount.js';
 import './app.js'; import './grid.js'; import './dialog.js'; import './form.js';
 
 let width = 1280;
+const mounted: Mounted[] = [];
 beforeEach(() => { document.body.innerHTML = ''; document.body.style.overflow = ''; setMeasurer(() => width); });
-afterEach(() => setMeasurer(null));
+afterEach(() => { while (mounted.length) mounted.pop()!.unmount(); setMeasurer(null); });
+// App and Grid live on the kernel: mount() them through the test kernel at the width.
+const up = (tag: string, props: Record<string, unknown>, w: number) => { const m = mount(tag, props, { width: w }); mounted.push(m); return m; };
 
 const make = (tag: string, props: Record<string, unknown>, w: number) => {
   width = w;
@@ -26,8 +30,7 @@ const content = html`<p>content</p>`;
 
 describe('App shell', () => {
   const sidebarAt = (w: number) => {
-    const el = make('nisli-app', { brand: 'B', nav, location: '/accounts', content }, w);
-    return el.querySelector<HTMLElement>('nav[aria-label=Primary]')!.style.display !== 'none';
+    return up('nisli-app', { brand: 'B', nav, location: '/accounts', content }, w).styleOf('nav[aria-label=Primary]').display !== 'none';
   };
   it('has a sidebar when a useful content column fits beside it', () => {
     expect(sidebarAt(metrics.layout.sidebarWidth + metrics.layout.contentMin)).toBe(true);
@@ -38,7 +41,7 @@ describe('App shell', () => {
     expect(sidebarAt(360)).toBe(false);
   });
   it('marks the current section and treats / as exact', () => {
-    const el = make('nisli-app', { brand: 'B', nav, location: '/accounts/x', content }, 1280);
+    const { el } = up('nisli-app', { brand: 'B', nav, location: '/accounts/x', content }, 1280);
     const current = [...el.querySelectorAll<HTMLElement>('nav')].filter((n) => n.style.display !== 'none').flatMap((n) => [...n.querySelectorAll('a[aria-current=page]')]).map((a) => a.textContent);
     expect(current).toEqual(['Accounts']);
   });
@@ -46,8 +49,7 @@ describe('App shell', () => {
 
 describe('Grid', () => {
   const cols = (w: number, n: number) => {
-    const el = make('nisli-grid', { children: Array.from({ length: n }, () => html`<i></i>`) }, w);
-    return el.style.gridTemplateColumns;
+    return up('nisli-grid', { children: Array.from({ length: n }, () => html`<i></i>`) }, w).styleOf().gridTemplateColumns;
   };
   it('one column on a phone, four on a desktop, never more than there are cells', () => {
     expect(cols(360, 4)).toBe('repeat(1, minmax(0, 1fr))');

@@ -49,4 +49,5 @@ export async function prove(make: () => Content, options: ProveOptions): Promise
 }
 
 export { estimator } from './estimate.js';
+export { mount, textMeasurer, type MountOptions, type Mounted } from './mount.js';
 export type { LayoutReport } from '../engine/report.js';

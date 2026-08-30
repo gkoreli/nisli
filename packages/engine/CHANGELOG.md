@@ -4,6 +4,78 @@ All notable changes to `@nisli/engine`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Unreleased until the first
 publish.
 
+## 0.3.0 — 2026-08-29
+
+- **Block kernel.** `block(tag, spec)` (`blocks/kernel.ts`): a block is a
+  composition of behaviours — `measure`, `surface`, `status` shape, a reactive
+  structural `host` style (replacing its previous run) with `hostParts`, and
+  `render(props, ctx)`. `Ctx` is the one way a block styles anything:
+  `ctx.part(parts, structure)`; plus `props`, `metrics`, `width`, `nested`,
+  `busy`, `fitRow` (useFit + `reportIf`), the status slots `failure`,
+  `updating`, `waiting()`, the `pending` flag, and `bone()`/`skeleton()`
+  for a block's own waiting shape. The engine-drawn status (skeleton,
+  failure line, "Updating…") is drawn by the kernel through `ctx.part()`;
+  `blocks/status.ts` holds only `Status`/`viewOf` and `createBusy`.
+  `kernel.test.ts` proves each behaviour on a throwaway block and scans every
+  file under `blocks/` for a hand-written style (no `css`/`look`/`apply`
+  import, no `element.style`, no string `style:`, no module `metrics`, no
+  second `display: contents` root) — every block must be on the kernel.
+- **Space domain.** `engine/space.ts` gathers every width decision as pure
+  data: `fit`, `columnsFor`, `shellMode`, `dialogMode`, `labelColumn`,
+  `labelEvery`, `labelWidth`, `pageSize` (`metrics.layout.tablePage`,
+  `minLabel`). `reportIf(plan, …)` is the one way a block files a report.
+- **Test kernel.** `mount(tag | factory, props, { width, viewport, scheme, text })`
+  → `{ el, styleOf(selector), resize(width, viewport), unmount }` and
+  `textMeasurer(charWidth)` from `@nisli/engine/test`; `remeasure()` in
+  `engine/measure.ts` is the seam `resize()` pulls (every observed element
+  re-measures, as a `ResizeObserver` would tell it).
+- **Every block migrated onto the kernel.** Section and Toolbar first, then
+  App, Page, Grid, Stat, Table, Form, Dialog, Meter, Bars, Columns, Empty,
+  Text/Link, notify, confirm. Public props, DOM shape, roles and ARIA are
+  unchanged; the Ledger app needed no edit. Per block: App's shell mode from
+  `shellMode()`, sidebar as the new `nav.side` part; Page's status via the
+  slots; Grid's column count decided in `host` over `ctx.props`; Stat's
+  one-bone skeleton via `ctx.skeleton`; Table's columns via `ctx.fitRow`,
+  paging via `pageSize`, row hover via a `table.row.hover` parts thunk,
+  its own skeleton rows behind `ctx.pending`; Form's inputs via
+  `inputBox()` + `['input', 'input.invalid', 'input.readonly']` thunks,
+  checkbox side from `metrics.control.check`.
+- **Removed.** `buttonStyle`, `inputStyle`, `cardStyle`, `ButtonVariant`
+  (`style.ts`) and `bone`, `skeleton`, `blockSkeleton`, `failure`,
+  `updating` (`blocks/status.ts`) — the look-baked helpers the kernel made
+  redundant. `style.ts` no longer imports the skin. Added structural
+  `inputBox()`.
+- **LOC.** `src/blocks/*.ts` (non-test), before → after this round:
+
+  | file | before | after |
+  |---|---:|---:|
+  | app.ts | 125 | 117 |
+  | bars.ts | 38 | 39 |
+  | columns.ts | 63 | 76 |
+  | confirm.ts | 44 | 62 |
+  | dialog.ts | 78 | 80 |
+  | empty.ts | 28 | 32 |
+  | form.ts | 358 | 370 |
+  | grid.ts | 28 | 31 |
+  | kernel.ts | — | 224 |
+  | meter.ts | 35 | 45 |
+  | notice.ts | 55 | 66 |
+  | page.ts | 42 | 48 |
+  | section.ts | 34 | 28 |
+  | stat.ts | 36 | 33 |
+  | status.ts | 82 | 57 |
+  | surface.ts | 11 | 11 |
+  | table.ts | 215 | 224 |
+  | text.ts | 34 | 33 |
+  | toolbar.ts | 148 | 127 |
+  | types.ts | 22 | 22 |
+  | **total** | **1476** | **1725** |
+
+  Plus `style.ts` 71 → 78 and, new: `engine/space.ts` 68, `engine/paging.ts`
+  14, `test/mount.ts` 104. Net +249 over the blocks: the kernel is 224 of it
+  and holds everything the blocks used to repeat; every visual path now runs
+  through one function.
+
 ## 0.2.0 — 2026-08-29
 
 - **Form domain.** `Form` is rebuilt as a small domain — `blocks/form/schema.ts`

@@ -16,9 +16,18 @@ export function setMeasurer(next: Measurer | null): void {
   measurer = next ?? domMeasurer;
 }
 
+const observers = new Set<() => void>();
+
+/** Test seam: the screen changed — every observed element re-measures, as a ResizeObserver would tell it. */
+export function remeasure(): void {
+  for (const cb of [...observers]) cb();
+}
+
 /** Re-run `cb` whenever `el` changes size, when the platform can tell us. */
 export function observeWidth(el: HTMLElement, cb: () => void): () => void {
-  if (typeof ResizeObserver === 'undefined') return () => {};
+  observers.add(cb);
+  const stop = () => observers.delete(cb);
+  if (typeof ResizeObserver === 'undefined') return stop;
   // Only the inline size matters. A block's own decisions change its height
   // (a folded column adds a line); reacting to that would solve forever.
   let last = -1;
@@ -29,7 +38,7 @@ export function observeWidth(el: HTMLElement, cb: () => void): () => void {
     cb();
   });
   ro.observe(el);
-  return () => ro.disconnect();
+  return () => { stop(); ro.disconnect(); };
 }
 
 /**

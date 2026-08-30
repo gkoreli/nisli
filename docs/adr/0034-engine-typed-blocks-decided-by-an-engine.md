@@ -4,7 +4,7 @@
 **Status**: Accepted
 **Depends on**: [0029-agent-native-ui-strategy](./0029-agent-native-ui-strategy.md), [0030-agent-native-authoring](./0030-agent-native-authoring.md)
 **Replaces the direction of**: [0032](./0032-derived-appearance-package.md) and [0033](./0033-oracle-soundness.md), both withdrawn on 2026-08-27 — see [`AUDIT-2026-08-27.md`](../research/nextgen/AUDIT-2026-08-27.md). Their numbers stay burned; this ADR does not supersede their text, it records what was built instead.
-**Companion**: [0035-engine-appearance-layer](./0035-engine-appearance-layer.md) (the visual layer this ADR only names)
+**Companion**: [0035-engine-appearance-layer](./0035-engine-appearance-layer.md) (the visual layer this ADR only names), [0038-engine-block-kernel-and-space-domain](./0038-engine-block-kernel-and-space-domain.md) (how a block is built)
 **Code**: [`packages/engine`](../../packages/engine), [`packages/ledger`](../../packages/ledger)
 
 ## Context
@@ -53,7 +53,8 @@ ADR records the architecture that emerged, in the language its code uses.
 | context | responsibility | files | may depend on |
 |---|---|---|---|
 | **Intent** | The closed vocabulary an app may use | `blocks/types.ts`; the exported prop types of every block | — |
-| **Decision** | Pure decisions and the one measure→decide→apply loop | `engine/fit.ts`, `engine/columns.ts`, `engine/use-fit.ts`, `engine/measure.ts` | Metrics |
+| **Blocks** | Intent translated into decisions and structure; every block is built on the kernel (`block()`, styled only via `ctx.part()`) — [0038](./0038-engine-block-kernel-and-space-domain.md) | `blocks/kernel.ts`, `blocks/*.ts` | Intent, Decision, Appearance (through the kernel only) |
+| **Decision** | Pure decisions and the one measure→decide→apply loop; **Space** is its pure vocabulary (`fit`, `columnsFor`, `shellMode`, `dialogMode`, `labelColumn`, `labelEvery`, `labelWidth`, `pageSize`, `reportIf`) | `engine/space.ts`, `engine/fit.ts`, `engine/columns.ts`, `engine/paging.ts`, `engine/use-fit.ts`, `engine/measure.ts` | Metrics |
 | **Appearance** | Dressing decided structure | `skin.ts`, `skin/default.ts`, `style.ts` (`look()`) | — (the engine calls it; it calls nothing) |
 | **Proof** | Observing decisions the engine could not satisfy | `engine/report.ts`, `test/prove.ts`, `test/estimate.ts` | Decision |
 | **Application** | A real product built only from Intent | `packages/ledger` | Intent, `useSkin` |

@@ -8,22 +8,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { flushEffects } from '@nisli/core';
 import { Toolbar, type Action } from './toolbar.js';
-import { setMeasurer } from '../engine/measure.js';
-import { metrics } from '../metrics.js';
+import { mount as mountBlock, textMeasurer, type Mounted } from '../test/mount.js';
 
-let viewport = 1024;
-const CHAR = 8;
+// Text is 8px a character; a button adds its padding, so the '⋯' trigger is 8 + 24 = 32.
+const text = textMeasurer(8);
+let mounted: Mounted | null = null;
 
-beforeEach(() => {
-  document.body.innerHTML = '';
-  setMeasurer((el) => {
-    if (el.tagName === 'NISLI-TOOLBAR') return viewport;
-    if (el.tagName === 'H2') return (el.textContent ?? '').length * CHAR; // natural, ignores width style
-    if (el.getAttribute('aria-label') === 'More actions') return 32;
-    return (el.textContent ?? '').length * CHAR + 2 * metrics.control.padX;
-  });
-});
-afterEach(() => setMeasurer(null));
+beforeEach(() => { document.body.innerHTML = ''; });
+afterEach(() => { mounted?.unmount(); mounted = null; });
 
 const actions: Action[] = [
   { id: 'share', label: 'Share', priority: 'tertiary' },
@@ -33,13 +25,8 @@ const actions: Action[] = [
 ];
 
 function mount(width: number, props: { title: string; actions: Action[] } = { title: 'Grandmother’s lasagne al forno', actions }) {
-  viewport = width;
-  const host = document.createElement('div');
-  document.body.appendChild(host);
-  const el = document.createElement('nisli-toolbar');
-  for (const [k, v] of Object.entries(props)) (el as any)._setProp?.(k, v);
-  host.appendChild(el);
-  flushEffects();
+  mounted = mountBlock('nisli-toolbar', props, { width, text });
+  const { el } = mounted;
   const shown = [...el.querySelectorAll<HTMLElement>('[data-nisli-action]')]
     .filter((b) => b.style.display !== 'none')
     .map((b) => b.getAttribute('data-nisli-action'));

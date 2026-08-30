@@ -1,6 +1,6 @@
-import { component, el, computed } from '@nisli/core';
-import { css, apply } from '../style.js';
-import { look, type Part } from '../skin.js';
+import { el } from '@nisli/core';
+import type { Part } from '../skin.js';
+import { block } from './kernel.js';
 import type { Tone } from './types.js';
 
 export interface TextProps {
@@ -17,18 +17,17 @@ export interface LinkProps {
 
 const ROLE_PART: Record<NonNullable<TextProps['role']>, Part> = { body: 'text', muted: 'text.muted', heading: 'text.heading', code: 'text.code' };
 
-export const Text = component<TextProps>('nisli-text', (props, host) => {
-  apply(host, { display: 'block', minWidth: 0 });
-  return el('span', {
-    style: computed(() => css({
-      overflowWrap: 'anywhere',
-      ...look(ROLE_PART[props.role.value ?? 'body']),
-      ...(props.tone.value ? look(`tone.${props.tone.value}`) : {}),
-    })),
-  }, props.text);
+export const Text = block<TextProps>('nisli-text', {
+  host: () => ({ display: 'block', minWidth: 0 }),
+  render: (props, ctx) => el('span', {
+    style: ctx.part(
+      () => [ROLE_PART[props.role.value ?? 'body'], ...(props.tone.value ? [`tone.${props.tone.value}` as const] : [])],
+      { overflowWrap: 'anywhere' },
+    ),
+  }, props.text),
 });
 
-export const Link = component<LinkProps>('nisli-link', (props, host) => {
-  apply(host, { display: 'inline' });
-  return el('a', { href: props.href, style: computed(() => css(look('link'))) }, props.label);
+export const Link = block<LinkProps>('nisli-link', {
+  host: () => ({ display: 'inline' }),
+  render: (props, ctx) => el('a', { href: props.href, style: ctx.part('link') }, props.label),
 });

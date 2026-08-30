@@ -92,6 +92,7 @@ export function partsOf(c: Palette): Record<Part, StyleRecord> {
     // Navigation
     'nav.link': { fontWeight: 500, color: c.text, borderRadius: radius, textDecoration: 'none' },
     'nav.link.active': { fontWeight: 600, color: c.accent, background: c.accentSoft },
+    'nav.side': { borderBottom: 'none', borderRight: `1px solid ${c.border}` },
     bar: { background: c.surface, borderBottom: `1px solid ${c.border}` },
     menu: { background: c.raised, border: `1px solid ${c.border}`, borderRadius: radius, boxShadow: c.shadow },
     'menu.item': { borderRadius: radius, color: c.text },

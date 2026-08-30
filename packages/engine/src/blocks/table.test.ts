@@ -1,16 +1,8 @@
 /** @vitest-environment happy-dom */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { flushEffects } from '@nisli/core';
-import { Table, type Column } from './table.js';
-import { setMeasurer } from '../engine/measure.js';
-
-let width = 1000;
-beforeEach(() => {
-  document.body.innerHTML = '';
-  // A column is as wide as its header text says; the host is the frame.
-  setMeasurer((el) => (el.tagName === 'NISLI-TABLE' ? width : el.tagName === 'TH' ? naturalOf(el.textContent ?? '') : 0));
-});
-afterEach(() => setMeasurer(null));
+import { type Column } from './table.js';
+import { mount as mountBlock, type Mounted } from '../test/mount.js';
 
 interface Row { id: string; date: string; payee: string; category: string; account: string; note: string; amount: number }
 const columns: Column<Row>[] = [
@@ -23,20 +15,20 @@ const columns: Column<Row>[] = [
 ];
 const naturals = [72, 173, 101, 72, 52, 69]; // sum 539
 const naturalOf = (header: string) => naturals[columns.findIndex((c) => header.startsWith(c.header))] ?? 0;
+// A column is as wide as its header text says; everything else is the frame.
+const text = (el: HTMLElement) => (el.tagName === 'TH' ? naturalOf(el.textContent ?? '') : undefined);
 const rows: Row[] = [{ id: '1', date: 'Aug 1', payee: 'REI', category: 'Shopping', account: 'Card', note: '', amount: -12 }];
 
-function mount(w: number) {
-  width = w;
-  const host = document.createElement('div');
-  document.body.appendChild(host);
-  const t = document.createElement('nisli-table');
-  for (const [k, v] of Object.entries({ columns, rows, key: (r: Row) => r.id })) (t as any)._setProp(k, v);
-  host.appendChild(t);
-  flushEffects();
+let mounted: Mounted | undefined;
+afterEach(() => { mounted?.unmount(); mounted = undefined; });
+
+function mount(width: number) {
+  const t = (mounted = mountBlock('nisli-table', { columns, rows, key: (r: Row) => r.id }, { width, text }));
   return {
-    shown: () => [...t.querySelectorAll<HTMLElement>('thead th')].filter((th) => th.style.display !== 'none').map((th) => th.textContent),
-    cells: () => [...t.querySelectorAll<HTMLElement>('tbody td')].filter((td) => td.style.display !== 'none').length,
-    el: t,
+    shown: () => [...t.el.querySelectorAll<HTMLElement>('thead th')].filter((th) => th.style.display !== 'none').map((th) => th.textContent),
+    cells: () => [...t.el.querySelectorAll<HTMLElement>('tbody td')].filter((td) => td.style.display !== 'none').length,
+    el: t.el,
+    resize: t.resize,
   };
 }
 
@@ -74,9 +66,20 @@ describe('Table drops columns by priority', () => {
   it('re-decides when the frame widens again', async () => {
     const t = mount(294);
     expect(t.shown()).toEqual(['Date', 'Payee', 'Amount']);
-    width = 1000;
-    (t.el as any)._setProp('rows', [...rows]);
-    flushEffects(); await Promise.resolve(); flushEffects();
+    t.resize(1000);
+    await Promise.resolve(); flushEffects();
     expect(t.shown().length).toBe(6);
+  });
+
+  it('a row lights up only while hovered, through the skin part', () => {
+    mounted = mountBlock('nisli-table', { columns, rows, key: (r: Row) => r.id }, { width: 1000, scheme: 'light' });
+    const tr = mounted.el.querySelector<HTMLElement>('tbody tr')!;
+    const before = tr.getAttribute('style');
+    tr.dispatchEvent(new Event('mouseenter'));
+    flushEffects();
+    expect(tr.getAttribute('style')).not.toBe(before);
+    tr.dispatchEvent(new Event('mouseleave'));
+    flushEffects();
+    expect(tr.getAttribute('style')).toBe(before);
   });
 });

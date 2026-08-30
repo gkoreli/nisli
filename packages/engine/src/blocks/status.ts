@@ -1,7 +1,9 @@
-import { el, signal, type ReadonlySignal, type TemplateResult } from '@nisli/core';
-import { metrics } from '../metrics.js';
-import { css, buttonStyle } from '../style.js';
-import { look } from '../skin.js';
+/**
+ * Status — what the engine knows about an async result, and busy tracking for
+ * actions. No DOM here: the kernel draws waiting, failure and refresh through
+ * `ctx.part()`.
+ */
+import { signal, type ReadonlySignal } from '@nisli/core';
 import { notify } from './notice.js';
 
 /** Structurally matches core's QueryResult<T> and ResourceResult<T>: pass either straight in. */
@@ -30,33 +32,6 @@ export function viewOf(s: Status | undefined): StatusView {
   const retry = s.refetch ? () => s.refetch!() : s.refresh ? () => s.refresh!() : undefined;
   return { pending: loading && !hasData, refreshing: loading && hasData, failed: s.error.value, retry };
 }
-
-// ── Engine-drawn waiting states ───────────────────────────────────────
-
-/** A placeholder bar. */
-export const bone = (height: number, width: string | number = '100%'): TemplateResult =>
-  el('div', { style: css({ height, width, display: 'block', ...look('skeleton') }) });
-
-/** A skeleton: a group of bones announced as loading. */
-export const skeleton = (bones: TemplateResult[]): TemplateResult =>
-  el('div', { role: 'status', 'aria-label': 'Loading', style: css({ display: 'flex', flexDirection: 'column', gap: metrics.space[2], minWidth: 0 }) }, bones);
-
-/** The standard block skeleton: three bars, full / 80% / 60%. */
-export const blockSkeleton = (): TemplateResult =>
-  skeleton([bone(metrics.control.height), bone(metrics.control.height / 2, '80%'), bone(metrics.control.height / 2, '60%')]);
-
-/** An inline error line with a Retry when the source can be retried. */
-export const failure = (error: Error, retry?: () => void): TemplateResult =>
-  el('div', { role: 'alert', style: css({ display: 'flex', alignItems: 'center', gap: metrics.space[3], flexWrap: 'wrap' }) }, [
-    el('span', { style: css({ minWidth: 0, ...look('tone.negative') }) }, error.message || String(error)),
-    retry
-      ? el('button', { type: 'button', style: css(buttonStyle('plain')), on: { click: () => retry() } }, 'Retry')
-      : null,
-  ]);
-
-/** "Updating…" beside a title while fresh data is on its way. */
-export const updating = (): TemplateResult =>
-  el('span', { style: css({ marginLeft: metrics.space[2], font: 'inherit', ...look('text.faint') }) }, 'Updating…');
 
 // ── Async actions ──────────────────────────────────────────────────────
 

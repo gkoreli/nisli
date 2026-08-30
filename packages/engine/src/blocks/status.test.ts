@@ -6,13 +6,18 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { flushEffects, html, signal } from '@nisli/core';
 import { setMeasurer } from '../engine/measure.js';
+import { mount, type Mounted } from '../test/mount.js';
 import { __notices } from './notice.js';
 import './section.js'; import './table.js'; import './stat.js'; import './page.js'; import './toolbar.js';
 
+const mounted: Mounted[] = [];
 beforeEach(() => { document.body.innerHTML = ''; setMeasurer(() => 800); __notices.value = []; });
-afterEach(() => setMeasurer(null));
+afterEach(() => { while (mounted.length) mounted.pop()!.unmount(); setMeasurer(null); });
 
+// Kernel blocks are mounted through the test kernel.
+const KERNEL = new Set(['nisli-section', 'nisli-toolbar', 'nisli-stat', 'nisli-page']);
 const make = (tag: string, props: Record<string, unknown>) => {
+  if (KERNEL.has(tag)) { const m = mount(tag, props, { width: 800 }); mounted.push(m); return m.el; }
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(props)) (el as any)._setProp(k, v);
   document.body.appendChild(el); flushEffects();

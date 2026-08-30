@@ -31,7 +31,6 @@ They moved with the framework when `@nisli/core` became a standalone package.
 - [0024. nisli Website — `packages/www`, Full-Stack Dogfood](./0024-showcase-site.md) - Accepted - 2026-07-11
 - [0025. Core Proposals Surfaced by `@nisli/ui` — Gap & Ergonomics Tracker](./0025-core-proposals-from-ui.md) - Open - 2026-07-11
 - [0026. Typed Application Router — Shared Browser, Vite, and SSG Routes](./0026-typed-application-router.md) - Accepted - 2026-07-11
-- [0026. Typed Application Router — Shared Browser, Vite, and SSG Routes](./0026-typed-application-router.md) - Proposed - 2026-07-11
 - [0028. Local Async Derivations with `resource()`](./0028-local-async-resource.md) - Accepted - 2026-07-16
 - [0029. Agent-Native UI — Neutral Transcript Core, Agent-Host Widgets, and Machine-Legible Components](./0029-agent-native-ui-strategy.md) - Proposed - 2026-08-09
 - [0030. Agent-Native Authoring — The Framework Written, Verified, and Debugged by Agents](./0030-agent-native-authoring.md) - Proposed - 2026-08-09
@@ -44,3 +43,4 @@ They moved with the framework when `@nisli/core` became a standalone package.
 - [0035. Engine Appearance Layer — Visual-less Core, Skins, Parts and Axes](./0035-engine-appearance-layer.md) - Accepted - 2026-08-29
 - [0036. Ledger — System of Record and Security Posture](./0036-ledger-system-of-record-and-security-posture.md) - Accepted - 2026-08-29
 - [0037. `Form` — The Intent-Capture Domain](./0037-engine-form-intent-capture-domain.md) - Accepted - 2026-08-29
+- [0038. Engine Block Kernel and the Space Domain](./0038-engine-block-kernel-and-space-domain.md) - Accepted - 2026-08-29
