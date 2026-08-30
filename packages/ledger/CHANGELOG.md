@@ -56,6 +56,10 @@ per version, human-readable highlights.
   enforce local/tailnet origins and logs redact connection identifiers.
 - `dev:all` now supervises the API and Vite together, preventing the orphaned
   API process that previously caused repeated `EADDRINUSE` failures.
+- Plaid PFC v2 credit-card payments and loan disbursements project as transfers
+  so purchases and borrowed proceeds are not counted as spending or income a
+  second time. Car, lease, mortgage, student, personal, and miscellaneous debt
+  payments remain in Loans, with provider provenance preserved.
 
 ## 0.2.0 — 2026-08-29
 

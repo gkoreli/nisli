@@ -23,7 +23,7 @@ const fact = (
 describe('Plaid PFC v2 anti-corruption mapping', () => {
   it.each([
     ['INCOME', 'salary', 'Salary'],
-    ['LOAN_DISBURSEMENTS', 'loans', 'Loans'],
+    ['LOAN_DISBURSEMENTS', 'transfer', 'Transfer'],
     ['LOAN_PAYMENTS', 'loans', 'Loans'],
     ['TRANSFER_IN', 'transfer', 'Transfer'],
     ['TRANSFER_OUT', 'transfer', 'Transfer'],
@@ -65,6 +65,23 @@ describe('Plaid PFC v2 anti-corruption mapping', () => {
     ['RENT_AND_UTILITIES_GAS_AND_ELECTRICITY', 'utilities'],
   ])('maps rent and utility detail %s to %s', (detailed, categoryId) => {
     expect(categorizeProviderFact(fact('RENT_AND_UTILITIES', detailed))).toMatchObject({ categoryId });
+  });
+
+  it.each([
+    ['LOAN_PAYMENTS_CREDIT_CARD_PAYMENT', 'transfer'],
+    ['LOAN_PAYMENTS_CAR_PAYMENT', 'loans'],
+    ['LOAN_PAYMENTS_MORTGAGE_PAYMENT', 'loans'],
+    ['LOAN_PAYMENTS_OTHER_PAYMENT', 'loans'],
+  ])('maps loan-payment detail %s to %s without merchant-specific rules', (detailed, categoryId) => {
+    expect(categorizeProviderFact(fact('LOAN_PAYMENTS', detailed))).toMatchObject({ categoryId });
+  });
+
+  it.each([
+    'LOAN_DISBURSEMENTS_AUTO',
+    'LOAN_DISBURSEMENTS_CASH_ADVANCES',
+    'LOAN_DISBURSEMENTS_OTHER_DISBURSEMENT',
+  ])('maps loan disbursement %s to transfer rather than income or spending', (detailed) => {
+    expect(categorizeProviderFact(fact('LOAN_DISBURSEMENTS', detailed))).toMatchObject({ categoryId: 'transfer' });
   });
 
   it.each(['VERY_HIGH', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'])('accepts and preserves %s confidence', (confidence) => {

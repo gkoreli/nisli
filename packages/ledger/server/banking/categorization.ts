@@ -7,7 +7,7 @@
 
 export const PLAID_PFC_TAXONOMY = 'personal_finance_category';
 export const PLAID_PFC_VERSION = 'v2';
-export const PLAID_PFC_LEDGER_MAPPING_VERSION = 'plaid-pfc-v2-ledger-v1';
+export const PLAID_PFC_LEDGER_MAPPING_VERSION = 'plaid-pfc-v2-ledger-v2';
 
 export interface ProviderCategoryFact {
   provider: string;
@@ -70,13 +70,22 @@ const FOOD_GROCERY_DETAILS = new Set([
   'FOOD_AND_DRINK_GROCERIES',
 ]);
 
+const LOAN_PAYMENT_TRANSFER_DETAILS = new Set([
+  // Paying a credit-card balance moves money between owned accounts. The
+  // purchases already carry their spending categories, so treating this as
+  // spending would count the same money twice.
+  'LOAN_PAYMENTS_CREDIT_CARD_PAYMENT',
+]);
+
 const categoryFor = ({ primary, detailed }: ProviderCategoryFact): LedgerCategory | undefined => {
   switch (primary) {
     case 'INCOME':
       return INCOME_INTEREST_DETAILS.has(detailed) ? CATEGORIES.interest : CATEGORIES.salary;
     case 'LOAN_DISBURSEMENTS':
+      // Borrowed proceeds are a balance-sheet movement, not earned income.
+      return CATEGORIES.transfer;
     case 'LOAN_PAYMENTS':
-      return CATEGORIES.loans;
+      return LOAN_PAYMENT_TRANSFER_DETAILS.has(detailed) ? CATEGORIES.transfer : CATEGORIES.loans;
     case 'TRANSFER_IN':
     case 'TRANSFER_OUT':
       return CATEGORIES.transfer;

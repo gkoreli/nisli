@@ -81,7 +81,7 @@ describe('server-owned bank sync fold', () => {
       categoryId: 'dining', authorizedDate: '2026-08-27', currency: 'USD', pending: false,
       classification: {
         source: 'provider', provider: 'plaid', taxonomy: 'personal_finance_category', taxonomyVersion: 'v2',
-        mappingVersion: 'plaid-pfc-v2-ledger-v1', primary: 'FOOD_AND_DRINK',
+        mappingVersion: 'plaid-pfc-v2-ledger-v2', primary: 'FOOD_AND_DRINK',
         detailed: 'FOOD_AND_DRINK_COFFEE', confidence: 'LOW',
       },
     });
@@ -90,6 +90,43 @@ describe('server-owned bank sync fold', () => {
     expect(observation?.payload).toEqual(source.payload);
     expect(Object.values(applied.bankFacts.current.transactions)[0]?.value).toMatchObject({
       authorizedOn: '2026-08-27', pending: false, providerCategory: { detailed: 'FOOD_AND_DRINK_COFFEE' },
+    });
+  });
+
+  it('keeps debt payments as loans while excluding credit-card movements from cash flow', () => {
+    const providerCategory = (primary: string, detailed: string) => ({
+      taxonomy: 'personal_finance_category',
+      primary,
+      detailed,
+      confidenceLevel: 'VERY_HIGH',
+      version: 'v2',
+    });
+    const applied = projectBankSync(ledger(), item, result([
+      {
+        id: 'card-payment', accountId: 'bank-checking', bookedOn: '2026-08-28', description: 'Card payment',
+        amountMinor: -12500, currency: 'USD', pending: false,
+        providerCategory: providerCategory('LOAN_PAYMENTS', 'LOAN_PAYMENTS_CREDIT_CARD_PAYMENT'),
+      },
+      {
+        id: 'loan-payment', accountId: 'bank-checking', bookedOn: '2026-08-27', description: 'Vehicle finance payment',
+        amountMinor: -45000, currency: 'USD', pending: false,
+        providerCategory: providerCategory('LOAN_PAYMENTS', 'LOAN_PAYMENTS_CAR_PAYMENT'),
+      },
+      {
+        id: 'loan-proceeds', accountId: 'bank-checking', bookedOn: '2026-08-26', description: 'Loan proceeds',
+        amountMinor: 500000, currency: 'USD', pending: false,
+        providerCategory: providerCategory('LOAN_DISBURSEMENTS', 'LOAN_DISBURSEMENTS_PERSONAL'),
+      },
+    ])).ledger.transactions;
+
+    expect(applied.find((transaction) => transaction.bank?.transactionId === 'card-payment')).toMatchObject({
+      categoryId: 'transfer', classification: { mappingVersion: 'plaid-pfc-v2-ledger-v2' },
+    });
+    expect(applied.find((transaction) => transaction.bank?.transactionId === 'loan-payment')).toMatchObject({
+      categoryId: 'loans', classification: { mappingVersion: 'plaid-pfc-v2-ledger-v2' },
+    });
+    expect(applied.find((transaction) => transaction.bank?.transactionId === 'loan-proceeds')).toMatchObject({
+      categoryId: 'transfer', classification: { mappingVersion: 'plaid-pfc-v2-ledger-v2' },
     });
   });
 
