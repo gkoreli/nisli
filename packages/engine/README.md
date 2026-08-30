@@ -54,6 +54,19 @@ code. Intent is vocabulary the types offer; appearance is the engine's.
   complete skin defines every part in `PARTS` — `skin.test.ts` proves both for
   the default skin, and that every part a block asks for exists in both
   schemes.
+- **Contrast is a contract, checked like completeness.** `skin/contrast.ts`
+  holds `PAIRS`: every (ink, ground) combination the blocks actually render,
+  read off their `ctx.part()` calls and written as the parts layered exactly
+  as the block layers them — `['text', 'tone.positive']` on
+  `['surface', 'card', 'table.row.hover']` is a toned cell in a hovered row.
+  `measure(parts)` composites the ground (innermost opaque background, alpha
+  layers over it), picks the ink (last part that sets `color`, or the border
+  or fill for non-text), and checks the WCAG 2.x ratio: 4.5 for text, 3 for
+  large text and edges/fills. `skin.test.ts` proves the default skin in both
+  schemes; a third-party skin runs the same proof. When a block starts
+  rendering a combination PAIRS does not list, add the pair (with the
+  `file:line` it came from) — no new part is needed, and the palette moves
+  only where the proof fails.
 
 Where a new need goes: a new *semantic* word on a block (`priority`, `tone`,
 `kind`), a new *engine rule* derived from structure (a surface inside a surface

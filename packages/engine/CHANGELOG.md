@@ -4,6 +4,21 @@ All notable changes to `@nisli/engine`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Unreleased until the first
 publish.
 
+## 0.7.0 — 2026-08-30
+
+- Skin contrast is a contract (ADR 0035 appearance layer, panel 2026-08-30):
+  `skin/contrast.ts` names every (ink, ground) pair the blocks render — text
+  roles on every plane, hovered table rows, toned cells, links, headers and
+  axes wherever a data block sits, read-only segmented options, buttons,
+  notices, inputs, meter and chart fills — and `measure()` proves the default
+  skin meets WCAG 2.x in both schemes (`skin.test.ts`). Exported: `PAIRS`,
+  `measure`, `contrastRatio`, `luminance`, `parseColor`.
+- Default skin, light: `textFaint` #8a8a8a → #707070, `warning` #b7791f →
+  #9a6410, `hover` #f2f2f2 → #f5f5f5 (toned/faint text on a hovered row read
+  4.42–4.49), new `inputBorder` #8c8c8c; dark: `textFaint` #7c7f88 → #8f929b,
+  new `inputBorder` #6f727c, tinted notices take a dark per-tone ink instead
+  of white. `text.heading` (20px/600) is measured as large text (3:1).
+
 ## 0.6.0 — 2026-08-30
 
 - Table: a row's Enter is `preventDefault`ed so the keystroke that opens the

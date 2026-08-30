@@ -1,6 +1,6 @@
 {
   "name": "@nisli/engine",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Typed UI blocks decided by an engine \u2014 no CSS, no classes, no visual decisions in app code.",
   "type": "module",
   "license": "MIT",

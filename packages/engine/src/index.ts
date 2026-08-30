@@ -29,6 +29,7 @@ export { confirm, type ConfirmOptions } from './blocks/confirm.js';
 export { metrics, type Metrics } from './metrics.js';
 export { useSkin, setScheme, look, scheme, PARTS, type Skin, type SkinParts, type SkinAxes, type SkinOptions, type Scheme, type Part } from './skin.js';
 export { defaultSkin, lightPalette, darkPalette, partsOf } from './skin/default.js';
+export { PAIRS, measure, contrastRatio, luminance, parseColor, type Pair, type Measurement } from './skin/contrast.js';
 export type { StyleRecord } from './style.js';
 
 export { fit, columnsFor, shellMode, dialogMode, labelColumn, labelEvery, labelWidth, pageSize, type FitInput, type FitItem, type FitPlan, type FitDecision, type FitAction } from './engine/space.js';

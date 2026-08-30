@@ -40,7 +40,7 @@ They moved with the framework when `@nisli/core` became a standalone package.
 - [0032. Derived Appearance — A Fifth Package for Intent-Declared UI](./0032-derived-appearance-package.md) - Withdrawn - 2026-08-27
 - [0033. Oracle Soundness — How the Checker Earns the Right to Be Believed](./0033-oracle-soundness.md) - Withdrawn - 2026-08-27
 - [0034. `@nisli/engine` — Typed Blocks Decided by an Engine](./0034-engine-typed-blocks-decided-by-an-engine.md) - Accepted - 2026-08-29
-- [0035. Engine Appearance Layer — Visual-less Core, Skins, Parts and Axes](./0035-engine-appearance-layer.md) - Accepted - 2026-08-29
+- [0035. Engine Appearance Layer — Visual-less Core, Skins, Parts and Axes](./0035-engine-appearance-layer.md) - Accepted, amended 2026-08-30 (contrast held by construction) - 2026-08-29
 - [0036. Ledger — System of Record and Security Posture](./0036-ledger-system-of-record-and-security-posture.md) - Accepted - 2026-08-29
 - [0037. `Form` — The Intent-Capture Domain](./0037-engine-form-intent-capture-domain.md) - Accepted - 2026-08-29
 - [0038. Engine Block Kernel and the Space Domain](./0038-engine-block-kernel-and-space-domain.md) - Accepted - 2026-08-29

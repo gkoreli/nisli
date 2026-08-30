@@ -96,3 +96,98 @@ is what makes that the cheap path.
 - Skin authors work against a closed `Part` list and two schemes; adding a part
   means adding it to the union, the default skin and the completeness test in
   the same change.
+
+## Amendment 2026-08-30 — contrast held by construction
+
+**Status of this amendment**: Accepted. **Source**: the next-round panel's
+completeness critic, [Candidate A `skin-contrast`](../research/engine/next-round-panel-2026-08-30.md).
+**Code**: [`skin/contrast.ts`](../../packages/engine/src/skin/contrast.ts),
+[`skin/default.ts`](../../packages/engine/src/skin/default.ts),
+[`skin.test.ts`](../../packages/engine/src/skin.test.ts).
+
+### What was measured
+
+The two contracts above proved the default skin *exists* for every part; they
+said nothing about whether its colours could be read. The critic computed the
+WCAG 2.x ratio for every (ink, ground) pair the blocks render and found the
+accepted look failing in both schemes:
+
+| scheme | pair | ratio | needs |
+|---|---|---|---|
+| light | `text.faint` on every ground (raised, card, dialog, menu, bar, surface) | 3.45 | 4.5 |
+| light | `text.faint` on `surface.sunken` (the page ground) | 3.20 | 4.5 |
+| light | `chart.axis` on card (same ink as `text.faint`) | 3.45 | 4.5 |
+| light | `tone.warning` on raised / card (Stat delta, Text tone) | 3.64 | 4.5 |
+| light | `tone.warning` on `surface.sunken` | 3.37 | 4.5 |
+| light | `notice.warning` white ink on warning | 3.64 | 4.5 |
+| light | `input` border vs raised | 1.41 | 3 |
+| dark | `text.faint` on raised-ish grounds / on surface and bar | 3.87 / 4.25 | 4.5 |
+| dark | `chart.axis` on card | 3.87 | 4.5 |
+| dark | `notice.positive` white ink on positive | 2.22 | 4.5 |
+| dark | `notice.negative` white ink on negative | 2.78 | 4.5 |
+| dark | `notice.warning` white ink on warning | 1.95 | 4.5 |
+| dark | `input` border vs raised | 1.18 | 3 |
+
+Fourteen failing pairs in light, twelve in dark. Review of the first fix found
+one more ground the table had missed — `table.row.hover` under a cell that
+carries `Text({ tone })` or the fold line — on which light `tone.positive`
+(4.49), `tone.warning` (4.46) and `text.faint` (4.42) fail today. Ledger's
+transactions table draws income in `positive` on every hovered row.
+
+### Third contract, a test
+
+3. **Contrast** — `skin.test.ts` proves that every rendered (ink, ground) pair
+   meets its WCAG requirement in every scheme: 4.5:1 for text under 18 px,
+   3:1 for large text (`text.display`, 28 px) and for non-text edges and fills
+   (input borders, meter fills, chart bars). A failure reads
+   `dark: notice.warning text on notice.warning — #ffffff on #e3b341 is 1.95:1, needs 4.5:1`.
+   A third-party skin runs the same proof against its own palette.
+
+### The mechanism — `PAIRS`
+
+`skin/contrast.ts` is a pure module: `parseColor`, `composite` (source-over),
+`luminance`, `contrastRatio`, and `PAIRS` — every (ink, ground) combination the
+blocks actually render, read off their `ctx.part()` calls. A pair is a list of
+existing parts for the ink and a list for the ground, **layered exactly as the
+block layers them**: the innermost non-transparent `background` wins the ground
+(rgba composited outward, so `card.nested` with a transparent background falls
+through to its parent `card`), the last `color` / `borderColor` / `background`
+wins the ink. No new `Part` is named; `measure(parts)` resolves a pair against
+any skin. The table (94 pairs at first landing, plus the hover, link, header,
+axis and segmented-read-only pairs the review added) covers seven text roles
+and `text.display` on eight grounds, `nav.link` on the bar, the four tones on
+Stat deltas, sunken and card, the four button variants, tinted notices, input
+text and borders, meter fills, chart bars, link, table header, chart axis and
+menu items.
+
+A focus-visible ring is **not** in the table: no focus-ring part exists in the
+`Part` union and [0042](./0042-engine-reachability.md) did not add one, so the
+ring-vs-raised 3:1 pair waits for a named part.
+
+### Palette changes, before → after
+
+The light palette is the accepted look and moved only where it failed.
+
+| scheme | field | before → after | ratio before → after |
+|---|---|---|---|
+| light | `textFaint` | `#8a8a8a` → `#707070` | on raised 3.45 → 4.95; on sunken 3.20 → 4.59 |
+| light | `warning` | `#b7791f` → `#9a6410` | tone on raised 3.64 → 4.99; on sunken 3.37 → 4.62; notice white ink 3.64 → 4.99 |
+| light | `inputBorder` (new) | — → `#8c8c8c` | input edge vs raised 1.41 → 3.36 (`border` / `borderFaint` untouched) |
+| light | `hover` | `#f2f2f2` → `#f5f5f5` | positive on hover 4.49 → 4.61; warning 4.46 → 4.58; faint 4.42 → 4.54 (hover vs raised 1.12 → 1.09, still a visible tint) |
+| dark | `textFaint` | `#7c7f88` → `#8f929b` | on raised 3.87 → 4.99; on surface 4.25 → 5.47 |
+| dark | notice inks (`positiveText` / `negativeText` / `warningText`, new) | `#ffffff` → `#0b1020` | positive 2.22 → 8.55; negative 2.78 → 6.82; warning 1.95 → 9.73 (light keeps white: 5.02 / 5.44 / 4.99) |
+| dark | `inputBorder` (new) | — → `#6f727c` | input edge vs raised 1.18 → 3.23 |
+
+Unchanged: `text`, `textMuted`, the three planes, accents, `positive`,
+`negative`, dark `warning`, overlay, skeleton, feedback notices, shadows.
+`Palette` gained four fields; a third party calling `partsOf(customPalette)`
+gets a type error, not a silent gap.
+
+### Rule
+
+**A block that renders a new text-on-ground combination adds a pair.** The
+same change that introduces the `ctx.part()` layering adds its `(ink, ground,
+requirement, where)` entry to `PAIRS`, in the block's own layering order. The
+contrast test then covers it in both schemes; a skin that cannot read it fails
+the proof by name. This is the third leg beside the two existing rules: bare
+emits no visual property, and every part asked for exists.

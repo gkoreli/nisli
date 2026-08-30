@@ -71,7 +71,7 @@ describe('the engine is visual-less', () => {
 // Which parts a block may ask for is enforced by the types: `ctx.part()` and
 // `look()` take `Part`, and a skin is `Record<Part, …>`; the seam holds in
 // both directions without a scanner.
-import { PARTS, scheme, setScheme } from './skin.js';
+import { PARTS, scheme, setScheme, type SkinParts } from './skin.js';
 
 describe('the default skin is complete', () => {
   const light = (defaultSkin as (a: { scheme: 'light' | 'dark' }) => Record<string, unknown>)({ scheme: 'light' });
@@ -85,6 +85,28 @@ describe('the default skin is complete', () => {
     const kebab = (k: string) => k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
     const offenders = [light, dark].flatMap((p) => Object.entries(p).flatMap(([part, rec]) => Object.keys(rec as object).filter((k) => LAYOUT.test(kebab(k))).map((k) => `${part}.${k}`)));
     expect(offenders).toEqual([]);
+  });
+});
+
+// ── Contrast: every pair the blocks render reads, in both schemes ────────
+// The pairs are read off the blocks' `ctx.part()` calls (`skin/contrast.ts`);
+// the requirement is WCAG 2.x: 4.5 for body and 12px text, 3 for large text
+// (text.heading 20px/600, text.display 28px) and non-text edges and fills.
+import { measure, PAIRS, parseColor } from './skin/contrast.js';
+
+describe('the default skin holds contrast', () => {
+  it('names every pair the blocks render', () => { expect(PAIRS.length).toBeGreaterThan(100); });
+  it('parseColor reads percentage alpha and refuses what it cannot read', () => {
+    expect(parseColor('rgba(0,0,0,50%)')?.a).toBeCloseTo(0.5);
+    expect(parseColor('rgba(0,0,0,0.5)')?.a).toBeCloseTo(0.5);
+    expect(parseColor('rgba(0,0,0,50)')).toBeNull();
+    expect(parseColor('rgb(0 0 0 / .5)')).toBeNull();
+  });
+  it.each(['light', 'dark'] as const)('every rendered pair meets its contrast requirement in %s', (s) => {
+    const parts = (defaultSkin as (a: { scheme: 'light' | 'dark' }) => SkinParts)({ scheme: s });
+    const failing = measure(parts).filter((m) => !m.ok)
+      .map((m) => `${s}: ${m.where} — ${m.ink_} on ${m.ground_} is ${m.ratio.toFixed(2)}:1, needs ${m.requirement}:1`);
+    expect(failing).toEqual([]);
   });
 });
 
