@@ -4,7 +4,7 @@ import { notify } from '@nisli/engine';
 import * as api from './api.js';
 import { initialLedger } from './initial-ledger.js';
 
-const KEY = 'ledger.v1';
+const KEY = 'ledger.v2';
 
 /** Bring any stored shape up to the current model. */
 function migrate(raw: Partial<Ledger>): Ledger {
@@ -227,8 +227,10 @@ async function boot(): Promise<void> {
   try {
     const { version: v, ledger } = await api.getLedger();
     if (ledger) { adopt(ledger, v); return; }
-    const cached = readCache();
-    const first = cached ?? initialLedger();
+    // The server is the only authority. Never bootstrap it from a browser
+    // cache: ledger.v1 could contain the retired sample ledger, and even a
+    // genuine cache is not evidence that this empty server owns those facts.
+    const first = initialLedger();
     state.value = first;
     version = v;
     try {
@@ -247,7 +249,7 @@ async function boot(): Promise<void> {
   }
 }
 
-/** Resolves once the boot load (and any one-time migration) has finished. */
+/** Resolves once the authoritative server boot has finished. */
 export const ready: Promise<void> = boot();
 
 /** Drop local state for the server's. */

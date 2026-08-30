@@ -87,8 +87,9 @@ only where the data lives:
 
 - **Boot** (`boot()`, awaited as `ready` in `main.ts` before the skin is
   wired): `GET /api/ledger`. If the server holds a ledger, adopt it. If the
-  server is at version 0, migrate the `localStorage` cache (or the empty initial ledger) with
-  one `PUT` — the one-time move off the stopgap. If the server is
+  server is at version 0, initialize it from the empty reference-category
+  ledger with one `PUT`; a browser cache is never promoted into the system of
+  record. If the server is
   unreachable, run from the cache in the `offline` state.
 - **Writes** apply locally at once (`persist`) and schedule a 400 ms-debounced
   `PUT` with the current version. Success bumps the version and

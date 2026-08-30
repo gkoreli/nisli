@@ -48,9 +48,10 @@ pnpm --filter @nisli/ledger start
   browser hears "saved"; every write carries the version it was based on and
   a stale one is refused (409) — the browser then replays owner edits over the
   newer server projection and retries, without overriding bank-owned facts.
-- The browser keeps a read cache in `localStorage` (`ledger.v1`) and works
-  from it while offline; edits are retried until they land. An existing
-  0.1.0 cache is migrated to the server on first boot.
+- The browser keeps a read cache in `localStorage` (`ledger.v2`) and works
+  from it while offline; edits are retried until they land. A browser cache is
+  never promoted into an empty server, so retired sample data cannot become
+  authoritative. Existing server data is the migration boundary.
 - **Daily backups**: the first write of each day copies the previous file to
   `server/data/backups/ledger-YYYY-MM-DD.json`; the newest 30 are kept.
 - **Restore from Settings**: Settings → Backups lists the server's backups

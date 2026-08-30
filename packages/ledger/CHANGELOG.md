@@ -16,7 +16,8 @@ per version, human-readable highlights.
   or rules; missing Plaid credentials and Plaid Sandbox configuration fail at
   startup. Retired mock records remain recognizable only for backed-up cleanup,
   which also removes unchanged legacy sample budgets/rules without touching
-  owner-customized configuration.
+  owner-customized configuration. The browser cache namespace advances to
+  `ledger.v2`, and an empty server is never initialized from an older cache.
 
 - Bank sync is now applied atomically by the server, shared by manual sync
   and a daily 06:00 local-time scheduler. Pending-to-posted replacements keep

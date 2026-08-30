@@ -4,7 +4,7 @@
  * Connections are handed in with their credential decrypted in memory only.
  */
 
-export type PlaidEnvironment = 'sandbox' | 'development' | 'production';
+export type PlaidEnvironment = 'development' | 'production';
 
 export interface ProviderErrorOptions {
   status?: number;
@@ -172,7 +172,7 @@ export interface PlaidProvider {
 export interface PlaidProviderOptions {
   clientId: string;
   secret: string;
-  env?: PlaidEnvironment;
+  env: PlaidEnvironment;
   redirectUri?: string;
 }
 
@@ -238,7 +238,7 @@ const asErrorResponse = (value: unknown): PlaidErrorResponse => {
 export function plaidProvider({
   clientId,
   secret,
-  env = 'sandbox',
+  env,
   redirectUri = '',
 }: PlaidProviderOptions): PlaidProvider {
   async function call<TResponse>(path: string, body: object): Promise<TResponse> {

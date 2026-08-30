@@ -4,7 +4,7 @@ import type { Account, Ledger } from './model.js';
 
 vi.mock('@nisli/engine', () => ({ notify: vi.fn() }));
 
-const KEY = 'ledger.v1';
+const KEY = 'ledger.v2';
 type Call = { url: string; method: string; body?: { version: number; ledger: Ledger } };
 let calls: Call[];
 let handler: (c: Call) => { status: number; body: unknown } | 'network';
@@ -54,17 +54,21 @@ describe('store as a client of the server', () => {
     expect(JSON.parse(localStorage.getItem(KEY)!).settings.name).toBe('From server');
   });
 
-  it('migrates a localStorage ledger once when the server is empty', async () => {
+  it('initializes an empty server without importing an old browser cache', async () => {
     const local = { ...ledgerFixture(), settings: { ...ledgerFixture().settings, name: 'From cache' } };
-    localStorage.setItem(KEY, JSON.stringify(local));
+    localStorage.setItem('ledger.v1', JSON.stringify(local));
     handler = (c) =>
       c.method === 'GET' ? { status: 200, body: { version: 0, ledger: null } } : { status: 200, body: { version: 1 } };
     const store = await loadStore();
     const puts = calls.filter((c) => c.method === 'PUT');
     expect(puts).toHaveLength(1);
     expect(puts[0]!.body!.version).toBe(0);
-    expect(puts[0]!.body!.ledger.settings.name).toBe('From cache');
-    expect(store.settings.value.name).toBe('From cache');
+    expect(puts[0]!.body!.ledger.accounts).toEqual([]);
+    expect(puts[0]!.body!.ledger.transactions).toEqual([]);
+    expect(puts[0]!.body!.ledger.budgets).toEqual([]);
+    expect(puts[0]!.body!.ledger.rules).toEqual([]);
+    expect(store.accounts.value).toEqual([]);
+    expect(store.settings.value.name).not.toBe('From cache');
     expect(store.lastSavedAt.value).toBeDefined();
   });
 

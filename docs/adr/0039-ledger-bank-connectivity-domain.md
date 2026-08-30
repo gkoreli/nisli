@@ -5,7 +5,7 @@
 **Extends**: [0036-ledger-system-of-record-and-security-posture](./0036-ledger-system-of-record-and-security-posture.md)
 **Governed by**: [`packages/ledger/TENETS.md`](../../packages/ledger/TENETS.md)
 **Code**: [`server/banking/domain.ts`](../../packages/ledger/server/banking/domain.ts), [`server/bank-sync.ts`](../../packages/ledger/server/bank-sync.ts), [`server/providers`](../../packages/ledger/server/providers), [`src/data/bank.ts`](../../packages/ledger/src/data/bank.ts), [`src/screens/connections.ts`](../../packages/ledger/src/screens/connections.ts)
-**Tests**: [`server/bank-sync.test.mjs`](../../packages/ledger/server/bank-sync.test.mjs), [`server/banking/application.test.mjs`](../../packages/ledger/server/banking/application.test.mjs)
+**Tests**: [`server/bank-sync.test.ts`](../../packages/ledger/server/bank-sync.test.ts), [`server/banking/application.test.ts`](../../packages/ledger/server/banking/application.test.ts)
 
 ## Context
 
@@ -65,7 +65,7 @@ SyncResult {
 ```
 
 Plaid's positive-outflow decimals become signed integer minor units inside
-`providers/plaid.mjs`. Test fixtures implement the same normalized port, but
+`providers/plaid.ts`. Test fixtures implement the same normalized port, but
 there is no selectable runtime mock provider. The domain fold therefore has no
 Plaid sign, key, or account-kind rules without exposing invented data in the
 application.

@@ -210,7 +210,7 @@ describe('Plaid link configuration', () => {
       body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       return { ok: true, json: async () => ({ link_token: 'link-token' }) };
     }));
-    const provider = plaidProvider({ clientId: 'client', secret: 'secret', env: 'sandbox', redirectUri: 'https://ledger.example/connections' });
+    const provider = plaidProvider({ clientId: 'client', secret: 'secret', env: 'development', redirectUri: 'https://ledger.example/connections' });
     await provider.linkToken();
     expect(body).toMatchObject({
       client_id: 'client', products: ['transactions'], transactions: { days_requested: 730 },
@@ -224,7 +224,7 @@ describe('Plaid link configuration', () => {
       body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       return { ok: true, json: async () => ({ link_token: 'update-token' }) };
     }));
-    const provider = plaidProvider({ clientId: 'client', secret: 'secret' });
+    const provider = plaidProvider({ clientId: 'client', secret: 'secret', env: 'development' });
     await provider.linkToken({ access_token: 'access-token' });
     expect(body?.access_token).toBe('access-token');
     expect(body?.products).toBeUndefined();
@@ -253,7 +253,7 @@ describe('Plaid link configuration', () => {
         }] }),
       };
     }));
-    const provider = plaidProvider({ clientId: 'client', secret: 'secret' });
+    const provider = plaidProvider({ clientId: 'client', secret: 'secret', env: 'development' });
     const synced = await provider.sync({ access_token: 'access-token', checkpoint: 'old-checkpoint' });
 
     expect(synced).toMatchObject({ checkpoint: 'next-checkpoint', complete: true, historyReady: true, updateStatus: 'HISTORICAL_UPDATE_COMPLETE', removed: ['removed-1'] });
@@ -273,7 +273,7 @@ describe('Plaid link configuration', () => {
         transactions_update_status: 'NOT_READY',
       }),
     } : { ok: true, json: async () => ({ accounts: [] }) }));
-    const provider = plaidProvider({ clientId: 'client', secret: 'secret' });
+    const provider = plaidProvider({ clientId: 'client', secret: 'secret', env: 'development' });
 
     await expect(provider.sync({ access_token: 'access-token', checkpoint: null })).resolves.toMatchObject({
       complete: true, historyReady: false, updateStatus: 'NOT_READY', added: [], checkpoint: '',
@@ -303,7 +303,7 @@ describe('Plaid link configuration', () => {
         }),
       };
     }));
-    const provider = plaidProvider({ clientId: 'client', secret: 'secret' });
+    const provider = plaidProvider({ clientId: 'client', secret: 'secret', env: 'development' });
     const synced = await provider.sync({ access_token: 'access-token', checkpoint: 'original' });
 
     expect(cursors).toEqual(['original', 'middle', 'original']);
