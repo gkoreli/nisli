@@ -24,6 +24,7 @@
   command, its full output, and the verdict. A negative result is a deliverable;
   never soften an experiment's assertions to make it pass.
 - Deep framework authoring rules live in `.agents/skills/nisli-framework`.
+- Engine block, Form, skin, and width-proof rules live in `.agents/skills/nisli-engine`.
 
 ## Commands
 
@@ -51,6 +52,8 @@
 
 - Use `.agents/skills/nisli-framework` when writing, reviewing, or debugging
   Nisli components.
+- Use `.agents/skills/nisli-engine` when composing screens from `@nisli/engine`
+  blocks, writing Form schemas or skins, or proving layout at width.
 - Component setup is synchronous. Capture services, contexts, effects, and
   lifecycle hooks during setup; perform async work from captured closures.
 - In Nisli templates, compose custom elements through the typed factory returned
