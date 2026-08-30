@@ -80,6 +80,10 @@ in-place file move.
 
 - A provider page-set must complete before any ledger mutation. A 50-page
   safety limit fails closed; its checkpoint is not advanced.
+- Plaid's one-use public token is exchanged without enrichment. The resulting
+  Item id and credential are encrypted and staged first; only then may
+  `/accounts/get` run. A completion-key retry resumes enrichment from the
+  staged connection and never exchanges the same public token twice.
 - Plaid requests have a bounded timeout and bounded retry for network,
   throttling, and server failures. A mutation-during-pagination response
   restarts from the original checkpoint and discards the interrupted pass.

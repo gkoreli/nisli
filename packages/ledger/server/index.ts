@@ -272,13 +272,13 @@ const needsSoonRetry = (results: DailySyncResults): boolean => results.some((res
 
 function scheduleDailySync(delay = msUntilNextSync()): void {
   const timer = setTimeout(async () => {
-    let results: DailySyncResults = [];
     try {
-      results = await runDailySyncIfDue();
+      const results = await runDailySyncIfDue();
+      scheduleDailySync(needsSoonRetry(results) ? 15 * 60 * 1000 : msUntilNextSync());
     } catch (error: unknown) {
       console.error(`daily bank sync failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+      scheduleDailySync(15 * 60 * 1000);
     }
-    scheduleDailySync(needsSoonRetry(results) ? 15 * 60 * 1000 : msUntilNextSync());
   }, delay);
   timer.unref();
 }

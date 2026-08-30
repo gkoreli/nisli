@@ -68,10 +68,10 @@ export const createLinkToken = (connectionId?: string) => post<{ link_token: str
 export const exchange = async (body: { public_token: string; institution?: string }): Promise<BankConnection> => {
   try {
     return await post<BankConnection>('/api/bank/exchange', body);
-  } catch (error) {
-    // A dropped response may follow a successful one-use token exchange. The
-    // server's completion key makes this single retry return the saved connection.
-    if (!(error instanceof TypeError) || !('public_token' in body)) throw error;
+  } catch {
+    // A dropped response or failed account enrichment may follow a successful
+    // one-use token exchange. The server's completion key makes this single
+    // retry resume the encrypted staged connection without exchanging again.
     return post<BankConnection>('/api/bank/exchange', body);
   }
 };

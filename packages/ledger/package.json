@@ -17,15 +17,15 @@
     "vite": "^7.1.5"
   },
   "scripts": {
-    "dev": "bunx --bun --no-install vite --configLoader runner",
-    "build": "bunx --bun --no-install vite build --configLoader runner",
+    "dev": "bun --no-env-file x --bun --no-install vite --configLoader runner",
+    "build": "bun --no-env-file x --bun --no-install vite build --configLoader runner",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --typecheck",
     "server": "bun --no-env-file --env-file=.env server/index.ts",
     "start": "bun --no-env-file --env-file=.env server/index.ts",
     "dev:all": "bun --no-env-file scripts/dev.ts",
     "server:tailscale": "HOST=${HOST:?set HOST to your tailscale IP} bun --no-env-file --env-file=.env server/index.ts",
-    "service:install": "bun run build && bun --no-env-file scripts/service.ts install",
+    "service:install": "bun --no-env-file run build && bun --no-env-file scripts/service.ts install",
     "service:remove": "bun --no-env-file scripts/service.ts remove"
   }
 }

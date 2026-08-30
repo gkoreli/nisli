@@ -34,6 +34,7 @@ function harness({ failLive = false, historyReady = true }: { failLive?: boolean
     env: 'production',
     linkToken: vi.fn(async () => ({ link_token: 'link-token' })),
     exchange: vi.fn(async () => connection('live', 'plaid')),
+    accounts: vi.fn(async (candidate: AuthenticatedBankConnection) => ({ accounts: candidate.accounts })),
     remove: vi.fn(async () => undefined),
     sync: vi.fn(async (candidate: AuthenticatedBankConnection) => {
       expect(candidate.checkpoint).toBeNull();
@@ -134,5 +135,67 @@ describe('banking application service', () => {
     expect(h.plaid.exchange).toHaveBeenCalledOnce();
     expect(repeated).toMatchObject({ id: 'live', provider: 'plaid' });
     expect(repeated).not.toHaveProperty('completionKey');
+  });
+
+  it('stages one-use credentials before enrichment and resumes without exchanging again', async () => {
+    let connections: BankConnection[] = [];
+    let enrichmentAttempts = 0;
+    const plaid: BankingProvider = {
+      name: 'plaid',
+      env: 'production',
+      linkToken: vi.fn(async () => ({ link_token: 'link-token' })),
+      exchange: vi.fn(async () => ({
+        ...connection('scarce-item', 'plaid', []),
+        checkpoint: null,
+        accounts: [],
+      })),
+      accounts: vi.fn(async () => {
+        enrichmentAttempts++;
+        if (enrichmentAttempts === 1) {
+          throw Object.assign(new Error('accounts temporarily unavailable'), { code: 'PROVIDER_DOWN' });
+        }
+        return { accounts: [account('scarce-account')], institution: 'Durable Bank' };
+      }),
+      remove: vi.fn(async () => undefined),
+      sync: vi.fn(async () => snapshot('scarce-item')),
+    };
+    const service = createBankingService({
+      activeProvider: plaid,
+      providerFor: () => plaid,
+      loadConnections: async () => structuredClone(connections),
+      updateConnections: async (update) => {
+        connections = await update(structuredClone(connections));
+        return structuredClone(connections);
+      },
+      getLedger: async () => ({ version: 1, ledger: ledger() }),
+      updateLedger: async (update) => ({ version: 2, ledger: await update(ledger()) }),
+    });
+    const completion = { public_token: 'single-use-production-token', institution: 'Selected Bank' };
+
+    await expect(service.connect(completion)).rejects.toThrow('accounts temporarily unavailable');
+
+    expect(plaid.exchange).toHaveBeenCalledOnce();
+    expect(connections).toHaveLength(1);
+    expect(connections[0]).toMatchObject({
+      id: 'scarce-item',
+      access_token: 'scarce-item-access-token',
+      accounts: [],
+      status: 'error',
+      error: { code: 'PROVIDER_DOWN' },
+    });
+    expect(connections[0]!.completionKey).toMatch(/^[a-f0-9]{64}$/);
+    expect(connections[0]!.completionKey).not.toContain(completion.public_token);
+    const publicView = await service.list();
+    expect(publicView[0]).not.toHaveProperty('access_token');
+    expect(publicView[0]).not.toHaveProperty('completionKey');
+
+    await expect(service.connect(completion)).resolves.toMatchObject({
+      id: 'scarce-item', institution: 'Durable Bank', status: 'ok',
+      accounts: [expect.objectContaining({ id: 'scarce-account' })],
+    });
+    expect(plaid.exchange).toHaveBeenCalledOnce();
+    expect(plaid.accounts).toHaveBeenCalledTimes(2);
+    expect(connections[0]).toMatchObject({ status: 'ok', institution: 'Durable Bank' });
+    expect(connections[0]!.error).toBeUndefined();
   });
 });

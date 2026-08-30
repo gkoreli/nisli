@@ -148,6 +148,11 @@ export interface PlaidConnection extends PlaidItemCredential {
   accounts: ProviderAccount[];
 }
 
+export interface PlaidAccountSnapshot {
+  accounts: ProviderAccount[];
+  institution?: string;
+}
+
 export interface PlaidSyncResult {
   added: ProviderTransaction[];
   modified: ProviderTransaction[];
@@ -164,7 +169,7 @@ export interface PlaidProvider {
   readonly env: PlaidEnvironment;
   linkToken(item?: PlaidItemCredential): Promise<{ link_token: string }>;
   exchange(body: PlaidExchangeRequest): Promise<PlaidConnection>;
-  accounts(item: PlaidItemCredential): Promise<ProviderAccount[]>;
+  accounts(item: PlaidItemCredential): Promise<PlaidAccountSnapshot>;
   sync(item: PlaidItemCredential): Promise<PlaidSyncResult>;
   remove(item: Partial<PlaidItemCredential>): Promise<void>;
 }
@@ -289,9 +294,12 @@ export function plaidProvider({
     throw new ProviderError(`Plaid ${path} failed`, { code: 'PLAID_RETRY_EXHAUSTED' });
   }
 
-  const accounts = async (item: PlaidItemCredential): Promise<ProviderAccount[]> => {
+  const accounts = async (item: PlaidItemCredential): Promise<PlaidAccountSnapshot> => {
     const response = await call<PlaidAccountsResponse>('/accounts/get', { access_token: accessToken(item) });
-    return response.accounts.map(plaidAccount);
+    return {
+      accounts: response.accounts.map(plaidAccount),
+      ...(response.item?.institution_name ? { institution: response.item.institution_name } : {}),
+    };
   };
 
   return {
@@ -320,19 +328,18 @@ export function plaidProvider({
       const exchange = await call<PlaidExchangeResponse>('/item/public_token/exchange', {
         public_token: body.public_token,
       });
-      const accountResponse = await call<PlaidAccountsResponse>('/accounts/get', {
-        access_token: exchange.access_token,
-      });
       return {
         id: exchange.item_id,
         provider: 'plaid',
         environment: env,
         access_token: exchange.access_token,
-        institution: body.institution || accountResponse.item?.institution_name || 'Bank',
+        institution: body.institution || 'Bank',
         checkpoint: null,
         status: 'ok',
         createdAt: new Date().toISOString(),
-        accounts: accountResponse.accounts.map(plaidAccount),
+        // A public token is one-use. Account enrichment deliberately happens
+        // only after the application service has durably staged this Item.
+        accounts: [],
       };
     },
 
@@ -387,7 +394,7 @@ export function plaidProvider({
       const currentAccounts = await accounts(item);
       return {
         ...output,
-        accounts: currentAccounts,
+        accounts: currentAccounts.accounts,
         checkpoint: cursor ?? item.checkpoint ?? null,
         complete: true,
         updateStatus,

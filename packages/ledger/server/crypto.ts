@@ -35,19 +35,41 @@ function loadKey(): Buffer {
     key = Buffer.from(env, 'hex');
     return key;
   }
-  try {
+  const readStoredKey = (): Buffer => {
     const hex = readFileSync(KEY_FILE, 'utf8').trim();
     if (/^[0-9a-fA-F]{64}$/.test(hex)) {
-      key = Buffer.from(hex, 'hex');
-      return key;
+      return Buffer.from(hex, 'hex');
     }
     throw new Error('Stored Ledger encryption key is invalid; refusing to replace it');
+  };
+  try {
+    key = readStoredKey();
+    return key;
   } catch (error: unknown) {
     if (errorCode(error) !== 'ENOENT') throw error;
   }
-  key = randomBytes(32);
+  const generated = randomBytes(32);
   mkdirSync(dirname(KEY_FILE), { recursive: true });
-  writeFileSync(KEY_FILE, `${key.toString('hex')}\n`, { mode: 0o600 });
+  try {
+    writeFileSync(KEY_FILE, `${generated.toString('hex')}\n`, { mode: 0o600, flag: 'wx' });
+    key = generated;
+  } catch (error: unknown) {
+    if (errorCode(error) !== 'EEXIST') throw error;
+    let winnerError: unknown;
+    const pause = new Int32Array(new SharedArrayBuffer(4));
+    for (let attempt = 0; attempt < 100; attempt++) {
+      try {
+        key = readStoredKey();
+        break;
+      } catch (candidate: unknown) {
+        const code = errorCode(candidate);
+        if (code && code !== 'ENOENT') throw candidate;
+        winnerError = candidate;
+        Atomics.wait(pause, 0, 0, 5);
+      }
+    }
+    if (!key) throw winnerError;
+  }
   return key;
 }
 

@@ -204,6 +204,26 @@ describe('financial provenance', () => {
 describe('Plaid link configuration', () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it('returns the exchanged Item credential without fetching accounts first', async () => {
+    const paths: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => {
+      paths.push(new URL(String(url)).pathname);
+      return {
+        ok: true,
+        json: async () => ({ access_token: 'durable-access-token', item_id: 'durable-item' }),
+      };
+    }));
+    const provider = plaidProvider({ clientId: 'client', secret: 'secret', env: 'production' });
+
+    await expect(provider.exchange({ public_token: 'one-use-token', institution: 'Selected Bank' })).resolves.toMatchObject({
+      id: 'durable-item',
+      access_token: 'durable-access-token',
+      institution: 'Selected Bank',
+      accounts: [],
+    });
+    expect(paths).toEqual(['/item/public_token/exchange']);
+  });
+
   it('requests 730 days and the configured OAuth redirect for a new Item', async () => {
     let body: Record<string, unknown> | undefined;
     vi.stubGlobal('fetch', vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {

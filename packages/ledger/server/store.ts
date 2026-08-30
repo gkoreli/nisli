@@ -129,8 +129,123 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+const isString = (value: unknown): value is string => typeof value === 'string';
+const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
+const isInteger = (value: unknown): value is number => Number.isInteger(value);
+const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+const isOptional = <T>(value: unknown, validate: (candidate: unknown) => candidate is T): value is T | undefined => value === undefined || validate(value);
+const isStringArray = (value: unknown): value is string[] => Array.isArray(value) && value.every(isString);
+const isOneOf = <T extends string>(values: readonly T[]) => (value: unknown): value is T => isString(value) && values.includes(value as T);
+
+const isAccountKind = isOneOf(['checking', 'savings', 'credit', 'investment'] as const);
+const isConnectionStatus = isOneOf(['ok', 'error', 'reauth-required', 'disabled', 'disconnect-pending'] as const);
+
+function isAccount(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  const external = value.external;
+  return isString(value.id)
+    && isString(value.name)
+    && isAccountKind(value.kind)
+    && isInteger(value.opening)
+    && isString(value.institution)
+    && isString(value.currency)
+    && (external === undefined || (isRecord(external)
+      && isString(external.provider)
+      && isOptional(external.environment, isString)
+      && isString(external.connectionId)
+      && isString(external.accountId)
+      && isOptional(external.status, isOneOf(['active', 'inactive'] as const))));
+}
+
+function isTransaction(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  const bank = value.bank;
+  return isString(value.id)
+    && isString(value.accountId)
+    && isString(value.categoryId)
+    && isString(value.date)
+    && isInteger(value.amount)
+    && isString(value.payee)
+    && isOptional(value.note, isString)
+    && isOptional(value.externalId, isString)
+    && (bank === undefined || (isRecord(bank)
+      && isString(bank.provider)
+      && isOptional(bank.environment, isString)
+      && isString(bank.connectionId)
+      && isString(bank.transactionId)));
+}
+
+function isLedger(value: unknown): value is Ledger {
+  if (!isRecord(value)) return false;
+  const settings = value.settings;
+  const sync = value.sync;
+  const history = value.bankHistory;
+  return Array.isArray(value.accounts) && value.accounts.every(isAccount)
+    && Array.isArray(value.categories) && value.categories.every((category) => isRecord(category)
+      && isString(category.id) && isString(category.name) && isOptional(category.income, isBoolean))
+    && Array.isArray(value.transactions) && value.transactions.every(isTransaction)
+    && Array.isArray(value.budgets) && value.budgets.every((budget) => isRecord(budget)
+      && isString(budget.id) && isString(budget.categoryId) && isInteger(budget.limit))
+    && Array.isArray(value.rules) && value.rules.every((rule) => isRecord(rule)
+      && isString(rule.id) && isString(rule.match) && isString(rule.categoryId))
+    && isRecord(settings)
+    && isString(settings.name)
+    && isString(settings.currency)
+    && isString(settings.locale)
+    && isOptional(settings.appearance, isOneOf(['system', 'light', 'dark'] as const))
+    && (sync === undefined || (isRecord(sync) && Object.values(sync).every((entry) => isRecord(entry)
+      && isString(entry.at) && isInteger(entry.added))))
+    && (history === undefined || (Array.isArray(history) && history.every((entry) => isRecord(entry)
+      && isString(entry.id)
+      && isString(entry.observedAt)
+      && isOneOf(['modified', 'removed', 'replaced'] as const)(entry.change)
+      && isString(entry.provider)
+      && isString(entry.environment)
+      && isString(entry.connectionId)
+      && isOptional(entry.transactionId, isString)
+      && isOptional(entry.replacementId, isString)
+      && isTransaction(entry.transaction))))
+    && isOptional(value.pendingBankRebuild, isStringArray);
+}
+
 function isLedgerDocument(value: unknown): value is LedgerDocument {
-  return isRecord(value) && typeof value.version === 'number' && Object.hasOwn(value, 'ledger');
+  return isRecord(value)
+    && isInteger(value.version)
+    && value.version >= 0
+    && (value.ledger === null || isLedger(value.ledger))
+    && isOptional(value.savedAt, isString)
+    && isOptional(value.restoredFrom, isString);
+}
+
+function isProviderAccountInput(value: unknown): boolean {
+  return isRecord(value)
+    && isString(value.id)
+    && isString(value.name)
+    && isOptional(value.mask, isString)
+    && isOptional(value.kind, isAccountKind)
+    && isOptional(value.type, isString)
+    && (value.subtype === undefined || value.subtype === null || isString(value.subtype))
+    && isOptional(value.balanceMinor, isInteger)
+    && isOptional(value.balance, isFiniteNumber)
+    && isOptional(value.currency, isString);
+}
+
+function isBankConnectionInput(value: unknown): value is BankConnectionInput {
+  const error = isRecord(value) ? value.error : undefined;
+  return isRecord(value)
+    && isString(value.id)
+    && isString(value.institution)
+    && isOptional(value.provider, isString)
+    && isOptional(value.environment, isString)
+    && isOptional(value.status, isConnectionStatus)
+    && (value.checkpoint === undefined || value.checkpoint === null || isString(value.checkpoint))
+    && (value.cursor === undefined || value.cursor === null || isString(value.cursor))
+    && isOptional(value.createdAt, isString)
+    && (value.accounts === undefined || (Array.isArray(value.accounts) && value.accounts.every(isProviderAccountInput)))
+    && isOptional(value.access_token, isString)
+    && isOptional(value.completionKey, isString)
+    && isOptional(value.historyStatus, isString)
+    && (error === undefined || (isRecord(error) && isString(error.code) && isString(error.message)));
 }
 
 // ── Ledger document ──────────────────────────────────────────────────
@@ -144,11 +259,16 @@ async function readDoc(): Promise<LedgerDocument> {
 export const getLedger = (): Promise<LedgerDocument> => readDoc();
 
 async function pruneBackups(): Promise<void> {
-  const names = (await readdir(BACKUP_DIR).catch(() => []))
+  const names = (await readdir(BACKUP_DIR).catch((error: unknown) => {
+    if (errorCode(error) === 'ENOENT') return [];
+    throw error;
+  }))
     .filter((name) => DAILY.test(name))
     .sort()
     .reverse();
-  await Promise.all(names.slice(KEEP_BACKUPS).map((name) => unlink(join(BACKUP_DIR, name)).catch(() => undefined)));
+  await Promise.all(names.slice(KEEP_BACKUPS).map((name) => unlink(join(BACKUP_DIR, name)).catch((error: unknown) => {
+    if (errorCode(error) !== 'ENOENT') throw error;
+  })));
 }
 
 async function backupToday(): Promise<void> {
@@ -157,13 +277,14 @@ async function backupToday(): Promise<void> {
   try {
     await stat(target);
     return;
-  } catch {
-    // First write today.
+  } catch (error: unknown) {
+    if (errorCode(error) !== 'ENOENT') throw error;
   }
   try {
     await copyFile(LEDGER_FILE, target);
-  } catch {
-    return; // Nothing stored yet.
+  } catch (error: unknown) {
+    if (errorCode(error) === 'ENOENT') return; // Nothing stored yet.
+    throw error;
   }
   await pruneBackups();
 }
@@ -172,7 +293,10 @@ async function backupNamed(label: string): Promise<string> {
   if (!/^pre-[a-z-]+$/.test(label)) throw new StoreError('Invalid backup label', 400);
   await mkdir(BACKUP_DIR, { recursive: true });
   let target = join(BACKUP_DIR, `ledger-${today()}.${label}.json`);
-  for (let index = 1; await stat(target).then(() => true, () => false); index++) {
+  for (let index = 1; await stat(target).then(() => true, (error: unknown) => {
+    if (errorCode(error) === 'ENOENT') return false;
+    throw error;
+  }); index++) {
     target = join(BACKUP_DIR, `ledger-${today()}.${label}-${index}.json`);
   }
   await copyFile(LEDGER_FILE, target);
@@ -185,8 +309,6 @@ async function backupNamed(label: string): Promise<string> {
   const directory = await open(BACKUP_DIR, 'r');
   try {
     await directory.sync();
-  } catch {
-    // Not every filesystem permits directory fsync.
   } finally {
     await directory.close();
   }
@@ -232,7 +354,10 @@ export function updateLedger(
 }
 
 export async function listBackups(): Promise<BackupView[]> {
-  const names = (await readdir(BACKUP_DIR).catch(() => [])).filter((name) => ANY_BACKUP.test(name));
+  const names = (await readdir(BACKUP_DIR).catch((error: unknown) => {
+    if (errorCode(error) === 'ENOENT') return [];
+    throw error;
+  })).filter((name) => ANY_BACKUP.test(name));
   const backups = await Promise.all(names.map(async (name): Promise<BackupView> => {
     const match = ANY_BACKUP.exec(name);
     if (!match?.[1]) throw new StoreError('Stored backup has an invalid name', 500);
@@ -246,12 +371,12 @@ export function restoreBackup(name: string): Promise<LedgerSnapshot> {
     if (basename(name) !== name || !ANY_BACKUP.test(name)) throw new StoreError('Unknown backup', 400);
     const source = join(BACKUP_DIR, name);
     const stored = await readJson(source, null);
-    if (!isLedgerDocument(stored) || !isRecord(stored.ledger)) throw new StoreError('Unknown backup', 404);
+    if (!isLedgerDocument(stored) || stored.ledger === null) throw new StoreError('Unknown backup', 404);
     const current = await readDoc();
     if (current.ledger !== null) await backupNamed('pre-restore');
     // The version keeps moving forward so a client holding the old number gets a clean 409, never a silent overwrite.
     const activeConnections = (await loadConnections()).filter(canSynchronize).map((connection) => connection.id);
-    const restoredLedger: Ledger = { ...(stored.ledger as unknown as Ledger), pendingBankRebuild: activeConnections };
+    const restoredLedger: Ledger = { ...stored.ledger, pendingBankRebuild: activeConnections };
     const next: LedgerDocument = {
       version: current.version + 1,
       ledger: restoredLedger,
@@ -271,13 +396,13 @@ export async function loadConnections(
   const stored = await readJson(ITEMS_FILE, []);
   if (!Array.isArray(stored)) throw new StoreError('Stored items.json has an invalid shape', 500);
   return stored.map((item) => {
-    if (!isRecord(item)) throw new StoreError('Stored items.json has an invalid shape', 500);
+    if (!isBankConnectionInput(item)) throw new StoreError('Stored items.json has an invalid shape', 500);
     const decrypted = item.access_token && isSealed(item.access_token)
       ? { ...item, access_token: decrypt(item.access_token) }
       : item;
     // The persistence boundary validates the collection shape; the domain
     // normalizer owns migration and required-field normalization for each row.
-    return normalizeConnection(decrypted as unknown as BankConnectionInput, { liveProvider, liveEnvironment });
+    return normalizeConnection(decrypted, { liveProvider, liveEnvironment });
   });
 }
 

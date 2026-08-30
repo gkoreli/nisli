@@ -15,7 +15,7 @@ const children = [
     stdout: 'inherit',
     stderr: 'inherit',
   }),
-  Bun.spawn([bun, 'x', '--bun', '--no-install', 'vite', '--configLoader', 'runner'], {
+  Bun.spawn([bun, '--no-env-file', 'x', '--bun', '--no-install', 'vite', '--configLoader', 'runner'], {
     cwd: root,
     stdin: 'inherit',
     stdout: 'inherit',

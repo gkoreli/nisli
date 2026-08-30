@@ -68,6 +68,9 @@ pnpm --filter @nisli/ledger start
 
 - Bank logins happen only in Plaid's own Link window. No Ledger form asks for
   a bank credential and the server only ever sees the resulting token.
+- A one-use Plaid token is exchanged into an encrypted staged connection before
+  account enrichment. If Plaid is temporarily unavailable after exchange,
+  retry/sync resumes that connection instead of allocating another Item.
 - Access tokens live in `server/data/items.json`, encrypted with AES-256-GCM
   (`server/crypto.ts`); they are decrypted in memory for a sync and never
   sent to the browser. Opaque provider checkpoints are server-only too.
@@ -75,6 +78,10 @@ pnpm --filter @nisli/ledger start
   `LEDGER_KEY`); nothing is in code or git.
 - The server refuses LAN/public bind addresses, validates write origins and
   JSON content types, and accepts localhost or tailnet hosts only (see Run).
+- Ledger is a single-owner application. Loopback is trusted; for phone access,
+  the owner's Tailscale identity and ACL are the authentication boundary.
+  Do not expose Ledger to a shared tailnet unless its ACL grants access only to
+  the owner's devices, and never use Funnel or a public/LAN bind.
 - Logs are one line per request — method, redacted route, status, milliseconds
   — never a connection id, token, payee or amount.
 

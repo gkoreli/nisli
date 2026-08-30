@@ -41,6 +41,10 @@ per version, human-readable highlights.
 - Store writes use private fsynced temp files and fail closed on corrupt JSON.
   Sync, disconnect, and live-data replacement use ordered, replay-safe state
   transitions across the ledger and encrypted connection store.
+- The production boundary now fails closed on invalid persisted shapes and
+  backup I/O errors, generated encryption keys use exclusive creation, Plaid
+  credentials are staged before account enrichment, and failed scheduled sync
+  attempts retry promptly instead of waiting until the next day.
 - Browser edits now cross an owner-only write boundary and are replayed over a
   concurrent bank sync; bank amounts, dates, accounts, provenance, and prior
   observations remain server-owned. Restore forces complete per-connection

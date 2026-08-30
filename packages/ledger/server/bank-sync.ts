@@ -18,6 +18,7 @@ import type {
   BankSyncSummary,
   ConnectionView,
   FinancialComposition,
+  ProviderAccount,
   PublicBankingError,
 } from './banking/domain.ts';
 import type { Ledger } from '../src/data/model.ts';
@@ -34,6 +35,7 @@ export interface BankingProvider {
   env: string;
   linkToken(connection?: AuthenticatedBankConnection): Promise<{ link_token: string }>;
   exchange(body: LinkCompletion): Promise<BankConnectionInput>;
+  accounts(connection: AuthenticatedBankConnection): Promise<{ accounts: ProviderAccount[]; institution?: string }>;
   sync(connection: AuthenticatedBankConnection): Promise<BankSyncResult>;
   remove(connection: AuthenticatedBankConnection): Promise<void>;
 }
@@ -208,19 +210,54 @@ export function createBankingService({ activeProvider, providerFor, loadConnecti
       const completionKey = body.public_token
         ? createHash('sha256').update(body.public_token).digest('hex')
         : undefined;
+      let connection: BankConnection | undefined;
       if (completionKey) {
         const completed = (await loadConnections()).find((connection) => connection.completionKey === completionKey);
-        if (completed) return connectionView(completed);
+        if (completed?.status === 'ok') return connectionView(completed);
+        if (completed) {
+          connection = normalizeConnection(completed, {
+            liveProvider: activeProvider.name,
+            liveEnvironment: activeProvider.env,
+          });
+        }
       }
-      const connection = normalizeConnection({
-        ...await activeProvider.exchange(body),
-        ...(completionKey ? { completionKey } : {}),
-      }, {
-        liveProvider: activeProvider.name,
-        liveEnvironment: activeProvider.env,
-      });
-      await updateConnections((current) => [...current.filter((candidate) => candidate.id !== connection.id), connection]);
-      return connectionView(connection);
+      if (!connection) {
+        const exchanged = await activeProvider.exchange(body);
+        connection = normalizeConnection({
+          ...exchanged,
+          ...(completionKey ? { completionKey } : {}),
+          status: 'error',
+          error: {
+            code: 'CONNECTION_ENRICHMENT_PENDING',
+            message: 'Bank connection setup is incomplete; retry to finish',
+          },
+        }, {
+          liveProvider: activeProvider.name,
+          liveEnvironment: activeProvider.env,
+        });
+        // The encrypted connection store is the durability boundary for the
+        // one-use public token. No provider enrichment may happen before it.
+        await updateConnections((current) => [
+          ...current.filter((candidate) => candidate.id !== connection!.id),
+          connection!,
+        ]);
+      }
+      try {
+        const details = await providerFor(connection).accounts(authenticated(connection));
+        const updated = await updateConnections((current) => current.map((candidate) => candidate.id === connection!.id
+          ? {
+            ...candidate,
+            institution: details.institution || candidate.institution,
+            accounts: details.accounts,
+            status: 'ok',
+            error: undefined,
+          }
+          : candidate));
+        return connectionView(updated.find((candidate) => candidate.id === connection!.id) ?? connection);
+      } catch (error) {
+        await recordFailure(connection, error);
+        throw error;
+      }
     }),
 
     syncOne: (connectionId) => serial(async () => syncConnection(await getConnection(connectionId))),
