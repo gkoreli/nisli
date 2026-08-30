@@ -39,12 +39,12 @@ export const RulesScreen = component('ledger-rules', () => {
   });
 
   const ruleFields = computed<Field<RuleDraft>[]>(() => [
-    { key: 'match', label: 'Payee contains', kind: 'text', required: true, hint: 'Case-insensitive; matched against the payee' },
-    { key: 'categoryId', label: 'Category', kind: 'select', required: true, options: categories.value.filter((c) => c.id !== 'transfer').map((c) => ({ value: c.id, label: c.name })) },
+    { name: 'match', label: 'Payee contains', kind: 'text', required: true, hint: 'Case-insensitive; matched against the payee' },
+    { name: 'categoryId', label: 'Category', required: true, options: categories.value.filter((c) => c.id !== 'transfer').map((c) => ({ value: c.id, label: c.name })) },
   ]);
   const categoryFields: Field<CategoryDraft>[] = [
-    { key: 'name', label: 'Name', kind: 'text', required: true },
-    { key: 'income', label: 'Kind', kind: 'checkbox', placeholder: 'This is income' },
+    { name: 'name', label: 'Name', kind: 'text', required: true },
+    { name: 'income', label: 'This is income', kind: 'boolean' },
   ];
 
   const editRule = (r?: Rule, match = '') => {
@@ -59,14 +59,14 @@ export const RulesScreen = component('ledger-rules', () => {
   };
 
   const ruleColumns: Column<RuleRow>[] = [
-    { id: 'match', header: 'Matches', cell: (r) => `payee contains “${r.match}”`, priority: 'primary' },
-    { id: 'category', header: 'Category', cell: (r) => r.category },
-    { id: 'hits', header: 'Hits', kind: 'number', cell: (r) => r.hits, priority: 'tertiary' },
+    { id: 'match', label: 'Matches', cell: (r) => `payee contains “${r.match}”`, priority: 'primary' },
+    { id: 'category', label: 'Category', cell: (r) => r.category },
+    { id: 'hits', label: 'Hits', kind: 'number', cell: (r) => r.hits, priority: 'tertiary' },
   ];
   const payeeColumns: Column<PayeeRow>[] = [
-    { id: 'payee', header: 'Payee', cell: (r) => r.payee, priority: 'primary' },
-    { id: 'count', header: 'Count', kind: 'number', cell: (r) => r.count },
-    { id: 'total', header: 'Total', kind: 'money', cell: (r) => money(r.total, { sign: true }) },
+    { id: 'payee', label: 'Payee', cell: (r) => r.payee, priority: 'primary' },
+    { id: 'count', label: 'Count', kind: 'number', cell: (r) => r.count },
+    { id: 'total', label: 'Total', kind: 'money', cell: (r) => money(r.total, { sign: true }) },
   ];
 
   return Page({
@@ -86,11 +86,11 @@ export const RulesScreen = component('ledger-rules', () => {
       }),
       Section({
         title: 'Rules',
-        children: [Table<RuleRow>({ columns: ruleColumns, rows: ruleRows, key: (r) => r.id, onSelect: (r) => editRule(rules.value.find((x) => x.id === r.id)), empty: 'No rules yet. Add one, or pick a payee below.' })],
+        children: [Table<RuleRow>({ columns: ruleColumns, rows: ruleRows, rowKey: (r) => r.id, onOpen: (r) => editRule(rules.value.find((x) => x.id === r.id)), empty: { title: 'No rules yet', hint: 'Add one, or pick a payee below.', actions: [{ id: 'add', label: 'Add rule', onSelect: () => editRule() }] } })],
       }),
       Section({
         title: 'Uncategorized payees',
-        children: [Table<PayeeRow>({ columns: payeeColumns, rows: payeeRows, key: (r) => r.payee, onSelect: (r) => editRule(undefined, r.payee.toLowerCase()), empty: 'Everything is categorized.' })],
+        children: [Table<PayeeRow>({ columns: payeeColumns, rows: payeeRows, rowKey: (r) => r.payee, onOpen: (r) => editRule(undefined, r.payee.toLowerCase()), empty: 'Everything is categorized.' })],
       }),
       Dialog({
         title: computed(() => (editing.value ? 'Edit rule' : 'Add rule')),
@@ -108,19 +108,19 @@ export const RulesScreen = component('ledger-rules', () => {
             },
             submitLabel: editing.value ? 'Save changes' : 'Add rule',
             onCancel: () => { ruleOpen.value = false; },
-            destructive: editing.value
-              ? {
+            actions: editing.value
+              ? [{
                   id: 'delete', label: 'Delete rule', destructive: true,
                   onSelect: async () => {
                     const rule = editing.value!;
-                    const ok = await confirm({ title: 'Delete rule?', message: `Transactions already filed under “${categoryName(rule.categoryId)}” keep their category.`, destructive: true, confirmLabel: 'Delete' });
+                    const ok = await confirm({ title: 'Delete rule?', text: `Transactions already filed under “${categoryName(rule.categoryId)}” keep their category.`, action: { label: 'Delete', destructive: true } });
                     if (!ok) return;
                     removeRule(rule.id);
                     ruleOpen.value = false;
                     notify('Rule deleted', 'neutral');
                   },
-                }
-              : undefined,
+                }]
+              : [],
           }),
         ]),
       }),

@@ -14,11 +14,11 @@ export const AccountsScreen = component('ledger-accounts', () => {
   const adding = signal(false);
   const opens = signal(0); // one draft per opening: the engine resets on a new key
   const fields: Field<Draft>[] = [
-    { key: 'name', label: 'Name', kind: 'text', required: true, placeholder: 'Everyday Checking' },
-    { key: 'institution', label: 'Institution', kind: 'text', required: true },
-    { key: 'kind', label: 'Type', kind: 'select', required: true, options: (Object.keys(KIND_LABEL) as AccountKind[]).map((k) => ({ value: k, label: KIND_LABEL[k] })) },
+    { name: 'name', label: 'Name', kind: 'text', required: true, placeholder: 'Everyday Checking' },
+    { name: 'institution', label: 'Institution', kind: 'text', required: true },
+    { name: 'kind', label: 'Type', required: true, options: (Object.keys(KIND_LABEL) as AccountKind[]).map((k) => ({ value: k, label: KIND_LABEL[k] })) },
     {
-      key: 'opening', label: 'Opening balance', kind: 'money', required: true, step: 0.01, hint: 'Negative for money owed',
+      name: 'opening', label: 'Opening balance', kind: 'money', required: true, step: 0.01, hint: 'Negative for money owed',
       validate: (v, d) => (d.kind === 'credit' && typeof v === 'number' && v > 0 ? 'A credit card balance is money owed — enter it as zero or negative' : undefined),
     },
   ];

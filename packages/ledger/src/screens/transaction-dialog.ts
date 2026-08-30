@@ -44,17 +44,17 @@ export const TransactionDialog = component<TransactionDialogProps>('ledger-trans
   const fields = computed<Field<Draft>[]>(() => {
     const bankOwned = !!props.transaction.value?.bank;
     return [
-    { key: 'date', label: 'Date', kind: 'date', required: true, readOnly: bankOwned },
-    { key: 'kind', label: 'Type', kind: 'select', required: true, readOnly: bankOwned, options: [{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }] },
-    { key: 'amount', label: 'Amount', kind: 'money', required: true, readOnly: bankOwned, placeholder: '0.00', min: 0, step: 0.01 },
-    { key: 'payee', label: 'Payee', kind: 'text', required: true, readOnly: bankOwned, placeholder: 'Who was paid' },
-    { key: 'accountId', label: 'Account', kind: 'select', required: true, readOnly: bankOwned, options: accounts.value.map((a) => ({ value: a.id, label: a.name })) },
+    { name: 'date', label: 'Date', kind: 'date', required: true, readOnly: bankOwned },
+    { name: 'kind', label: 'Type', required: true, readOnly: bankOwned, options: [{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }] },
+    { name: 'amount', label: 'Amount', kind: 'money', required: true, readOnly: bankOwned, placeholder: '0.00', min: 0, step: 0.01 },
+    { name: 'payee', label: 'Payee', kind: 'text', required: true, readOnly: bankOwned, placeholder: 'Who was paid' },
+    { name: 'accountId', label: 'Account', required: true, readOnly: bankOwned, options: accounts.value.map((a) => ({ value: a.id, label: a.name })) },
     {
-      key: 'categoryId', label: 'Category', kind: 'select',
+      name: 'categoryId', label: 'Category',
       options: (d) => categories.value.filter((c) => c.id === 'transfer' || !!c.income === (d.kind === 'income')).map((c) => ({ value: c.id, label: c.name })),
       hint: 'Left blank, a matching rule decides; otherwise Uncategorized.',
     },
-    { key: 'note', label: 'Note', kind: 'textarea', placeholder: 'Optional', long: true },
+    { name: 'note', label: 'Note', placeholder: 'Optional', long: true },
     ];
   });
 
@@ -81,7 +81,7 @@ export const TransactionDialog = component<TransactionDialogProps>('ledger-trans
     open: props.open,
     onClose: props.onClose,
     children: computed(() => [
-      ...(props.transaction.value?.bank ? [Text({ text: 'Date, amount, payee, and account are bank observations. You can change only your category and note; provider corrections are retained in local history.', role: 'muted' })] : []),
+      ...(props.transaction.value?.bank ? [Text({ text: 'Date, amount, payee, and account are bank observations. You can change only your category and note; provider corrections are retained in local history.', role: 'note' })] : []),
       Form<Draft>({
         fields,
         initial: toDraft(props.transaction.value, props.accountId.value),
@@ -89,13 +89,13 @@ export const TransactionDialog = component<TransactionDialogProps>('ledger-trans
         onSubmit: submit,
         submitLabel: props.transaction.value ? 'Save changes' : 'Add transaction',
         onCancel: () => props.onClose.value(),
-        destructive: props.transaction.value && !props.transaction.value.bank
-          ? { id: 'delete', label: 'Delete', destructive: true, onSelect: async () => {
+        actions: props.transaction.value && !props.transaction.value.bank
+          ? [{ id: 'delete', label: 'Delete', destructive: true, onSelect: async () => {
               const t = props.transaction.value!;
-              if (!(await confirm({ title: 'Delete transaction?', message: `${t.payee} · ${money(t.amount)}`, confirmLabel: 'Delete', destructive: true }))) return;
+              if (!(await confirm({ title: 'Delete transaction?', text: `${t.payee} · ${money(t.amount)}`, action: { label: 'Delete', destructive: true } }))) return;
               removeTransaction(t.id); props.onClose.value(); notify('Transaction deleted');
-            } }
-          : undefined,
+            } }]
+          : [],
       }),
     ]),
   });

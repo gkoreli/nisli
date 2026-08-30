@@ -15,6 +15,6 @@ const app = App({
   brand: 'Ledger',
   nav,
   location: computed(() => router.url.value.pathname),
-  content: AppRouter({}),
+  children: AppRouter({}),
 });
 import('@nisli/core').then(({ el }) => el('div', { style: 'display:contents' }, [app]).mount(document.body));

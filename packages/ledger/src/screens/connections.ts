@@ -1,5 +1,5 @@
 import { component, signal, computed, query } from '@nisli/core';
-import { Page, Grid, Section, Stat, Table, Dialog, Form, Text, Empty, notify, confirm, type Column } from '@nisli/engine';
+import { Page, Grid, Section, Stat, Table, Dialog, Text, Empty, notify, confirm, type Column, type Action } from '@nisli/engine';
 import { getBankStatus, getFinancialComposition, createLinkToken, exchange, listConnections, syncConnection, syncAllItems, disconnectConnection, useLiveDataOnly, openPlaidLink, type BankConnection, type SyncSummary } from '../data/bank.js';
 import { flushNow, lastSync, reloadFromServer } from '../data/store.js';
 import { money } from '../data/format.js';
@@ -113,9 +113,8 @@ export const ConnectionsScreen = component('ledger-connections', () => {
     const live = list.value.length;
     if (!(await confirm({
       title: 'Start fresh with live data?',
-      message: `This replaces every account and transaction with a fresh import from ${live} bank connection${live === 1 ? '' : 's'}, removes retired sample-bank metadata, and removes unchanged sample budgets and rules. Your categories, customized budgets/rules, and preferences stay. Ledger creates a restorable server backup first; it does not create another Plaid connection.`,
-      confirmLabel: 'Start with live data',
-      destructive: true,
+      text: `This replaces every account and transaction with a fresh import from ${live} bank connection${live === 1 ? '' : 's'}, removes retired sample-bank metadata, and removes unchanged sample budgets and rules. Your categories, customized budgets/rules, and preferences stay. Ledger creates a restorable server backup first; it does not create another Plaid connection.`,
+      action: { label: 'Start with live data', destructive: true },
     }))) return;
     await flushNow();
     const result = await useLiveDataOnly();
@@ -129,30 +128,30 @@ export const ConnectionsScreen = component('ledger-connections', () => {
   const importedFor = (id: string) => lastSync.value[id]?.added ?? 0;
 
   const columns: Column<BankConnection>[] = [
-    { id: 'institution', header: 'Institution', cell: (i) => i.institution, priority: 'primary' },
-    { id: 'source', header: 'Provider', cell: (i) => `${i.provider} · ${i.environment}` },
-    { id: 'accounts', header: 'Accounts', cell: (i) => `${i.accounts.length} · ${i.accounts.map((a) => `••${a.mask}`).join(' ')}` },
-    { id: 'status', header: 'Status', cell: (i) => i.status === 'reauth-required' ? 'Reconnect' : i.status === 'disconnect-pending' ? 'Disconnect pending' : i.status === 'error' ? 'Error' : i.status === 'disabled' ? 'Paused' : i.historyStatus && i.historyStatus !== 'HISTORICAL_UPDATE_COMPLETE' ? 'Loading history' : 'Connected' },
-    { id: 'sync', header: 'Last sync', kind: 'date', cell: (i) => relative(lastSync.value[i.id]?.at), priority: 'tertiary' },
-    { id: 'imported', header: 'Imported', kind: 'number', cell: (i) => importedFor(i.id), priority: 'tertiary' },
+    { id: 'institution', label: 'Institution', cell: (i) => i.institution, priority: 'primary' },
+    { id: 'source', label: 'Provider', cell: (i) => `${i.provider} · ${i.environment}` },
+    { id: 'accounts', label: 'Accounts', cell: (i) => `${i.accounts.length} · ${i.accounts.map((a) => `••${a.mask}`).join(' ')}` },
+    { id: 'status', label: 'Status', cell: (i) => i.status === 'reauth-required' ? 'Reconnect' : i.status === 'disconnect-pending' ? 'Disconnect pending' : i.status === 'error' ? 'Error' : i.status === 'disabled' ? 'Paused' : i.historyStatus && i.historyStatus !== 'HISTORICAL_UPDATE_COMPLETE' ? 'Loading history' : 'Connected' },
+    { id: 'sync', label: 'Last sync', kind: 'date', cell: (i) => relative(lastSync.value[i.id]?.at), priority: 'tertiary' },
+    { id: 'imported', label: 'Imported', kind: 'number', cell: (i) => importedFor(i.id), priority: 'tertiary' },
   ];
   const accountColumns: Column<BankAccount>[] = [
-    { id: 'name', header: 'Name', cell: (a) => a.name, priority: 'primary' },
-    { id: 'mask', header: 'Mask', cell: (a) => `••${a.mask}`, priority: 'tertiary' },
-    { id: 'type', header: 'Type', cell: (a) => a.subtype || a.type },
-    { id: 'balance', header: 'Balance', kind: 'money', cell: (a) => money(a.balanceMinor), priority: 'primary' },
+    { id: 'name', label: 'Name', cell: (a) => a.name, priority: 'primary' },
+    { id: 'mask', label: 'Mask', cell: (a) => `••${a.mask}`, priority: 'tertiary' },
+    { id: 'type', label: 'Type', cell: (a) => a.subtype || a.type },
+    { id: 'balance', label: 'Balance', kind: 'money', cell: (a) => money(a.balanceMinor), priority: 'primary' },
   ];
 
-  const connectAction = { id: 'connect', label: 'Connect a bank', priority: 'primary' as const, onSelect: () => launchLink() };
+  const connectAction: Action = { id: 'connect', label: 'Connect a bank', priority: 'primary', onSelect: () => launchLink() };
   const hasNonLiveData = computed(() => {
     const value = composition.data.value;
     return !!value && value.accounts.legacy + value.accounts.unowned + value.transactions.legacy + value.transactions.unowned + value.legacyConfiguration > 0;
   });
-  const pageActions = computed(() => [
+  const pageActions = computed<Action[]>(() => [
     connectAction,
-    { id: 'syncAll', label: 'Sync all', priority: 'secondary' as const, onSelect: syncAll },
+    { id: 'syncAll', label: 'Sync all', priority: 'secondary', onSelect: syncAll },
     ...(list.value.length > 0 && hasNonLiveData.value
-      ? [{ id: 'liveOnly', label: 'Start fresh with live data', priority: 'tertiary' as const, destructive: true, onSelect: switchToLiveData }]
+      ? [{ id: 'liveOnly', label: 'Start fresh with live data', priority: 'tertiary', destructive: true, onSelect: switchToLiveData } satisfies Action]
       : []),
   ]);
 
@@ -179,11 +178,11 @@ export const ConnectionsScreen = component('ledger-connections', () => {
         ],
       }),
       ...(items.data.value && list.value.length === 0
-        ? [Empty({ title: 'No banks connected', hint: 'Connect a bank to pull transactions automatically. Chase connects through Plaid; your credentials never touch this app.', action: connectAction })]
+        ? [Empty({ title: 'No banks connected', hint: 'Connect a bank to pull transactions automatically. Chase connects through Plaid; your credentials never touch this app.', actions: [connectAction] })]
         : [Section({
             title: 'Connections',
             status: items,
-            children: [Table<BankConnection>({ columns, rows: list, key: (i) => i.id, onSelect: (i) => { selected.value = i; open.value = true; }, empty: 'No banks connected.' })],
+            children: [Table<BankConnection>({ columns, rows: list, rowKey: (i) => i.id, onOpen: (i) => { selected.value = i; open.value = true; }, empty: { title: 'No banks connected.', actions: [connectAction] } })],
           })]),
       Section({
         title: 'How this works',
@@ -191,9 +190,9 @@ export const ConnectionsScreen = component('ledger-connections', () => {
         children: [
           Text({ text: bank.data.value
             ? `Connected to Plaid (${bank.data.value.env}). Ledger has no sample-bank mode; every listed connection is provider-backed.`
-            : 'Checking the bank service…', role: 'body' }),
-          Text({ text: 'Your bank login and access tokens live only on the Ledger server. The browser never sees them; it only asks the server to sync.', role: 'muted' }),
-          Text({ text: 'Synced transactions are filed by your rules and de-duplicated against what is already here. Disconnecting a bank keeps everything imported.', role: 'muted' }),
+            : 'Checking the bank service…' }),
+          Text({ text: 'Your bank login and access tokens live only on the Ledger server. The browser never sees them; it only asks the server to sync.', role: 'note' }),
+          Text({ text: 'Synced transactions are filed by your rules and de-duplicated against what is already here. Disconnecting a bank keeps everything imported.', role: 'note' }),
         ],
       }),
       Dialog({
@@ -201,13 +200,16 @@ export const ConnectionsScreen = component('ledger-connections', () => {
         open,
         onClose: close,
         children: computed(() => selected.value ? [
-          Text({ text: `${selected.value.provider} ${selected.value.environment} · Last sync ${relative(lastSync.value[selected.value.id]?.at)} · ${importedFor(selected.value.id)} imported`, role: 'muted' }),
-          ...(selected.value.error ? [Text({ text: `${selected.value.error.code}: ${selected.value.error.message}`, role: 'muted' })] : []),
-          Table<BankAccount>({ columns: accountColumns, rows: selected.value.accounts, key: (a) => a.id }),
-          Form<Record<string, never>>({
-            fields: [],
-            value: {},
-            onSubmit: async () => {
+          Text({ text: `${selected.value.provider} ${selected.value.environment} · Last sync ${relative(lastSync.value[selected.value.id]?.at)} · ${importedFor(selected.value.id)} imported`, role: 'note' }),
+          ...(selected.value.error ? [Text({ text: `${selected.value.error.code}: ${selected.value.error.message}`, tone: 'negative' })] : []),
+          Table<BankAccount>({ columns: accountColumns, rows: selected.value.accounts, rowKey: (a) => a.id }),
+        ] : []),
+        actions: computed<Action[]>(() => selected.value ? [
+          {
+            id: 'sync',
+            label: selected.value.status === 'reauth-required' ? 'Reconnect' : 'Sync now',
+            priority: 'primary',
+            onSelect: async () => {
               if (selected.value!.status === 'reauth-required') {
                 await launchLink(selected.value!.id);
                 close();
@@ -216,24 +218,22 @@ export const ConnectionsScreen = component('ledger-connections', () => {
               const r = await syncOne(selected.value!);
               notify(`Synced ${r.added} new${r.unmatched ? `, ${r.unmatched} unmatched` : ''}${r.removed ? `, ${r.removed} removed` : ''}`, 'positive');
             },
-            submitLabel: selected.value.status === 'reauth-required' ? 'Reconnect' : 'Sync now',
-            onCancel: close,
-            destructive: {
-              id: 'disconnect',
-              label: 'Disconnect',
-              destructive: true,
-              onSelect: async () => {
-                const item = selected.value!;
-                if (await confirm({ title: `Disconnect ${item.institution}?`, message: 'Imported transactions stay; the bank link is removed.', destructive: true, confirmLabel: 'Disconnect' })) {
-                  await flushNow();
-                  await disconnectConnection(item.id);
-                  await Promise.all([items.refetch(), composition.refetch()]);
-                  notify('Disconnected');
-                  close();
-                }
-              },
+          },
+          {
+            id: 'disconnect',
+            label: 'Disconnect',
+            destructive: true,
+            onSelect: async () => {
+              const item = selected.value!;
+              if (await confirm({ title: `Disconnect ${item.institution}?`, text: 'Imported transactions stay; the bank link is removed.', action: { label: 'Disconnect', destructive: true } })) {
+                await flushNow();
+                await disconnectConnection(item.id);
+                await Promise.all([items.refetch(), composition.refetch()]);
+                notify('Disconnected');
+                close();
+              }
             },
-          }),
+          },
         ] : []),
       }),
     ]),

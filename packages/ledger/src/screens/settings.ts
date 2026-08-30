@@ -35,17 +35,17 @@ export const SettingsScreen = component('ledger-settings', () => {
   const importing = signal(false);
   const backup = signal<BackupDraft>({ file: undefined });
   const fields: Field<Settings>[] = [
-    { key: 'name', label: 'Your name', kind: 'text', required: true },
-    { key: 'currency', label: 'Currency', kind: 'select', required: true, options: ['USD', 'EUR', 'GBP', 'GEL', 'JPY'].map((c) => ({ value: c, label: c })) },
-    { key: 'locale', label: 'Number format', kind: 'select', required: true, options: [{ value: 'en-US', label: 'English (US)' }, { value: 'en-GB', label: 'English (UK)' }, { value: 'de-DE', label: 'Deutsch' }, { value: 'ka-GE', label: 'ქართული' }] },
-    { key: 'appearance', label: 'Appearance', kind: 'select', required: true, options: [{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }] },
+    { name: 'name', label: 'Your name', kind: 'text', required: true },
+    { name: 'currency', label: 'Currency', required: true, options: ['USD', 'EUR', 'GBP', 'GEL', 'JPY'].map((c) => ({ value: c, label: c })) },
+    { name: 'locale', label: 'Number format', required: true, options: [{ value: 'en-US', label: 'English (US)' }, { value: 'en-GB', label: 'English (UK)' }, { value: 'de-DE', label: 'Deutsch' }, { value: 'ka-GE', label: 'ქართული' }] },
+    { name: 'appearance', label: 'Appearance', required: true, options: [{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }] },
   ];
   const backups = query(() => ['ledger', 'backups'], () => listBackups());
   const backupRows = computed<ServerBackup[]>(() => backups.data.value ?? []);
   const backupColumns: Column<ServerBackup>[] = [
-    { id: 'date', header: 'Date', kind: 'date', cell: (b) => backupDate(b.date), priority: 'primary' },
-    { id: 'size', header: 'Size', kind: 'number', cell: (b) => kilobytes(b.bytes) },
-    { id: 'name', header: 'Name', cell: (b) => b.name, priority: 'tertiary' },
+    { id: 'date', label: 'Date', kind: 'date', cell: (b) => backupDate(b.date), priority: 'primary' },
+    { id: 'size', label: 'Size', kind: 'number', cell: (b) => kilobytes(b.bytes) },
+    { id: 'name', label: 'Name', cell: (b) => b.name, priority: 'tertiary' },
   ];
   const restoreFromServer = async (backup: ServerBackup) => {
     try {
@@ -59,7 +59,7 @@ export const SettingsScreen = component('ledger-settings', () => {
     }
   };
   const backupFields: Field<BackupDraft>[] = [
-    { key: 'file', label: 'Backup file', kind: 'file', accept: '.json,application/json', required: true, hint: 'A file exported from Ledger. It replaces owner-managed data; current bank observations stay server-owned.' },
+    { name: 'file', label: 'Backup file', kind: 'file', accept: '.json,application/json', required: true, hint: 'A file exported from Ledger. It replaces owner-managed data; current bank observations stay server-owned.' },
   ];
 
   const download = () => {
@@ -96,7 +96,7 @@ export const SettingsScreen = component('ledger-settings', () => {
           Form<Settings>({ fields, value: draft, onChange: (v) => { draft.value = v; }, onSubmit: (v) => { saveSettings(v); notify('Preferences saved', 'positive'); }, submitLabel: 'Save preferences' }),
         ],
       }),
-      Section({ title: 'Appearance', children: [Text({ text: 'System follows your device. The engine switches the whole app, including native controls.', role: 'muted' })] }),
+      Section({ title: 'Appearance', children: [Text({ text: 'System follows your device. The engine switches the whole app, including native controls.', role: 'note' })] }),
       Section({
         title: 'Data',
         children: computed(() => [
@@ -104,23 +104,22 @@ export const SettingsScreen = component('ledger-settings', () => {
           Table<ServerBackup>({
             columns: backupColumns,
             rows: backupRows,
-            key: (b) => b.name,
+            rowKey: (b) => b.name,
             status: backups,
-            onSelect: async (backup) => {
+            onOpen: async (backup) => {
               if (!(await confirm({
                 title: 'Restore this backup?',
-                message: `From ${backupDate(backup.date)} (${kilobytes(backup.bytes)}). Everything stored now is replaced, after Ledger saves a pre-restore copy.`,
-                confirmLabel: 'Restore',
-                destructive: true,
+                text: `From ${backupDate(backup.date)} (${kilobytes(backup.bytes)}). Everything stored now is replaced, after Ledger saves a pre-restore copy.`,
+                action: { label: 'Restore', destructive: true },
               }))) return;
               await restoreFromServer(backup);
             },
-            empty: 'No backups yet. The first one is written tonight.',
+            empty: { title: 'No backups yet', hint: 'The first one is written tonight.' },
           }),
-          Text({ text: 'Backups are written on the Mac daily, under server/data/backups. Restoring replaces what is stored now with that day’s copy; export a backup first if you want to keep today.', role: 'muted' }),
+          Text({ text: 'Backups are written on the Mac daily, under server/data/backups. Restoring replaces what is stored now with that day’s copy; export a backup first if you want to keep today.', role: 'note' }),
         ]),
       }),
-      Section({ title: 'About', children: [Text({ text: 'Ledger keeps its system of record on your Mac. The browser is a local cache, and bank access tokens stay encrypted on the server.', role: 'muted' })] }),
+      Section({ title: 'About', children: [Text({ text: 'Ledger keeps its system of record on your Mac. The browser is a local cache, and bank access tokens stay encrypted on the server.', role: 'note' })] }),
       Dialog({
         title: 'Import backup',
         open: importing,

@@ -1,5 +1,5 @@
 import { component, signal, computed, untrack } from '@nisli/core';
-import { Page, Section, Grid, Stat, Form, Table, Text, notify, type Field, type Column } from '@nisli/engine';
+import { Page, Section, Grid, Stat, Form, Table, Text, notify, type Field, type Column, type Delta, type Action } from '@nisli/engine';
 import { UNCATEGORIZED, type Transaction } from '../data/model.js';
 import { accounts, categorize, categoryName, importTransactions } from '../data/store.js';
 import { parseCsv, parseDate, parseAmount, type DateFormat } from '../data/csv.js';
@@ -55,24 +55,24 @@ export const ImportScreen = component('ledger-import', () => {
   };
 
   const fileFields = computed<Field<FileStep>[]>(() => [
-    { key: 'file', label: 'CSV file', kind: 'file', accept: '.csv,text/csv', required: true, hint: 'An export from your bank' },
-    { key: 'accountId', label: 'Into account', kind: 'select', required: true, options: accounts.value.map((a) => ({ value: a.id, label: a.name })) },
+    { name: 'file', label: 'CSV file', kind: 'file', accept: '.csv,text/csv', required: true, hint: 'An export from your bank' },
+    { name: 'accountId', label: 'Into account', required: true, options: accounts.value.map((a) => ({ value: a.id, label: a.name })) },
   ]);
 
   const colOptions = computed(() => headers.value.map((h) => ({ value: h, label: h })));
   const signed = (d: Partial<Mapping>) => d.amountShape === 'signed';
   const split = (d: Partial<Mapping>) => d.amountShape === 'split';
   const mapFields = computed<Field<Mapping>[]>(() => [
-    { key: 'date', label: 'Date column', kind: 'select', required: true, options: colOptions.value, validate: differsFrom('payee', 'payee') },
-    { key: 'dateFormat', label: 'Date format', kind: 'select', required: true, options: [{ value: 'YMD', label: 'Year-Month-Day' }, { value: 'DMY', label: 'Day/Month/Year' }, { value: 'MDY', label: 'Month/Day/Year' }] },
-    { key: 'payee', label: 'Payee column', kind: 'select', required: true, options: colOptions.value, validate: differsFrom('date', 'date') },
-    { key: 'amountShape', label: 'Amounts are', kind: 'select', required: true, options: [{ value: 'signed', label: 'One signed column' }, { value: 'split', label: 'Money out / money in' }] },
-    { key: 'amount', label: 'Amount column', kind: 'select', required: true, options: colOptions.value, when: signed, validate: differsFrom('date', 'date') },
-    { key: 'debit', label: 'Money out column', kind: 'select', options: colOptions.value, placeholder: 'None', when: split, validate: differsFrom('credit', 'money in') },
-    { key: 'credit', label: 'Money in column', kind: 'select', options: colOptions.value, placeholder: 'None', when: split, validate: differsFrom('debit', 'money out') },
-    { key: 'note', label: 'Note column', kind: 'select', options: colOptions.value, placeholder: 'None' },
-    { key: 'hasHeader', label: 'Header row', kind: 'checkbox', placeholder: 'First row is a header' },
-    { key: 'invert', label: 'Sign', kind: 'checkbox', placeholder: 'Amounts are positive for money out', when: signed },
+    { name: 'date', label: 'Date column', required: true, options: colOptions.value, validate: differsFrom('payee', 'payee') },
+    { name: 'dateFormat', label: 'Date format', required: true, options: [{ value: 'YMD', label: 'Year-Month-Day' }, { value: 'DMY', label: 'Day/Month/Year' }, { value: 'MDY', label: 'Month/Day/Year' }] },
+    { name: 'payee', label: 'Payee column', required: true, options: colOptions.value, validate: differsFrom('date', 'date') },
+    { name: 'amountShape', label: 'Amounts are', required: true, options: [{ value: 'signed', label: 'One signed column' }, { value: 'split', label: 'Money out / money in' }] },
+    { name: 'amount', label: 'Amount column', required: true, options: colOptions.value, when: signed, validate: differsFrom('date', 'date') },
+    { name: 'debit', label: 'Money out column', options: colOptions.value, placeholder: 'None', when: split, validate: differsFrom('credit', 'money in') },
+    { name: 'credit', label: 'Money in column', options: colOptions.value, placeholder: 'None', when: split, validate: differsFrom('debit', 'money out') },
+    { name: 'note', label: 'Note column', options: colOptions.value, placeholder: 'None' },
+    { name: 'hasHeader', label: 'First row is a header', kind: 'boolean' },
+    { name: 'invert', label: 'Amounts are positive for money out', kind: 'boolean', when: signed },
   ]);
 
   const candidates = computed<Candidate[]>(() => {
@@ -103,11 +103,11 @@ export const ImportScreen = component('ledger-import', () => {
   const problems = computed(() => candidates.value.length - ready.value.length);
 
   const columns: Column<Candidate>[] = [
-    { id: 'date', header: 'Date', kind: 'date', cell: (c) => (c.date ? shortDate(c.date) : '—'), priority: 'primary' },
-    { id: 'payee', header: 'Payee', cell: (c) => c.payee || '—', priority: 'primary' },
-    { id: 'category', header: 'Category', cell: (c) => categoryName(c.categoryId) },
-    { id: 'amount', header: 'Amount', kind: 'money', cell: (c) => (c.amount === undefined ? '—' : Text({ text: money(c.amount, { sign: true }), tone: c.amount > 0 ? 'positive' : 'neutral' })), priority: 'primary' },
-    { id: 'status', header: 'Status', cell: (c) => Text({ text: c.status, tone: c.ok ? 'positive' : 'negative' }), priority: 'secondary' },
+    { id: 'date', label: 'Date', kind: 'date', cell: (c) => (c.date ? shortDate(c.date) : '—'), priority: 'primary' },
+    { id: 'payee', label: 'Payee', cell: (c) => c.payee || '—', priority: 'primary' },
+    { id: 'category', label: 'Category', cell: (c) => categoryName(c.categoryId) },
+    { id: 'amount', label: 'Amount', kind: 'money', cell: (c) => (c.amount === undefined ? '—' : Text({ text: money(c.amount, { sign: true }), tone: c.amount > 0 ? 'positive' : 'neutral' })), priority: 'primary' },
+    { id: 'status', label: 'Status', cell: (c) => Text({ text: c.status, tone: c.ok ? 'positive' : 'negative' }), priority: 'secondary' },
   ];
 
   const doImport = () => {
@@ -135,8 +135,8 @@ export const ImportScreen = component('ledger-import', () => {
 
   return Page({
     title: 'Import transactions',
-    actions: computed(() => ready.value.length > 0
-      ? [{ id: 'import', label: `Import ${ready.value.length} transactions`, priority: 'primary' as const, onSelect: doImport }]
+    actions: computed<Action[]>(() => ready.value.length > 0
+      ? [{ id: 'import', label: `Import ${ready.value.length} transactions`, priority: 'primary', onSelect: doImport }]
       : []),
     children: computed(() => {
       const out = [fileStep];
@@ -158,9 +158,9 @@ export const ImportScreen = component('ledger-import', () => {
             Grid({ children: [
               Stat({ label: 'Rows found', value: computed(() => String(candidates.value.length)) }),
               Stat({ label: 'Ready to import', value: computed(() => String(ready.value.length)) }),
-              Stat({ label: 'Problems', value: computed(() => String(problems.value)), delta: computed(() => (problems.value ? { text: 'Fix the column mapping above', tone: 'warning' as const } : { text: 'All rows parsed', tone: 'positive' as const })) }),
+              Stat({ label: 'Problems', value: computed(() => String(problems.value)), delta: computed<Delta>(() => (problems.value ? { text: 'Fix the column mapping above', tone: 'warning' } : { text: 'All rows parsed', tone: 'positive' })) }),
             ] }),
-            Table<Candidate>({ columns, rows: candidates, key: (c) => c.id, empty: 'No rows in this file.' }),
+            Table<Candidate>({ columns, rows: candidates, rowKey: (c) => c.id, empty: 'No rows in this file.' }),
           ],
         }));
       }
