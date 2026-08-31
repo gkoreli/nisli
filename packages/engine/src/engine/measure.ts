@@ -31,14 +31,18 @@ export function observeWidth(el: HTMLElement, cb: () => void): () => void {
   // Only the inline size matters. A block's own decisions change its height
   // (a folded column adds a line); reacting to that would solve forever.
   let last = -1;
+  let frame = 0;
   const ro = new ResizeObserver((entries) => {
     const width = entries[entries.length - 1]?.contentRect.width ?? measure(el);
     if (width === last) return;
     last = width;
-    cb();
+    cancelAnimationFrame(frame);
+    // Layout decisions can change the observed element. Move those writes to
+    // the next frame so they do not feed the current ResizeObserver delivery.
+    frame = requestAnimationFrame(cb);
   });
   ro.observe(el);
-  return () => { stop(); ro.disconnect(); };
+  return () => { stop(); cancelAnimationFrame(frame); ro.disconnect(); };
 }
 
 /**
