@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'packages/*/package.json'
+      - '.github/workflows/auto-tag.yml'
 
 concurrency:
   group: publish
