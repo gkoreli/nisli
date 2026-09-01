@@ -5,7 +5,7 @@
  * server/data/.key (mode 0o600). Ciphertext format: "v1:<iv>:<tag>:<data>" (hex).
  */
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { closeSync, fsyncSync, linkSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, parse, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -50,25 +50,33 @@ function loadKey(): Buffer {
   }
   const generated = randomBytes(32);
   mkdirSync(dirname(KEY_FILE), { recursive: true });
+  // Write and sync a private inode before making it visible at KEY_FILE.
+  // Opening KEY_FILE itself with `wx` is not enough: another process can see
+  // that directory entry while its contents are still being written.
+  const temporary = `${KEY_FILE}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`;
   try {
-    writeFileSync(KEY_FILE, `${generated.toString('hex')}\n`, { mode: 0o600, flag: 'wx' });
-    key = generated;
-  } catch (error: unknown) {
-    if (errorCode(error) !== 'EEXIST') throw error;
-    let winnerError: unknown;
-    const pause = new Int32Array(new SharedArrayBuffer(4));
-    for (let attempt = 0; attempt < 100; attempt++) {
-      try {
-        key = readStoredKey();
-        break;
-      } catch (candidate: unknown) {
-        const code = errorCode(candidate);
-        if (code && code !== 'ENOENT') throw candidate;
-        winnerError = candidate;
-        Atomics.wait(pause, 0, 0, 5);
-      }
+    const handle = openSync(temporary, 'wx', 0o600);
+    try {
+      writeFileSync(handle, `${generated.toString('hex')}\n`);
+      fsyncSync(handle);
+    } finally {
+      closeSync(handle);
     }
-    if (!key) throw winnerError;
+    try {
+      // A hard link is an atomic, no-clobber publication. Exactly one starter
+      // wins; every loser can immediately read the already-complete inode.
+      linkSync(temporary, KEY_FILE);
+      key = generated;
+    } catch (error: unknown) {
+      if (errorCode(error) !== 'EEXIST') throw error;
+      key = readStoredKey();
+    }
+  } finally {
+    try {
+      unlinkSync(temporary);
+    } catch (error: unknown) {
+      if (errorCode(error) !== 'ENOENT') throw error;
+    }
   }
   return key;
 }

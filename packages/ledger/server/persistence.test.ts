@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import { localDate } from '../src/data/calendar.js';
@@ -295,5 +295,6 @@ describe('encryption-key initialization', () => {
     const crypto = await import('./crypto.ts');
     for (const result of results) expect(crypto.decrypt(result.stdout.trim())).toBe('production-token');
     expect((await readFile(join(directory, '.key'), 'utf8')).trim()).toMatch(/^[0-9a-f]{64}$/);
+    expect((await readdir(directory)).filter((name) => name.startsWith('.key.'))).toEqual([]);
   });
 });

@@ -125,7 +125,7 @@ Settings adopt server state without going through a write.
 |---|---|
 | Binds `HOST ?? 127.0.0.1` on `PORT ?? 5201`; startup rejects anything except loopback or a Tailscale IP/name. Write requests also reject cross-site origins and non-JSON bodies. | `server/index.ts`; `package.json` `server:tailscale` |
 | Provider access tokens are sealed at rest with **AES-256-GCM**, format `v1:<iv>:<tag>:<data>` hex. Connections are decrypted only in memory on load and re-sealed on every save; a plaintext token left by 0.1.0 is sealed on the next save. | `server/crypto.ts`; `loadConnections` / `saveConnections` in `store.ts` |
-| Key from `LEDGER_KEY` (64 hex, validated) or generated once into `server/data/.key` with mode `0o600`. Generation uses exclusive `wx`; concurrent starters reread the winning file rather than encrypting with divergent keys. | `crypto.ts` `loadKey` |
+| Key from `LEDGER_KEY` (64 hex, validated) or generated once into `server/data/.key` with mode `0o600`. A starter writes and fsyncs a private inode, then atomically publishes it with a no-clobber hard link; concurrent starters immediately read the complete winning key rather than an empty/partial file or a divergent key. | `crypto.ts` `loadKey` |
 | Secrets are env only: `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV`, `LEDGER_KEY`. `server/data/` is git-ignored. | `index.ts`; `.gitignore` |
 | The browser never receives a token: the bank application service returns a credential-free `ConnectionView`; checkpoints are also server-only. | `bank-sync.ts`; `index.ts` bank routes |
 | Logs are one line per request — `METHOD path → status (ms)` — never a token, payee or amount. Errors return the message only. | `index.ts` `Bun.serve` `finally` |
