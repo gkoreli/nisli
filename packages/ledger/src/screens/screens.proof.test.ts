@@ -19,6 +19,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { settle, flushEffects } from '@nisli/core';
 import { prove, mount, estimator, type Claim } from '@nisli/engine/test';
+import { addDays } from '../data/finance/index.js';
 import type { Ledger, Transaction } from '../data/model.js';
 import type { BankConnection, BankStatus, FinancialComposition } from '../data/bank.js';
 import type { BackupInfo, LedgerResponse } from '../data/api.js';
@@ -162,16 +163,29 @@ const WIDTHS = [1280, 1024, 768, 480, 360] as const;
  */
 const KNOWN: Record<string, { code: Claim['code']; detail: string; widths: readonly number[] }[]> = {};
 
-const screens: Record<string, () => ReturnType<typeof OverviewScreen>> = {
-  OverviewScreen: () => OverviewScreen({}),
-  AccountsScreen: () => AccountsScreen({}),
-  'AccountScreen({ id: "card" })': () => AccountScreen({ id: 'card' }),
-  TransactionsScreen: () => TransactionsScreen({}),
-  BudgetsScreen: () => BudgetsScreen({}),
-  ImportScreen: () => ImportScreen({}),
-  RulesScreen: () => RulesScreen({}),
-  ConnectionsScreen: () => ConnectionsScreen({}),
-  SettingsScreen: () => SettingsScreen({}),
+/** The same ledger with its lists reversed: same intent, the data perturbed (ADR 0044). */
+const perturbedLedger = (): Ledger => {
+  const l = ledger();
+  l.transactions = [...l.transactions].reverse();
+  l.budgets = [...l.budgets].reverse();
+  return l;
+};
+
+type Screen = { make: () => ReturnType<typeof OverviewScreen>; variants?: (() => ReturnType<typeof OverviewScreen>)[] };
+const screens: Record<string, Screen> = {
+  OverviewScreen: {
+    make: () => OverviewScreen({}),
+    // DECISION_UNSTABLE: the store's transactions shuffled must stamp identical plans.
+    variants: [() => { store.applyRestored(perturbedLedger(), 900); return OverviewScreen({}); }],
+  },
+  AccountsScreen: { make: () => AccountsScreen({}) },
+  'AccountScreen({ id: "card" })': { make: () => AccountScreen({ id: 'card' }) },
+  TransactionsScreen: { make: () => TransactionsScreen({}) },
+  BudgetsScreen: { make: () => BudgetsScreen({}) },
+  ImportScreen: { make: () => ImportScreen({}) },
+  RulesScreen: { make: () => RulesScreen({}) },
+  ConnectionsScreen: { make: () => ConnectionsScreen({}) },
+  SettingsScreen: { make: () => SettingsScreen({}) },
 };
 
 const key = (c: Claim) => `${c.code} ${c.detail}`;
@@ -224,11 +238,39 @@ describe('the screens carry the fixture, so the proof is over real content', () 
       expect([...t.frame.querySelectorAll('button')].some((button) => button.textContent?.includes('Review again'))).toBe(true);
     } finally { t.unmount(); }
   });
-  it('the overview shows stats and bars, and the connections screen the bank once its queries settle', async () => {
+  it('the overview answers the five questions with its arithmetic shown, and the connections screen the bank once its queries settle', async () => {
     const o = mount(() => OverviewScreen({}), {}, { width: 1280, scheme: 'light', measure: estimator(1280) });
     try {
-      expect(o.frame.querySelectorAll('nisli-stat').length).toBeGreaterThan(0);
-      expect(o.frame.querySelectorAll('nisli-bars, nisli-meter').length).toBeGreaterThan(0);
+      const text = o.frame.textContent ?? '';
+      // Five decision-bearing stats, Safe to spend first, arithmetic in the hint.
+      expect(o.frame.querySelectorAll('nisli-stat').length).toBe(5);
+      expect(text).toMatch(/cash on hand − .+ bills due by \d{4}-\d{2}-\d{2} − .+ open in budgets = /);
+      // The cash basis and the credit-card exclusion are ambient lines, not a tap away.
+      expect(text).toContain('Cash on hand is the posted balance of 1 checking account');
+      expect(text).toContain('Credit-card payments are filed as transfers and are not counted in bills.');
+      // Money in / Money out / Net over the whole period, pending disclosed; stat = sum of its rollup rows.
+      expect(text).toContain('$6,862.34');
+      expect(text).toContain('$15,633.23');
+      expect(text).toContain('-$8,770.89');
+      expect(text).toContain('$6,862.34 in − $15,633.23 out');
+      expect(text).toContain('nothing pending');
+      // Honest delta: percent against the previous same-elapsed window, named.
+      expect(text).toMatch(/% vs |no .+ data to compare/);
+      // Runway names its basis; this fixture has no three complete months of outflow.
+      expect(text).toContain('runway is not measurable');
+      // Coming up renders at every data shape: Empty is declared intent, the lines still say their zeros.
+      expect(text).toContain('No bills expected in the next 30 days');
+      expect(text).toContain('Committed in the next 30 days: $0.00 across 0 bills.');
+      expect(text).toContain('No recurring income detected yet.');
+      // Income categories have a chart-of-account presence; spending rows are exact.
+      expect(text).toContain('Salary');
+      expect(text).toContain('$6,850.00');
+      expect(text).toContain('Groceries');
+      expect(text).toContain('$212.57');
+      // The transfer tripwire and the review line are ambient, with their trace.
+      expect(text).toContain('Transfers moved $1,000.00 between accounts and net to zero in each currency.');
+      expect(text).toContain('3 transactions need a category — these totals may shift.');
+      expect(text).toContain('Review categories →');
     } finally { o.unmount(); }
     const c = mount(() => ConnectionsScreen({}), {}, { width: 1280, scheme: 'light', measure: estimator(1280) });
     try {
@@ -240,9 +282,9 @@ describe('the screens carry the fixture, so the proof is over real content', () 
 });
 
 describe('every screen is proven at 1280, 1024, 768, 480 and 360', () => {
-  for (const [name, make] of Object.entries(screens)) {
+  for (const [name, { make, variants }] of Object.entries(screens)) {
     it(name, async () => {
-      const proof = await prove(make, { widths: WIDTHS, scheme: 'light' });
+      const proof = await prove(make, { widths: WIDTHS, scheme: 'light', variants });
       const known = KNOWN[name] ?? [];
       const expected = new Set(known.flatMap((k) => k.widths.map((w) => `${w} ${k.code} ${k.detail}`)));
       const found = new Set(proof.claims.map((c) => `${c.width} ${key(c)}`));
@@ -254,4 +296,54 @@ describe('every screen is proven at 1280, 1024, 768, 480 and 360', () => {
       for (const w of proof.byWidth) expect(w.turns, `${name} at ${w.width} settled`).toBeLessThan(12);
     });
   }
+});
+
+describe('coming up, over a ledger where series are detected', () => {
+  it('lists upcoming and overdue occurrences, the committed line, and the next income', () => {
+    const T = new Date().toISOString().slice(0, 10);
+    const at = (n: number) => addDays(T, n);
+    const l = ledger();
+    l.accounts.push({ id: 'gel', name: 'GEL Checking', kind: 'checking', opening: 100_000, institution: 'Local Bank', currency: 'GEL' });
+    l.transactions = [
+      ...l.transactions,
+      // A monthly subscription whose next occurrence is ahead (T+25).
+      { id: 's1', accountId: 'card', categoryId: 'fun', date: at(-65), amount: -999, payee: 'Spotify' },
+      { id: 's2', accountId: 'card', categoryId: 'fun', date: at(-35), amount: -999, payee: 'Spotify' },
+      { id: 's3', accountId: 'card', categoryId: 'fun', date: at(-5), amount: -999, payee: 'Spotify' },
+      // A monthly bill already overdue (expected T−5), projected forward to T+25 too.
+      { id: 'g1', accountId: 'checking', categoryId: 'health', date: at(-95), amount: -4_500, payee: 'Gym Membership' },
+      { id: 'g2', accountId: 'checking', categoryId: 'health', date: at(-65), amount: -4_500, payee: 'Gym Membership' },
+      { id: 'g3', accountId: 'checking', categoryId: 'health', date: at(-35), amount: -4_500, payee: 'Gym Membership' },
+      // Recurring income, next expected around T+30.
+      { id: 'i1', accountId: 'checking', categoryId: 'salary', date: at(-62), amount: 200_000, payee: 'Consulting Retainer' },
+      { id: 'i2', accountId: 'checking', categoryId: 'salary', date: at(-31), amount: 200_000, payee: 'Consulting Retainer' },
+      { id: 'i3', accountId: 'checking', categoryId: 'salary', date: at(-1), amount: 200_000, payee: 'Consulting Retainer' },
+      // A bill in another currency stays separate; it is never formatted or added as USD.
+      { id: 'fx1', accountId: 'gel', categoryId: 'utilities', date: at(-65), amount: -3_000, payee: 'Local Utility' },
+      { id: 'fx2', accountId: 'gel', categoryId: 'utilities', date: at(-35), amount: -3_000, payee: 'Local Utility' },
+      { id: 'fx3', accountId: 'gel', categoryId: 'utilities', date: at(-5), amount: -3_000, payee: 'Local Utility' },
+    ];
+    store.applyRestored(l, 910);
+    const o = mount(() => OverviewScreen({}), {}, { width: 1280, scheme: 'light', measure: estimator(1280) });
+    try {
+      const text = o.frame.textContent ?? '';
+      // The committed line keeps USD and GEL apart: Spotify + Gym in USD, Local Utility in GEL.
+      expect(text).toContain('$54.99');
+      expect(text).toContain('GEL');
+      expect(text).toContain('across 3 bills.');
+      expect(text).not.toContain('$84.99');
+      expect(text).toContain('Next expected income: Consulting Retainer ~$2,000.00 around');
+      const rows = [...o.frame.querySelectorAll<HTMLTableRowElement>('tbody tr')];
+      const gym = rows.filter((r) => r.textContent?.includes('Gym Membership'));
+      expect(gym.length).toBe(2); // the overdue occurrence and the projected one
+      // Overdue is visible: exactly one Gym row's Due cell carries the warning-toned Text.
+      expect(gym.filter((r) => r.querySelector('nisli-text') !== null).length).toBe(1);
+      const spotify = rows.filter((r) => r.textContent?.includes('Spotify'));
+      expect(spotify.length).toBe(1);
+      expect(spotify[0]!.querySelector('nisli-text')).toBeNull();
+    } finally {
+      o.unmount();
+      store.applyRestored(ledger(), 911);
+    }
+  });
 });

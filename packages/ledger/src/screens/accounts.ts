@@ -22,6 +22,16 @@ export const AccountsScreen = component('ledger-accounts', () => {
       validate: (v, d) => (d.kind === 'credit' && typeof v === 'number' && v > 0 ? 'A credit card balance is money owed — enter it as zero or negative' : undefined),
     },
   ];
+  // Net worth lives here, by every account it sums — not on the Overview
+  // (which keeps decision-bearing numbers only). Tenet 6: accounts in another
+  // currency are named and excluded, never converted into the sum.
+  const inDefault = (a: Account) => a.currency.toUpperCase() === settings.value.currency.toUpperCase();
+  const netWorth = computed(() => accounts.value.filter(inDefault).reduce((s, a) => s + balance(a.id), 0));
+  const netWorthHint = computed(() => {
+    const counted = accounts.value.filter(inDefault).length;
+    const excluded = accounts.value.length - counted;
+    return `Sum of ${counted} ${settings.value.currency} account balance${counted === 1 ? '' : 's'}${excluded ? ` · excludes ${excluded} in other currencies` : ''}`;
+  });
   const cards = computed(() =>
     accounts.value.map((a: Account) =>
       Section({
@@ -44,6 +54,7 @@ export const AccountsScreen = component('ledger-accounts', () => {
     title: 'Accounts',
     actions: [{ id: 'add', label: 'Add account', priority: 'primary', onSelect: () => { opens.value++; adding.value = true; } }],
     children: [
+      Grid({ children: [Stat({ label: 'Net worth', value: computed(() => money(netWorth.value)), hint: netWorthHint })] }),
       Grid({ children: cards }),
       Dialog({
         title: 'Add account',

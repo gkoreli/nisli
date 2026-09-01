@@ -166,18 +166,26 @@ pnpm --filter @nisli/ledger service:install
 pnpm --filter @nisli/ledger service:remove
 ```
 
-## Insight
+## Finance domain
 
-Overview shows **Safe to spend** and a **Recurring** table, computed by
-`src/data/insights.ts` from the transactions already in the ledger — no
-prompt, no chat box.
+Overview is derived by the pure modules in `src/data/finance/` from the real
+accounts and transactions already in Ledger — no prompt, chat box, mock, or
+parallel reporting model.
 
-- *Recurring*: a payee seen three or more times within ±20% of the same
-  amount on a weekly (6–8 days), monthly (27–33) or yearly (350–380) beat.
-  Anything else is left undetected rather than guessed.
-- *Safe to spend* = money left of this month's income − recurring bills still
-  due this month − room still open in budgets. The stat's hint is that sum in
-  words, with every figure; a number you cannot check is not shown.
+- Money stays in integer minor units and is aggregated per currency. A report
+  never converts or silently adds currencies; the screen names exclusions.
+- Money in, money out, transfers, category rollups, and comparison windows use
+  one shared flow and period model. Every rollup row drills into the exact
+  transaction filter behind it.
+- A recurring series requires a payee seen three or more times within ±20% of
+  the same amount on a weekly (6–8 days), monthly (27–33), or yearly (350–380)
+  beat. Anything else is left undetected rather than guessed.
+- *Safe to spend* = posted checking cash − recurring bills due before the next
+  expected income (at most 30 days) − open budget room. Pending income,
+  transfers, non-default currencies, and the full arithmetic are explicit.
+- *Runway* = posted checking and savings cash ÷ the median outflow of the last
+  three complete months. When the denominator is absent, Ledger says the
+  figure is not measurable instead of inventing one.
 
 ## Appearance
 

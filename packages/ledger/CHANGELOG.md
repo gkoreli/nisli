@@ -5,6 +5,13 @@ per version, human-readable highlights.
 
 ## Unreleased
 
+- Overview financial reporting now uses one pure, currency-safe finance domain
+  for periods, flows, transfer reconciliation, recurring commitments, category
+  rollups, honest comparison windows, safe-to-spend, and runway. The five
+  decision figures show their basis, category and recurring rows drill into
+  Transactions, and account net worth excludes rather than converts other
+  currencies. The retired parallel insight implementation was removed.
+
 - Ledger now pins Bun 1.4.0 for both sides of the application: the API/static
   server uses native `Bun.serve`, and Vite runs through `bunx --bun`. All
   executable Ledger server, provider, persistence, test, development, and

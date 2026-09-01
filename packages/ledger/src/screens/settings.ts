@@ -29,6 +29,11 @@ const backupDate = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
 };
+/** The cell shows the day; the full instant stays in the restore confirm (ADR 0044: fix the format, never widen the column). */
+const backupDay = (iso: string) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(settings.value.locale, { month: 'short', day: 'numeric' });
+};
 
 export const SettingsScreen = component('ledger-settings', () => {
   const draft = signal<Settings>({ ...settings.value });
@@ -43,7 +48,7 @@ export const SettingsScreen = component('ledger-settings', () => {
   const backups = query(() => ['ledger', 'backups'], () => listBackups());
   const backupRows = computed<ServerBackup[]>(() => backups.data.value ?? []);
   const backupColumns: Column<ServerBackup>[] = [
-    { id: 'date', label: 'Date', kind: 'date', cell: (b) => backupDate(b.date), priority: 'primary' },
+    { id: 'date', label: 'Date', kind: 'date', cell: (b) => backupDay(b.date), priority: 'primary' },
     { id: 'size', label: 'Size', kind: 'number', cell: (b) => kilobytes(b.bytes) },
     { id: 'name', label: 'Name', cell: (b) => b.name, priority: 'tertiary' },
   ];

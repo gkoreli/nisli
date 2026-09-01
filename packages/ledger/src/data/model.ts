@@ -112,3 +112,5 @@ export interface Ledger {
 }
 
 export const UNCATEGORIZED = 'uncategorized';
+/** The category id that declares a transaction a transfer between the owner's own accounts — neither income nor spending (finance §3). */
+export const TRANSFER = 'transfer';
