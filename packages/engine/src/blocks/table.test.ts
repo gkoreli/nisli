@@ -108,6 +108,29 @@ describe('Table drops columns by priority — from budgets, never from cells', (
   });
 });
 
+describe('Table aligns mixed content by semantic kind', () => {
+  it('keeps an action column rigid and centred while text columns receive the remaining width', () => {
+    const mixed: Column<Row>[] = [
+      { id: 'payee', label: 'Payee', cell: (r) => r.payee, priority: 'primary' },
+      { id: 'category', label: 'Category', cell: (r) => r.category },
+      { id: 'actions', label: 'Actions', kind: 'action', cell: () => html`<button aria-label="Edit">E</button>`, priority: 'primary' },
+    ];
+    mounted = mountBlock('nisli-table', { columns: mixed, rows, rowKey: (r: Row) => r.id }, { width: 1000 });
+    const ths = [...mounted.el.querySelectorAll<HTMLElement>('thead th')];
+    const tds = [...mounted.el.querySelectorAll<HTMLElement>('tbody td')];
+    const actionWidth = Math.max(
+      metrics.control.hit + 2 * metrics.space[3],
+      'Actions'.length * metrics.charWidth + 2 * metrics.space[3],
+    );
+    expect(parseFloat(ths[2]!.style.width)).toBeCloseTo(actionWidth);
+    expect(ths[2]!.style.textAlign).toBe('center');
+    expect(tds[2]!.style.textAlign).toBe('center');
+    expect(ths.every((th) => th.style.verticalAlign === 'middle')).toBe(true);
+    expect(tds.every((td) => td.style.verticalAlign === 'middle')).toBe(true);
+    expect(ths.map((th) => parseFloat(th.style.width)).reduce((a, b) => a + b, 0)).toBeCloseTo(1000);
+  });
+});
+
 describe('Table is reachable by keyboard (ADR 0042 b)', () => {
   const key = (k: string, target: Element, init: KeyboardEventInit = {}) => { const e = new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...init }); target.dispatchEvent(e); flushEffects(); return e; };
   // Enter/Space on a focused native button is a click: happy-dom does not synthesise it, so the proof does what the browser would.
@@ -309,7 +332,7 @@ describe('Table under the axes (ADR 0046)', () => {
     { id: 'amount', label: 'Amount', kind: 'money', cell: (r) => r.amount, priority: 'primary' },
   ];
   const cell = (align: string, nums: string, width: string, head: boolean) =>
-    `display:table-cell;text-align:${align};font-variant-numeric:${nums};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0px;box-sizing:border-box;width:${width};padding:8px 12px;user-select:${head ? 'none' : 'auto'};font:inherit`;
+    `display:table-cell;text-align:${align};vertical-align:middle;font-variant-numeric:${nums};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0px;box-sizing:border-box;width:${width};padding:8px 12px;user-select:${head ? 'none' : 'auto'};font:inherit`;
   const up = (w = 800) => (mounted = mountBlock('nisli-table', { columns: three, rows, rowKey: (r: Row) => r.id }, { width: w }));
   const ths = (t: Mounted) => [...t.el.querySelectorAll<HTMLElement>('thead th')];
   const tr = (t: Mounted) => t.el.querySelector<HTMLElement>('tbody tr')!;

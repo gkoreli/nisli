@@ -19,7 +19,7 @@ export { Toolbar, type ToolbarProps } from './blocks/toolbar.js';
 export { Section, type SectionProps } from './blocks/section.js';
 export { Grid, type GridProps } from './blocks/grid.js';
 export { Stat, type StatProps } from './blocks/stat.js';
-export { Table, type Column, type Sort, type TableProps, type CellValue } from './blocks/table.js';
+export { Table, type Column, type ColumnKind, type Sort, type TableProps, type CellValue } from './blocks/table.js';
 export { Form, type Field, type DatumField, type BooleanField, type FileField, type Option, type FormProps, type FormHandle } from './blocks/form.js';
 export { Dialog, type DialogProps } from './blocks/dialog.js';
 export { Meter, type MeterProps } from './blocks/meter.js';

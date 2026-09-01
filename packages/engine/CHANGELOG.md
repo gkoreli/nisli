@@ -4,6 +4,14 @@ All notable changes to `@nisli/engine`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Unreleased until the first
 publish.
 
+## 0.10.1 — 2026-09-01
+
+- Table action columns can declare `kind: 'action'`: the engine gives them a
+  rigid control/header budget, centres them, and excludes them from text slack.
+  Only the first primary text column is the lead expanding column, so
+  `priority` remains survival order for later primary columns. All table cells
+  now align vertically in the middle.
+
 ## 0.10.0 — 2026-08-31
 
 - **Density and input axes (ADR 0046; issue 0029).** The last capability the

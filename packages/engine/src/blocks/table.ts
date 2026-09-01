@@ -8,6 +8,7 @@ import type { Content, Kind, Priority } from './types.js';
 import type { Status } from './status.js';
 
 export type CellValue = string | number | Content;
+export type ColumnKind = Extract<Kind, 'text' | 'number' | 'money' | 'date'> | 'action';
 
 export interface Column<T> {
   /** Identity among the columns: the sort key, the cell id. */
@@ -15,8 +16,8 @@ export interface Column<T> {
   /** The human name of the column. */
   readonly label: string;
   readonly cell: (row: T) => CellValue;
-  /** What the cell holds. Numbers and money align right and use tabular figures. */
-  readonly kind?: Extract<Kind, 'text' | 'number' | 'money' | 'date'>;
+  /** What the cell holds. Figures are rigid and right-aligned; actions are rigid and centred. */
+  readonly kind?: ColumnKind;
   /** primary columns never leave (dropped ones fold under the first primary text column); tertiary leave first. */
   readonly priority?: Priority;
   readonly sortable?: boolean;
@@ -44,7 +45,8 @@ export interface TableProps<T> {
 const RANK = { tertiary: 1, secondary: 2, primary: 20 } as const;
 let nextId = 1;
 const isNumeric = (c: Column<unknown>) => c.kind === 'number' || c.kind === 'money';
-const isText = (c: Column<unknown>) => !isNumeric(c) && c.kind !== 'date';
+const isAction = (c: Column<unknown>) => c.kind === 'action';
+const isText = (c: Column<unknown>) => !isNumeric(c) && c.kind !== 'date' && !isAction(c);
 /** Rows of bones drawn while the table waits for its first data. */
 const SKELETON_ROWS = 5;
 
@@ -89,11 +91,21 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
       available: () => {
         const w = measure(host);
         // Unmeasured (0) is roomy (space.ts vocabulary): every column at its natural budget, nothing folds.
-        return w > 0 ? w : columnBudgets(columns.value, 0, metrics.layout, metrics.charWidth, 2 * metrics.space[3]).reduce((s, b) => s + b.width, 0);
+        return w > 0
+          ? w
+          : columnBudgets(columns.value, 0, metrics.layout, metrics.charWidth, 2 * metrics.space[3], metrics.control.hit + 2 * metrics.space[3])
+            .reduce((s, b) => s + b.width, 0);
       },
       items: (available) => {
         const target = stackTarget.value;
-        const budgets = columnBudgets(columns.value, available, metrics.layout, metrics.charWidth, 2 * metrics.space[3]);
+        const budgets = columnBudgets(
+          columns.value,
+          available,
+          metrics.layout,
+          metrics.charWidth,
+          2 * metrics.space[3],
+          metrics.control.hit + 2 * metrics.space[3],
+        );
         return columns.value.map((c, i) => ({
           id: c.id,
           width: budgets[i]!.width,
@@ -132,7 +144,8 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
 
     const cellStyle = (c: Column<unknown>, head: boolean) => ctx.part(head ? 'table.header' : 'table.cell', () => ({
       display: grid.gone(c.id) ? 'none' : 'table-cell',
-      textAlign: isNumeric(c) ? 'right' : 'left',
+      textAlign: isAction(c) ? 'center' : isNumeric(c) ? 'right' : 'left',
+      verticalAlign: 'middle',
       fontVariantNumeric: isNumeric(c) || c.kind === 'date' ? 'tabular-nums' : 'normal',
       ...truncate,
       boxSizing: 'border-box',

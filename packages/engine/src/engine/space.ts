@@ -91,7 +91,7 @@ export function cellFloor(layout: Layout = metrics.layout, charWidth: number = m
 export interface ColumnIntent {
   readonly id: string;
   readonly label: string;
-  readonly kind?: 'text' | 'number' | 'money' | 'date';
+  readonly kind?: 'text' | 'number' | 'money' | 'date' | 'action';
   readonly priority?: 'primary' | 'secondary' | 'tertiary';
   readonly sortable?: boolean;
 }
@@ -108,9 +108,11 @@ export interface ColumnBudget {
 export const SORT_MARK_CHARS = 2;
 
 const isFigureKind = (c: ColumnIntent) => c.kind === 'number' || c.kind === 'money';
-const isTextKind = (c: ColumnIntent) => !isFigureKind(c) && c.kind !== 'date';
-/** A primary text column takes a double share of the remainder. */
-const weightOf = (c: ColumnIntent) => (c.priority === 'primary' ? 2 : 1);
+const isActionKind = (c: ColumnIntent) => c.kind === 'action';
+const isTextKind = (c: ColumnIntent) => !isFigureKind(c) && c.kind !== 'date' && !isActionKind(c);
+/** The first primary text column is the table's lead identity and takes a double share. */
+const leadTextId = (columns: readonly ColumnIntent[]) => columns.find((c) => isTextKind(c) && c.priority === 'primary')?.id;
+const weightOf = (c: ColumnIntent, lead: string | undefined) => (c.id === lead ? 2 : 1);
 
 /**
  * The tenet made arithmetic: each column's natural width as a pure function of
@@ -127,16 +129,21 @@ export function columnBudgets(
   layout: Layout = metrics.layout,
   charWidth: number = metrics.charWidth,
   padding: number = 2 * metrics.space[3],
+  actionWidth: number = metrics.control.hit + padding,
 ): ColumnBudget[] {
   const floor = (c: ColumnIntent) => labelWidth(c.label, padding, charWidth) + (c.sortable ? SORT_MARK_CHARS * charWidth : 0);
-  const rigid = (c: ColumnIntent) => Math.max((c.kind === 'date' ? layout.dateChars : layout.figureChars) * charWidth + padding, floor(c));
-  const totalWeight = columns.filter(isTextKind).reduce((s, c) => s + weightOf(c), 0);
+  const rigid = (c: ColumnIntent) => Math.max(
+    isActionKind(c) ? actionWidth : (c.kind === 'date' ? layout.dateChars : layout.figureChars) * charWidth + padding,
+    floor(c),
+  );
+  const lead = leadTextId(columns);
+  const totalWeight = columns.filter(isTextKind).reduce((s, c) => s + weightOf(c, lead), 0);
   const remainder = available - columns.filter((c) => !isTextKind(c)).reduce((s, c) => s + rigid(c), 0);
   return columns.map((c) => {
     if (!isTextKind(c)) return { id: c.id, width: rigid(c) };
     const share = available === 0
       ? layout.textColumnCap
-      : Math.min(Math.max((remainder * weightOf(c)) / totalWeight, layout.minTextColumn), layout.textColumnCap);
+      : Math.min(Math.max((remainder * weightOf(c, lead)) / totalWeight, layout.minTextColumn), layout.textColumnCap);
     const width = Math.max(share, floor(c));
     return { id: c.id, width, minWidth: Math.min(width, layout.minTextColumn) };
   });
@@ -144,7 +151,8 @@ export function columnBudgets(
 
 /** The share weights of the text columns, by id — the weights `columnBudgets` used, handed to `spreadSlack`. */
 export function textWeights(columns: readonly ColumnIntent[]): Map<string, number> {
-  return new Map(columns.filter(isTextKind).map((c) => [c.id, weightOf(c)]));
+  const lead = leadTextId(columns);
+  return new Map(columns.filter(isTextKind).map((c) => [c.id, weightOf(c, lead)]));
 }
 
 /**

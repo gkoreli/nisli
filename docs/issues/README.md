@@ -35,3 +35,4 @@ of numbering.
 | [0027 — The intent vocabulary says one word for several meanings and several words for one](./0027-intent-vocabulary-incoherences.md) | resolved (ADR 0043) | P1 |
 | [0028 — Layout decisions depend on which data is visible: sorting a table changes its columns](./0028-decisions-depend-on-visible-data.md) | resolved (ADR 0044) | P0 |
 | [0029 — The engine has one set of numbers for every context: no density, no touch floors, and the door is not live](./0029-metrics-are-one-context.md) | resolved (ADR 0046) | P1 |
+| [0030 — Action columns consume text slack and mixed table cells align by baseline](./0030-table-action-column-geometry.md) | resolved | P1 |

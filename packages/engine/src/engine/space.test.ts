@@ -97,7 +97,7 @@ describe('columnBudgets — the tenet as arithmetic (ADR 0044): naturals from ki
     expect(b[4]).toEqual({ id: 'amount', width: MONEY });
   });
 
-  it('text columns share the remainder by weight (primary double), capped, with minWidth at the text floor', () => {
+  it('text columns share the remainder by weight (the lead identity double), capped, with minWidth at the text floor', () => {
     const b = columnBudgets(cols, 1000);
     const remainder = 1000 - DATE - MONEY;               // 808, over weights 2+1+1
     expect(b[1]!.width).toBe(L.textColumnCap);           // payee: 404 capped at 320
@@ -146,7 +146,22 @@ describe('columnBudgets — the tenet as arithmetic (ADR 0044): naturals from ki
     expect([...none.values()]).toEqual([100, 100]);
   });
 
-  it('textWeights: primary text 2, other text 1, figures and dates none — the weights spreadSlack shares by', () => {
+  it('textWeights: the first primary text is the lead at 2, other text is 1, rigid kinds are absent', () => {
     expect([...textWeights(cols)]).toEqual([['payee', 2], ['category', 1], ['note', 1]]);
+  });
+
+  it('an action is a rigid control column and another primary text column does not become a second lead', () => {
+    const mixed: ColumnIntent[] = [
+      { id: 'role', label: 'Role', priority: 'primary' },
+      { id: 'owner', label: 'Owner', priority: 'primary' },
+      { id: 'actions', label: 'Actions', kind: 'action', priority: 'primary' },
+    ];
+    const actionWidth = metrics.control.hit + pad;
+    const b = columnBudgets(mixed, 600);
+    expect(b[2]).toEqual({
+      id: 'actions',
+      width: Math.max(actionWidth, labelWidth('Actions', pad, cw)),
+    });
+    expect([...textWeights(mixed)]).toEqual([['role', 2], ['owner', 1]]);
   });
 });

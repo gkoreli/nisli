@@ -466,8 +466,11 @@ keyboard or pointer path — never an "element exists" assertion — in
   by `priority` and `kind`, and every column width is a *budget* — a pure
   function of `kind`, the header label and `metrics.layout` at the measured
   width (`columnBudgets`), never of the rows (ADR 0044): figure and date
-  columns get `figureChars`/`dateChars` × `charWidth`, text columns get
-  weighted shares floored at `minTextColumn` and by their own label, every
+  columns get `figureChars`/`dateChars` × `charWidth`, `kind: 'action'`
+  columns get a rigid centred control/header budget, and text columns get
+  weighted shares floored at `minTextColumn` and by their own label. The
+  first primary text column is the lead identity with the larger share; later
+  primary columns gain survival, not width. Every
   `sortable` header reserves its sort mark whether or not it is sorted,
   leftover width goes back to the text columns (`spreadSlack`), and the
   table is always `table-layout: fixed` — no measuring pass, and a rows
