@@ -47,6 +47,7 @@ describe('safeToSpend (finance §7)', () => {
   it('grounds cash on posted checking balances only — savings, credit, other currencies and pending stay out', () => {
     expect(result.parts.cashOnHand).toBe(998406);
     expect(result.pendingInflows).toBe(1000000);
+    expect(result.parts.pendingOutflows).toBe(0);
   });
 
   it('commits bills up to the next expected income, across the month boundary', () => {
@@ -60,12 +61,20 @@ describe('safeToSpend (finance §7)', () => {
 
   it('counts open budget rooms once — a category with a bill due is priced as the bill', () => {
     expect(result.parts.openBudgets).toBe(28000); // groceries 40000 − 12000; rent covered by the Sep 1 bill
-    expect(result.explanation[4]).toContain('counted once');
+    expect(result.explanation[4]).toContain('rent $900.00 − $900.00 spent − $0.00 covered by due bills = $0.00');
+  });
+
+  it('reserves only the part of a budget not already represented by its due bill', () => {
+    const funOnly = { ...input, budgets: [{ id: 'b3', categoryId: 'fun', limit: 10000 }] };
+    const r = safeToSpend(funOnly, TODAY, f);
+    // $100 budget − $15.99 already spent − $15.99 upcoming bill = $68.02 still reserved.
+    expect(r.parts.openBudgets).toBe(6802);
+    expect(r.explanation[4]).toContain('fun $100.00 − $15.99 spent − $15.99 covered by due bills = $68.02');
   });
 
   it('shows the whole arithmetic: cash − bills − budgets = amount, verbatim, with − and =', () => {
     expect(result.amount).toBe(998406 - 91599 - 28000);
-    expect(result.explanation[0]).toBe('$9984.06 cash on hand − $915.99 bills due by 2026-09-15 − $280.00 open in budgets = $8788.07');
+    expect(result.explanation[0]).toBe('$9984.06 cash on hand − $0.00 pending outflows − $915.99 bills due by 2026-09-15 − $280.00 open in budgets = $8788.07');
   });
 
   it('names the cash basis and the excluded pending inflows', () => {
@@ -99,11 +108,21 @@ describe('safeToSpend (finance §7)', () => {
     expect(safeToSpend(tight, TODAY, f).parts.openBudgets).toBe(0);
   });
 
-  it('says "nothing pending" when nothing is', () => {
+  it('names both pending directions when neither is present', () => {
     const posted = { ...input, transactions: transactions.filter((t) => !t.pending) };
     const r = safeToSpend(posted, TODAY, f);
     expect(r.pendingInflows).toBe(0);
-    expect(r.explanation[1]).toContain('nothing pending');
+    expect(r.explanation[1]).toContain('no pending inflows');
+    expect(r.explanation[1]).toContain('no pending outflows');
+  });
+
+  it('reserves pending checking outflows without treating them as posted cash', () => {
+    const pendingCharge = tx('2026-08-30', 'Pending card authorization', -5000, 'misc', { pending: true });
+    const r = safeToSpend({ ...input, transactions: [...transactions, pendingCharge] }, TODAY, f);
+    expect(r.parts.cashOnHand).toBe(result.parts.cashOnHand);
+    expect(r.parts.pendingOutflows).toBe(5000);
+    expect(r.amount).toBe(result.amount - 5000);
+    expect(r.explanation[1]).toContain('$50.00 pending outflows reserved');
   });
 
   it('is deterministic under input order (tenet 13)', () => {

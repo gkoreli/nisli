@@ -70,6 +70,9 @@ const byDateThenId = (a: Transaction, b: Transaction): number =>
 export function detectRecurringSeries(transactions: readonly Transaction[], today: ISODate): RecurringSeries[] {
   const groups = new Map<string, Transaction[]>();
   for (const t of transactions) {
+    // A forecast is trained only by settled observations already known on the
+    // as-of date. Pending and future-dated rows are not historical evidence.
+    if (t.pending || t.date > today) continue;
     const f = flowOf(t);
     if (f === 'transfer' || f === 'zero') continue;
     const key = normalisePayee(t.payee);

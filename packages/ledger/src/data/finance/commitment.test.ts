@@ -48,6 +48,16 @@ describe('detectRecurringSeries (finance §4)', () => {
     expect(by('chase card autopay')).toBeUndefined();
   });
 
+  it('never trains a forecast with pending or future-dated observations', () => {
+    const observations = [
+      tx('2026-06-12', 'Cloud Service', -2000, 'services'),
+      tx('2026-07-12', 'Cloud Service', -2000, 'services'),
+      { ...tx('2026-08-12', 'Cloud Service', -2000, 'services'), pending: true },
+      tx('2026-09-12', 'Cloud Service', -2000, 'services'),
+    ];
+    expect(detectRecurringSeries(observations, TODAY)).toEqual([]);
+  });
+
   it('is deterministic under input order and totally ordered by next date then key (tenet 13)', () => {
     expect(detectRecurringSeries([...all].reverse(), TODAY)).toEqual(found);
     const order = found.map((s) => s.nextExpected);

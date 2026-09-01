@@ -173,15 +173,18 @@ explicit local `today` where time matters:
   keeps same-sign occurrences within ±20% of the median amount; requires at
   least three; and recognises only weekly (6–8 days), monthly (27–33), or
   yearly (350–380) intervals. A beat outside those bands is undetected rather
-  than forced into a label. Each `RecurringSeries` carries its exact evidence:
-  amount, last and next dates, cadence, confidence, and occurrence count.
+  than forced into a label. Only posted observations on or before `today` can
+  train a forecast. Each `RecurringSeries` carries its exact evidence: amount,
+  last and next dates, cadence, confidence, and occurrence count.
 - **`safeToSpend(input, today, format)`** computes posted default-currency
   checking cash minus fixed commitments due before the next expected income
   (capped at 30 days) minus room still open in the calendar month containing
-  `today`. Pending income, transfers, savings, credit, and other currencies do
-  not silently enter cash. The selected report `Period` is deliberately not an
-  argument: current budget definitions cannot truthfully reconstruct a
-  historical as-of decision.
+  `today`. Pending spending-account outflows are reserved; pending income,
+  transfers, savings, credit, and other currencies do not silently enter cash.
+  A due bill covers only the matching portion of its category's budget room,
+  so neither the bill nor the remaining room disappears. The selected report
+  `Period` is deliberately not an argument: current budget definitions cannot
+  truthfully reconstruct a historical as-of decision.
 - **`runway(input, today, format)`** divides posted checking and savings cash
   by the median default-currency outflow of the last three complete months. It
   returns no duration when that denominator is absent.

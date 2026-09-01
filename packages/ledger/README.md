@@ -182,8 +182,9 @@ parallel reporting model.
   beat. Anything else is left undetected rather than guessed.
 - *Safe to spend* = posted checking cash − recurring bills due before the next
   expected income (at most 30 days) − open current-calendar-month budget room.
-  Pending income, transfers, non-default currencies, and the full arithmetic
-  are explicit.
+  Pending outflows are reserved; pending income, transfers, non-default
+  currencies, and the full arithmetic are explicit. A due bill covers only
+  the matching portion of its category's remaining budget room.
 - *Runway* = posted checking and savings cash ÷ the median outflow of the last
   three complete months. When the denominator is absent, Ledger says the
   figure is not measurable instead of inventing one.

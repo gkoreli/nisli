@@ -291,7 +291,8 @@ describe('the screens carry the fixture, so the proof is over real content', () 
       expect(text).toContain('$15,633.23');
       expect(text).toContain('-$8,770.89');
       expect(text).toContain('$6,862.34 in − $15,633.23 out');
-      expect(text).toContain('nothing pending');
+      expect(text).toContain('no pending inflows');
+      expect(text).toContain('no pending outflows');
       // Honest delta: percent against the previous same-elapsed window, named.
       expect(text).toMatch(/% vs |no .+ data to compare/);
       // Runway names its basis; this fixture has no three complete months of outflow.
