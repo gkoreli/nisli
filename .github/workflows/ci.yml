@@ -25,7 +25,11 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
-      # Cheap and first: a pnpm/node pin that disagrees with mise.toml means a
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.0'
+
+      # Cheap and first: a pnpm/node/Bun pin that disagrees with mise.toml means a
       # local green run and a CI green run are not testing the same toolchain.
       - name: Check toolchain pins
         run: node scripts/check-toolchain.mjs

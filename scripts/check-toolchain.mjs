@@ -8,6 +8,7 @@
  *     reads this field; the workflows pass no explicit `version:`)
  *   - mise.toml     `[tools] pnpm`    — what a local shell gets
  *   - mise.toml     `[tools] node`    — must match the CI matrix floor
+ *   - mise.toml     `[tools] bun`     — must match every setup-bun workflow pin
  *
  * They drifted once already: package.json pinned pnpm 10.17.1 while mise said
  * "latest" and resolved 10.33.2, so the shim had no selected version and every
@@ -56,10 +57,12 @@ if (pkgPnpm && misePnpm && pkgPnpm !== misePnpm) {
 // The CI matrix is the source of truth for node; mise should pin its floor.
 const workflowDir = join(root, '.github', 'workflows');
 const ciNodes = new Set();
+const ciBuns = new Set();
 for (const file of readdirSync(workflowDir)) {
   if (!file.endsWith('.yml') && !file.endsWith('.yaml')) continue;
   const text = readFileSync(join(workflowDir, file), 'utf8');
   for (const m of text.matchAll(/node-version:\s*['"]?(\d+)/g)) ciNodes.add(Number(m[1]));
+  for (const m of text.matchAll(/bun-version:\s*['"]?([^'"\s]+)/g)) ciBuns.add(m[1]);
 }
 if (ciNodes.size && miseNode) {
   const floor = Math.min(...ciNodes);
@@ -71,10 +74,19 @@ if (ciNodes.size && miseNode) {
   }
 }
 
+if (ciBuns.size === 0) {
+  problems.push('GitHub workflows do not install the Bun runtime required by Ledger builds.');
+} else if (miseBun && (ciBuns.size !== 1 || !ciBuns.has(miseBun))) {
+  problems.push(
+    `bun pin ${miseBun} does not match every workflow pin (${[...ciBuns].sort().join(', ')}). `
+    + 'A local Ledger build and a CI/publish build must use the same runtime.',
+  );
+}
+
 if (problems.length) {
   console.error('Toolchain pins are inconsistent:\n');
   for (const p of problems) console.error(`  - ${p}`);
   process.exit(1);
 }
 
-console.log(`toolchain OK: pnpm ${pkgPnpm} (package.json == mise.toml), node ${miseNode} (CI floor ${Math.min(...ciNodes)}), bun ${miseBun}`);
+console.log(`toolchain OK: pnpm ${pkgPnpm} (package.json == mise.toml), node ${miseNode} (CI floor ${Math.min(...ciNodes)}), bun ${miseBun} (mise.toml == workflows)`);
