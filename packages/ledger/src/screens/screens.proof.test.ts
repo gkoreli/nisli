@@ -163,13 +163,7 @@ const AXES = [{}, { density: 'compact' }, { input: 'touch' }, { density: 'compac
  * test asserts they are still made (so a fix retires its line) and that nothing
  * else is claimed.
  */
-const KNOWN: Record<string, { code: Claim['code']; detail: string; at: readonly (readonly [number, string])[] }[]> = {
-  OverviewScreen: [{
-    code: 'FIT_COLUMNS',
-    detail: 'columns Category, Amount cannot fit even truncated (0px short at 198px)',
-    at: [[480, 'compact+pointer'], [480, 'compact+touch']],
-  }],
-};
+const KNOWN: Record<string, { code: Claim['code']; detail: string; at: readonly (readonly [number, string])[] }[]> = {};
 
 /** The same ledger with its lists reversed: same intent, the data perturbed (ADR 0044). */
 const perturbedLedger = (): Ledger => {
