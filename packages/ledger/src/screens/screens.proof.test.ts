@@ -239,6 +239,43 @@ describe('the screens carry the fixture, so the proof is over real content', () 
       expect([...t.frame.querySelectorAll('button')].some((button) => button.textContent?.includes('Review again'))).toBe(true);
     } finally { t.unmount(); }
   });
+  it('keeps current decisions stable while the selected reporting month changes', () => {
+    const originalPeriod = store.period.value;
+    store.period.value = month;
+    const o = mount(() => OverviewScreen({}), {}, { width: 1280, scheme: 'light', measure: estimator(1280) });
+    const stat = (label: string) => [...o.frame.querySelectorAll('nisli-stat')]
+      .find((candidate) => candidate.textContent?.includes(label))?.textContent;
+    const coming = () => [...o.frame.querySelectorAll('nisli-section')]
+      .find((candidate) => candidate.textContent?.includes('Coming up'))?.textContent;
+    const scope = () => [...o.frame.querySelectorAll('nisli-text')]
+      .find((candidate) => candidate.textContent?.includes('Selected month:'))?.textContent;
+    try {
+      const current = {
+        safe: stat('Safe to spend today'),
+        runway: stat('Runway today'),
+        coming: coming(),
+        moneyIn: stat('Money in'),
+        scope: scope(),
+      };
+      expect(current.safe).toBeDefined();
+      expect(current.runway).toBeDefined();
+      expect(current.coming).toBeDefined();
+      expect(current.scope).toContain('Safe to spend, runway, and Coming up use');
+
+      store.period.value = lastMonth;
+      flushEffects();
+
+      expect(scope()).not.toBe(current.scope);
+      expect(stat('Money in')).not.toBe(current.moneyIn);
+      expect(stat('Safe to spend today')).toBe(current.safe);
+      expect(stat('Runway today')).toBe(current.runway);
+      expect(coming()).toBe(current.coming);
+    } finally {
+      store.period.value = originalPeriod;
+      flushEffects();
+      o.unmount();
+    }
+  });
   it('the overview answers the five questions with its arithmetic shown, and the connections screen the bank once its queries settle', async () => {
     const o = mount(() => OverviewScreen({}), {}, { width: 1280, scheme: 'light', measure: estimator(1280) });
     try {

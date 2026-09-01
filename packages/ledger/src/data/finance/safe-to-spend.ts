@@ -68,8 +68,9 @@ export interface SafeToSpend {
   explanation: string[];
 }
 
-/** What can go out today without touching a bill still due or a budget still open. */
-export function safeToSpend(input: FinanceInput, p: Period, today: ISODate, format: MoneyText): SafeToSpend {
+/** What can go out today without touching a bill still due or this calendar month's budget room. */
+export function safeToSpend(input: FinanceInput, today: ISODate, format: MoneyText): SafeToSpend {
+  const current = monthPeriod(today.slice(0, 7));
   const spending = input.accounts.filter((a) => a.kind === 'checking' && isDefaultCurrency(input, a));
   const cashParts = spending.map((a) => ({ name: a.name, cents: postedBalance(input, a, today) }));
   const cashOnHand = cashParts.reduce((s, part) => s + part.cents, 0);
@@ -96,7 +97,7 @@ export function safeToSpend(input: FinanceInput, p: Period, today: ISODate, form
   const rooms = input.budgets
     .filter((b) => !covered.has(b.categoryId))
     .map((b) => {
-      const spent = inPeriod(input.transactions, p)
+      const spent = inPeriod(input.transactions, current)
         .filter((t) => t.categoryId === b.categoryId && flowOf(t) === 'outflow'
           && currencyOf(t, accountById, input.defaultCurrency) === defaultCode)
         .reduce((s, t) => s - t.amount, 0);

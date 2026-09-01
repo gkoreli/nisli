@@ -18,7 +18,10 @@ import { AppRouter } from '../router.js';
 
 export const OverviewScreen = component('ledger-overview', () => {
   const router = inject(Router);
-  // The whole screen derives from the title's period and today; no section may ignore them.
+  // Reports follow the selected period. Decisions follow the owner's local
+  // today. Keeping these horizons separate prevents a historical report from
+  // pretending that today's cash, budget definitions, or forecast are an
+  // as-of snapshot.
   const p = computed(() => fin.monthPeriod(period.value));
   const input = computed<fin.FinanceInput>(() => ({
     transactions: transactions.value,
@@ -45,7 +48,7 @@ export const OverviewScreen = component('ledger-overview', () => {
   const open = (href: string) => { void router.navigate(href); };
 
   // ── The five stats ───────────────────────────────────────────────────
-  const safe = computed(() => fin.safeToSpend(input.value, p.value, today(), (c) => money(c)));
+  const safe = computed(() => fin.safeToSpend(input.value, today(), (c) => money(c)));
   const run = computed(() => fin.runway(input.value, today(), (c) => money(c)));
   const totals = computed(() => fin.flowTotals(input.value, p.value));
   const win = computed(() => fin.comparisonWindow(p.value, today()));
@@ -170,17 +173,21 @@ export const OverviewScreen = component('ledger-overview', () => {
   });
 
   return Page({
-    title: computed(() => monthLabel(period.value)),
+    title: 'Overview',
     actions: [
       { id: 'prev', label: '‹ Previous', priority: 'secondary', onSelect: () => shiftPeriod(-1) },
       { id: 'next', label: 'Next ›', priority: 'secondary', onSelect: () => shiftPeriod(1) },
       { id: 'today', label: 'This month', priority: 'tertiary', onSelect: () => { period.value = thisMonth(); } },
     ],
     children: [
+      Text({
+        text: computed(() => `Selected month: ${monthLabel(period.value)}. Safe to spend, runway, and Coming up use ${shortDate(today())}.`),
+        role: 'note',
+      }),
       Grid({
         children: [
           Stat({
-            label: 'Safe to spend',
+            label: 'Safe to spend today',
             value: computed(() => money(safe.value.amount)),
             delta: computed<Delta>(() => (safe.value.amount < 0
               ? { text: 'Bills and budgets exceed cash on hand', tone: 'negative' }
@@ -206,7 +213,7 @@ export const OverviewScreen = component('ledger-overview', () => {
             hint: computed(() => `${money(one(totals.value.inflows))} in − ${money(one(totals.value.outflows))} out`),
           }),
           Stat({
-            label: 'Runway',
+            label: 'Runway today',
             value: computed(() => (run.value.months !== undefined ? `${run.value.months} months` : '—')),
             hint: computed(() => run.value.explanation[0]!),
           }),
@@ -241,7 +248,7 @@ export const OverviewScreen = component('ledger-overview', () => {
                 rows: computed(() => rollup.value.inflows),
                 rowKey: (r) => r.categoryId,
                 onOpen: openCategory,
-                empty: { title: 'No money in yet this month' },
+                empty: { title: 'No money in for this period' },
               }),
               Text({ text: transferLine, role: 'note' }),
             ],
@@ -254,7 +261,7 @@ export const OverviewScreen = component('ledger-overview', () => {
                 rows: computed(() => rollup.value.outflows),
                 rowKey: (r) => r.categoryId,
                 onOpen: openCategory,
-                empty: { title: 'No spending yet this month' },
+                empty: { title: 'No spending for this period' },
               }),
               Text({ text: reviewLine, role: 'note' }),
               Link({ href: AppRouter.routes.transactions.href({ search: { review: '1' } }), label: 'Review categories →' }),

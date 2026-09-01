@@ -181,8 +181,9 @@ parallel reporting model.
   the same amount on a weekly (6–8 days), monthly (27–33), or yearly (350–380)
   beat. Anything else is left undetected rather than guessed.
 - *Safe to spend* = posted checking cash − recurring bills due before the next
-  expected income (at most 30 days) − open budget room. Pending income,
-  transfers, non-default currencies, and the full arithmetic are explicit.
+  expected income (at most 30 days) − open current-calendar-month budget room.
+  Pending income, transfers, non-default currencies, and the full arithmetic
+  are explicit.
 - *Runway* = posted checking and savings cash ÷ the median outflow of the last
   three complete months. When the denominator is absent, Ledger says the
   figure is not measurable instead of inventing one.

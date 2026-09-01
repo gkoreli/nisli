@@ -4,8 +4,8 @@
 **Status**: Accepted
 **Depends on**: [0034-engine-typed-blocks-decided-by-an-engine](./0034-engine-typed-blocks-decided-by-an-engine.md)
 **Governed by**: [`packages/ledger/TENETS.md`](../../packages/ledger/TENETS.md) — tenet numbers below refer to it
-**Code**: [`server/index.ts`](../../packages/ledger/server/index.ts), [`server/store.ts`](../../packages/ledger/server/store.ts), [`server/crypto.ts`](../../packages/ledger/server/crypto.ts), [`server/providers/plaid.ts`](../../packages/ledger/server/providers/plaid.ts), [`src/data/api.ts`](../../packages/ledger/src/data/api.ts), [`src/data/store.ts`](../../packages/ledger/src/data/store.ts), [`src/data/insights.ts`](../../packages/ledger/src/data/insights.ts), [`src/screens/settings.ts`](../../packages/ledger/src/screens/settings.ts), [`src/screens/overview.ts`](../../packages/ledger/src/screens/overview.ts)
-**Tests**: [`src/data/store.test.ts`](../../packages/ledger/src/data/store.test.ts), [`src/data/insights.test.ts`](../../packages/ledger/src/data/insights.test.ts)
+**Code**: [`server/index.ts`](../../packages/ledger/server/index.ts), [`server/store.ts`](../../packages/ledger/server/store.ts), [`server/crypto.ts`](../../packages/ledger/server/crypto.ts), [`server/providers/plaid.ts`](../../packages/ledger/server/providers/plaid.ts), [`src/data/api.ts`](../../packages/ledger/src/data/api.ts), [`src/data/store.ts`](../../packages/ledger/src/data/store.ts), [`src/data/finance/commitment.ts`](../../packages/ledger/src/data/finance/commitment.ts), [`src/data/finance/safe-to-spend.ts`](../../packages/ledger/src/data/finance/safe-to-spend.ts), [`src/screens/settings.ts`](../../packages/ledger/src/screens/settings.ts), [`src/screens/overview.ts`](../../packages/ledger/src/screens/overview.ts)
+**Tests**: [`src/data/store.test.ts`](../../packages/ledger/src/data/store.test.ts), [`src/data/finance/commitment.test.ts`](../../packages/ledger/src/data/finance/commitment.test.ts), [`src/data/finance/safe-to-spend.test.ts`](../../packages/ledger/src/data/finance/safe-to-spend.test.ts), [`src/screens/screens.proof.test.ts`](../../packages/ledger/src/screens/screens.proof.test.ts)
 
 > **2026-08-29 extension:** ADR 0039 replaces the provider-facing Item/cursor
 > vocabulary below with the BankConnection/checkpoint domain, adds normalized
@@ -20,6 +20,12 @@
 > `.env`, preventing the client tooling process from inheriting provider
 > secrets. This follows Bun's primary TypeScript, environment, HTTP server,
 > child-process, and Vite documentation.
+
+> **2026-08-31 finance-domain extension:** the prototype `insights.ts` module
+> was replaced by the pure `src/data/finance/` bounded context. Safe to spend
+> is a current-position decision derived from the owner's local `today`; a
+> selected historical month controls reports only and cannot be passed into
+> that operation. The remainder of §5 describes the current domain.
 
 ## Context
 
@@ -157,30 +163,34 @@ quarantined and can only be removed by the backed-up cleanup command. This is
 the *link → accounts → sync-with-cursor → remove* contract of tenet 7;
 SimpleFIN, Teller or CSV would be a third file in `providers/`, not a rewrite.
 
-### 5. The one insight, and "explained arithmetic" as a rule
+### 5. Finance decisions, and "explained arithmetic" as a rule
 
-`src/data/insights.ts` adds two pure functions, no clock, no I/O:
+The pure `src/data/finance/` modules have no clock, I/O, signal, store, or
+formatting dependency. Their boundary receives plain readonly data plus an
+explicit local `today` where time matters:
 
-- **`detectRecurring(transactions, today)`** — group by normalised payee
-  (`normalisePayee`: lowercase, trailing digit/`#`/`*` tails stripped); keep
-  occurrences within ±20 % of the group's median amount, same sign; require
-  three; the median interval picks the cadence — 6–8 days weekly, 27–33
-  monthly, 350–380 yearly. A median outside every band is *undetected*, not
-  forced into a neighbour (a semi-monthly payroll is left alone rather than
-  mislabelled). A series more than two intervals overdue has lapsed. Each item
-  carries `typicalAmount`, `lastDate`, `nextExpected`, `confidence` and
-  `occurrences`.
-- **`safeToSpend({ transactions, budgets, period, today })`** —
-  `balanceIn − committedBills − budgetRemaining`, where `balanceIn` is the
-  period's income minus spend, `committedBills` the recurring money-out items
-  due after `today` and by the period's end, and `budgetRemaining` the open
-  room in budgets whose category no committed bill already covers. It returns
-  the `parts` and an `explanation: string[]` whose first line is the whole
-  sum in words.
+- **`detectRecurringSeries(transactions, today)`** groups by normalised payee;
+  keeps same-sign occurrences within ±20% of the median amount; requires at
+  least three; and recognises only weekly (6–8 days), monthly (27–33), or
+  yearly (350–380) intervals. A beat outside those bands is undetected rather
+  than forced into a label. Each `RecurringSeries` carries its exact evidence:
+  amount, last and next dates, cadence, confidence, and occurrence count.
+- **`safeToSpend(input, today, format)`** computes posted default-currency
+  checking cash minus fixed commitments due before the next expected income
+  (capped at 30 days) minus room still open in the calendar month containing
+  `today`. Pending income, transfers, savings, credit, and other currencies do
+  not silently enter cash. The selected report `Period` is deliberately not an
+  argument: current budget definitions cannot truthfully reconstruct a
+  historical as-of decision.
+- **`runway(input, today, format)`** divides posted checking and savings cash
+  by the median default-currency outflow of the last three complete months. It
+  returns no duration when that denominator is absent.
 
-Overview shows **Safe to spend** as a `Stat` whose `hint` is
-`explanation[0]`, and a **Recurring** table (payee, cadence, typical, next
-expected) with the empty text "it takes three occurrences on a steady beat".
+Overview names the split explicitly: Safe to spend, Runway, and Coming up use
+local today; Money in, Money out, Net, category rollups, comparisons, and the
+trend use the selected report month. Each decision exposes its arithmetic in
+the block hint or an ambient line, and recurring commitments remain visible in
+the Coming up table.
 
 The rule this establishes: **an insight ships with its arithmetic, or it
 does not ship.** Tenet 5 says a recommendation the user cannot check is not a
@@ -200,7 +210,7 @@ already on the screen (tenets 11, 12).
 | 2 — local-first, owner-hosted | The document lives in `server/data/ledger.json` on the Mac; the browser holds a read cache; the server binds localhost/tailnet only. |
 | 3 — nothing lost | Atomic, serialised writes; daily dated backups kept 30 deep; pre-restore copies; restore in Settings behind a confirm; offline writes retried, never dropped. |
 | 4 — credentials never pass through Ledger | Tokens sealed with AES-256-GCM, never sent to the browser; secrets in env; bank login only in the provider's window. |
-| 5 — full visibility, explained | `safeToSpend.explanation`, `RecurringItem.confidence` / `occurrences`. |
+| 5 — full visibility, explained | `safeToSpend.explanation`, `RecurringSeries.confidence` / `occurrences`. |
 | 6 — money is exact | `typicalAmount`, `amount`, `parts` are integer cents; `money()` formats only at the edge. |
 | 7 — provider-independent | One adapter shape; provider chosen by configuration. |
 | 8 — private by construction | Request log carries method, path, status, ms — nothing else. |

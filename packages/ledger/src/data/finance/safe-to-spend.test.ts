@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { runway, safeToSpend } from './safe-to-spend.js';
-import { monthPeriod } from './period.js';
 import { TRANSFER } from '../model.js';
 import type { FinanceInput } from './index.js';
 import type { Account, Transaction } from '../model.js';
@@ -14,7 +13,6 @@ const acct = (id: string, kind: Account['kind'], opening: number, currency = 'US
 const f = (c: number) => `${c < 0 ? '-' : ''}$${(Math.abs(c) / 100).toFixed(2)}`;
 
 const TODAY = '2026-08-30';
-const AUG = monthPeriod('2026-08');
 
 describe('safeToSpend (finance §7)', () => {
   const rent = ['2026-06-01', '2026-07-01', '2026-08-01'].map((d) => tx(d, 'Landlord', -90000, 'rent'));
@@ -43,7 +41,7 @@ describe('safeToSpend (finance §7)', () => {
     ],
     defaultCurrency: 'USD',
   };
-  const result = safeToSpend(input, AUG, TODAY, f);
+  const result = safeToSpend(input, TODAY, f);
 
   // Cash: chk 500000 − rent 270000 − netflix 9594 + payroll 750000 − groceries 12000 − autopay 60000 = 898406; chk2 100000.
   it('grounds cash on posted checking balances only — savings, credit, other currencies and pending stay out', () => {
@@ -84,32 +82,38 @@ describe('safeToSpend (finance §7)', () => {
   it('never subtracts another currency recurring bill from default-currency cash', () => {
     const gelBill = ['2026-06-07', '2026-07-07', '2026-08-07']
       .map((date) => tx(date, 'Tbilisi Utility', -5000, 'utilities', { accountId: 'gel' }));
-    const r = safeToSpend({ ...input, transactions: [...transactions, ...gelBill] }, AUG, TODAY, f);
+    const r = safeToSpend({ ...input, transactions: [...transactions, ...gelBill] }, TODAY, f);
     expect(r.parts.committedBills).toBe(result.parts.committedBills);
     expect(r.bills.some((bill) => bill.payee === 'Tbilisi Utility')).toBe(false);
   });
 
   it('caps the horizon at 30 days when no recurring income is detected', () => {
     const noIncome = { ...input, transactions: transactions.filter((t) => t.payee !== 'ACME PAYROLL') };
-    const r = safeToSpend(noIncome, AUG, TODAY, f);
+    const r = safeToSpend(noIncome, TODAY, f);
     expect(r.dueBy).toBe('2026-09-29');
     expect(r.parts.committedBills).toBe(91599);
   });
 
   it('an overspent budget contributes zero room, never negative', () => {
     const tight = { ...input, budgets: [{ id: 'b1', categoryId: 'groceries', limit: 10000 }] };
-    expect(safeToSpend(tight, AUG, TODAY, f).parts.openBudgets).toBe(0);
+    expect(safeToSpend(tight, TODAY, f).parts.openBudgets).toBe(0);
   });
 
   it('says "nothing pending" when nothing is', () => {
     const posted = { ...input, transactions: transactions.filter((t) => !t.pending) };
-    const r = safeToSpend(posted, AUG, TODAY, f);
+    const r = safeToSpend(posted, TODAY, f);
     expect(r.pendingInflows).toBe(0);
     expect(r.explanation[1]).toContain('nothing pending');
   });
 
   it('is deterministic under input order (tenet 13)', () => {
-    expect(safeToSpend({ ...input, transactions: [...transactions].reverse() }, AUG, TODAY, f)).toEqual(result);
+    expect(safeToSpend({ ...input, transactions: [...transactions].reverse() }, TODAY, f)).toEqual(result);
+  });
+
+  it('derives budget room from today\'s calendar month, never from a selected report month', () => {
+    const historicalSpend = tx('2026-07-05', 'Historical grocer', -39900, 'groceries');
+    const r = safeToSpend({ ...input, transactions: [...transactions, historicalSpend] }, TODAY, f);
+    expect(r.parts.openBudgets).toBe(result.parts.openBudgets);
   });
 });
 
