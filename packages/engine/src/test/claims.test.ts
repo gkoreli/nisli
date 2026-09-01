@@ -3,11 +3,18 @@
  * one (fails: exactly the claim), over plain DOM in happy-dom.
  * @vitest-environment happy-dom
  */
-import { describe, it, expect, beforeEach } from 'vitest';
-import { checkers, claimsOf, accessibleName, reportClaim, overflowText, accessibleNames, uniqueIds, formLabels, dialogAria, menuItems, blockErrors, reachable, sortReachable, popupAria, liveTone, type Checker } from './claims.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { el } from '@nisli/core';
+import { checkers, claimsOf, accessibleName, reportClaim, overflowText, accessibleNames, uniqueIds, formLabels, dialogAria, menuItems, blockErrors, reachable, sortReachable, popupAria, liveTone, targetSmall, type Checker } from './claims.js';
 import { estimator } from './estimate.js';
+import { setInput, setDensity } from '../engine/axes.js';
+import { metrics } from '../metrics.js';
+import { block } from '../blocks/kernel.js';
+import { mount } from './mount.js';
+import { axisStale } from './prove.js';
 
 beforeEach(() => { document.body.innerHTML = ''; });
+afterEach(() => { setInput('system'); setDensity('system'); });
 
 const fixture = (html: string, width = 400): HTMLElement => {
   document.body.innerHTML = '';
@@ -164,8 +171,93 @@ describe('claim checkers', () => {
     expect(codes(reachable, fixture('<div inert><button>Save</button></div><div role="dialog" aria-modal="true" style="display:none"></div>'))).toEqual(['UNREACHABLE']);
   });
 
+  it('TARGET_SMALL: under touch a target under the hit floor on either side fails; under pointer nothing is checked', () => {
+    const small = '<button style="display:inline-flex;height:24px;padding:0 12px">Save</button>';
+    expect(codes(targetSmall, fixture(small))).toEqual([]);                       // pointer: not checked
+    setInput('touch');
+    expect(metrics.control.hit).toBe(44);
+    expect(codes(targetSmall, fixture(small))).toEqual(['TARGET_SMALL']);
+    expect(targetSmall.check(fixture(`<nisli-page>${small}</nisli-page>`), estimator(400))[0]).toMatchObject({ block: 'nisli-page', severity: 'error', detail: '<button> "Save" is 24px tall; the touch floor is 44px' });
+    expect(codes(targetSmall, fixture('<button style="display:inline-flex;height:44px;padding:0 12px">Save</button>'))).toEqual([]);
+    // Hidden, disabled-by-inertness, and out-of-scope elements are not targets.
+    expect(codes(targetSmall, fixture(`<div style="display:none">${small}</div><div inert>${small}</div>`))).toEqual([]);
+    // A row: `height` (table layout treats it as a minimum; `min-height` is a no-op on a tr) — 24 fails, 44 holds.
+    const row = (h: number) => `<table><tbody><tr tabindex="0" aria-label="Row" style="height:${h}px"><td>a</td></tr></tbody></table>`;
+    expect(codes(targetSmall, fixture(row(24)))).toEqual(['TARGET_SMALL']);
+    expect(codes(targetSmall, fixture(row(44)))).toEqual([]);
+    // A control inside the one ancestor that carries the floor: a sort button in its th, a link in its row.
+    expect(codes(targetSmall, fixture('<table><thead><tr><th style="height:44px"><button style="display:inline-flex;padding:0 12px">Date</button></th></tr></thead></table>'))).toEqual([]);
+    expect(codes(targetSmall, fixture('<table><thead><tr><th style="height:24px"><button style="display:inline-flex;padding:0 12px">Date</button></th></tr></thead></table>'))).toEqual(['TARGET_SMALL']);
+    // An ancestor shared by two targets is nobody's floor: both fail for having no height of their own.
+    expect(codes(targetSmall, fixture('<div style="height:44px"><button style="display:inline-flex;padding:0 12px">A</button><button style="display:inline-flex;padding:0 12px">B</button></div>'))).toEqual(['TARGET_SMALL', 'TARGET_SMALL']);
+  });
+
+  it('TARGET_SMALL: no inline height anywhere fails — except a link inline in flowing text (WCAG 2.5.8)', () => {
+    setInput('touch');
+    // The nav link today: padding only, display block.
+    const nav = targetSmall.check(fixture('<nisli-app><nav><a href="/a" style="display:block;padding:8px 12px">Overview</a></nav></nisli-app>'), estimator(400));
+    expect(nav.map((c) => [c.code, c.block])).toEqual([['TARGET_SMALL', 'nisli-app']]);
+    expect(nav[0]!.detail).toBe('<a> "Overview" has no inline height anywhere; the touch floor is 44px');
+    expect(codes(targetSmall, fixture('<a href="/a" style="display:block;padding:8px 12px;min-height:44px">Overview</a>'))).toEqual([]);
+    // A Link in a Text: display unset (or inline) is a run of text, exempt.
+    expect(codes(targetSmall, fixture('<nisli-text><span>Read the <nisli-link style="display:inline"><a href="/x">notes</a></nisli-link> first.</span></nisli-text>'))).toEqual([]);
+    expect(codes(targetSmall, fixture('<p>Read the <a href="/x" style="display:inline">notes</a> first.</p>'))).toEqual([]);
+    // A native control is never text: a bare button with no height fails whatever its display.
+    expect(codes(targetSmall, fixture('<button>Save</button>'))).toEqual(['TARGET_SMALL']);
+  });
+
+  it('TARGET_SMALL: the width leg — a dismiss "×" with padding 0 8 is ≈23px wide and fails; minWidth at the floor holds; a block-level element is as wide as its box', () => {
+    setInput('touch');
+    const dismiss = (extra = '') => `<button aria-label="Dismiss" style="display:inline-flex;height:44px;padding:0 8px${extra}">×</button>`;
+    const claim = targetSmall.check(fixture(dismiss()), estimator(400));
+    expect(claim.map((c) => c.code)).toEqual(['TARGET_SMALL']);
+    expect(claim[0]!.detail).toMatch(/^<button> "Dismiss" is 2\dpx wide; the touch floor is 44px$/);   // ≈23px in Chromium, 25 by the estimator
+    expect(codes(targetSmall, fixture(dismiss(';min-width:44px')))).toEqual([]);
+    expect(codes(targetSmall, fixture(dismiss(';width:44px')))).toEqual([]);
+    // Both sides short: both named.
+    expect(targetSmall.check(fixture('<button aria-label="Dismiss" style="display:inline-flex;height:24px;padding:0 8px">×</button>'), estimator(400))[0]!.detail).toMatch(/is 24px tall and 2\dpx wide;/);
+    // A block-level element with no width is as wide as its box; an inline width in % is its box too.
+    expect(codes(targetSmall, fixture('<a href="/a" style="display:block;height:44px">×</a>'))).toEqual([]);
+    expect(codes(targetSmall, fixture('<input aria-label="Payee" style="height:44px;width:100%;padding:0 12px">'))).toEqual([]);
+  });
+
+  it('TARGET_SMALL: the width leg reads a zero min-width as "may shrink", a growing flex item as its share, a sort button as its pinned th, and a check as its row', () => {
+    setInput('touch');
+    // `truncate` spreads `min-width:0` onto a sort button: not a width. Its th is pinned; the th answers.
+    const th = (w: string) => `<table><thead><tr><th style="height:44px;width:${w}"><button style="min-width:0px;display:inline-block;padding:0">Date</button></th></tr></thead></table>`;
+    expect(codes(targetSmall, fixture(th('96px')))).toEqual([]);
+    expect(targetSmall.check(fixture(th('40px')), estimator(400)).map((c) => c.detail)).toEqual(['<button> "Date" is 40px wide; the touch floor is 44px']);
+    // A segmented option grows into its share: no width of its own to judge.
+    expect(codes(targetSmall, fixture('<button role="radio" aria-label="A" style="display:inline-flex;height:44px;flex:1 1 0;min-width:0px;padding:0 12px">A</button>'))).toEqual([]);
+    // A native check is a small box inside the row a person taps: the row (the one ancestor it owns) is its target.
+    const row = (h: number) => `<span style="display:flex;height:${h}px"><input type="checkbox" aria-label="Income" style="width:24px;height:24px"><label style="display:flex;min-height:${h}px">Income</label></span>`;
+    expect(codes(targetSmall, fixture(row(44)))).toEqual([]);
+    expect(targetSmall.check(fixture(row(32)), estimator(400)).map((c) => c.detail)).toEqual(['<input> "Income" is 32px tall; the touch floor is 44px']);
+    // An estimate of nothing (no own text) is no answer, not a zero.
+    expect(codes(targetSmall, fixture('<button aria-label="Close" style="display:inline-flex;height:44px;padding:0 12px"><i></i></button>'))).toEqual([]);
+  });
+
+  it('AXIS_STALE: a block whose part() froze a record does not follow a live axis flip and is named; the thunk version is silent', async () => {
+    const Frozen = block<{ text: string }>('nisli-frozen-probe', {
+      render: (props, ctx) => el('div', { style: ctx.part([], { padding: ctx.metrics.space[4] }) }, props.text),
+    });
+    const Live = block<{ text: string }>('nisli-live-probe', {
+      render: (props, ctx) => el('div', { style: ctx.part([], () => ({ padding: ctx.metrics.space[4] })) }, props.text),
+    });
+    const check = async (make: () => ReturnType<typeof Frozen>) => {
+      const t = mount(make, {}, { width: 400 });
+      try { return await axisStale(t, make, { width: 400 }); } finally { t.unmount(); }
+    };
+    const stale = await check(() => Frozen({ text: 'x' }));
+    expect(stale.map((c) => [c.code, c.block, c.severity])).toEqual([['AXIS_STALE', 'nisli-frozen-probe', 'error']]);
+    expect(stale[0]!.detail).toBe('did not follow the axes: <div> at nisli-frozen-probe > div > div has "padding:16px" flipped live from comfortable+pointer to compact+touch and "padding:12px" fresh');
+    expect(await check(() => Live({ text: 'x' }))).toEqual([]);
+    // The helper leaves the axes where it found them.
+    expect(metrics.space[4]).toBe(16);
+  });
+
   it('claimsOf runs every checker; reportClaim turns a layout report into a claim', () => {
-    expect(checkers.map((c) => c.code)).toEqual(['OVERFLOW_TEXT', 'NAME_MISSING', 'ID_DUPLICATE', 'LABEL_MISSING', 'DIALOG_ARIA', 'MENU_ITEM_ROLE', 'BLOCK_ERROR', 'UNREACHABLE', 'SORT_UNREACHABLE', 'POPUP_ARIA', 'LIVE_TONE']);
+    expect(checkers.map((c) => c.code)).toEqual(['OVERFLOW_TEXT', 'NAME_MISSING', 'ID_DUPLICATE', 'LABEL_MISSING', 'DIALOG_ARIA', 'MENU_ITEM_ROLE', 'BLOCK_ERROR', 'UNREACHABLE', 'SORT_UNREACHABLE', 'POPUP_ARIA', 'LIVE_TONE', 'TARGET_SMALL']);
     const root = fixture('<button></button><div id="a"></div><div id="a"></div>');
     expect(claimsOf(root, estimator(400)).map((c) => c.code)).toEqual(['NAME_MISSING', 'ID_DUPLICATE']);
     expect(reportClaim({ code: 'FIT_ROW', block: 'nisli-toolbar', width: 300, deficit: 12.4, detail: 'title "T" and its primary actions cannot fit' }))

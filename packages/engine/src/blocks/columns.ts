@@ -40,36 +40,36 @@ export const Columns = block<ColumnsProps>('nisli-columns', {
     const slot = computed(() => (ctx.width.value > 0 ? ctx.width.value / Math.max(1, labels.value.length) : UNMEASURED_SLOT));
     // The axis label budget: `axisChars` glyphs and a breath. One label is one slot — the count is chart
     // structure and may decide; the label *text* may not (ADR 0044): "September" and "May" skip the same.
-    const budget = metrics.layout.axisChars * metrics.charWidth + metrics.space[2];
-    const every = computed(() => labelEvery(slot.value, budget));
+    // Read inside the computed: the breath follows the density axis (ADR 0046 §4).
+    const every = computed(() => labelEvery(slot.value, metrics.layout.axisChars * metrics.charWidth + metrics.space[2]));
     const stopStamp = effect(() => stampPlan(ctx.host, `every:${every.value}`));
     onCleanup(stopStamp);
     const groups = computed(() => labels.value.map((label, i) => ({ label, i, values: series.value.map((s) => ({ v: s.values[i] ?? 0, tone: s.tone, label: s.label })) })));
 
     return [
-      el('div', { style: ctx.part([], { display: 'flex', gap: metrics.space[3], marginBottom: metrics.space[2], flexWrap: 'wrap' }) },
-        series.value.map((s) => el('span', { style: ctx.part('text.muted', { display: 'inline-flex', alignItems: 'center', gap: metrics.space[1] }) }, [
-          el('i', { style: ctx.part(barParts(s.tone), { display: 'inline-block', width: 10, height: 10 }) }),
+      el('div', { style: ctx.part([], () => ({ display: 'flex', gap: metrics.space[3], marginBottom: metrics.space[2], flexWrap: 'wrap' })) },
+        series.value.map((s) => el('span', { style: ctx.part('text.muted', () => ({ display: 'inline-flex', alignItems: 'center', gap: metrics.space[1] })) }, [
+          el('i', { style: ctx.part(barParts(s.tone), () => ({ display: 'inline-block', width: 10, height: 10 })) }),
           s.label,
         ])),
       ),
       el('div', {
         role: 'img',
         'aria-label': computed(() => `${series.value.map((s) => s.label).join(' and ')} by ${labels.value.length} periods`),
-        style: ctx.part([], { display: 'flex', alignItems: 'flex-end', height: HEIGHT, gap: 2 }),
+        style: ctx.part([], () => ({ display: 'flex', alignItems: 'flex-end', height: HEIGHT, gap: 2 })),
       }, [
         each(groups, (g) => g.label, (g) =>
           el('div', {
             title: computed(() => g.value.values.map((x) => `${x.label}: ${props.format.value(x.v)}`).join('\n')),
-            style: ctx.part([], { flex: '1 1 0', minWidth: 0, display: 'flex', alignItems: 'flex-end', gap: 1, height: '100%' }),
+            style: ctx.part([], () => ({ flex: '1 1 0', minWidth: 0, display: 'flex', alignItems: 'flex-end', gap: 1, height: '100%' })),
           },
             computed(() => g.value.values.map((x) => el('div', {
-              style: ctx.part(barParts(x.tone), { flex: '1 1 0', minWidth: 0, height: `${(x.v / max.value) * 100}%` }),
+              style: ctx.part(barParts(x.tone), () => ({ flex: '1 1 0', minWidth: 0, height: `${(x.v / max.value) * 100}%` })),
             }))),
           ),
         ),
       ]),
-      el('div', { style: ctx.part([], { display: 'flex', gap: 2, marginTop: metrics.space[1] }) }, [
+      el('div', { style: ctx.part([], () => ({ display: 'flex', gap: 2, marginTop: metrics.space[1] })) }, [
         each(groups, (g) => g.label, (g) =>
           el('span', {
             style: ctx.part('chart.axis', () => ({ flex: '1 1 0', minWidth: 0, textAlign: 'center', ...truncate, visibility: g.value.i % every.value === 0 ? 'visible' : 'hidden' })),

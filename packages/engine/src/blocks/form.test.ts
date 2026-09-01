@@ -12,13 +12,14 @@ import { __notices } from './notice.js';
 import { Form, type Field, type FormHandle } from './form.js';
 import { accessibleName, formLabels } from '../test/claims.js';
 import { estimator } from '../test/estimate.js';
+import { setDensity, setInput } from '../engine/axes.js';
 
 let width = 800;
 /** The mounted form's id prefix: field ids are `${F}-<key>` (per instance, so two forms never share an id). */
 let F = 'f1';
 const fidOf = (e: Element) => e.querySelector('form')!.id;
 beforeEach(() => { document.body.innerHTML = ''; document.body.style.overflow = ''; __notices.value = []; setMeasurer(() => width); });
-afterEach(() => setMeasurer(null));
+afterEach(() => { setMeasurer(null); setInput('system'); setDensity('system'); });
 
 const make = (props: Record<string, unknown>, w = 800) => {
   width = w;
@@ -325,5 +326,47 @@ describe('labels point at what they label (ADR 0042 d)', () => {
     // @ts-expect-error — a boolean has nothing to placeholder: the type rejects it
     const wrong: Field<{ income: boolean }> = { name: 'income', label: 'X', kind: 'boolean', placeholder: 'no' };
     void wrong;
+  });
+});
+
+// ADR 0046: controls follow `control.height` and `control.check`; the form says nothing about the context.
+describe('Form under the axes (ADR 0046)', () => {
+  const fields: Field<any>[] = [{ name: 'income', label: 'Income', kind: 'boolean' }, { name: 'payee', label: 'Payee' }, { name: 'note', label: 'Note', long: true }];
+
+  it('touch: the checkbox is 24×24, a text input 44 tall, a segmented option 44 tall', () => {
+    setInput('touch');
+    const e = owned([...fields, { name: 'kind', label: 'Kind', options: [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }] }], { income: false });
+    const box = e.querySelector<HTMLElement>(`#${F}-income`)!.style;
+    expect([box.width, box.height]).toEqual(['24px', '24px']);
+    expect(e.querySelector<HTMLElement>(`#${F}-payee`)!.style.height).toBe('44px');
+    expect(e.querySelector<HTMLElement>('[role=radio]')!.style.height).toBe('44px');
+    expect(e.querySelector<HTMLElement>('button[type=submit]')!.style.height).toBe('44px');
+  });
+
+  it('touch: a file input is never shorter than a control, and a boolean\'s label is the row a person taps', () => {
+    setInput('touch');
+    const e = owned([...fields, { name: 'csv', label: 'CSV', kind: 'file' }], { income: false });
+    const file = e.querySelector<HTMLElement>('input[type=file]')!.style;
+    expect([file.height, file.minHeight]).toEqual(['auto', '44px']);
+    const label = e.querySelector<HTMLElement>(`label[for="${F}-income"]`)!.style;
+    expect([label.display, label.minHeight, label.flex]).toEqual(['flex', '44px', '1 1 0px']);
+  });
+
+  it('compact: an input is 28 tall, the grid gap and the form gap 12', () => {
+    setDensity('compact');
+    const e = owned(fields, { income: false });
+    expect(e.querySelector<HTMLElement>(`#${F}-payee`)!.style.height).toBe('28px');
+    expect(e.querySelector<HTMLElement>('form')!.style.gap).toBe('12px');
+    expect(e.querySelector<HTMLElement>('form > div')!.style.gap).toBe('12px');
+  });
+
+  it('the flip is live: a mounted form follows setInput without a remount', () => {
+    const e = owned(fields, { income: false });
+    const box = e.querySelector<HTMLElement>(`#${F}-income`)!.style;
+    expect([box.width, box.height]).toEqual(['16px', '16px']);
+    expect(e.querySelector<HTMLElement>(`#${F}-payee`)!.style.height).toBe('32px');
+    setInput('touch'); flushEffects();
+    expect([box.width, box.height]).toEqual(['24px', '24px']);
+    expect(e.querySelector<HTMLElement>(`#${F}-payee`)!.style.height).toBe('44px');
   });
 });

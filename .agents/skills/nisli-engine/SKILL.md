@@ -4,12 +4,12 @@ description: Typed-block authoring guidelines for code that uses `@nisli/engine`
 license: MIT
 metadata:
   author: nisli-team
-  version: "2.1.0"
+  version: "2.2.0"
 ---
 
 # Nisli Engine — Agent Skill
 
-Guide for building application UI from `@nisli/engine`: app code says **what** things are, the engine decides how they are laid out and what fits at every width, and a skin — installed once — says what the parts look like. There is no CSS file, no `className`, no `style` prop, no `data-*` attribute in the public surface; the types do not offer them. Rules across 8 categories, each traceable to `packages/engine/src/index.ts`, the block prop types, `docs/adr/0034`, `0035`, `0037`, `0043` (the vocabulary contract: one word, one meaning), `0044` (deterministic decisions: a decision is a function of width and intent, never data), and the Ledger app (`packages/ledger`).
+Guide for building application UI from `@nisli/engine`: app code says **what** things are, the engine decides how they are laid out and what fits at every width, and a skin — installed once — says what the parts look like. There is no CSS file, no `className`, no `style` prop, no `data-*` attribute in the public surface; the types do not offer them. Rules across 8 categories, each traceable to `packages/engine/src/index.ts`, the block prop types, `docs/adr/0034`, `0035`, `0037`, `0043` (the vocabulary contract: one word, one meaning), `0044` (deterministic decisions: a decision is a function of width and intent, never data), `0046` (density and input axes: one intent, sized by context the engine detects), and the Ledger app (`packages/ledger`).
 
 ## When to Apply
 
@@ -17,9 +17,10 @@ Reference these guidelines when:
 - Composing a screen from engine blocks (`Page`, `Section`, `Grid`, `Table`, …)
 - Writing a `Form` schema (`Field<T>`: `when`, `options`, `validate`, `group`, `long`)
 - Passing async results (`query()` / `resource()`) to blocks as `status`
-- Installing or writing a `Skin`, or forwarding a light/dark/system preference
+- Installing or writing a `Skin`, or forwarding a person's scheme / density preference (the axes)
 - Choosing `priority` / `kind` / `tone` / `destructive` so the engine degrades correctly
-- Proving a block or screen at width with `@nisli/engine/test`, or a running app's routes with `@nisli/engine/verify` / `nisli-verify`
+- Proving a block or screen at width and under an axes context with `@nisli/engine/test`, or a running app's routes with `@nisli/engine/verify` / `nisli-verify`
+- Writing an engine block that reads `ctx.metrics` (the door is live: structure is a thunk)
 - Reviewing app code for smuggled appearance (pixels, colours, breakpoints, per-instance flags)
 - Deciding where a new need belongs: engine rule, skin part, or semantic word
 
@@ -31,7 +32,7 @@ Reference these guidelines when:
 | 2 | Blocks | CRITICAL | `block-` |
 | 3 | Form Schema | HIGH | `form-` |
 | 4 | Status & Busy | HIGH | `status-` |
-| 5 | Skin & Scheme | MEDIUM-HIGH | `skin-` |
+| 5 | Skin & Axes | MEDIUM-HIGH | `skin-` |
 | 6 | Decisions & Levers | MEDIUM-HIGH | `decide-` |
 | 7 | Proof at Width | MEDIUM | `prove-` |
 | 8 | Dogfooding (Ledger) | MEDIUM | `dogfood-` |
@@ -44,7 +45,8 @@ Reference these guidelines when:
 - `intent-one-word-one-meaning` - ADR 0043: a term means one thing on every block it applies to and appears on no other — `label` is the name of an item, `title` the heading of a block, `text` a string the app wrote, `hint` secondary text of an item, `id` identity among siblings, `key` identity across renders (`rowKey` per row), `name` the property a field edits, `kind` what a value is (`Kind`), `priority` survival order (`Priority`), `onSelect` an activated Action, `onOpen` an opened row, `order` a sort order. A subset of a type is allowed; a synonym is not (no `header`, `detail`, `message`, `content`, `confirmLabel`)
 - `intent-no-appearance-vocabulary` - No `className`, `style`, `data-*`, pixels, rem, colours, fonts, breakpoints, `sticky`, `flex-end` in app code — and no widget or Part words either: no `kind: 'select'`/`'textarea'`/`'checkbox'`, no `role: 'muted'`/`'heading'` — the types reject them (`toolbar.test.ts`, `actions.test.ts` prove they are compile errors)
 - `intent-new-need-home` - A new need goes, in order: an engine rule derived from structure, a skin part, a new semantic word on a block. NEVER a per-instance appearance prop (`Section({ flat: true })`)
-- `intent-app-imports-blocks-only` - App code imports blocks, `useSkin`/`setScheme`/`defaultSkin`, `notify`, `confirm`; it never uses `metrics`, `look`, `fit` or the kernel for its own layout
+- `intent-app-imports-blocks-only` - App code imports blocks, `useSkin`/`setScheme`/`setDensity`/`setInput`/`defaultSkin`, `notify`, `confirm`; it never uses `metrics`, `metricsFor`, `axes`, `look`, `fit` or the kernel for its own layout
+- `intent-no-per-block-density` - ADR 0046: no block, screen or prop says `compact` or `touch`; an app forwards a person's preference once (`useSkin(defaultSkin, { scheme, density })`, then `setDensity(settings.density ?? 'system')`) and the engine detects `input` — a "dense table on a comfortable page" is the first step back to `className`
 - `intent-structure-is-the-decision` - Nesting IS intent: a `Stat` inside a `Section` is a nested surface and draws no second card — the engine knows the tree, the author does not say "flat"
 
 ### 2. Blocks (CRITICAL)
@@ -66,6 +68,7 @@ Reference these guidelines when:
 - `block-link` - `Link({ href, label })` — a navigation link; the skin's `link` part dresses it
 - `block-notify` - `notify(text, tone?)` — a timed live-region notice: `negative` is an assertive alert, the rest polite status; a Dismiss button, Escape, timers held on hover/focus, focus returned on dismiss
 - `block-confirm` - `confirm({ title, text, action: { label, destructive? } }): Promise<boolean>` — ask before an action that cannot be undone; the answer is the row's primary (filled, or danger)
+- `block-part-structure-is-a-thunk` - (block authors) `metrics` is a live door over the sizing axes: every `ctx.part(parts, () => ({ … }))` structure is a thunk (kernel scan rule 5), a setup-time `const x = metrics.…` freezes that moment's table, a read that must not re-run is `untrack`ed, `fitRow` re-solves on a sizing change on its own and `FitSpec.gap` may be `() => metrics.space[2]`
 
 ### 3. Form Schema (HIGH) — ADR 0037
 
@@ -88,11 +91,11 @@ Reference these guidelines when:
 - `status-no-loading-flags` - Never hand-roll `loading`/`saving` signals to swap content; that is the engine's waiting rule
 - `status-stale-stays` - On failure the previous content stays and the failure line is added; on refresh the content stays and the title says "Updating…"
 
-### 5. Skin & Scheme (MEDIUM-HIGH) — ADR 0035
+### 5. Skin & Axes (MEDIUM-HIGH) — ADR 0035, 0046
 
-- `skin-use-once-root` - `useSkin(defaultSkin, { scheme })` exactly once, before the App mounts; it is the one visual decision an app makes
-- `skin-scheme-preference` - Scheme is `'system' | 'light' | 'dark'`; forward the user's preference with `setScheme()`; the engine follows the platform live and sets `color-scheme`
-- `skin-write-parts` - A `Skin` is `Partial<Record<Part, StyleRecord>>` or `(axes: { scheme }) => that`; parts are the closed `PARTS` list; a complete skin defines every part in both schemes
+- `skin-use-once-root` - `useSkin(defaultSkin, { scheme?, density?, input? })` exactly once, before the App mounts; it is the one visual decision an app makes
+- `skin-scheme-preference` - Three axes, each a preference over a platform reading: `scheme` (`'light' | 'dark' | 'system'` → `prefers-color-scheme`, live; `setScheme()`), `density` (`'comfortable' | 'compact' | 'system'` → `comfortable`; `setDensity()`), `input` (`'pointer' | 'touch' | 'system'` → `(pointer: coarse)`, live; `setInput()`); forward what the person chose, never read `matchMedia`, never derive one axis from another
+- `skin-write-parts` - A `Skin` is `Partial<Record<Part, StyleRecord>>` or `(axes: Axes) => that`, `Axes = { scheme, density, input }`; parts are the closed `PARTS` list; a complete skin defines every part in both schemes; density and input are engine numbers behind `metrics` — a skin never scales layout or type with them
 - `skin-no-layout` - A skin never sets `display`, `width`, `gap`, `position`, columns — only colour, font, border, radius, shadow, decoration
 - `skin-bare-proves` - `useSkin(null)` (Ledger: `/?bare`) renders correct, plain layout; if bare looks broken the bug is in the engine, not the skin
 
@@ -108,18 +111,21 @@ Reference these guidelines when:
 - `decide-grids-choose-columns` - `Grid` and `Form` pick their column counts from width; `App` picks sidebar vs bar; `Dialog` picks card vs sheet — do not try to control these
 - `decide-dont-control` - No app knob exists for widths, breakpoints, column counts, sticky, overflow order, segmented-vs-select, skeleton shape, focus, roles or live-region politeness; if you need one, see `intent-new-need-home`
 - `decide-data-never-reshapes` - ADR 0044: a layout decision is a function of width and declared intent, never of the data shown — column widths are budgets from `kind`/label/`metrics.layout`, and sorting, filtering, paging or "Show N more" never move a column, fold, section or action; data truncates, folds or wraps inside the decided structure; a too-wide figure files `FIGURE_TRUNCATED` (fix the format, or one metric, once) — the column never widens. Declare one structure and keep data out of `title`: a data-bearing title is measured as intent and can evict secondary actions into the overflow menu before it truncates
+- `decide-axes-move-rhythm-not-floors` - ADR 0046: `metricsFor({ density, input })` is pure; compact scales `space` (4 8 12 16 24 32 → 4 6 8 12 16 24) and `control` (`height` 32 → 28, `padX` 12 → 8) and nothing else; touch floors through `max` (`control.height` ≥ 44, `check` 24, `hit` 44), so compact + touch is 44 px controls with compact rhythm; `layout` (every threshold and char budget), `charWidth` and `layer` are one column for every context (F9: an axis moves rhythm, never a floor); `control.hit` (24 at pointer, 44 at touch) is the floor on targets that are not controls — rows, header cells, nav links, menu items, the notice dismiss
 - `decide-floats-are-layers` - Anything that floats (Dialog, confirm, the Toolbar menu, the App bar menu, notices) is a layer on the one overlay stack: Escape, outside pointer, focus in/return and z-order are the engine's; a tap on an open layer's anchor toggles it, never dismiss-then-reopen — never hand-roll a sheet or a focus trap
 - `decide-reachable-by-keyboard` - Every decision the engine draws is reachable by keyboard and named for AT with no app line: sortable headers are buttons, `onOpen` rows are named tab stops, notices have a Dismiss in the tab order, labels target labelable controls; a keyboard dismiss never drops focus to `<body>`
 - `decide-tone-is-urgency` - `notify(text, 'negative')` is an assertive `alert` (interrupts, 8 s); every other tone a polite `status` (4 s); the spoken name is Error/Success/Warning/Note — pick the tone for its meaning, never for loudness
 
 ### 7. Proof at Width (MEDIUM)
 
-- `prove-screens-with-prove` - `prove(() => Screen({}), { widths, scheme: 'light', turns? })` from `@nisli/engine/test` mounts a screen at each width under the calibrated estimator, turns to a fixed point, `settle()`s the data in, and returns `{ claims, reports, byWidth[{ width, claims, reports, turns }] }`; empty `claims` is the proof — one `it` per screen (Ledger: `screens.proof.test.ts`, nine screens, zero claims)
-- `prove-claims-are-failures` - A `Claim` (`FIT_*`, `OVERFLOW_TEXT`, `FIGURE_TRUNCATED`, `DECISION_UNSTABLE`, `UNSETTLED`, `NAME_MISSING`, `ID_DUPLICATE`, `LABEL_MISSING`, `DIALOG_ARIA`, `MENU_ITEM_ROLE`, `BLOCK_ERROR`, `UNREACHABLE`, `SORT_UNREACHABLE`, `POPUP_ARIA`, `LIVE_TONE`) is a failing test: fix the intent or the engine, never filter codes or drop widths; a finding that stays is recorded in `KNOWN` by exact text and asserted still present
+- `prove-screens-with-prove` - `prove(() => Screen({}), { widths, axes?, scheme: 'light', turns? })` from `@nisli/engine/test` mounts a screen at each width × each `axes` context (`{ density?, input? }`, default `[{}]`) under the calibrated estimator, turns to a fixed point, `settle()`s the data in, and returns `{ claims, reports, byWidth[{ width, axes, claims, reports, turns }] }`, every claim tagged with its `width` and `axes`; empty `claims` is the proof — one `it` per screen (Ledger: `screens.proof.test.ts`, nine screens, five widths × `[{}, { density: 'compact' }, { input: 'touch' }]`, zero claims)
+- `prove-claims-are-failures` - A `Claim` (`FIT_*`, `OVERFLOW_TEXT`, `FIGURE_TRUNCATED`, `DECISION_UNSTABLE`, `UNSETTLED`, `NAME_MISSING`, `ID_DUPLICATE`, `LABEL_MISSING`, `DIALOG_ARIA`, `MENU_ITEM_ROLE`, `BLOCK_ERROR`, `UNREACHABLE`, `SORT_UNREACHABLE`, `POPUP_ARIA`, `LIVE_TONE`, `TARGET_SMALL`, `AXIS_STALE`) is a failing test: fix the intent or the engine, never filter codes or drop widths or contexts; a finding that stays is recorded in `KNOWN` by exact text, keyed by width and axes, and asserted still present
 - `prove-reports-are-failures` - A `LayoutReport` (`FIT_ROW`, `FIT_COLUMNS`, `FIT_CELL`) is a plan the engine could not satisfy; it stamps `data-nisli-report` and the `window.__nisli.reports` ring in dev, `prove()` keeps the ones still standing after settle, `verify()` files `LAYOUT_REPORT` — in a block test `onReport()` and expect `[]`
 - `prove-decision-unstable` - the determinism tenet is checked as `DECISION_UNSTABLE`: in dev every decided block stamps its plan as `data-nisli-plan`; `prove()` advances each table's page once and mounts every `ProveOptions.variants` factory — same intent over perturbed data (a sorted copy of the rows, a reversed series; the caller owns the perturbation) — and diffs the stamps; any structural difference is an `error` claim naming the block and both plans, and a variant whose blocks differ in count or tag is named as changed intent, a misuse of `variants`
 - `prove-real-content` - Prove over real data: stub `fetch` for every `/api/*` shape, import store and screens after the stub, `await store.ready`, and assert the fixture reached the DOM (rows, `$12,345.67` at 360) before trusting the proof
-- `prove-mount-at-width` - Prove a block with `mount(tag | factory, props, { width, viewport?, scheme?, text?, measure? })` → `{ el, frame, styleOf(), resize(), unmount() }`; assert on inline styles and DOM, then `unmount()`
+- `prove-mount-at-width` - Prove a block with `mount(tag | factory, props, { width, viewport?, scheme?, density?, input?, text?, measure? })` → `{ el, frame, styleOf(), resize(), unmount() }`; `density`/`input` set the axes before mount and `unmount()` resets both to `'system'` unconditionally; assert on inline styles and DOM, then `unmount()`
+- `prove-live-flip-equals-fresh-mount` - `AXIS_STALE`: after a screen settles at axes A, `prove()` flips the live axes to B (compact + touch, or back to the default), settles, and diffs every inline style against a fresh mount at B — any difference names the block that read `metrics` outside a reactive scope; `axisStale(live, make, options)` is the same instrument for one block; the fix is a thunk or a live read in the block, never a filter
+- `prove-touch-targets` - `TARGET_SMALL` (touch contexts only): every visible interactive element must be ≥ `control.hit` (44) on both sides — height from its own inline `height`/`minHeight` or the nearest such ancestor holding no other target (a sort button in its `th`, a link in its `tr`), width from an inline width else text + padding; an element with no inline height anywhere fails unless it is inline in flowing text (`Link` in a `Text`, the WCAG 2.5.8 exemption); a `tr` carries `height` because `min-height` is ignored on table rows
 - `prove-text-measurer` - `textMeasurer(charWidth)` makes a block plan arithmetic; `estimator(frame)` (calibrated to Chromium per glyph, style, `tabular-nums`, uppercase/letter-spacing, monospace; `glyphs.test.ts` within 3%) answers a screen — never the other way round
 - `prove-five-widths` - 1280/1024/768/480/360 for screens (or a block's own thresholds); the app's bar is zero claims at five widths and zero `nisli-verify` findings across every route
 - `prove-verify-routes` - `verify({ baseUrl, routes, widths, ignore?, open? })` / `nisli-verify --base … --routes … --widths … [--open route=selector]` loads the running app in Chromium and files `NO_EVIDENCE`, `STILL_LOADING`, `LOAD_FAILED`, `CONSOLE_ERROR`, `PAGE_ERROR`, `BLOCK_ERROR`, `LAYOUT_REPORT`, `HORIZONTAL_SCROLL`, `NAME_MISSING`, `TAB_UNREACHABLE`, `TAB_ESCAPED_DIALOG`; exit 0 only with no findings — the browser half of proof, not a replacement for `prove()`
@@ -160,6 +166,7 @@ Reference these guidelines when:
 - **Selecting through `each()` wrappers.** `each()` wraps every item in a `display: contents` `<each-item>`; grid/list children are its `firstElementChild` (`form.test.ts` rule 6, `extras.test.ts`).
 - **Expecting a `<select>` for a 2–3 option field.** A field with `options` is a choice; the engine renders a segmented `role="radiogroup"` for 2–3, a native select for 4+. Query `#f-<name>` and branch on `role` (`form.test.ts` rule 4).
 - **Writing the old words.** `header`, `key` on a field, `kind: 'select'`, `role: 'muted'`, `destructive: {…}` on a Form, `confirmLabel`, `detail`, `content`, `dir`, `onSelect` on a Table, `as const` on a tone — each is a compile error since 0.8.0 (ADR 0043); the fix is the vocabulary, not a cast.
+- **Freezing the door.** `metrics` is live over the sizing axes (ADR 0046); a block that holds `const gap = metrics.space[2]` at setup, or passes an object literal as `ctx.part()`'s structure, renders right at the default and wrong after a density or input change — `AXIS_STALE` names it. Read inside the thunk or computed.
 - **Reading `children` lazily.** A prop read only inside a lazy computed is diagnosed unread (N202); `Page` reads `props.children.value` eagerly for this reason.
 - **Vite config in TS workspaces.** Ledger and www run `vite --configLoader runner`; a plain `vite` may fail to load the TS config that imports the router.
 

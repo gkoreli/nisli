@@ -41,7 +41,7 @@ export const Toolbar = block<ToolbarProps>('nisli-toolbar', {
     const actions = computed(() => [...(props.actions.value ?? [])]);
 
     const row = ctx.fitRow({
-      gap: metrics.space[2],
+      gap: () => metrics.space[2],
       available: () => measure(host) - 2 * metrics.space[4],
       triggerWidth: () => (trigger.current ? measure(trigger.current as HTMLElement) : 0),
       items: () => {
@@ -115,7 +115,7 @@ export const Toolbar = block<ToolbarProps>('nisli-toolbar', {
           return { margin: 0, flex: 'none', font: 'inherit', ...truncate, width: !row.measuring.value && d?.action === 'shrink' ? d.width : 'auto' };
         }),
       }, props.title),
-      el('div', { style: ctx.part([], { flex: '1 1 0', minWidth: 0 }) }),
+      el('div', { style: ctx.part([], () => ({ flex: '1 1 0', minWidth: 0 })) }),
       each(actions, (a) => a.id, (a) =>
         actionButton(ctx, () => a.value, {
           attrs: { 'data-nisli-action': computed(() => a.value.id) },

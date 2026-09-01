@@ -10,6 +10,7 @@
 import { signal, effect, flush, onMount, onCleanup, type ReadonlySignal } from '@nisli/core';
 import { fit, type FitItem, type FitPlan, type FitDecision } from './fit.js';
 import { observeWidth } from './measure.js';
+import { sizing } from './axes.js';
 
 export interface FitSpec {
   /** Room in the row, read during the measuring phase. */
@@ -23,9 +24,10 @@ export interface FitSpec {
    * never turns true, so a rows change re-renders rows only (ADR 0044).
    */
   measures?: boolean;
-  gap: number;
+  /** Between items, px; a thunk is resolved per solve, so a gap from `metrics` follows the axes. */
+  gap: number | (() => number);
   triggerWidth?: () => number;
-  /** Signals whose change should re-solve (read them inside). */
+  /** Signals whose change should re-solve (read them inside). A sizing-axis change re-solves every fit without being listed. */
   deps?: () => void;
   /** Called with every plan, e.g. to report an unsatisfiable one. */
   onPlan?: (plan: FitPlan, available: number) => void;
@@ -49,7 +51,8 @@ export function useFit(host: HTMLElement, spec: FitSpec): Fit {
     const measures = spec.measures !== false;
     if (measures) { measuring.value = true; flush(); }
     const available = spec.available();
-    const next = fit({ available, gap: spec.gap, triggerWidth: spec.triggerWidth?.() ?? 0, items: spec.items(available) });
+    const gap = typeof spec.gap === 'function' ? spec.gap() : spec.gap;
+    const next = fit({ available, gap, triggerWidth: spec.triggerWidth?.() ?? 0, items: spec.items(available) });
     plan.value = next;
     if (measures) measuring.value = false;
     flush();
@@ -63,10 +66,12 @@ export function useFit(host: HTMLElement, spec: FitSpec): Fit {
     solve();
     stopObserving = observeWidth(host, solve);
   });
-  if (spec.deps) {
-    const stopWatching = effect(() => { spec.deps!(); if (mounted) queueMicrotask(solve); });
-    onCleanup(stopWatching);
-  }
+  // The deps effect runs in the flush after the style effects, so one solve
+  // per change lands after the DOM it measures has settled. `sizing` (density +
+  // input, never scheme) is a dep of every fit: an axis moves the numbers a
+  // plan is made of, and a scheme flip must not re-measure a Toolbar.
+  const stopWatching = effect(() => { sizing.value; spec.deps?.(); if (mounted) queueMicrotask(solve); });
+  onCleanup(stopWatching);
   onCleanup(() => stopObserving());
 
   const decision = (id: string) => plan.value?.decisions.find((d) => d.id === id);

@@ -87,6 +87,44 @@ data-perturbed variant (§Proof).
   `file:line` it came from) — no new part is needed, and the palette moves
   only where the proof fails.
 
+## Axes
+
+Context the engine detects or is told — never authored per block — and that
+every number is a function of (ADR 0046). Three axes, one signal:
+
+| axis | values | resolved from |
+|---|---|---|
+| `scheme` | `light` / `dark` | `prefers-color-scheme`, live; `setScheme()` |
+| `density` | `comfortable` / `compact` | a preference; `setDensity()`; `'system'` is `comfortable` |
+| `input` | `pointer` / `touch` | `(pointer: coarse)`, live; `setInput()` |
+
+`metrics` is the door every structural number comes through, and it is
+**live**: the same object at every read, its groups getters over the table
+`metricsFor({ density, input })` decides. A read inside a reactive scope — a
+`host`, a `ctx.part()` thunk, a `computed` — follows an axis change; a read
+outside one holds the table of that moment, which is why every `ctx.part`
+structure is a thunk (the kernel scan enforces it) and why `prove()` files
+`AXIS_STALE` for any block whose live flip differs from a fresh mount.
+
+What moves, and what does not: density scales rhythm and controls
+(`space` 4 8 12 16 24 32 → 4 6 8 12 16 24; `control.height` 32 → 28,
+`padX` 12 → 8) and nothing else; input floors (`control.height` to at least
+44, `check` 24, `hit` 44) through `max`, so compact + touch is 44 px
+controls with compact spacing. `layout` — every threshold and char budget —
+is one column for every context: a compact context that lowered its floors
+would be the one that overflows. Type does not scale; `charWidth` stays
+calibrated to the skin's 14 px body. `control.hit` (24 at pointer, WCAG
+2.5.8; 44 at touch) is the floor blocks give targets that are not controls:
+a table row and header cell, a nav link, a menu item, the notice dismiss.
+`prove({ axes: [{}, { density: 'compact' }, { input: 'touch' }] })` proves
+a screen at widths × contexts and files `TARGET_SMALL` for any target under
+`hit` on touch.
+
+An app forwards a person's preference and nothing more: `useSkin(defaultSkin,
+{ scheme, density })` once, `setDensity(settings.density)` when it changes.
+No block, screen or prop says `compact`; a "dense table on a comfortable
+page" is the first step back to `className`.
+
 Where a new need goes: a new *semantic* word on a block (`priority`, `tone`,
 `kind`), a new *engine rule* derived from structure (a surface inside a surface
 draws no second card), or a new *skin part*. Never a per-instance appearance
@@ -188,11 +226,6 @@ Read it top to bottom:
    Dialog, the Toolbar menu, `confirm()` and `notify()` render `z` and
    `placement`; the kernel owns the only document listeners in the engine.
 
-Where a new need goes: a new *semantic* word on a block (`priority`, `tone`,
-`kind`), a new decision in `space.ts`, a new engine rule read from the tree,
-or a new *skin part*. Never a per-instance appearance prop in app code — that
-is the one place the contract erodes.
-
 ## Testing
 
 Every decision is provable at a width with no browser. `mount()` from
@@ -211,8 +244,9 @@ t.unmount();                 // disposes, restores the measurer, skin and docume
 
 - `width` is the block's inline size (default 800), `viewport` the document's
   (default `width`), `scheme` installs the default skin at that scheme (bare
-  when omitted), and `text` sizes text-shaped elements (titles, cells,
-  buttons); anything unanswered is the frame.
+  when omitted), `density` and `input` set the sizing axes (reset to
+  `'system'` on `unmount()`), and `text` sizes text-shaped elements (titles,
+  cells, buttons); anything unanswered is the frame.
 - `textMeasurer(charWidth)` is the deterministic `text`: `labelWidth`, the
   engine's own estimate — characters × glyph width, plus a button's
   horizontal padding — so a plan is arithmetic (`toolbar.test.ts` proves the
@@ -222,8 +256,8 @@ t.unmount();                 // disposes, restores the measurer, skin and docume
   would tell it.
 - `measure` answers every element `text` did not (the estimator, in
   `prove()`); `frame` is the root the claim checkers walk.
-- `prove(make, { widths, viewport?, scheme?, turns? })` mounts a whole
-  screen at each width over `mount()` with the estimating measurer, turns to
+- `prove(make, { widths, axes?, viewport?, scheme?, turns? })` mounts a whole
+  screen at each width (× each `axes` context) over `mount()` with the estimating measurer, turns to
   a fixed point, `settle()`s the data in, and returns `{ claims, reports,
   byWidth[{ width, claims, reports, turns }] }` — every claim that does not
   hold. An empty `claims` is the proof. Every Ledger screen is proven this

@@ -32,7 +32,7 @@ describe('space — decisions from a width', () => {
     expect(labelWidth('abcd', 0, 8)).toBe(32);
   });
 
-  it('every threshold decision takes an explicit layout, so a density axis can move it', () => {
+  it('every threshold decision takes an explicit layout, so a test can pass its own numbers (the axes never move layout — ADR 0046)', () => {
     const tight = { ...L, sidebarWidth: 100, contentMin: 100, dialogMin: 300, minLabel: 10 };
     expect(shellMode(200, tight)).toBe('sidebar');
     expect(shellMode(199, tight)).toBe('bar');
@@ -115,7 +115,7 @@ describe('columnBudgets — the tenet as arithmetic (ADR 0044): naturals from ki
     expect(columnBudgets(cols, 0)[2]!.width).toBe(L.textColumnCap);
   });
 
-  it('every budget takes an explicit layout, so a density axis can move it', () => {
+  it('every budget takes an explicit layout, so a test can pass its own numbers (the axes never move layout — ADR 0046)', () => {
     const tight = { ...L, dateChars: 6, figureChars: 8, minTextColumn: 40, textColumnCap: 100 };
     const b = columnBudgets(cols, 300, tight);
     expect(b[0]!.width).toBeCloseTo(Math.max(6 * cw + pad, labelWidth('Date', pad, cw)));

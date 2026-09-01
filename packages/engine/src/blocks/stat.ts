@@ -21,7 +21,7 @@ export const Stat = block<StatProps>('nisli-stat', {
     return [
       el('div', { style: ctx.part('text.label') }, props.label),
       ctx.failure,
-      ctx.waiting(() => el('div', { style: ctx.part('text.display', truncate) }, props.value)),
+      ctx.waiting(() => el('div', { style: ctx.part('text.display', () => truncate) }, props.value)),
       el('div', {
         style: ctx.part(() => ['text.muted', `tone.${props.delta.value?.tone ?? 'neutral'}` as const], () => ({ display: props.delta.value ? 'block' : 'none' })),
       }, computed(() => props.delta.value?.text ?? '')),

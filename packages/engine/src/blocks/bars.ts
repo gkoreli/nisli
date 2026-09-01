@@ -24,18 +24,18 @@ export const Bars = block<BarsProps>('nisli-bars', {
     const items = computed(() => [...props.items.value]);
     const max = computed(() => Math.max(0, ...items.value.map((i) => i.value)));
     // The label budget: `labelChars` glyphs and a breath — intent and metrics, not the longest category name.
-    const budget = metrics.layout.labelChars * metrics.charWidth + metrics.space[2];
-    const column = computed(() => labelColumn(ctx.width.value, budget, metrics.layout));
+    // Read inside the computed: the breath is rhythm, and rhythm follows the density axis (ADR 0046 §4).
+    const column = computed(() => labelColumn(ctx.width.value, metrics.layout.labelChars * metrics.charWidth + metrics.space[2], metrics.layout));
     const stopStamp = effect(() => stampPlan(ctx.host, `label:${Math.round(column.value)}`));
     onCleanup(stopStamp);
     return [
       each(items, (i) => i.label, (item) =>
-        el('div', { style: ctx.part([], { display: 'flex', alignItems: 'center', gap: metrics.space[3], minWidth: 0 }) }, [
+        el('div', { style: ctx.part([], () => ({ display: 'flex', alignItems: 'center', gap: metrics.space[3], minWidth: 0 })) }, [
           el('span', { style: ctx.part('text.muted', () => ({ width: column.value, flex: 'none', ...truncate })) }, computed(() => item.value.label)),
-          el('div', { style: ctx.part('meter.track', { flex: '1 1 0', minWidth: 0, height: 14, overflow: 'hidden' }) }, [
+          el('div', { style: ctx.part('meter.track', () => ({ flex: '1 1 0', minWidth: 0, height: 14, overflow: 'hidden' })) }, [
             el('div', { style: ctx.part('meter.fill', () => ({ height: '100%', width: `${max.value > 0 ? (item.value.value / max.value) * 100 : 0}%` })) }),
           ]),
-          el('span', { style: ctx.part('text.muted', { flex: 'none', minWidth: 56, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }) }, computed(() => item.value.text)),
+          el('span', { style: ctx.part('text.muted', () => ({ flex: 'none', minWidth: 56, textAlign: 'right', fontVariantNumeric: 'tabular-nums' })) }, computed(() => item.value.text)),
         ]),
       ),
     ];

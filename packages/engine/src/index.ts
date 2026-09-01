@@ -31,8 +31,9 @@ export { notify } from './blocks/notice.js';
 export { viewOf, type Status, type StatusView } from './blocks/status.js';
 export { confirm, type ConfirmOptions } from './blocks/confirm.js';
 
-// ── Skin: what the parts look like ─────────────────────────────────────
-export { metrics, type Metrics } from './metrics.js';
+// ── Skin and axes: what the parts look like, and the context they are sized for ─
+export { metrics, metricsFor, type Metrics, type LayoutKey, type Layout } from './metrics.js';
+export { axes, setDensity, setInput, type Axes, type Density, type Input } from './engine/axes.js';
 export { useSkin, setScheme, look, scheme, PARTS, type Skin, type SkinParts, type SkinAxes, type SkinOptions, type Scheme, type Part } from './skin.js';
 export { defaultSkin, lightPalette, darkPalette, partsOf } from './skin/default.js';
 export { PAIRS, measure, contrastRatio, luminance, parseColor, type Pair, type Measurement } from './skin/contrast.js';

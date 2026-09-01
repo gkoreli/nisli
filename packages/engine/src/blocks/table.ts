@@ -1,4 +1,4 @@
-import { el, each, signal, computed, effect, onCleanup, type ReadonlySignal, type TemplateResult } from '@nisli/core';
+import { el, each, signal, computed, effect, onCleanup, untrack, type ReadonlySignal, type TemplateResult } from '@nisli/core';
 import { truncate, buttonBox } from '../style.js';
 import { measure } from '../engine/measure.js';
 import { pageSize, columnBudgets, spreadSlack, textWeights } from '../engine/space.js';
@@ -67,8 +67,8 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
     const limit = signal(metrics.layout.tablePage);
     const rows = computed(() => allRows.value.slice(0, limit.value));
     const paging = computed(() => pageSize(rows.value.length, allRows.value.length, metrics.layout.tablePage));
-    // A new list starts at the first page again.
-    const stopReset = effect(() => { allRows.value; limit.value = metrics.layout.tablePage; });
+    // A new list starts at the first page again. The page size is read untracked: an axis change is not new data (ADR 0046 §4).
+    const stopReset = effect(() => { allRows.value; limit.value = untrack(() => metrics.layout.tablePage); });
     onCleanup(stopReset);
 
     // The block draws its own waiting state in place: five rows of bones under the real header.
@@ -140,6 +140,8 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
       padding: `${metrics.space[2]}px ${metrics.space[3]}px`,
       userSelect: head ? 'none' : 'auto',
       font: 'inherit',
+      // The header cell is the target's box (ADR 0046 §3): the sort button inside keeps its own, so at the default nothing moves.
+      ...(head ? { height: metrics.control.hit } : {}),
     }));
     /** The row's name comes from its first primary cell (else its first cell): the column whose `<td>` carries the row id. */
     const nameColumn = computed(() => (columns.value.find((c) => c.priority === 'primary') ?? columns.value[0])?.id);
@@ -164,7 +166,8 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
         tabindex: computed(() => (props.onOpen.value ? '0' : false)),
         // An openable row is named by its primary cell: a keyboard lands on it and hears what it is.
         'aria-labelledby': computed(() => (props.onOpen.value && nameColumn.value ? `${rowId}-${nameColumn.value}` : false)),
-        style: ctx.part(() => (hovered.value || focused.value ? ['table.row.hover'] : []), () => ({ cursor: props.onOpen.value ? 'pointer' : 'default' })),
+        // `height` on a row is a minimum in table layout (`min-height` does not apply): the target floor (ADR 0046 §3).
+        style: ctx.part(() => (hovered.value || focused.value ? ['table.row.hover'] : []), () => ({ cursor: props.onOpen.value ? 'pointer' : 'default', height: metrics.control.hit })),
         on: {
           click: open,
           // Enter and Space open, as a button would; both defaults are prevented: Space's is a page scroll, and a
@@ -175,8 +178,9 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
             if (!props.onOpen.value || e.target !== e.currentTarget) return;
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
           }) as EventListener,
-          mouseenter: () => { hovered.value = true; },
-          mouseleave: () => { hovered.value = false; },
+          // Pointer events, so the tint works on every input (ADR 0046 §Non-goals: no hover axis).
+          pointerenter: () => { hovered.value = true; },
+          pointerleave: () => { hovered.value = false; },
           focusin: () => { focused.value = true; },
           focusout: () => { focused.value = false; },
         },
@@ -190,7 +194,7 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
               .filter(({ value }) => value !== '' && value !== null && value !== undefined);
             if (folded.length === 0) return null;
             // Folded values are text from other columns: never tabular figures, whatever cell they sit under.
-            return el('div', { style: ctx.part('text.muted', { ...truncate, fontVariantNumeric: 'normal' }) },
+            return el('div', { style: ctx.part('text.muted', () => ({ ...truncate, fontVariantNumeric: 'normal' })) },
               folded.flatMap(({ sc, value }, i) => [
                 ...(i === 0 ? [] : [' · ']),
                 ...(isNumeric(sc) ? [`${sc.label} `] : []),
@@ -218,7 +222,7 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
       ctx.failure,
       // Pinned always: the decided widths are the truth; data truncates, folds or wraps within them.
       el('table', {
-        style: ctx.part([], { borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }),
+        style: ctx.part([], () => ({ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' })),
       }, [
         el('thead', {}, [
           el('tr', {}, columns.value.map((c) =>
@@ -226,16 +230,17 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
               scope: 'col',
               style: cellStyle(c, true),
               'aria-sort': computed(() => { const s = props.sort.value; return s?.by === c.id ? (s.order === 'asc' ? 'ascending' : 'descending') : false; }),
+              // The whole cell sorts: the cell is the target's box (its height is `hit`), and the button's own activation bubbles here once.
+              ...(c.sortable ? { on: { click: () => toggleSort(c) } } : {}),
             }, c.sortable
               // A sortable header is a real button: Tab reaches it, Enter and Space sort natively; the sort mark is decoration.
               ? [el('button', {
                 type: 'button',
                 // No button look: a reset over the cell's own `table.header` look, so the header reads as it did (inline-block: measured as the cell's text).
-                style: ctx.part([], {
+                style: ctx.part([], () => ({
                   ...truncate, display: 'inline-block', width: '100%', maxWidth: '100%', boxSizing: 'border-box', padding: 0, margin: 0,
                   font: 'inherit', color: 'inherit', textAlign: 'inherit', background: 'none', border: 'none', borderRadius: 0, cursor: 'pointer',
-                }),
-                on: { click: () => toggleSort(c) },
+                })),
               }, [c.label, el('span', { 'aria-hidden': 'true' }, computed(() => sortMark(c)))])]
               : c.label),
           )),
@@ -247,7 +252,7 @@ const TableImpl = block<TableProps<unknown>>('nisli-table', {
       el('div', { style: ctx.part([], () => ({ display: paging.value.remaining > 0 ? 'flex' : 'none', justifyContent: 'center', padding: metrics.space[3] })) }, [
         el('button', {
           type: 'button',
-          style: ctx.part(['button', 'button.plain'], buttonBox()),
+          style: ctx.part(['button', 'button.plain'], () => buttonBox()),
           on: { click: () => { limit.value += metrics.layout.tablePage; } },
         }, computed(() => `Show ${paging.value.next} more of ${paging.value.remaining}`)),
       ]),

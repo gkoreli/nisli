@@ -11,6 +11,7 @@ import { Toolbar, type Action } from './toolbar.js';
 import { onReport, type LayoutReport } from '../engine/report.js';
 import { setDevMode, devOverride } from '../engine/dev.js';
 import { mount as mountBlock, textMeasurer, type Mounted } from '../test/mount.js';
+import { setDensity, setInput } from '../engine/axes.js';
 
 // Text is 8px a character; a button adds its padding, so the '⋯' trigger is 8 + 24 = 32.
 const text = textMeasurer(8);
@@ -144,5 +145,43 @@ describe('the minimum row: a primary never leaves (ADR 0042 e)', () => {
     expect(shown).toEqual(['p1', 'p2']);
     expect([...t.el.querySelectorAll('[role=menuitem]')].map((b) => b.textContent)).toEqual(['Alpha']);
     expect(reports.map((r) => r.code)).toEqual(['FIT_ROW']);
+  });
+});
+
+// ADR 0046: the axes size the controls; the block never says which context it is in.
+describe('Toolbar under the axes (ADR 0046)', () => {
+  afterEach(() => { setInput('system'); setDensity('system'); });
+  const button = (t: ReturnType<typeof mount>) => t.el.querySelector<HTMLElement>('[data-nisli-action]')!.style;
+
+  it('touch: every action button is 44px tall, and an overflowed menu item is never shorter than the target', () => {
+    setInput('touch');
+    expect(button(mount(1024)).height).toBe('44px');
+    const t = mount(480);
+    expect(t.menuItems()).toEqual(['Share', 'Export', 'Edit']);
+    expect(t.el.querySelector<HTMLElement>('[role=menuitem]')!.style.minHeight).toBe('44px');
+    expect(t.trigger.style.height).toBe('44px');
+  });
+
+  it('compact: a button is 28px tall with 8px side padding; the bar\'s minHeight follows', () => {
+    setDensity('compact');
+    const t = mount(1024);
+    expect(button(t).height).toBe('28px');
+    expect(button(t).padding).toBe('0px 8px');
+    expect(t.el.style.minHeight).toBe(`${28 + 2 * 6 + 2}px`);
+  });
+
+  it('the default is untouched: 32px buttons, 12px side padding — and, by name, never narrower than a 24px target', () => {
+    const t = mount(1024);
+    expect(button(t).height).toBe('32px');
+    expect(button(t).padding).toBe('0px 12px');
+    expect(button(t).minWidth).toBe('24px');
+    expect(t.el.querySelector<HTMLElement>('[data-nisli-action]')!.getAttribute('style')).toBe('flex:none;height:32px;min-width:24px;padding:0 12px;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;cursor:pointer;font:inherit;background:none;border:none;color:inherit');
+  });
+
+  it('touch: the ⋯ trigger — a glyph with padding, 37px wide by its text — is floored to 44 on both sides', () => {
+    setInput('touch');
+    const t = mount(480);
+    expect(t.trigger.style.height).toBe('44px');
+    expect(t.trigger.style.minWidth).toBe('44px');
   });
 });

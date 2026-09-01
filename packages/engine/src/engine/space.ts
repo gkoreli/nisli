@@ -6,7 +6,8 @@
  *
  * Every decision takes its thresholds as a trailing `layout` parameter that
  * defaults to `metrics.layout`, so a block reads them through `ctx.metrics`
- * (the reactive door for the density axis) and a test can pass its own.
+ * (the live door) and a test can pass its own. No axis moves `layout`: a
+ * floor that shrank with density is the one that overflows (ADR 0046, F9).
  *
  * Vocabulary shared by every decision:
  *   width     — the block's own inline size, px; 0 means "not yet measured"
@@ -15,15 +16,15 @@
  *   longest   — the natural width of the longest label, px (see `labelWidth`)
  *   slot      — the width one item of an evenly divided axis gets, px
  */
-import { metrics, type Metrics } from '../metrics.js';
+import { metrics, type Layout } from '../metrics.js';
 import type { FitPlan } from './fit.js';
 
 export { fit, type FitInput, type FitItem, type FitPlan, type FitDecision, type FitAction } from './fit.js';
 export { columnsFor } from './columns.js';
 export { pageSize } from './paging.js';
 
-/** The layout thresholds, widened from the literal metrics so a test or an axis can pass its own numbers. */
-export type Layout = { readonly [K in keyof Metrics['layout']]: number };
+/** The layout thresholds (`metrics.ts`), so a test can pass its own numbers. The axes never move them (ADR 0046 §3, F9). */
+export type { Layout };
 
 /**
  * The natural width of a run of text, estimated: characters × glyph width,

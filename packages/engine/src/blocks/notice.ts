@@ -103,7 +103,7 @@ const defineRegion = () => block<Record<never, never>>('nisli-notices', {
         'data-nisli-tone': computed(() => n.value.tone),
         style: ctx.part(
           () => ['notice', ...(n.value.tone === 'neutral' ? [] : [`notice.${n.value.tone}` as const])],
-          { maxWidth: 420, padding: `${metrics.space[2]}px ${metrics.space[3]}px`, pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: metrics.space[3] },
+          () => ({ maxWidth: 420, padding: `${metrics.space[2]}px ${metrics.space[3]}px`, pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: metrics.space[3] }),
         ),
         on: {
           keydown: ((e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); dismiss(n.value.id); } }) as EventListener,
@@ -118,11 +118,12 @@ const defineRegion = () => block<Record<never, never>>('nisli-notices', {
           focusout: () => timers.get(n.value.id)?.resume(),
         },
       }, [
-        el('span', { style: ctx.part([], { flex: '1 1 auto', minWidth: 0 }) }, computed(() => n.value.text)),
+        el('span', { style: ctx.part([], () => ({ flex: '1 1 auto', minWidth: 0 })) }, computed(() => n.value.text)),
         el('button', {
           type: 'button',
           'aria-label': 'Dismiss',
-          style: ctx.part([], { ...buttonBox(), padding: `0 ${metrics.space[2]}px`, height: metrics.control.height - metrics.space[2] }),
+          // A target by name, on both sides (ADR 0046 §3): `hit` is 24 at pointer (WCAG 2.5.8), 44 at touch.
+          style: ctx.part([], () => ({ ...buttonBox(), padding: 0, justifyContent: 'center', height: metrics.control.hit, minWidth: metrics.control.hit })),
           on: { click: () => dismiss(n.value.id) },
         }, '×'),
       ]);
@@ -131,7 +132,7 @@ const defineRegion = () => block<Record<never, never>>('nisli-notices', {
       el('div', {
         role: live === 'polite' ? 'status' : 'alert',
         'aria-live': live,
-        style: ctx.part([], { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: metrics.space[2] }),
+        style: ctx.part([], () => ({ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: metrics.space[2] })),
       }, [each(list, (n) => n.id, notice)]);
 
     return el('div', {

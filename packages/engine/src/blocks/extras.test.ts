@@ -9,6 +9,7 @@ import { focusables, __layers } from './kernel.js';
 import { liveTone } from '../test/claims.js';
 import { estimator } from '../test/estimate.js';
 import { mount, type Mounted } from '../test/mount.js';
+import { setDensity, setInput } from '../engine/axes.js';
 import './table.js'; import './columns.js'; import './bars.js'; import './meter.js';
 
 let width = 1000;
@@ -238,5 +239,30 @@ describe('confirm', () => {
     expect(await q).toBe(false);
     await new Promise((r) => setTimeout(r, 5));
     expect(document.querySelectorAll('[role=dialog]').length).toBe(0);
+  });
+});
+
+// ADR 0046: a notice's dismiss is a target by name (`hit`), on both sides; a chart's label budget breathes with the density.
+describe('under the axes (ADR 0046)', () => {
+  const mounted: Mounted[] = [];
+  const up = (...args: Parameters<typeof mount>) => { const m = mount(...args); mounted.push(m); return m; };
+  afterEach(() => { while (mounted.length) mounted.pop()!.unmount(); __notices.value = []; flushEffects(); setInput('system'); setDensity('system'); });
+
+  it('notice dismiss: 24×24 by name at the default; 44×44 (height and minWidth) at touch, live', () => {
+    notify('Saved', 'positive'); flushEffects();
+    const dismiss = document.querySelector<HTMLElement>('button[aria-label=Dismiss]')!.style;
+    expect([dismiss.height, dismiss.minWidth, dismiss.padding]).toEqual(['24px', '24px', '0px']);
+    setInput('touch'); flushEffects();
+    expect([dismiss.height, dismiss.minWidth]).toEqual(['44px', '44px']);
+  });
+
+  it('Bars: the label column follows the density live — the breath is space[2], 8 comfortable and 6 compact', () => {
+    const items = [{ label: 'Groceries and household', value: 3, text: '3' }, { label: 'Rent', value: 9, text: '9' }];
+    const m = up('nisli-bars', { items }, { width: 900 });
+    expect(m.styleOf('each-item span').width).toBe(`${20 * 7.2 + 8}px`);
+    expect(m.el.style.gap).toBe('8px');
+    setDensity('compact'); flushEffects();
+    expect(m.styleOf('each-item span').width).toBe(`${20 * 7.2 + 6}px`);
+    expect(m.el.style.gap).toBe('6px');
   });
 });

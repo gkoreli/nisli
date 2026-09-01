@@ -102,7 +102,8 @@ const FormImpl = block<ImplProps>('nisli-form', {
   host: () => ({ display: 'block', minWidth: 0 }),
   render: (props, ctx) => {
     const { host, width, busy, metrics } = ctx;
-    const gap = metrics.space[4];
+    // Read per use: the gap is rhythm, and rhythm follows the density axis (ADR 0046 §4).
+    const gap = () => metrics.space[4];
     const fields = computed(() => [...(props.fields.value ?? [])]);
     const owned = untrack(() => !!props.owned.value);
 
@@ -113,8 +114,8 @@ const FormImpl = block<ImplProps>('nisli-form', {
 
     const visible = draft.visible;
     const items = computed(() => arrange(visible.value));
-    const cols = computed(() => columnsFor(width.value, visible.value.length, metrics.layout.minField, gap));
-    const gridOf = (n: number): StyleRecord => ({ display: 'grid', gap, gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` });
+    const cols = computed(() => columnsFor(width.value, visible.value.length, metrics.layout.minField, gap()));
+    const gridOf = (n: number): StyleRecord => ({ display: 'grid', gap: gap(), gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` });
 
     // A single column narrower than a field's minimum is an unsatisfiable cell.
     const stopReport = effect(() => {
@@ -161,7 +162,8 @@ const FormImpl = block<ImplProps>('nisli-form', {
 
     type ElementLike = TemplateResult | ReadonlySignal<TemplateResult>;
     type Common = Record<string, string | false | ReadonlySignal<string | false>>;
-    type InputStyle = (extra?: StyleRecord) => ReadonlySignal<string>;
+    /** The input's structure: `inputBox()` and a placement's extra, both read per evaluation so they follow the axes. */
+    type InputStyle = (extra?: () => StyleRecord) => ReadonlySignal<string>;
 
     const control = (f: Field<Rec>): ElementLike => {
       const id = `${fid}-${f.name}`;
@@ -177,7 +179,7 @@ const FormImpl = block<ImplProps>('nisli-form', {
       };
       // The input's parts: its state decides which; the skin decides how.
       const inputParts = (): Parts => ['input', ...(invalid.value ? ['input.invalid' as const] : []), ...(readOnly.value ? ['input.readonly' as const] : [])];
-      const style: InputStyle = (extra = {}) => ctx.part(inputParts, { ...inputBox(), ...extra });
+      const style: InputStyle = (extra = () => ({})) => ctx.part(inputParts, () => ({ ...inputBox(), ...extra() }));
       const on = (name: string, handler: (e: Event) => void) => ({ [name]: handler, blur: () => draft.blur(f.name) });
 
       if (hasOptions(f)) {
@@ -192,25 +194,26 @@ const FormImpl = block<ImplProps>('nisli-form', {
           type: 'file',
           accept: f.accept ?? false,
           disabled: computed(() => (readOnly.value ? 'disabled' : false)),
-          style: style({ padding: `${metrics.space[1]}px ${metrics.space[2]}px`, height: 'auto' }),
+          style: style(() => ({ padding: `${metrics.space[1]}px ${metrics.space[2]}px`, height: 'auto', minHeight: metrics.control.height, boxSizing: 'border-box' })),
           on: on('change', (e) => draft.set(f.name, (e.target as HTMLInputElement).files?.[0] ?? undefined)),
         }); });
       }
       if (f.kind === 'boolean') {
         const r = ref<HTMLElement>();
         // A boolean has one string: its label, the box's own `<label for>` beside it — clicking it toggles, and it is the whole name.
-        return el('span', { style: ctx.part([], { display: 'flex', alignItems: 'center', gap: metrics.space[2], height: metrics.control.height }) }, [
+        return el('span', { style: ctx.part([], () => ({ display: 'flex', alignItems: 'center', gap: metrics.space[2], height: metrics.control.height })) }, [
           el('input', {
             ref: r,
             ...common,
             placeholder: false,
             type: 'checkbox',
             disabled: computed(() => (readOnly.value ? 'disabled' : false)),
-            style: ctx.part([], { width: metrics.control.check, height: metrics.control.check, margin: 0 }),
+            style: ctx.part([], () => ({ width: metrics.control.check, height: metrics.control.check, margin: 0 })),
             checked: computed(() => sync(r, 'checked', !!value()[f.name])),
             on: on('change', (e) => draft.set(f.name, (e.target as HTMLInputElement).checked)),
           }),
-          el('label', { for: id, id: `${id}-label`, style: ctx.part('text', { cursor: 'pointer' }) }, f.required ? `${f.label} *` : f.label),
+          // The label is the target a person taps — the row's height, growing to the row's width — so the small box inside it never is.
+          el('label', { for: id, id: `${id}-label`, style: ctx.part('text', () => ({ cursor: 'pointer', display: 'flex', alignItems: 'center', flex: '1 1 0', minWidth: 0, minHeight: metrics.control.height })) }, f.required ? `${f.label} *` : f.label),
         ]);
       }
       if (f.long) {
@@ -220,7 +223,7 @@ const FormImpl = block<ImplProps>('nisli-form', {
           ...common,
           rows: '3',
           readonly: computed(() => (readOnly.value ? 'readonly' : false)),
-          style: style({ height: 'auto', minHeight: 80, padding: metrics.space[3] }),
+          style: style(() => ({ height: 'auto', minHeight: 80, padding: metrics.space[3] })),
           on: on('input', (e) => draft.set(f.name, (e.target as HTMLTextAreaElement).value)),
         }, computed(() => { const v = show(value()[f.name]); sync(r, 'value', v); return v; }));
       }
@@ -266,7 +269,7 @@ const FormImpl = block<ImplProps>('nisli-form', {
         disabled: computed(() => (readOnly.value ? 'disabled' : false)),
         style: ctx.part(
           (): Parts => ['button', current.value === o.value ? 'button.primary' : 'button.plain', ...(readOnly.value ? ['input.readonly' as const] : [])],
-          { ...buttonBox(), flex: '1 1 0', minWidth: 0, justifyContent: 'center' },
+          () => ({ ...buttonBox(), flex: '1 1 0', minWidth: 0, justifyContent: 'center' }),
         ),
         on: {
           click: () => draft.set(f.name, o.value),
@@ -289,7 +292,7 @@ const FormImpl = block<ImplProps>('nisli-form', {
         'aria-invalid': computed(() => (errorOf(f.name) ? 'true' : false)),
         'aria-describedby': computed(() => (errorOf(f.name) || f.hint ? `${id}-note` : false)),
         'aria-readonly': computed(() => (readOnly.value ? 'true' : false)),
-        style: ctx.part([], { display: 'flex', gap: metrics.space[1], minWidth: 0, height: metrics.control.height }),
+        style: ctx.part([], () => ({ display: 'flex', gap: metrics.space[1], minWidth: 0, height: metrics.control.height })),
         on: { focusout: (e) => { const to = (e as FocusEvent).relatedTarget as Node | null; if (!to || !(e.currentTarget as HTMLElement).contains(to)) draft.blur(f.name); } },
       }, buttons);
     };
@@ -308,10 +311,10 @@ const FormImpl = block<ImplProps>('nisli-form', {
       const heading = f.kind === 'boolean'
         ? null
         : computed(() => (segmented.value
-          ? el('span', { id: `${id}-label`, style: ctx.part('text.muted', { cursor: 'default' }), on: { click: () => focusField(f.name) } }, text)
+          ? el('span', { id: `${id}-label`, style: ctx.part('text.muted', () => ({ cursor: 'default' })), on: { click: () => focusField(f.name) } }, text)
           : el('label', { for: id, id: `${id}-label`, style: ctx.part('text.muted') }, text)));
       return el('div', {
-        style: ctx.part([], { display: 'flex', flexDirection: 'column', gap: metrics.space[1], minWidth: 0, gridColumn: spansRow(f) ? '1 / -1' : 'auto' }),
+        style: ctx.part([], () => ({ display: 'flex', flexDirection: 'column', gap: metrics.space[1], minWidth: 0, gridColumn: spansRow(f) ? '1 / -1' : 'auto' })),
       }, [
         heading,
         control(f),
@@ -324,11 +327,11 @@ const FormImpl = block<ImplProps>('nisli-form', {
 
     const groupEl = (g: Extract<Item, { kind: 'group' }>) => {
       const members = computed(() => items.value.find((i): i is Extract<Item, { kind: 'group' }> => i.id === g.id)?.fields ?? []);
-      const n = computed(() => columnsFor(width.value, members.value.length, metrics.layout.minField, gap));
+      const n = computed(() => columnsFor(width.value, members.value.length, metrics.layout.minField, gap()));
       return el('fieldset', {
         style: ctx.part([], () => ({ ...gridOf(n.value), gridColumn: '1 / -1', margin: 0, padding: 0, border: 'none', minWidth: 0 })),
       }, [
-        el('legend', { style: ctx.part('text.label', { padding: 0, marginBottom: metrics.space[2] }) }, g.title),
+        el('legend', { style: ctx.part('text.label', () => ({ padding: 0, marginBottom: metrics.space[2] })) }, g.title),
         each(members, (f) => f.name, (f) => fieldEl(untrack(() => f.value))),
       ]);
     };
@@ -339,7 +342,7 @@ const FormImpl = block<ImplProps>('nisli-form', {
 
     const summary = computed(() => {
       const n = Object.keys(draft.errors.value).length;
-      return n >= 2 ? el('p', { role: 'alert', style: ctx.part('tone.negative', { margin: 0 }) }, `${n} fields need attention.`) : null;
+      return n >= 2 ? el('p', { role: 'alert', style: ctx.part('tone.negative', () => ({ margin: 0 })) }, `${n} fields need attention.`) : null;
     });
 
     // The row: the app's actions (a destructive one first and apart), then Cancel, then the submit — the row's primary.
@@ -350,7 +353,7 @@ const FormImpl = block<ImplProps>('nisli-form', {
     return el('form', {
       id: fid,
       novalidate: 'novalidate',
-      style: ctx.part([], { display: 'flex', flexDirection: 'column', gap: metrics.space[4] }),
+      style: ctx.part([], () => ({ display: 'flex', flexDirection: 'column', gap: metrics.space[4] })),
       on: { submit: (e) => { e.preventDefault(); submit(); } },
     }, [
       summary,

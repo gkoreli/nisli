@@ -33,4 +33,5 @@ of numbering.
 | [0025 — A JSON `POST` through the Vite dev proxy hung with `Accept: */*`](./0025-vite-proxy-accept-header-hang.md) | open (unexplained) | P3 |
 | [0026 — Five engine decisions are not reachable by keyboard or AT](./0026-reachability-defects.md) | resolved (ADR 0042) | P1 |
 | [0027 — The intent vocabulary says one word for several meanings and several words for one](./0027-intent-vocabulary-incoherences.md) | resolved (ADR 0043) | P1 |
-| [0028 — Layout decisions depend on which data is visible: sorting a table changes its columns](./0028-decisions-depend-on-visible-data.md) | open (ADR 0044 proposed) | P0 |
+| [0028 — Layout decisions depend on which data is visible: sorting a table changes its columns](./0028-decisions-depend-on-visible-data.md) | resolved (ADR 0044) | P0 |
+| [0029 — The engine has one set of numbers for every context: no density, no touch floors, and the door is not live](./0029-metrics-are-one-context.md) | resolved (ADR 0046) | P1 |

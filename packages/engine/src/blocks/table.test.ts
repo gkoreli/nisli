@@ -9,6 +9,7 @@ import { metrics } from '../metrics.js';
 import { accessibleName, accessibleNames, sortReachable, overflowText } from '../test/claims.js';
 import { estimator } from '../test/estimate.js';
 import { mount as mountBlock, type Mounted } from '../test/mount.js';
+import { setDensity, setInput } from '../engine/axes.js';
 
 interface Row { id: string; date: string; payee: string; category: string; account: string; note: string; amount: number }
 const columns: Column<Row>[] = [
@@ -98,10 +99,10 @@ describe('Table drops columns by priority — from budgets, never from cells', (
     mounted = mountBlock('nisli-table', { columns, rows, rowKey: (r: Row) => r.id }, { width: 1000, scheme: 'light' });
     const tr = mounted.el.querySelector<HTMLElement>('tbody tr')!;
     const before = tr.getAttribute('style');
-    tr.dispatchEvent(new Event('mouseenter'));
+    tr.dispatchEvent(new Event('pointerenter'));
     flushEffects();
     expect(tr.getAttribute('style')).not.toBe(before);
-    tr.dispatchEvent(new Event('mouseleave'));
+    tr.dispatchEvent(new Event('pointerleave'));
     flushEffects();
     expect(tr.getAttribute('style')).toBe(before);
   });
@@ -176,6 +177,19 @@ describe('Table is reachable by keyboard (ADR 0042 b)', () => {
     tr.focus();
     expect(key(' ', tr).defaultPrevented).toBe(true);
     expect(selected.length).toBe(1);
+  });
+
+  it('the whole header cell sorts (it is the target\'s box): a tap beside the label sorts once, and the button\'s own click bubbles to it once', () => {
+    const sorts: Sort[] = [];
+    mounted = mountBlock('nisli-table', { columns: sortable, rows, rowKey: (r: Row) => r.id, onSort: (s: Sort) => { sorts.push(s); (mounted!.el as any)._setProp('sort', s); } }, { width: 1000 });
+    const th = mounted.el.querySelector<HTMLElement>('thead th')!;
+    th.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(sorts).toEqual([{ by: 'date', order: 'asc' }]);
+    th.querySelector('button')!.click();
+    expect(sorts).toEqual([{ by: 'date', order: 'asc' }, { by: 'date', order: 'desc' }]);
+    // A cell that is not sortable has no handler: a tap on it sorts nothing.
+    mounted.el.querySelectorAll<HTMLElement>('thead th')[1]!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(sorts).toHaveLength(2);
   });
 
   it('a table without onOpen has no focusable rows and no row names; without sortable no header buttons', () => {
@@ -281,5 +295,73 @@ describe('Table column decisions are a function of width and intent, never of th
     await settle();
     expect(hostMeasures).toBe(0);   // a solve reads measure(host); none ran
     expect([...mounted.el.querySelectorAll<HTMLElement>('thead th')].map((th) => th.getAttribute('style'))).toEqual(before);
+  });
+});
+
+// ADR 0046 §3: `hit` floors the targets that are not controls — the row and the header cell — and the axes are live.
+describe('Table under the axes (ADR 0046)', () => {
+  afterEach(() => { setInput('system'); setDensity('system'); });
+  // Three primaries at 800: the exact inline styles of 0.9.0, recorded from HEAD before this round — the default is byte-identical
+  // except the `th`, which gains `height:24px` (the pointer floor, below its rendered height; the ADR accepts it).
+  const three: Column<Row>[] = [
+    { id: 'date', label: 'Date', kind: 'date', cell: (r) => r.date, priority: 'primary', sortable: true },
+    { id: 'payee', label: 'Payee', cell: (r) => r.payee, priority: 'primary' },
+    { id: 'amount', label: 'Amount', kind: 'money', cell: (r) => r.amount, priority: 'primary' },
+  ];
+  const cell = (align: string, nums: string, width: string, head: boolean) =>
+    `display:table-cell;text-align:${align};font-variant-numeric:${nums};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0px;box-sizing:border-box;width:${width};padding:8px 12px;user-select:${head ? 'none' : 'auto'};font:inherit`;
+  const up = (w = 800) => (mounted = mountBlock('nisli-table', { columns: three, rows, rowKey: (r: Row) => r.id }, { width: w }));
+  const ths = (t: Mounted) => [...t.el.querySelectorAll<HTMLElement>('thead th')];
+  const tr = (t: Mounted) => t.el.querySelector<HTMLElement>('tbody tr')!;
+  const td = (t: Mounted) => t.el.querySelector<HTMLElement>('tbody td')!;
+
+  it('the default is byte-identical to 0.9.0 — only the th gains height:24px; the sort button keeps its box', () => {
+    const t = up();
+    expect(ths(t).map((th) => th.getAttribute('style'))).toEqual([
+      `${cell('left', 'tabular-nums', '81.6px', true)};height:24px`,
+      `${cell('left', 'normal', '608px', true)};height:24px`,
+      `${cell('right', 'tabular-nums', '110.4px', true)};height:24px`,
+    ]);
+    expect(td(t).getAttribute('style')).toBe(cell('left', 'tabular-nums', '81.6px', false));
+    expect(tr(t).getAttribute('style')).toBe('cursor:default;height:24px');
+    expect(t.el.querySelector<HTMLElement>('th button')!.getAttribute('style')).toBe(
+      'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0px;display:inline-block;width:100%;max-width:100%;box-sizing:border-box;padding:0px;margin:0px;font:inherit;color:inherit;text-align:inherit;background:none;border:none;border-radius:0px;cursor:pointer',
+    );
+  });
+
+  it('touch: the row and every header cell (sortable or not) are 44px; a cell\'s padding does not move; the sort button has no height of its own', () => {
+    setInput('touch');
+    const t = up();
+    expect(tr(t).style.height).toBe('44px');
+    expect(ths(t).map((th) => th.style.height)).toEqual(['44px', '44px', '44px']);
+    expect(td(t).style.padding).toBe('8px 12px');
+    expect(t.el.querySelector<HTMLElement>('th button')!.style.height).toBe('');
+    expect(t.el.querySelector<HTMLElement>('th button')!.style.minHeight).toBe('');
+  });
+
+  it('compact: a cell is padded 6px 8px, the floors stay at 24px', () => {
+    setDensity('compact');
+    const t = up();
+    expect(td(t).style.padding).toBe('6px 8px');
+    expect(ths(t)[0]!.style.padding).toBe('6px 8px');
+    expect(tr(t).style.height).toBe('24px');
+  });
+
+  it('the flip is live: a mounted table follows setInput and setDensity without a remount, and never resets its paging', () => {
+    const many = Array.from({ length: 150 }, (_, i) => ({ id: String(i), date: 'Aug 1', payee: `P${i}`, category: 'c', account: 'a', note: '', amount: i }));
+    mounted = mountBlock('nisli-table', { columns: three, rows: many, rowKey: (r: Row) => r.id }, { width: 800 });
+    const t = mounted;
+    const more = [...t.el.querySelectorAll('button')].find((b) => b.textContent?.startsWith('Show'))!;
+    more.click(); flushEffects();
+    expect(t.el.querySelectorAll('tbody tr').length).toBe(120);
+    expect(tr(t).style.height).toBe('24px');
+    expect(td(t).style.padding).toBe('8px 12px');
+    setInput('touch'); flushEffects();
+    expect(tr(t).style.height).toBe('44px');
+    expect(ths(t).map((th) => th.style.height)).toEqual(['44px', '44px', '44px']);
+    setDensity('compact'); flushEffects();
+    expect(td(t).style.padding).toBe('6px 8px');
+    expect(tr(t).style.height).toBe('44px');                       // touch keeps the floor, compact keeps the rhythm
+    expect(t.el.querySelectorAll('tbody tr').length).toBe(120);    // an axis change is not new data
   });
 });

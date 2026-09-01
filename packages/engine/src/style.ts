@@ -35,6 +35,7 @@ export const truncate: StyleRecord = { whiteSpace: 'nowrap', overflow: 'hidden',
 export const buttonBox = (): StyleRecord => ({
   flex: 'none',
   height: metrics.control.height,
+  minWidth: metrics.control.hit,
   padding: `0 ${metrics.control.padX}px`,
   whiteSpace: 'nowrap',
   display: 'inline-flex',
@@ -47,10 +48,10 @@ export const buttonBox = (): StyleRecord => ({
   color: 'inherit',
 });
 
-/** A menu item's box: a left-aligned, un-buttoned row; no look. */
+/** A menu item's box: a left-aligned, un-buttoned row, never shorter than a target; no look. */
 export const menuItemBox = (): StyleRecord => ({
   textAlign: 'left',
-  minHeight: metrics.control.height,
+  minHeight: Math.max(metrics.control.height, metrics.control.hit),
   boxSizing: 'border-box',
   padding: `${metrics.space[2]}px ${metrics.space[3]}px`,
   border: 'none',

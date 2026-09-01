@@ -128,7 +128,7 @@ export function ownText(el: HTMLElement): string {
 
 /** The width of an element's own text, at its declared style, plus its inline padding. */
 export const estimateText = (el: HTMLElement): number =>
-  textWidth(ownText(el), textStyleOf(el), horizontalPadding(el));
+  Math.max(px(el.style.minWidth) ?? 0, textWidth(ownText(el), textStyleOf(el), horizontalPadding(el)));
 
 /** The widest line an element holds: its own text, or a child on a line of its own (each at its own style), plus the element's inline padding. */
 export function estimateWidest(el: HTMLElement): number {

@@ -55,7 +55,7 @@ export function menuItem<P>(ctx: Ctx<P>, action: () => Action, options: { readon
     type: 'button',
     role: 'menuitem',
     ...(options.attrs ?? {}),
-    style: ctx.part((): Parts => ['menu.item', ...(action().destructive ? ['menu.item.danger' as const] : [])], menuItemBox()),
+    style: ctx.part((): Parts => ['menu.item', ...(action().destructive ? ['menu.item.danger' as const] : [])], () => menuItemBox()),
     'aria-busy': computed(() => (isBusy() ? 'true' : false)),
     disabled: computed(() => (isBusy() ? 'disabled' : false)),
     on: { click: () => (options.onActivate ?? ((a: Action) => run(ctx, a)))(action()) },

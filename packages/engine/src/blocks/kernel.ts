@@ -96,7 +96,12 @@ export interface Ctx<P> {
   readonly host: HTMLElement;
   /** The block's intent, reactive. `host`, `hostParts` and `skeleton` decide over it as `render` does. */
   readonly props: ReactiveProps<P>;
-  /** The structural numbers this block decides with. Blocks read these, never the module constant. */
+  /**
+   * The structural numbers this block decides with. Blocks read these, never
+   * the module constant. `metrics` is live: its groups follow the axes
+   * (density, input), so read it inside `host`, a `part()` thunk or a
+   * computed — a read at setup holds the table of that moment (ADR 0046).
+   */
   readonly metrics: Metrics;
   /** The measured width (`spec.measure`); 0 when not measured or not yet mounted. */
   readonly width: ReadonlySignal<number>;
@@ -194,8 +199,8 @@ export function block<P extends object>(tag: string, spec: BlockSpec<P>): Compon
         return computed(() => (pending.value ? (typeof statusSpec === 'object' ? statusSpec.skeleton(ctx) : blockSkeleton(ctx)) : body()));
       },
       get pending() { return pendingOf(); },
-      bone: (height, width = '100%') => el('div', { style: ctx.part('skeleton', { height, width, display: 'block' }) }),
-      skeleton: (bones) => el('div', { role: 'status', 'aria-label': 'Loading', style: ctx.part([], { display: 'flex', flexDirection: 'column', gap: metrics.space[2], minWidth: 0 }) }, [...bones]),
+      bone: (height, width = '100%') => el('div', { style: ctx.part('skeleton', () => ({ height, width, display: 'block' })) }),
+      skeleton: (bones) => el('div', { role: 'status', 'aria-label': 'Loading', style: ctx.part([], () => ({ display: 'flex', flexDirection: 'column', gap: ctx.metrics.space[2], minWidth: 0 })) }, [...bones]),
     };
 
     if (spec.host || spec.hostParts) {
@@ -224,16 +229,16 @@ const blockSkeleton = <P,>(ctx: Ctx<P>): TemplateResult =>
 
 /** An inline error line with a Retry when the source can be retried. */
 const failure = <P,>(ctx: Ctx<P>, error: Error, retry?: () => void): TemplateResult =>
-  el('div', { role: 'alert', style: ctx.part([], { display: 'flex', alignItems: 'center', gap: ctx.metrics.space[3], flexWrap: 'wrap' }) }, [
-    el('span', { style: ctx.part('tone.negative', { minWidth: 0 }) }, error.message || String(error)),
+  el('div', { role: 'alert', style: ctx.part([], () => ({ display: 'flex', alignItems: 'center', gap: ctx.metrics.space[3], flexWrap: 'wrap' })) }, [
+    el('span', { style: ctx.part('tone.negative', () => ({ minWidth: 0 })) }, error.message || String(error)),
     retry
-      ? el('button', { type: 'button', style: ctx.part(['button', 'button.plain'], buttonBox()), on: { click: () => retry() } }, 'Retry')
+      ? el('button', { type: 'button', style: ctx.part(['button', 'button.plain'], () => buttonBox()), on: { click: () => retry() } }, 'Retry')
       : null,
   ]);
 
 /** "Updating…" beside a title while fresh data is on its way. */
 const updating = <P,>(ctx: Ctx<P>): TemplateResult =>
-  el('span', { style: ctx.part('text.faint', { marginLeft: ctx.metrics.space[2], font: 'inherit' }) }, 'Updating…');
+  el('span', { style: ctx.part('text.faint', () => ({ marginLeft: ctx.metrics.space[2], font: 'inherit' })) }, 'Updating…');
 
 // ── Overlay behaviour ──────────────────────────────────────────────────
 

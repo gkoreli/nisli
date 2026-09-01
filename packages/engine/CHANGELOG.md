@@ -4,6 +4,52 @@ All notable changes to `@nisli/engine`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Unreleased until the first
 publish.
 
+## 0.10.0 — 2026-08-31
+
+- **Density and input axes (ADR 0046; issue 0029).** The last capability the
+  north star measured: one intent, sized by context the engine detects.
+  - `engine/axes.ts` owns `scheme`, `density` and `input` as one signal.
+    `scheme` moves there unchanged; `input` follows `(pointer: coarse)`
+    live; `density` is a preference (`'system'` is `comfortable`). Setters:
+    `setScheme`, `setDensity`, `setInput`; `useSkin(skin, { scheme, density,
+    input })`. A skin function receives all three (`SkinAxes` = `Axes`).
+  - `metrics` is a **live door**: the same object, its groups getters over
+    `metricsFor({ density, input })` (pure, exported). Comfortable + pointer
+    is the 0.9.0 constant number for number, plus `control.hit`. Compact:
+    `space` 4 6 8 12 16 24, `control.height` 28, `padX` 8. Touch:
+    `control.height` at least 44, `check` 24, `hit` 44. `layout`, `layer`
+    and `charWidth` never move (F9: floors are explicit; an axis moves
+    rhythm, never a floor). `Metrics` widens to numbers; `Layout`/`LayoutKey`
+    live in `metrics.ts`.
+  - Every block follows the door: every `ctx.part` structure is a thunk
+    (kernel scan rule 5), the chart budgets and form gap are read live, and
+    every `fitRow` re-solves on a sizing change (`FitSpec.gap` may be a
+    thunk). A scheme flip re-decides nothing structural.
+  - Hit floors: `height: hit` on table rows and header cells, `minHeight:
+    hit` on nav links and menu items, `height` + `minWidth: hit` on the
+    notice dismiss (it was 24 × 23). Row hover listens to `pointerenter`/
+    `pointerleave`.
+  - Proof: `mount({ density, input })`; `prove({ axes })` runs widths ×
+    contexts and tags every claim with its axes; `TARGET_SMALL` (touch: any
+    interactive target under `hit` on either side, inline text exempt; a
+    zero `min-width` is not a width, a growing flex item is its share, a
+    sort button is judged by its pinned `th`, a check by its row);
+    `AXIS_STALE` (a live axis flip must equal a fresh mount, element for
+    element, checked before the page advance); `axisStale()` standalone.
+  - At the default, in inline styles only: every `th` and `tr` carries
+    `height: 24px`, every button `min-width: 24px` (WCAG 2.5.8's floor by
+    construction), the nav link is a flex row with `min-height: 24px`, the
+    boolean field's label is the row; the sort click lives on the `th`.
+    Nothing moves a pixel in Chromium.
+  - **Proof semantics:** a screen with a standing report now settles —
+    movement is a *new* report, never the same one re-filed on the next
+    solve (every turn re-measures). `estimateText` honours `min-width`.
+  - Found by the round, left for the owner: `layout.minColumn` 220 does
+    not cover a card's padding plus the narrowest two-primary table
+    (238.4 px at the default); under compact at 480 the Overview's rollup
+    grid takes two columns and its table files `FIT_COLUMNS` by 0.4 px
+    (ADR 0046 §What the review and the Ledger proof changed).
+
 ## 0.9.0 — 2026-08-30
 
 - **Deterministic decisions (ADR 0044; issue 0028; ledger TENETS §13).** A

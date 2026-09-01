@@ -13,6 +13,7 @@ import { el as element, flushEffects, type TemplateResult } from '@nisli/core';
 import type { Content } from '../blocks/types.js';
 import { setMeasurer, remeasure, type Measurer } from '../engine/measure.js';
 import { useSkin, setScheme, type Scheme } from '../skin.js';
+import { setDensity, setInput, type Density, type Input } from '../engine/axes.js';
 import { defaultSkin } from '../skin/default.js';
 import { metrics } from '../metrics.js';
 import { labelWidth } from '../engine/space.js';
@@ -24,6 +25,10 @@ export interface MountOptions {
   viewport?: number;
   /** Install the default skin at this scheme; bare when omitted. */
   scheme?: Scheme;
+  /** Set the density axis before mount (`setDensity`); `'system'` (comfortable) when omitted. Reset by `unmount()`. */
+  density?: Density;
+  /** Set the input axis before mount (`setInput`); `'system'` (`(pointer: coarse)`, `pointer` in happy-dom) when omitted. Reset by `unmount()`. */
+  input?: Input;
   /** Sizes text-shaped elements (titles, buttons, cells); `undefined` falls through to `measure`, then the frame. */
   text?: (el: HTMLElement) => number | undefined;
   /** Answers every element `text` did not (the estimator, in `prove()`); absent, everything else is the frame. */
@@ -39,11 +44,18 @@ export interface Mounted {
   styleOf(selector?: string): CSSStyleDeclaration;
   /** The frame changes: the block is now `width` wide (and the document `viewport`, default `width`); every block re-decides. */
   resize(width: number, viewport?: number): void;
-  /** Dispose the block and restore the measurer, skin and document. */
+  /** Dispose the block and restore the measurer, skin, axes and document. */
   unmount(): void;
 }
 
 type Factory = (props: never) => Content;
+
+/**
+ * The mounts alive right now, innermost last. A proof mounts a fresh tree
+ * beside a live one (`AXIS_STALE`); when the inner one unmounts, the outer
+ * one's measurer and skin come back, so the live tree keeps its seam.
+ */
+const active: { measurer: Measurer; scheme?: Scheme }[] = [];
 
 const TEXTUAL = new Set(['H1', 'H2', 'H3', 'TH', 'TD', 'BUTTON', 'SPAN', 'A', 'LABEL', 'OPTION']);
 
@@ -84,6 +96,10 @@ export function mount(target: string | Factory, props: Record<string, unknown>, 
   };
   setMeasurer(measurer);
   if (options.scheme) useSkin(defaultSkin, { scheme: options.scheme });
+  if (options.density) setDensity(options.density);
+  if (options.input) setInput(options.input);
+  const entry = { measurer, scheme: options.scheme };
+  active.push(entry);
 
   if (tpl) { tpl.mount(frame); el = (frame.querySelector<HTMLElement>(':scope > div > *')) ?? frame; }
   else frame.appendChild(el);
@@ -103,8 +119,13 @@ export function mount(target: string | Factory, props: Record<string, unknown>, 
     unmount: () => {
       if (tpl) tpl.dispose();
       frame.remove();
-      setMeasurer(null);
-      if (options.scheme) { useSkin(null); setScheme('system'); }
+      active.splice(active.indexOf(entry), 1);
+      const outer = active[active.length - 1];
+      setMeasurer(outer?.measurer ?? null);
+      if (outer?.scheme) useSkin(defaultSkin, { scheme: outer.scheme });
+      else if (options.scheme) { useSkin(null); setScheme('system'); }
+      // Unconditionally: a test may flip the sizing axes live after a mount that set neither (ADR 0046 §5).
+      setDensity('system'); setInput('system');
       // The scroll lock is released by the block's own cleanup (the one ref-counted writer); nothing here touches <body>.
     },
   };

@@ -23,7 +23,7 @@ interface ConfirmBodyProps {
 const ConfirmBody = block<ConfirmBodyProps>('nisli-confirm', {
   host: () => ({ display: 'contents' }),
   render: (props, ctx) => [
-    el('p', { style: ctx.part('text', { margin: 0 }) }, props.text),
+    el('p', { style: ctx.part('text', () => ({ margin: 0 })) }, props.text),
     actionRow(ctx, computed<readonly Action[]>(() => [
       { id: 'cancel', label: 'Cancel', onSelect: () => props.onAnswer.value(false) },
       // The person came for the answer: it is the primary (filled), or danger when it cannot be undone.

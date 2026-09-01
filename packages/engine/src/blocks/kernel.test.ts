@@ -12,11 +12,12 @@ import { fileURLToPath } from 'node:url';
 import { block, lockScroll } from './kernel.js';
 import { Section } from './section.js';
 import { onReport, type LayoutReport } from '../engine/report.js';
+import { setDensity, setInput } from '../engine/axes.js';
 import { mount, type Mounted } from '../test/mount.js';
 
 const mounted: Mounted[] = [];
 const up = (...args: Parameters<typeof mount>) => { const m = mount(...args); mounted.push(m); return m; };
-afterEach(() => { while (mounted.length) mounted.pop()!.unmount(); document.body.innerHTML = ''; });
+afterEach(() => { while (mounted.length) mounted.pop()!.unmount(); document.body.innerHTML = ''; setDensity('system'); setInput('system'); });
 
 const Probe = block<{ label: string }>('nisli-kernel-probe', {
   measure: 'width',
@@ -55,6 +56,16 @@ const Row = block<{ items: readonly string[] }>('nisli-kernel-row', {
     ctx.fitRow({ gap: 0, available: () => 100, items: () => props.items.value.map((id) => ({ id, width: 80, priority: 20 })), report: { code: 'FIT_ROW', detail: (p) => `slack ${p.slack}` } });
     return [];
   },
+});
+const Gapped = block<{ items: readonly string[] }>('nisli-kernel-gapped', {
+  render: (props, ctx) => {
+    ctx.fitRow({ gap: () => ctx.metrics.space[2], available: () => 100, items: () => props.items.value.map((id) => ({ id, width: 80, priority: 20 })), report: { code: 'FIT_ROW', detail: (p) => `slack ${p.slack}` } });
+    return [];
+  },
+});
+const Sized = block<{ label: string }>('nisli-kernel-sized', {
+  host: (ctx) => ({ display: 'block', height: ctx.metrics.control.height }),
+  render: (props, ctx) => [el('span', { style: ctx.part('text', () => ({ minHeight: ctx.metrics.control.hit, padding: `0 ${ctx.metrics.control.padX}px` })) }, props.label)],
 });
 
 describe('block kernel', () => {
@@ -192,6 +203,30 @@ describe('block kernel', () => {
     expect(reports).toEqual([{ code: 'FIT_ROW', block: 'nisli-kernel-row', width: 100, deficit: 60, detail: 'slack -60' }]);
   });
 
+  it('axes: a live setInput(touch) re-applies host and every part() thunk; setDensity moves the rhythm (ADR 0046)', () => {
+    const t = up(Sized, { label: 'x' }, {});
+    expect(t.styleOf().height).toBe('32px');
+    expect(t.styleOf('span').minHeight).toBe('24px');
+    setInput('touch'); flushEffects();
+    expect(t.styleOf().height).toBe('44px');
+    expect(t.styleOf('span').minHeight).toBe('44px');
+    expect(t.styleOf('span').padding).toBe('0px 12px');
+    setDensity('compact'); flushEffects();
+    expect(t.styleOf().height).toBe('44px');
+    expect(t.styleOf('span').padding).toBe('0px 8px');
+  });
+
+  it('fitRow: re-solves on a sizing change with no block deps, and a gap thunk is resolved per solve (ADR 0046 §4)', async () => {
+    const reports: LayoutReport[] = [];
+    const stop = onReport((r) => reports.push(r));
+    up(Gapped, { items: ['a', 'b'] }, {});
+    expect(reports.map((r) => r.deficit)).toEqual([68]);   // 2 × 80 + gap 8, in 100
+    setDensity('compact'); flushEffects();
+    await new Promise<void>((r) => queueMicrotask(r));      // the deps effect queues the solve after the flush
+    expect(reports.map((r) => r.deficit)).toEqual([68, 66]); // gap 6 now
+    stop();
+  });
+
   // The scan rules: no file under blocks/ other than the kernel itself may
   //   1. import apply, css or look from ../style.js or ../skin.js  (styling around ctx.part)
   //   2. write element.style / element.style[...]                  (an imperative style write)
@@ -219,6 +254,37 @@ describe('block kernel', () => {
     const offKernel = files.filter(([f, src]) => !NOT_BLOCKS.has(f) && !/from '\.\/kernel\.js'/.test(src)).map(([f]) => f);
     expect(offKernel).toEqual([]);
     const offenders = files.flatMap(([f, src]) => RULES.filter((r) => r.test(src)).map((r) => `${f}: ${r.source}`));
+    expect(offenders).toEqual([]);
+  });
+
+  // ADR 0046 §4, "rule 5": under blocks/, the second argument of every `ctx.part(`
+  // call, when present, is a thunk — an object literal, a `buttonBox()` call or a
+  // bound identifier freezes the table of that moment. Uniform, so no allow-list.
+  /** Every `ctx.part(` call in `src`: the line it starts on and the text of its second argument (null when absent). */
+  const partCalls = (src: string): { line: number; second: string | null }[] => {
+    const calls: { line: number; second: string | null }[] = [];
+    const open = /ctx\.part\(/g;
+    let m: RegExpExecArray | null;
+    while ((m = open.exec(src))) {
+      let i = m.index + m[0].length, depth = 0, quote: string | null = null, comma = -1;
+      for (; i < src.length; i++) {
+        const c = src[i]!;
+        if (quote) { if (c === '\\') i++; else if (c === quote) quote = null; continue; }
+        if (c === "'" || c === '"' || c === '`') quote = c;
+        else if (c === '(' || c === '[' || c === '{') depth++;
+        else if (c === ')' || c === ']' || c === '}') { if (depth === 0) break; depth--; }
+        else if (c === ',' && depth === 0 && comma < 0) comma = i;
+      }
+      calls.push({ line: src.slice(0, m.index).split('\n').length, second: comma < 0 ? null : src.slice(comma + 1, i).trim() });
+    }
+    return calls;
+  };
+  it('every ctx.part() structure under blocks/ is a thunk (ADR 0046 rule 5)', () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const files = readdirSync(here)
+      .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts') && f !== 'kernel.ts')
+      .map((f) => [f, readFileSync(join(here, f), 'utf8')] as const);
+    const offenders = files.flatMap(([f, src]) => partCalls(src).filter((c) => c.second !== null && !c.second.startsWith('() =>')).map((c) => `${f}:${c.line}: ${c.second!.split('\n')[0]}`));
     expect(offenders).toEqual([]);
   });
 

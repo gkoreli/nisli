@@ -105,9 +105,10 @@ export const App = block<AppProps>('nisli-app', {
       el('a', {
         href: computed(() => item.value.href),
         'aria-current': computed(() => (isActive(item.value.href, props.location.value) ? 'page' : false)),
+        // A real box, never shorter than a target (ADR 0046 §3): flex so `minHeight` is the link's own, not its line's.
         style: ctx.part(
           () => (isActive(item.value.href, props.location.value) ? ['nav.link', 'nav.link.active'] : 'nav.link'),
-          { display: 'block', padding: `${metrics.space[2]}px ${metrics.space[3]}px` },
+          () => ({ display: 'flex', alignItems: 'center', minHeight: metrics.control.hit, boxSizing: 'border-box', padding: `${metrics.space[2]}px ${metrics.space[3]}px` }),
         ),
       }, computed(() => item.value.label));
 
@@ -169,12 +170,12 @@ export const App = block<AppProps>('nisli-app', {
           'aria-label': 'Menu',
           'aria-controls': `${id}-nav`,
           'aria-expanded': computed(() => String(open.value)),
-          style: ctx.part(['button', 'button.plain'], buttonBox()),
+          style: ctx.part(['button', 'button.plain'], () => buttonBox()),
           on: { click: () => { if (menuOpen.value) menuOpen.value = false; else openMenu(); }, keydown: onToggleKey },
         }, computed(() => (open.value ? 'Close' : 'Menu'))),
       ]),
       // Content
-      el('div', { style: ctx.part([], { flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }) }, computed(() => toList(props.children.value))),
+      el('div', { style: ctx.part([], () => ({ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' })) }, computed(() => toList(props.children.value))),
     ];
   },
 });

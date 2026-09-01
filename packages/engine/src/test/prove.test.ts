@@ -6,8 +6,9 @@
  * @vitest-environment happy-dom
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { signal, computed, html, flushEffects } from '@nisli/core';
-import { prove } from './prove.js';
+import { signal, computed, html, el, flushEffects } from '@nisli/core';
+import { prove, formatClaim } from './prove.js';
+import { block } from '../blocks/kernel.js';
 import { mount, textMeasurer, type Mounted } from './mount.js';
 import { App } from '../blocks/app.js';
 import { Page } from '../blocks/page.js';
@@ -104,7 +105,7 @@ describe('prove()', () => {
     const still = await prove(() => Text({ text: 'still' }), { widths: [800] });
     expect(still.claims).toEqual([]);
     expect(still.byWidth[0]!.turns).toBeGreaterThanOrEqual(2);   // one turn after mount, one after settle(), each finding nothing to do
-    expect(still.byWidth[0]!.turns).toBeLessThan(6);
+    expect(still.byWidth[0]!.turns).toBeLessThan(10);            // plus the axes flip: flip, settle, the fresh mount, its settle, the restore — one each
     // A block that rewrites itself every microtask (for longer than any proof looks) never settles.
     const n = signal(0);
     const moving = await prove(() => {
@@ -117,6 +118,20 @@ describe('prove()', () => {
     expect(moving.byWidth[0]!.turns).toBeGreaterThanOrEqual(5);   // the cap after mount, then at least one turn after settle()
   });
 
+  it('a standing report is a finding, not movement: a plan the engine cannot satisfy is filed once and the screen settles', async () => {
+    // Every turn remeasures; a row that cannot fit re-files the same FIT_ROW on every solve. That is one report and a fixed point.
+    const Stuck = block<{ items: readonly string[] }>('nisli-stuck-row', {
+      render: (props, ctx) => {
+        ctx.fitRow({ gap: 0, available: () => 100, items: () => props.items.value.map((id) => ({ id, width: 80, priority: 20 })), report: { code: 'FIT_ROW', detail: () => 'two primaries in a hundred pixels' } });
+        return [el('i', {}, 'stuck')];
+      },
+    });
+    const proof = await prove(() => Stuck({ items: ['a', 'b'] }), { widths: [800] });
+    expect(proof.claims.map((c) => c.code)).toEqual(['FIT_ROW']);
+    expect(proof.claims.some((c) => c.code === 'UNSETTLED')).toBe(false);
+    expect(proof.reports).toHaveLength(1);
+  });
+
   it('DECISION_UNSTABLE: a data-perturbed variant must decide the same structural plans; a changed intent is caught and named', async () => {
     const reversed = [...rows].reverse();
     // Same intent, data reordered: every structural plan matches — the tenet (ADR 0044) holds.
@@ -126,6 +141,37 @@ describe('prove()', () => {
     const broken = await prove(() => Table({ columns, rows, rowKey: (r) => r.id }), { widths: [768], variants: [() => Table({ columns: columns.slice(0, 3), rows, rowKey: (r) => r.id })] });
     expect(broken.claims.map((c) => [c.code, c.block, c.width])).toContainEqual(['DECISION_UNSTABLE', 'nisli-table', 768]);
     expect(broken.claims.find((c) => c.code === 'DECISION_UNSTABLE')!.detail).toMatch(/with the data perturbed \(variant 1\)/);
+  });
+
+  it('widths × axes (ADR 0046): every context is proven at every width, each claim tagged with both; the default is unchanged', async () => {
+    const AXES = [{}, { density: 'compact' as const }, { input: 'touch' as const }];
+    const proof = await prove(() => Stat({ label: 'Spent', value: '$1,234.56' }), { widths: [800, 360], axes: AXES });
+    expect(proof.byWidth.map((w) => [w.width, w.axes.density, w.axes.input])).toEqual([
+      [800, 'comfortable', 'pointer'], [800, 'compact', 'pointer'], [800, 'comfortable', 'touch'],
+      [360, 'comfortable', 'pointer'], [360, 'compact', 'pointer'], [360, 'comfortable', 'touch'],
+    ]);
+    expect(proof.claims).toEqual([]);
+    // The default: one pass per width, at comfortable + pointer, exactly as before.
+    const plain = await prove(() => Stat({ label: 'Spent', value: '$1,234.56' }), { widths: [800] });
+    expect(plain.byWidth.map((w) => [w.width, w.axes])).toEqual([[800, { density: 'comfortable', input: 'pointer' }]]);
+    // A claim carries both: a button at 24px fails TARGET_SMALL under touch only, at each width.
+    const short = await prove(() => html`<nisli-section><button type="button" style="display:inline-flex;height:24px;padding:0 12px">Save</button></nisli-section>` as never, { widths: [800, 360], axes: AXES });
+    expect(short.claims.map((c) => [c.code, c.width, c.axes])).toEqual([
+      ['TARGET_SMALL', 800, { density: 'comfortable', input: 'touch' }],
+      ['TARGET_SMALL', 360, { density: 'comfortable', input: 'touch' }],
+    ]);
+    // A frozen record is AXIS_STALE at every context (each flips to another), named with the block and the axes it was found under.
+    // `control.height` moves on every flip (32 at the default, 44 under touch); `space` would not move between touch and pointer.
+    const Frozen = block<{ text: string }>('nisli-frozen-stat', { render: (props, ctx) => el('div', { style: ctx.part([], { height: ctx.metrics.control.height }) }, props.text) });
+    const stale = await prove(() => Frozen({ text: 'x' }), { widths: [800], axes: [{}, { input: 'touch' }] });
+    expect(stale.claims.map((c) => [c.code, c.block, c.width, c.axes])).toEqual([
+      ['AXIS_STALE', 'nisli-frozen-stat', 800, { density: 'comfortable', input: 'pointer' }],
+      ['AXIS_STALE', 'nisli-frozen-stat', 800, { density: 'comfortable', input: 'touch' }],
+    ]);
+    expect(stale.claims[0]!.detail).toMatch(/flipped live from comfortable\+pointer to compact\+touch/);
+    expect(stale.claims[1]!.detail).toMatch(/flipped live from comfortable\+touch to comfortable\+pointer/);
+    expect(formatClaim(stale.claims[1]!)).toMatch(/^AXIS_STALE <nisli-frozen-stat> did not follow the axes: .* @ 800px comfortable\+touch$/);
+    expect(formatClaim(stale.claims[0]!)).toMatch(/ @ 800px$/);
   });
 
   it('viewport may be a function of the width; settle() lets a store boot before the checks', async () => {

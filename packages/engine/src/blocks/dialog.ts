@@ -71,11 +71,11 @@ export const Dialog = block<DialogProps>('nisli-dialog', {
           ...(sheet.value ? { borderRadius: 0 } : {}),
         })),
       }, [
-        el('div', { style: ctx.part('divider', { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `${metrics.space[3]}px ${metrics.space[4]}px` }) }, [
-          el('h2', { id: `${id}-title`, style: ctx.part('text.title', { margin: 0, font: 'inherit' }) }, props.title),
-          el('button', { type: 'button', 'aria-label': 'Close', style: ctx.part(['button', 'button.quiet'], buttonBox()), on: { click: () => props.onClose.value() } }, '✕'),
+        el('div', { style: ctx.part('divider', () => ({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `${metrics.space[3]}px ${metrics.space[4]}px` })) }, [
+          el('h2', { id: `${id}-title`, style: ctx.part('text.title', () => ({ margin: 0, font: 'inherit' })) }, props.title),
+          el('button', { type: 'button', 'aria-label': 'Close', style: ctx.part(['button', 'button.quiet'], () => buttonBox()), on: { click: () => props.onClose.value() } }, '✕'),
         ]),
-        el('div', { style: ctx.part([], { padding: metrics.space[4], overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: metrics.space[4] }) }, [
+        el('div', { style: ctx.part([], () => ({ padding: metrics.space[4], overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: metrics.space[4] })) }, [
           computed(() => toList(props.children.value)),
           // In the body's flow after the content — where a fieldless Form's row sat; a footer's rule for danger.
           actionRow(ctx, actions, { apart: true }),

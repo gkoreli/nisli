@@ -8,7 +8,8 @@ import { flushEffects, html } from '@nisli/core';
 import { setMeasurer } from '../engine/measure.js';
 import { metrics } from '../metrics.js';
 import { mount, type Mounted } from '../test/mount.js';
-import './app.js'; import './grid.js'; import './dialog.js'; import './form.js';
+import './app.js'; import './grid.js'; import './dialog.js'; import './form.js'; import './section.js';
+import { setDensity, setInput } from '../engine/axes.js';
 
 let width = 1280;
 const mounted: Mounted[] = [];
@@ -93,5 +94,28 @@ describe('Form', () => {
     el.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true })); flushEffects();
     expect(submitted).toBe(0);
     expect(el.textContent).toContain('Payee is required.');
+  });
+});
+
+// ADR 0046: a nav link is a real box never shorter than a target; a Section's padding is rhythm.
+describe('under the axes (ADR 0046)', () => {
+  afterEach(() => { setInput('system'); setDensity('system'); });
+
+  it('a nav link has a 24px floor at pointer and 44px at touch, as a flex box with border-box sizing', () => {
+    const link = (m: Mounted) => m.styleOf('nav[aria-label=Primary] a');
+    const at = link(up('nisli-app', { brand: 'B', nav, location: '/accounts', content }, 1280));
+    expect([at.display, at.alignItems, at.minHeight, at.boxSizing, at.padding]).toEqual(['flex', 'center', '24px', 'border-box', '8px 12px']);
+    setInput('touch'); flushEffects();
+    expect(at.minHeight).toBe('44px');
+    expect(link(up('nisli-app', { brand: 'B', nav, location: '/accounts', content }, 1280)).minHeight).toBe('44px');
+  });
+
+  it('a Section is padded 16px comfortable and 12px compact, live', () => {
+    const m = up('nisli-section', { title: 'S', children: content }, 800);
+    expect(m.styleOf().padding).toBe('16px');
+    expect(m.styleOf().gap).toBe('12px');
+    setDensity('compact'); flushEffects();
+    expect(m.styleOf().padding).toBe('12px');
+    expect(m.styleOf().gap).toBe('8px');
   });
 });

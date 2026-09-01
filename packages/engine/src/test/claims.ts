@@ -14,6 +14,8 @@
  * exactly as it would in a browser.
  */
 import type { LayoutReport, ReportCode } from '../engine/report.js';
+import { axes, type Density, type Input } from '../engine/axes.js';
+import { metrics } from '../metrics.js';
 import { estimator, isTextual, estimateText, textStyleOf, ownText, type Estimator } from './estimate.js';
 
 export type ClaimCode =
@@ -31,7 +33,9 @@ export type ClaimCode =
   | 'UNREACHABLE'       // an interactive element a keyboard cannot reach
   | 'SORT_UNREACHABLE'  // a sortable header with no control a keyboard can reach
   | 'POPUP_ARIA'        // an expanding control without a resolving aria-controls, or expanded over a hidden target
-  | 'LIVE_TONE';        // a notice announced at the wrong urgency for its tone
+  | 'LIVE_TONE'         // a notice announced at the wrong urgency for its tone
+  | 'TARGET_SMALL'      // under touch, an interactive element's target box is under `control.hit` on a side (ADR 0046)
+  | 'AXIS_STALE';       // an inline style that did not follow a live axis flip: a number read outside a reactive scope (ADR 0046)
 
 export type Severity = 'error' | 'warning';
 
@@ -43,6 +47,8 @@ export interface Claim {
   readonly severity: Severity;
   /** The frame width the claim was found at; set by `prove()`. */
   readonly width?: number;
+  /** The sizing axes the claim was found under (resolved); set by `prove()`. */
+  readonly axes?: { readonly density: Density; readonly input: Input };
 }
 
 export interface Checker {
@@ -342,8 +348,95 @@ export const liveTone: Checker = {
   },
 };
 
+// ── Target size (ADR 0046 §5) ──────────────────────────────────────────
+
+const px = (v: string | undefined): number | undefined => (v && v.endsWith('px') ? parseFloat(v) : undefined);
+/** An inline `height`/`minHeight` in px, when the element sets one. */
+const ownHeight = (el: HTMLElement): number | undefined => px(el.style.height) ?? px(el.style.minHeight);
+/** Laid out as a box, not as a run of text: the engine set a block-level display, or the tag is one by nature. */
+const BOX_TAGS = new Set(['DIV', 'TR', 'TD', 'TH', 'LI', 'UL', 'OL', 'NAV', 'SECTION', 'P', 'TABLE', 'FORM', 'FIELDSET']);
+const isBoxLevel = (el: HTMLElement): boolean =>
+  el.style.display === 'block' || el.style.display === 'flex' || el.style.display === 'grid' || (!el.style.display && BOX_TAGS.has(el.tagName));
+/** Inline in flowing text — `display` unset or `inline` (a `Link` in a `Text`): WCAG 2.5.8 exempts it. A native control is never text. */
+const NATIVE_CONTROL = new Set(['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA']);
+const inText = (el: HTMLElement): boolean => !NATIVE_CONTROL.has(el.tagName) && (!el.style.display || el.style.display === 'inline');
+
+/**
+ * The height a target can count on: its own inline `height`/`minHeight`, else
+ * the nearest ancestor's that sets one and holds no other interactive
+ * element (a sort button inside its `th`, a link inside a `tr`). An ancestor
+ * that sets one but holds another target is shared, so it is nobody's:
+ * the walk stops there. Nothing set is `undefined`.
+ */
+function targetHeight(el: HTMLElement, self = true): number | undefined {
+  const own = self ? ownHeight(el) : undefined;
+  if (own !== undefined) return own;
+  for (let n = el.parentElement; n; n = n.parentElement) {
+    const h = ownHeight(n);
+    if (h === undefined) continue;
+    return [...n.querySelectorAll(INTERACTIVE)].some((other) => other !== el) ? undefined : h;
+  }
+  return undefined;
+}
+
+/** The width a target can count on: inline `width`/`minWidth`; a box-level element (or a non-px width) is as wide as its box; else its text plus padding. */
+function targetWidth(el: HTMLElement): number | undefined {
+  // A zero min-width says "may shrink", not how wide; only a positive one is a floor.
+  const own = px(el.style.width) ?? (px(el.style.minWidth) || undefined);
+  if (own !== undefined) return own;
+  if (el.style.width || grows(el) || isBoxLevel(el)) return undefined;
+  // A pinned table cell it owns (a sort button in its th) answers for it; no other ancestor is its box.
+  const cell = el.closest<HTMLElement>('th, td');
+  if (cell && cell !== el) {
+    const w = px(cell.style.width) ?? px(cell.style.minWidth);
+    if (w !== undefined) return [...cell.querySelectorAll(INTERACTIVE)].some((other) => other !== el) ? undefined : w;
+  }
+  if (!ownText(el)) return undefined;
+  const text = estimateText(el);
+  return text > 0 ? text : undefined;
+}
+
+/** A flex item that grows is as wide as its share: no width of its own to judge. */
+const grows = (el: HTMLElement): boolean => /^\s*[1-9]/.test(el.style.flex) || (parseFloat(el.style.flexGrow) || 0) > 0;
+/** A native check or radio is a small box inside the row a person taps; the row is its target. */
+const isCheck = (el: HTMLElement): boolean => el.tagName === 'INPUT' && /^(checkbox|radio)$/.test((el as HTMLInputElement).type);
+
+/**
+ * Under touch every visible, reachable interactive element is at least
+ * `control.hit` on both sides. The engine writes every size inline, so the
+ * box is read from the tree: height from the element or the one ancestor it
+ * owns; width from an inline width, else the text plus its padding. An
+ * element with no inline height anywhere fails — it has no floor — unless it
+ * sits inline in flowing text, which WCAG 2.5.8 exempts. Checked only when
+ * the resolved input is `touch`; at `pointer` the floor is met by every
+ * control's own height.
+ */
+export const targetSmall: Checker = {
+  code: 'TARGET_SMALL',
+  check: (root) => {
+    if (axes.value.input !== 'touch') return [];
+    const hit = metrics.control.hit;
+    const claims: Claim[] = [];
+    for (const el of root.querySelectorAll<HTMLElement>(INTERACTIVE)) {
+      if (isHidden(el) || el.closest('[inert]')) continue;
+      const name = `<${el.tagName.toLowerCase()}> "${accessibleName(el)}"`;
+      const height = isCheck(el) ? targetHeight(el, false) : targetHeight(el);
+      if (height === undefined) {
+        if (!inText(el)) claims.push({ code: 'TARGET_SMALL', block: blockOf(el), severity: 'error', detail: `${name} has no inline height anywhere; the touch floor is ${hit}px` });
+        continue;
+      }
+      const width = isCheck(el) ? undefined : targetWidth(el);
+      const short: string[] = [];
+      if (height < hit) short.push(`${Math.round(height)}px tall`);
+      if (width !== undefined && width < hit) short.push(`${Math.round(width)}px wide`);
+      if (short.length) claims.push({ code: 'TARGET_SMALL', block: blockOf(el), severity: 'error', detail: `${name} is ${short.join(' and ')}; the touch floor is ${hit}px` });
+    }
+    return claims;
+  },
+};
+
 /** Every checker, in the order they run. */
-export const checkers: readonly Checker[] = [overflowText, accessibleNames, uniqueIds, formLabels, dialogAria, menuItems, blockErrors, reachable, sortReachable, popupAria, liveTone];
+export const checkers: readonly Checker[] = [overflowText, accessibleNames, uniqueIds, formLabels, dialogAria, menuItems, blockErrors, reachable, sortReachable, popupAria, liveTone, targetSmall];
 
 /** A layout report as a claim: a fit plan the engine could not satisfy. */
 export const reportClaim = (r: LayoutReport): Claim => ({

@@ -3,9 +3,9 @@
 Every rule for writing and reviewing application UI built from `@nisli/engine`. Each rule gives the invariant, the bug it prevents, and an incorrect/correct pair. Correct examples are lifted from Ledger (`packages/ledger/src/screens/*.ts`) wherever one exists.
 
 **Engine source**: `packages/engine/src` — public surface is exactly what `src/index.ts` exports
-**Test surface**: `@nisli/engine/test` → `packages/engine/src/test/prove.ts` (`prove`, `estimator`, `mount`, `textMeasurer`, `claimsOf`, `checkers`); `@nisli/engine/verify` → `src/verify/index.ts` (`verify`, `format`) and the `nisli-verify` CLI (`bin/nisli-verify.mjs`)
-**Screen proof**: `packages/ledger/src/screens/screens.proof.test.ts` — nine screens × five widths, zero claims
-**ADRs**: `docs/adr/0034-engine-typed-blocks-decided-by-an-engine.md` (contract, language, decision rules), `0035-engine-appearance-layer.md` (skins, parts, axes), `0037-engine-form-intent-capture-domain.md` (the ten Form rules), `0040-engine-overlay-domain.md` (layers), `0041-engine-proof-domain.md` (claims, prove, verify), `0042-engine-reachability.md` (keyboard and AT), `0043-engine-intent-vocabulary-contract.md` (one word, one meaning; one Action rule; capture derived), `0044-engine-deterministic-decisions.md` (the determinism tenet: a decision is a function of width and intent, never data; `DECISION_UNSTABLE`)
+**Test surface**: `@nisli/engine/test` → `packages/engine/src/test/prove.ts` (`prove`, `axisStale`, `estimator`, `mount`, `textMeasurer`, `claimsOf`, `checkers`); `@nisli/engine/verify` → `src/verify/index.ts` (`verify`, `format`) and the `nisli-verify` CLI (`bin/nisli-verify.mjs`)
+**Screen proof**: `packages/ledger/src/screens/screens.proof.test.ts` — nine screens × five widths × three axes contexts, zero claims
+**ADRs**: `docs/adr/0034-engine-typed-blocks-decided-by-an-engine.md` (contract, language, decision rules), `0035-engine-appearance-layer.md` (skins, parts, axes), `0037-engine-form-intent-capture-domain.md` (the ten Form rules), `0040-engine-overlay-domain.md` (layers), `0041-engine-proof-domain.md` (claims, prove, verify), `0042-engine-reachability.md` (keyboard and AT), `0043-engine-intent-vocabulary-contract.md` (one word, one meaning; one Action rule; capture derived), `0044-engine-deterministic-decisions.md` (the determinism tenet: a decision is a function of width and intent, never data; `DECISION_UNSTABLE`), `0046-engine-density-and-input-axes.md` (the three axes `scheme`/`density`/`input`; `metrics` as a live door over `metricsFor()`; rhythm moves, floors never; `TARGET_SMALL`, `AXIS_STALE`)
 **Worked example**: `packages/ledger` — nine screens, `TENETS.md`
 
 The engine's block kernel (`src/blocks/kernel.ts`, `src/engine/space.ts`) is being refactored; nothing below depends on it. Only the public intent API and the rules are documented.
@@ -121,16 +121,32 @@ Section({
 
 ### `intent-app-imports-blocks-only` — The application context imports Intent and `useSkin`
 
-Dependency direction is Intent → Decision → Appearance (ADR 0034, *Bounded contexts*). An app imports blocks, `notify`, `confirm`, `useSkin`/`setScheme`/`defaultSkin`, and types. `metrics`, `look`, `fit`, `columnsFor`, `block` are exported for skin authors and engine tooling — an app that uses them for its own layout has re-entered the decision layer.
+Dependency direction is Intent → Decision → Appearance (ADR 0034, *Bounded contexts*). An app imports blocks, `notify`, `confirm`, `useSkin`/`setScheme`/`setDensity`/`setInput`/`defaultSkin`, and types. `metrics`, `metricsFor`, `axes`, `look`, `fit`, `columnsFor`, `block` are exported for skin authors, engine tooling and tests — an app that reads them for its own layout, or branches on `axes.value.input`, has re-entered the decision layer (ADR 0046 §6: a block or app that wants "is this touch?" as a boolean is asking for a look word).
 
 ```typescript
-// ❌ WRONG — app code deciding layout with engine internals
-import { metrics, fit, look } from '@nisli/engine';
+// ❌ WRONG — app code deciding layout with engine internals, or from an axis by name
+import { metrics, fit, look, axes } from '@nisli/engine';
 const cols = width > metrics.layout.contentMin ? 2 : 1;
+const rows = computed(() => (axes.value.input === 'touch' ? recent.value.slice(0, 20) : recent.value));
 
-// ✅ CORRECT — packages/ledger/src/main.ts
-import { App, useSkin, setScheme, defaultSkin } from '@nisli/engine';
-useSkin(bare ? null : defaultSkin, { scheme: settings.value.appearance ?? 'system' });
+// ✅ CORRECT — packages/ledger/src/main.ts forwards scheme this way; density is the same line beside it (ADR 0046 §Consequences)
+import { App, useSkin, setScheme, setDensity, defaultSkin } from '@nisli/engine';
+useSkin(bare ? null : defaultSkin, { scheme: settings.value.appearance ?? 'system', density: settings.value.density ?? 'system' });
+effect(() => { setScheme(settings.value.appearance ?? 'system'); setDensity(settings.value.density ?? 'system'); });
+```
+
+### `intent-no-per-block-density` — Density and input are context, never a prop (ADR 0046)
+
+No block, screen or prop says `compact` or `touch`. `density` is a person's preference forwarded once, exactly as `appearance` is; `input` the engine detects from `(pointer: coarse)`, live. Every number in every block then comes through `metrics` — a touch user gets 44 px rows, buttons and menu items on the phone with no app line. A per-block density (`Table({ density: 'compact' })`, a "dense" context provider, a `?density` read in a screen) is the per-instance appearance prop 0034 bans: a "dense table on a comfortable page" is the first step back to `className`, and one axis derived from another (compact because touch) is how a table states an impossible constraint (F9).
+
+```typescript
+// ❌ WRONG — density said per block, or derived from the device in app code
+Section({ title: 'Recent', children: [Table({ columns, rows, rowKey, density: 'compact' })] });
+setDensity(matchMedia('(pointer: coarse)').matches ? 'comfortable' : 'compact');
+
+// ✅ CORRECT — the shape of Ledger's `appearance` setting (settings.ts), applied to density; main.ts forwards it once
+{ name: 'density', label: 'Density', required: true, options: [{ value: 'system', label: 'System' }, { value: 'comfortable', label: 'Comfortable' }, { value: 'compact', label: 'Compact' }] }
+setDensity(settings.value.density ?? 'system');
 ```
 
 ### `intent-structure-is-the-decision` — Nesting and counts are already intent
@@ -369,6 +385,22 @@ actions: editing.value ? [{ id: 'delete', label: 'Delete budget', destructive: t
 } }] : [],
 ```
 
+### `block-part-structure-is-a-thunk` — A block reads the door live (ADR 0046 §2, §4; for block authors)
+
+`metrics` is one object at every read, but its groups are getters over `metricsFor(sizing)` — the table for the current density and input. A read inside a reactive scope (the `host` effect, a `ctx.part()` thunk, a `computed`) follows an axis change; a read outside one holds the table of that moment and never moves. So under `blocks/`: every `ctx.part(parts, () => ({ … }))` structure is a thunk — an object literal, a `buttonBox()` call or a bound identifier is a failure of kernel scan rule 5 (`kernel.test.ts`), even when it names no metric (uniformity is cheaper than an allow-list); a derived constant (a chart budget, a form gap, a page seed) is read inside the computed that uses it; a read that must *not* re-run on a flip — Table's page reset, because an axis change is not new data — is `untrack(() => metrics.layout.tablePage)`; `FitSpec.gap` is `number | (() => number)` and `fitRow` re-solves on a sizing change on its own (`useFit` depends on `sizing`, never on `axes`, so a scheme flip re-solves nothing). Setup-time constants escape the scan; `AXIS_STALE` catches them (`prove-live-flip-equals-fresh-mount`).
+
+```typescript
+// ❌ WRONG — three frozen reads: a literal structure, a setup constant, a plain gap
+const gap = metrics.space[2];
+el('div', { style: ctx.part(['card'], { padding: `${metrics.space[4]}px`, gap: `${gap}px` }) }, …);
+fitRow({ gap: metrics.space[2], items: … });
+
+// ✅ CORRECT — packages/engine/src/blocks/toolbar.ts, table.ts: read where the number is used
+el('div', { style: ctx.part(['card'], () => ({ padding: `${metrics.space[4]}px`, gap: `${metrics.space[2]}px` })) }, …);
+fitRow({ gap: () => metrics.space[2], items: … });
+const stopReset = effect(() => { allRows.value; limit.value = untrack(() => metrics.layout.tablePage); });
+```
+
 ---
 
 ## 3. Form Schema (HIGH) — ADR 0037
@@ -557,40 +589,45 @@ On failure the last content stays and a failure line is added; on refresh the co
 
 ---
 
-## 5. Skin & Scheme (MEDIUM-HIGH) — ADR 0035
+## 5. Skin & Axes (MEDIUM-HIGH) — ADR 0035, 0046
 
 ### `skin-use-once-root` — Install the skin once, before the App
 
-`useSkin(skin: Skin | null, { scheme? })` (`skin.ts`). It is the one visual decision an app makes; blocks re-style live. Call it at the entry, not per screen.
+`useSkin(skin: Skin | null, { scheme?, density?, input? }: SkinOptions)` (`skin.ts`), each option `| 'system'` (the default). It is the one visual decision an app makes; blocks re-style live, and the sizing options set the axes through `setDensity`/`setInput` in the same call. Call it at the entry, not per screen.
 
 ```typescript
-// ✅ CORRECT — packages/ledger/src/main.ts
+// ✅ CORRECT — packages/ledger/src/main.ts (scheme today; the density option is the same line, ADR 0046 §Consequences)
 const bare = new URLSearchParams(location.search).has('bare');
-useSkin(bare ? null : defaultSkin, { scheme: settings.value.appearance ?? 'system' });
-effect(() => { setScheme(settings.value.appearance ?? 'system'); });
+useSkin(bare ? null : defaultSkin, { scheme: settings.value.appearance ?? 'system', density: settings.value.density ?? 'system' });
+effect(() => { setScheme(settings.value.appearance ?? 'system'); setDensity(settings.value.density ?? 'system'); });
 ```
 
-### `skin-scheme-preference` — Scheme is the one preference an app forwards
+### `skin-scheme-preference` — The axes are preferences an app forwards, never readings it takes
 
-`Scheme = 'light' | 'dark'`; the preference is `Scheme | 'system'` (default). `setScheme()` changes it without reinstalling; `'system'` follows `prefers-color-scheme` live and the engine sets `color-scheme` on the document so native controls agree. The app never reads `matchMedia` itself.
+Three axes (`engine/axes.ts`), one resolved signal `axes: { scheme, density, input }`, each a preference over a platform reading: `Scheme = 'light' | 'dark'` — `'system'` follows `prefers-color-scheme` live, and the engine sets `color-scheme` on the document so native controls agree; `Density = 'comfortable' | 'compact'` — a preference, `'system'` is `comfortable` (the word is kept so a platform density can be honoured later without an API change); `Input = 'pointer' | 'touch'` — `'system'` follows `(pointer: coarse)` live. `setScheme()`, `setDensity()`, `setInput()` change one without reinstalling the skin. An app forwards what the person chose and nothing more: it never reads `matchMedia`, never derives one axis from another, and normally never calls `setInput` at all — detection is the engine's.
 
 ```typescript
-// ❌ WRONG
+// ❌ WRONG — the app taking the platform reading, and coupling axes
 const dark = matchMedia('(prefers-color-scheme: dark)').matches;
 useSkin(dark ? darkSkin : lightSkin);
+if (navigator.maxTouchPoints > 0) setDensity('comfortable');
 
-// ✅ CORRECT — packages/ledger/src/screens/settings.ts offers it as a select; main.ts forwards it
+// ✅ CORRECT — packages/ledger/src/screens/settings.ts offers appearance as a select; density takes the same shape, and main.ts forwards both
 { name: 'appearance', label: 'Appearance', required: true, options: [{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }] }
+{ name: 'density', label: 'Density', required: true, options: [{ value: 'system', label: 'System' }, { value: 'comfortable', label: 'Comfortable' }, { value: 'compact', label: 'Compact' }] }
 ```
 
 ### `skin-write-parts` — A skin is a map of parts, or a function of the axes
 
-`Skin = SkinParts | ((axes: SkinAxes) => SkinParts)`; `SkinParts = Partial<Record<Part, StyleRecord>>`; `PARTS` lists every part in family order (Surface, Text, Control, Navigation, Data, Feedback). A complete skin defines every part in both schemes; `skin.test.ts` enforces completeness for the default. `lightPalette`, `darkPalette`, `partsOf` (`skin/default.ts`) are exported to build one.
+`Skin = SkinParts | ((axes: Axes) => SkinParts)` (`SkinAxes` is `Axes`: `{ scheme, density, input }`); `SkinParts = Partial<Record<Part, StyleRecord>>`; `PARTS` lists every part in family order (Surface, Text, Control, Navigation, Data, Feedback). A complete skin defines every part in both schemes; `skin.test.ts` enforces completeness for the default. `lightPalette`, `darkPalette`, `partsOf` (`skin/default.ts`) are exported to build one. A skin function that destructures `{ scheme }` is unaffected by the two new axes. Density and input are already engine numbers behind `metrics` — `space`, `control.height`, `control.hit` — so a skin never scales spacing, control size or type with them (`skin-no-layout`; type scaling with density is a future round with a `charWidth` recalibration, ADR 0046 §Non-goals). What a skin may legitimately vary by them is look: a heavier border on touch, a quieter divider on compact.
 
 ```typescript
-// ✅ CORRECT — a skin as a function of the scheme
-import { type Skin, type SkinAxes, partsOf, lightPalette, darkPalette } from '@nisli/engine';
-const brand: Skin = ({ scheme }: SkinAxes) => partsOf(scheme === 'dark' ? { ...darkPalette, accent: '#7c5cff' } : { ...lightPalette, accent: '#4b2ee0' });
+// ❌ WRONG — a skin sizing layout from an axis
+const brand: Skin = ({ density }) => ({ 'table.cell': { padding: density === 'compact' ? '4px' : '8px' } });
+
+// ✅ CORRECT — a skin as a function of the axes, varying look only
+import { type Skin, type Axes, partsOf, lightPalette, darkPalette } from '@nisli/engine';
+const brand: Skin = ({ scheme }: Axes) => partsOf(scheme === 'dark' ? { ...darkPalette, accent: '#7c5cff' } : { ...lightPalette, accent: '#4b2ee0' });
 ```
 
 ### `skin-no-layout` — A skin never contains layout
@@ -709,6 +746,20 @@ const columns: Column<Transaction>[] = [
 ];
 ```
 
+### `decide-axes-move-rhythm-not-floors` — An axis moves rhythm, never a floor (ADR 0046 §3)
+
+`metricsFor({ density, input }): Metrics` (`metrics.ts`) is pure, and `{ comfortable, pointer }` is the 0.9.0 constant number for number. What moves: **density** scales `space` (4 8 12 16 24 32 → 4 6 8 12 16 24; the steps stay distinct so a checkbox↔label gap and a label↔field gap never collapse into one) and `control` (`height` 32 → 28, `padX` 12 → 8), and nothing else; **input** floors `control` through `max` (`height` ≥ 44, `check` 24, `hit` 44), so compact + touch is 44 px controls with compact spacing — explicit arithmetic, never a derivation. What never moves: `layout` (every threshold and char budget — `minTextColumn`, `minField`, `sidebarWidth`, `dialogMin`, `tablePage`, `dateChars` …), `charWidth` (calibrated to the skin's 14 px body; every glyph table depends on it) and `layer`. The lesson is F9 from the north-star prototype: a compact context that lowered its floors would be the one context that overflows. `control.hit` (24 at pointer — WCAG 2.5.8; 44 at touch) is the floor blocks give targets that are not controls: `height: hit` on a table row and a sortable `th`, `minHeight: hit` on nav links and menu items, `height` + `minWidth: hit` on the notice dismiss. For an app the rule means: on the phone a Table shows fewer rows and the bar grows — that is the intended trade, not a thing to counter with a prop; and a compact screen is not a place to expect narrower columns.
+
+```typescript
+// ❌ WRONG — expecting a floor to move with an axis, or a threshold from a flag
+expect(metricsFor({ density: 'compact', input: 'pointer' }).layout.minTextColumn).toBeLessThan(96);   // it is 96 in every context
+
+// ✅ CORRECT — packages/engine/src/engine/axes.test.ts: rhythm and controls move, floors do not
+expect(metricsFor({ density: 'comfortable', input: 'pointer' })).toEqual(COMFORTABLE);
+expect(metricsFor({ density: 'compact', input: 'touch' }).control).toEqual({ height: 44, padX: 8, check: 24, hit: 44 });
+expect(metricsFor({ density: 'compact', input: 'touch' }).layout).toEqual(COMFORTABLE.layout);
+```
+
 ### `decide-floats-are-layers` — Anything that floats is a layer
 
 Dialog, `confirm()`, the Toolbar menu, the App bar-mode menu and notices are all layers on the one overlay stack (`engine/overlay.ts`, driven only by `blocks/kernel.ts`; ADR 0040, 0042). The stack gives each Escape, outside-pointer dismiss, focus in and focus return, z-order and inertness — and treats a pointer on a layer's *anchor* as inside, so a real tap on an open menu's trigger closes it once rather than dismissing on pointerdown and reopening on click. Never hand-roll a sheet, a focus trap or a third focus model; an app never sees any of it.
@@ -754,34 +805,36 @@ Verification is by test, not eye (ADR 0034, *Consequences*; NORTH-STAR: *correct
 
 ### `prove-screens-with-prove` — `prove()` is how a screen is proven
 
-`prove(make: () => Content, { widths, viewport?, scheme?, turns? }): Promise<Proof>` mounts the screen at each width over `mount()` with the estimating measurer, flushes, turns to a fixed point (each turn ends in `remeasure()`, the ResizeObserver pass), `settle()`s core's async work so the data is in, turns again, then runs every checker. `Proof { claims, reports, byWidth[{ width, claims, reports, turns }] }` — an empty `claims` is the proof; a screen still moving at `turns` (default 12) is claimed `UNSETTLED`. One `it` per screen, five widths, `scheme: 'light'` so text is sized as the skin dresses it.
+`prove(make: () => Content, { widths, axes?, viewport?, scheme?, turns?, variants? }): Promise<Proof>` mounts the screen at each width **× each axes context** over `mount()` with the estimating measurer, flushes, turns to a fixed point (each turn ends in `remeasure()`, the ResizeObserver pass), `settle()`s core's async work so the data is in, turns again, then runs every checker. `axes` is a list of partial `{ density?, input? }` contexts, the rest `'system'`; default `[{}]`, the default context only (ADR 0046 §5). `Proof { claims, reports, byWidth[{ width, axes, claims, reports, turns }] }` — every claim carries its `width` and its resolved `axes`, `formatClaim()` prints the context when it is not the default, and an empty `claims` is the proof; a screen still moving at `turns` (default 12) is claimed `UNSETTLED`. One `it` per screen, five widths, `scheme: 'light'` so text is sized as the skin dresses it, and the Ledger convention for contexts: `[{}, { density: 'compact' }, { input: 'touch' }]` — the default, the tighter rhythm, and the floor.
 
 ```typescript
 // ✅ CORRECT — packages/ledger/src/screens/screens.proof.test.ts
 import { prove, type Claim } from '@nisli/engine/test';
 const WIDTHS = [1280, 1024, 768, 480, 360] as const;
+const AXES = [{}, { density: 'compact' }, { input: 'touch' }] as const;
 for (const [name, make] of Object.entries(screens)) {
   it(name, async () => {
-    const proof = await prove(make, { widths: WIDTHS, scheme: 'light' });
+    const proof = await prove(make, { widths: WIDTHS, axes: AXES, scheme: 'light' });
     expect([...found].filter((f) => !expected.has(f))).toEqual([]);   // everything not a recorded finding must hold
-    expect(proof.byWidth.map((w) => w.width)).toEqual([...WIDTHS]);
-    for (const w of proof.byWidth) expect(w.turns, `${name} at ${w.width} settled`).toBeLessThan(12);
+    expect(proof.byWidth.length).toBe(WIDTHS.length * AXES.length);
+    for (const w of proof.byWidth) expect(w.turns, `${name} at ${w.width} ${w.axes.density}+${w.axes.input} settled`).toBeLessThan(12);
   });
 }
 ```
 
 ### `prove-claims-are-failures` — A claim is a failing test, never noise
 
-A `Claim { code, block, detail, severity, width? }` is the engine saying something a person would otherwise catch by eye or keyboard is wrong. Codes (`src/test/claims.ts`, each checker unit-tested on a positive and a negative fixture): the fit reports `FIT_ROW` / `FIT_COLUMNS` / `FIT_CELL` (a plan still unsatisfied once the screen settled), `OVERFLOW_TEXT` (a one-line text wider than its box with no ellipsis), `FIGURE_TRUNCATED` (a `tabular-nums` figure — money, date, a Stat's value — under an ellipsis narrower than it: a text may truncate, a number may not), `DECISION_UNSTABLE` (the same width and intent produced two structural plans for two datasets — ADR 0044), `UNSETTLED`, `NAME_MISSING`, `ID_DUPLICATE`, `LABEL_MISSING`, `DIALOG_ARIA`, `MENU_ITEM_ROLE`, `BLOCK_ERROR`, `UNREACHABLE`, `SORT_UNREACHABLE` (a sortable header a keyboard cannot reach), `POPUP_ARIA` (`aria-expanded` without a shown/hidden controlled element), `LIVE_TONE` (a negative notice outside an assertive container, or any notice outside a live container). Fix the intent (a `tertiary`? a shorter header?) or the engine (Settings @360 filed `FIGURE_TRUNCATED` on a folded backup name — the bug was `table.ts` inheriting `tabular-nums` into the fold, fixed there). Never loosen the proof.
+A `Claim { code, block, detail, severity, width?, axes? }` is the engine saying something a person would otherwise catch by eye or keyboard is wrong. Codes (`src/test/claims.ts`, each checker unit-tested on a positive and a negative fixture): the fit reports `FIT_ROW` / `FIT_COLUMNS` / `FIT_CELL` (a plan still unsatisfied once the screen settled), `OVERFLOW_TEXT` (a one-line text wider than its box with no ellipsis), `FIGURE_TRUNCATED` (a `tabular-nums` figure — money, date, a Stat's value — under an ellipsis narrower than it: a text may truncate, a number may not), `DECISION_UNSTABLE` (the same width and intent produced two structural plans for two datasets — ADR 0044), `UNSETTLED`, `NAME_MISSING`, `ID_DUPLICATE`, `LABEL_MISSING`, `DIALOG_ARIA`, `MENU_ITEM_ROLE`, `BLOCK_ERROR`, `UNREACHABLE`, `SORT_UNREACHABLE` (a sortable header a keyboard cannot reach), `POPUP_ARIA` (`aria-expanded` without a shown/hidden controlled element), `LIVE_TONE` (a negative notice outside an assertive container, or any notice outside a live container), `TARGET_SMALL` (under touch, an interactive target under `control.hit` on a side — `prove-touch-targets`), `AXIS_STALE` (an inline style that did not follow a live axis flip — `prove-live-flip-equals-fresh-mount`). Fix the intent (a `tertiary`? a shorter header?) or the engine (Settings @360 filed `FIGURE_TRUNCATED` on a folded backup name — the bug was `table.ts` inheriting `tabular-nums` into the fold, fixed there). Never loosen the proof: not by dropping a width, not by dropping a context, not by filtering a code.
 
 ```typescript
-// ❌ WRONG — silencing a claim by widening the width list or filtering codes
+// ❌ WRONG — silencing a claim by widening the width list, dropping a context, or filtering codes
 const proof = await prove(make, { widths: [1280, 1024] });          // 360 is where the claim was
+const proof = await prove(make, { widths: WIDTHS, axes: [{}] });   // touch is where TARGET_SMALL was
 expect(proof.claims.filter((c) => c.code !== 'FIGURE_TRUNCATED')).toEqual([]);
 
 // ✅ CORRECT — screens.proof.test.ts: a claim a screen legitimately makes today is a recorded finding,
-// asserted STILL present (a fix retires its line), and everything else must hold
-const KNOWN: Record<string, { code: Claim['code']; detail: string; widths: readonly number[] }[]> = {};
+// keyed by width and axes, asserted STILL present (a fix retires its line), and everything else must hold
+const KNOWN: Record<string, { code: Claim['code']; detail: string; widths: readonly number[]; axes?: readonly AxesContext[] }[]> = {};
 expect([...expected].filter((e) => !found.has(e))).toEqual([]);
 ```
 
@@ -837,7 +890,7 @@ it('the transactions table holds every row, with figures, at 360', () => {
 
 ### `prove-mount-at-width` — `mount()` a block at a width and assert the DOM
 
-`mount(target: tag | factory, props, { width = 800, viewport = width, scheme?, text?, measure? }): Mounted { el; frame; styleOf(selector?); resize(width, viewport?); unmount() }` (`test/mount.ts`). `text` sizes text-shaped elements, `measure` answers everything else (the estimator, in `prove()`), the frame answers the rest. `resize()` is the frame changing; `unmount()` restores the measurer, skin and document. Assert on inline styles (`display`, `width`, `textOverflow`) and DOM (`[role=menuitem]`, `thead th`).
+`mount(target: tag | factory, props, { width = 800, viewport = width, scheme?, density?, input?, text?, measure? }): Mounted { el; frame; styleOf(selector?); resize(width, viewport?); unmount() }` (`test/mount.ts`). `text` sizes text-shaped elements, `measure` answers everything else (the estimator, in `prove()`), the frame answers the rest. `density` and `input` set the axes through `setDensity`/`setInput` before the mount (`'system'` when omitted — `pointer` in happy-dom, which evaluates `(pointer: coarse)` from `navigator.maxTouchPoints`); `resize()` is the frame changing; `unmount()` restores the measurer, skin and document, and resets density and input to `'system'` **unconditionally**, because a test may flip the axes live after a mount that set neither. Mounts nest (a proof mounts a fresh tree beside a live one); the inner unmount hands the outer its measurer and skin back. Assert on inline styles (`display`, `width`, `textOverflow`) and DOM (`[role=menuitem]`, `thead th`).
 
 ```typescript
 // ✅ CORRECT — packages/engine/src/blocks/toolbar.test.ts
@@ -846,9 +899,45 @@ const text = textMeasurer(8);
 mounted = mountBlock('nisli-toolbar', { title, actions }, { width: 480, text });
 const shown = [...mounted.el.querySelectorAll<HTMLElement>('[data-nisli-action]')].filter((b) => b.style.display !== 'none').map((b) => b.getAttribute('data-nisli-action'));
 expect(shown).toEqual(['save']);
+
+// ✅ CORRECT — a block under touch: the row carries the floor by name
+const t = mountBlock('nisli-table', { columns, rows, rowKey, onOpen }, { width: 800, input: 'touch' });
+expect(t.styleOf('tbody tr').height).toBe(`${metrics.control.hit}px`);   // 44px; 24px under pointer
+t.unmount();
 ```
 
 (`data-nisli-action` is an engine-internal test hook the block writes on its own buttons — not app vocabulary.)
+
+### `prove-live-flip-equals-fresh-mount` — A live axis flip must equal a fresh mount (ADR 0046 §5)
+
+`AXIS_STALE` (severity `error`) is the general instrument that makes a frozen number a test failure in any block, screen-wide, with no scan: after the base mount reaches its fixed point and `settle()`s at axes A — and *before* the page-advance perturbation, which changes the row count — `prove()` flips the live axes to B (compact + touch when A is the default, else the default), settles again, and diffs the live tree against a fresh mount taken at B through the same `fixedPoint` + `settle()`. Pairing is by document order and valid only when both trees have the same length and tag sequence (a mismatch is filed once, naming the first differing position); any inline `style` difference names the block: "did not follow the axes: `<button>` at *…* has `padding:8px 12px` live and `padding:4px 8px` fresh". The cause is always a read of `metrics` outside a reactive scope (`block-part-structure-is-a-thunk`); the fix is in the block, never in the proof. `axisStale(live: Mounted, make, { width, viewport?, scheme?, measure?, text?, run?, to? })` (`@nisli/engine/test`) is the same check for one block — the fresh tree is mounted the way the live one was — and `axes-flip.test.ts` runs it over every block as the round's gate; the live axes are restored to A afterwards.
+
+```typescript
+// ❌ WRONG — treating a stale claim as flakiness, or "fixing" it by proving the default context only
+expect(proof.claims.filter((c) => c.code !== 'AXIS_STALE')).toEqual([]);
+const proof = await prove(make, { widths: WIDTHS, axes: [{}] });   // the flip still runs, and still finds the frozen read
+
+// ✅ CORRECT — packages/engine/src/axes-flip.test.ts: every block, flipped live, byte-identical to a fresh mount
+const t = mount(make, {}, { width: 800 });
+try { expect(await axisStale(t, make, { width: 800 })).toEqual([]); } finally { t.unmount(); }
+```
+
+### `prove-touch-targets` — Every target is `hit` on both sides under touch (ADR 0046 §5)
+
+`TARGET_SMALL` (severity `error`, checked only when the resolved `input` is `touch`): an interactive element (`INTERACTIVE` — `a[href]`, `button`, `input`, `select`, `textarea`, a non-negative `tabindex` — visible, not inert) whose target box is under `metrics.control.hit` (44) on either side. **Height** is the element's own inline `height`/`minHeight`, else the nearest ancestor's that sets one and contains no other interactive element (a sort button inside its `th`, a link inside a `tr`); **width** is an inline `width`/`minWidth`, else the estimator's text width plus inline horizontal padding (what `OVERFLOW_TEXT` already computes), and a block-level element with no width set is as wide as its box and passes. An element with **no inline height anywhere** fails — it has no floor — unless it sits inline in flowing text (`display` unset or `inline`, e.g. a `Link` inside a `Text`), which WCAG 2.5.8 exempts and the claim skips; a native control is never text. The engine writes every size inline, so this is decidable with no browser. A `tr` carries `height: hit` rather than `min-height` because CSS ignores `min-height` on table rows and treats `height` as a minimum; the claim reads both. Chart bars carry a `title`, not a role, and are out of scope. In app code the rule needs nothing: the blocks carry the floors, and a claim here is an engine gap to file (`dogfood-issue-then-engine`).
+
+```typescript
+// ❌ WRONG — a claim under touch answered by a smaller floor, or by a context dropped from the list
+const proof = await prove(make, { widths: WIDTHS, axes: [{}, { density: 'compact' }] });   // no touch, no TARGET_SMALL
+
+// ✅ CORRECT — packages/engine/src/test/claims.test.ts: fires on a 24 px control under touch, not under pointer
+const small = '<button style="display:inline-flex;height:24px;padding:0 12px">Save</button>';
+expect(codes(targetSmall, fixture(small))).toEqual([]);                         // pointer: not checked
+setInput('touch');
+expect(targetSmall.check(fixture(`<nisli-page>${small}</nisli-page>`), estimator(400))[0])
+  .toMatchObject({ block: 'nisli-page', severity: 'error', detail: '<button> "Save" is 24px tall; the touch floor is 44px' });
+expect(codes(targetSmall, fixture('<table><thead><tr><th style="height:24px"><button style="display:inline-flex;padding:0 12px">Date</button></th></tr></thead></table>'))).toEqual(['TARGET_SMALL']);   // the th is the floor
+```
 
 ### `prove-text-measurer` — Two measurers: arithmetic for blocks, calibrated for screens
 
@@ -958,6 +1047,10 @@ A field with `options` is a choice: 2–3 options render a segmented `role="radi
 
 `header`, `key` on a field, `key`/`onSelect` on a Table, `dir`, `kind: 'select' | 'textarea' | 'checkbox'`, `role: 'muted' | 'heading'`, `Empty.action`, `Form.destructive`, `confirmLabel`/`message`, `Meter.detail`, `Series.name`, `Columns.text`, `App.content` — each is a compile error (ADR 0043, `actions.test.ts`). The fix is the vocabulary (`intent-one-word-one-meaning`), never a cast; and a `'positive' as const` on a tone means a computed that should be annotated `Delta` or `Action[]`.
 
+### Freezing the door
+
+`metrics` has been a live object since 0.10.0 (ADR 0046): its groups are getters over the table for the current density and input. A block that holds `const gap = metrics.space[2]` at setup, passes an object literal (or a `buttonBox()` result) as `ctx.part()`'s structure, or gives `fitRow` a plain `gap` number renders correctly at the default and wrong after a density or input change — and kernel scan rule 5 or `AXIS_STALE` names it. Read the number where it is used: inside the thunk, the computed or the `host` effect; `untrack` a read that must not re-run (Table's page reset). App code never reads `metrics` at all.
+
 ### Reading `children` lazily
 
 Core diagnoses a prop that is never read (N202). A block or screen wrapper that only reads `props.children` inside a lazy computed that has not run yet trips it; `blocks/page.ts` reads `props.children.value` eagerly with the comment "the content computed is lazy, and an unread prop is diagnosed (N202)". Same for any wrapper component you write around a block.
@@ -970,11 +1063,11 @@ Core diagnoses a prop that is never read (N202). A block or screen wrapper that 
 
 ## Rule index
 
-`intent-say-what-not-how` · `intent-one-word-one-meaning` · `intent-no-appearance-vocabulary` · `intent-new-need-home` · `intent-app-imports-blocks-only` · `intent-structure-is-the-decision`
-`block-app` · `block-page` · `block-toolbar` · `block-section` · `block-grid` · `block-stat` · `block-table` · `block-form` · `block-dialog` · `block-meter` · `block-bars` · `block-columns` · `block-empty` · `block-text` · `block-link` · `block-notify` · `block-confirm`
+`intent-say-what-not-how` · `intent-one-word-one-meaning` · `intent-no-appearance-vocabulary` · `intent-new-need-home` · `intent-app-imports-blocks-only` · `intent-no-per-block-density` · `intent-structure-is-the-decision`
+`block-app` · `block-page` · `block-toolbar` · `block-section` · `block-grid` · `block-stat` · `block-table` · `block-form` · `block-dialog` · `block-meter` · `block-bars` · `block-columns` · `block-empty` · `block-text` · `block-link` · `block-notify` · `block-confirm` · `block-part-structure-is-a-thunk`
 `form-capture-derived` · `form-when-presence` · `form-options-draft` · `form-validate-reason` · `form-owned-initial-key` · `form-controlled-value` · `form-live-mode` · `form-group` · `form-long` · `form-bounds-readonly` · `form-submit-async`
 `status-pass-result` · `status-async-actions-busy` · `status-no-loading-flags` · `status-stale-stays`
 `skin-use-once-root` · `skin-scheme-preference` · `skin-write-parts` · `skin-no-layout` · `skin-bare-proves`
-`decide-priority-lever` · `decide-kind-lever` · `decide-tone-lever` · `decide-one-action-rule` · `decide-destructive-lever` · `decide-text-truncates` · `decide-columns-fold` · `decide-grids-choose-columns` · `decide-dont-control`
-`prove-screens-with-prove` · `prove-claims-are-failures` · `prove-reports-are-failures` · `prove-real-content` · `prove-mount-at-width` · `prove-text-measurer` · `prove-five-widths` · `prove-verify-routes` · `prove-screenshots-not-proof`
+`decide-priority-lever` · `decide-kind-lever` · `decide-tone-lever` · `decide-one-action-rule` · `decide-destructive-lever` · `decide-text-truncates` · `decide-columns-fold` · `decide-grids-choose-columns` · `decide-dont-control` · `decide-data-never-reshapes` · `decide-axes-move-rhythm-not-floors` · `decide-floats-are-layers` · `decide-reachable-by-keyboard` · `decide-tone-is-urgency`
+`prove-screens-with-prove` · `prove-claims-are-failures` · `prove-reports-are-failures` · `prove-decision-unstable` · `prove-real-content` · `prove-mount-at-width` · `prove-live-flip-equals-fresh-mount` · `prove-touch-targets` · `prove-text-measurer` · `prove-five-widths` · `prove-verify-routes` · `prove-keyboard-path` · `prove-screenshots-not-proof`
 `dogfood-issue-then-engine` · `dogfood-no-fake-intent` · `dogfood-keep-tenets`

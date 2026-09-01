@@ -27,7 +27,7 @@ export const Text = block<TextProps>('nisli-text', {
     role: computed(() => (props.role.value === 'note' || props.role.value === 'code' ? props.role.value : false)),
     style: ctx.part(
       () => [ROLE_PART[props.role.value ?? 'body'], ...(props.tone.value ? [`tone.${props.tone.value}` as const] : [])],
-      { overflowWrap: 'anywhere' },
+      () => ({ overflowWrap: 'anywhere' }),
     ),
   }, props.text),
 });

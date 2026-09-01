@@ -19,10 +19,10 @@ export const Meter = block<MeterProps>('nisli-meter', {
     // The block's taste: past the limit is negative, within 15% of it is a warning.
     const tone = computed<'negative' | 'warning' | 'neutral'>(() => (ratio.value > 1 ? 'negative' : ratio.value > 0.85 ? 'warning' : 'neutral'));
     return [
-      el('div', { style: ctx.part([], { display: 'flex', justifyContent: 'space-between', gap: metrics.space[3], minWidth: 0 }) }, [
-        el('span', { style: ctx.part('text', truncate) }, props.label),
+      el('div', { style: ctx.part([], () => ({ display: 'flex', justifyContent: 'space-between', gap: metrics.space[3], minWidth: 0 })) }, [
+        el('span', { style: ctx.part('text', () => truncate) }, props.label),
         el('span', {
-          style: ctx.part(() => (tone.value === 'negative' ? 'tone.negative' : 'tone.neutral'), { whiteSpace: 'nowrap', flex: 'none', fontVariantNumeric: 'tabular-nums' }),
+          style: ctx.part(() => (tone.value === 'negative' ? 'tone.negative' : 'tone.neutral'), () => ({ whiteSpace: 'nowrap', flex: 'none', fontVariantNumeric: 'tabular-nums' })),
         }, computed(() => props.text.value ?? '')),
       ]),
       el('div', {
@@ -31,7 +31,7 @@ export const Meter = block<MeterProps>('nisli-meter', {
         'aria-valuenow': computed(() => String(props.value.value)),
         'aria-valuemin': '0',
         'aria-valuemax': computed(() => String(props.max.value)),
-        style: ctx.part('meter.track', { height: 8, overflow: 'hidden' }),
+        style: ctx.part('meter.track', () => ({ height: 8, overflow: 'hidden' })),
       }, [
         el('div', {
           style: ctx.part(
