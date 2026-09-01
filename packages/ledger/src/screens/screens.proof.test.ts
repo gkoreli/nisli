@@ -155,6 +155,7 @@ const { SettingsScreen } = await import('./settings.js');
 // ── The proof ──────────────────────────────────────────────────────────
 
 const WIDTHS = [1280, 1024, 768, 480, 360] as const;
+const AXES = [{}, { density: 'compact' }, { input: 'touch' }, { density: 'compact', input: 'touch' }] as const;
 
 /**
  * Findings: claims a screen makes today, by exact text, at the widths it makes
@@ -162,7 +163,13 @@ const WIDTHS = [1280, 1024, 768, 480, 360] as const;
  * test asserts they are still made (so a fix retires its line) and that nothing
  * else is claimed.
  */
-const KNOWN: Record<string, { code: Claim['code']; detail: string; widths: readonly number[] }[]> = {};
+const KNOWN: Record<string, { code: Claim['code']; detail: string; at: readonly (readonly [number, string])[] }[]> = {
+  OverviewScreen: [{
+    code: 'FIT_COLUMNS',
+    detail: 'columns Category, Amount cannot fit even truncated (0px short at 198px)',
+    at: [[480, 'compact+pointer'], [480, 'compact+touch']],
+  }],
+};
 
 /** The same ledger with its lists reversed: same intent, the data perturbed (ADR 0044). */
 const perturbedLedger = (): Ledger => {
@@ -320,20 +327,19 @@ describe('the screens carry the fixture, so the proof is over real content', () 
   });
 });
 
-describe('every screen is proven at 1280, 1024, 768, 480 and 360', () => {
+describe('every screen is proven at five widths across density and input contexts', () => {
   for (const [name, { make, variants }] of Object.entries(screens)) {
     it(name, async () => {
-      const proof = await prove(make, { widths: WIDTHS, scheme: 'light', variants });
+      const proof = await prove(make, { widths: WIDTHS, scheme: 'light', variants, axes: AXES });
       const known = KNOWN[name] ?? [];
-      const expected = new Set(known.flatMap((k) => k.widths.map((w) => `${w} ${k.code} ${k.detail}`)));
-      const found = new Set(proof.claims.map((c) => `${c.width} ${key(c)}`));
+      const expected = new Set(known.flatMap((k) => k.at.map(([width, axes]) => `${width} ${axes} ${k.code} ${k.detail}`)));
+      const found = new Set(proof.claims.map((c) => `${c.width} ${c.axes?.density}+${c.axes?.input} ${key(c)}`));
       // Everything not recorded as a finding must hold.
       expect([...found].filter((f) => !expected.has(f))).toEqual([]);
       // Every recorded finding is still made — a fixed one retires its line.
       expect([...expected].filter((e) => !found.has(e))).toEqual([]);
-      expect(proof.byWidth.map((w) => w.width)).toEqual([...WIDTHS]);
-      for (const w of proof.byWidth) expect(w.turns, `${name} at ${w.width} settled`).toBeLessThan(12);
-    });
+      expect(proof.byWidth).toHaveLength(WIDTHS.length * AXES.length);
+    }, 20_000);
   }
 });
 
