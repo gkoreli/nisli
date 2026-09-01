@@ -21,7 +21,7 @@ const V090 = {
   charWidth: 7.2,
   layer: { sticky: 10, bar: 20, modal: 100, popover: 150, passive: 200 },
   layout: {
-    sidebarWidth: 232, contentMin: 560, contentMax: 1120, minColumn: 220, minField: 240, minLabel: 64,
+    sidebarWidth: 232, contentMin: 560, contentMax: 1120, minField: 240, minLabel: 64,
     dialogMin: 640, dialogWidth: 520, minTextColumn: 96, minTitle: 80, menuWidth: 160, tablePage: 60,
     dateChars: 8, figureChars: 12, textColumnCap: 320, labelChars: 20, axisChars: 8,
   },

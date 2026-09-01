@@ -347,23 +347,29 @@ and every Ledger screen was proven at five widths × four contexts
 | **the runner never settled a screen with a standing report** — every turn `remeasure()`s, a block whose plan cannot be satisfied re-files the same report on every solve, and `UNSETTLED` followed (latent in 0041; exposed by the first `FIT_COLUMNS` under compact) | movement is a *new* report (host, code, detail, deficit), never a standing one re-filed; a report-only oscillation with an unchanged DOM now settles once both keys are seen — a semantics change every proof inherits, recorded in the CHANGELOG |
 | the every-block live-flip proof mounted each block in its simplest shape | extended to Columns, Form with group / segmented / select / boolean / file / long / `when`, Table sorted + folded + paged, pending and failed statuses, Dialog as a sheet, App and Toolbar with their menus open, Empty with actions, Bars and Meter edges |
 
-**A floor inconsistency the axis exposed (F9, exactly).** Under compact at
-480, Page and Section spend 12 px instead of 16, so the Overview's rollup
-`Grid` gets a 456 px content box and decides **two** columns (a 222 px cell
-clears `minColumn` 220); the Table inside has 198 px for a money column
-(`figureChars` 12 × 7.2 + 16 padding = 102.4) plus a primary text column
-floored at `minTextColumn` 96 — 198.4 px, **0.4 px short**, and files
-`FIT_COLUMNS` honestly. The same table needs 206.4 + 32 = 238.4 px of grid
-cell at the default, so a two-primary table in a minimum grid cell cannot
-fit in *any* context: `minColumn` (220) does not cover a card's padding plus
-the narrowest two-primary table. It never showed because no Ledger width
-produces a 220–238 px cell at comfortable. This is not the axis's defect and
-`layout` does not move by axis; the consistent fix is one number —
-`layout.minColumn` 220 → 240 — which changes Grid decisions at the default
-(three columns need 752 px instead of 692) and is therefore **a decision
-for the owner, not this round**. Until then it stands as the one finding of
-the Ledger axes proof, to be recorded in `KNOWN` at (480, compact) and
-(480, compact + touch).
+**A floor inconsistency the axis exposed (F9, exactly) — and the rule it
+forced.** Under compact at 480, Page and Section spend 12 px instead of 16,
+so the Overview's rollup `Grid` gets a 456 px content box and decided
+**two** columns (a 222 px cell cleared the declared `minColumn` 220); the
+Table inside had 198 px for a money column (`figureChars` 12 × 7.2 + 16
+padding = 102.4) plus a primary text column floored at `minTextColumn` 96
+— 198.4 px, 0.4 px short, and filed `FIT_COLUMNS` honestly. The same table
+needs 206.4 + 32 = 238.4 px of grid cell at the default, so a two-primary
+table in a minimum grid cell could not fit in *any* context: two declared
+floors (`minColumn`, `minTextColumn` + a figure budget) that had to agree
+by hand, and did not. The first draft of this section offered the owner a
+choice of number (220 → 240). That was the wrong shape of fix — a number a
+person picks so that it stays consistent with another number is the eyes-
+decision the engine exists to make. **The rule:** a floor that must be
+consistent with another floor is derived, never declared. `layout.minColumn`
+is gone; `cellFloor()` in `engine/space.ts` is the narrowest cell a grid may
+decide — a card's padding around the narrowest table the engine will not
+fold (one figure column beside one primary text column at `minTextColumn`),
+from the same numbers the table decides with: 238.4 at the default, 222.4
+at compact. Grid decisions at the default move where a cell would have been
+too narrow for that table (three columns now need 747 px of content, not
+692); that is the engine being right, not a preference. Re-proven: every
+Ledger screen at five widths × four contexts files **nothing**.
 
 **One sighting not reproduced.** One four-context run filed `AXIS_STALE`
 on the Transactions filter form at 360 and `DECISION_UNSTABLE` on the
@@ -412,13 +418,14 @@ proof will show whether it recurs.
   `screens.proof.test.ts` at five widths × four contexts (`{}`, compact,
   touch, compact + touch), three consecutive full runs identical: no
   `TARGET_SMALL`, no `AXIS_STALE`, no `UNSETTLED`, nothing new at the
-  default; the one standing finding is Overview `FIT_COLUMNS` at (480,
-  compact) and (480, compact + touch) — the F9 floor above. **Pending** —
-  the same contexts and `KNOWN` rows in the committed
+  default; the one finding the first runs made (Overview `FIT_COLUMNS` at
+  480 under compact) retired with the derived `cellFloor` — the final runs
+  file **nothing**. **Pending** — the same contexts in the committed
   `screens.proof.test.ts`: the file is dirty in the Ledger session's tree
-  tonight, so the exact edit is handed over in
-  [`docs/tasks/ledger-axes-proof.md`](../tasks/ledger-axes-proof.md) rather
-  than made under it.
+  tonight (it has already adopted the contexts and carries two `KNOWN`
+  rows for the retired finding, which now fail as "no longer made" and
+  should be deleted); the note is
+  [`docs/tasks/ledger-axes-proof.md`](../tasks/ledger-axes-proof.md).
 - **Held** — Chromium (Playwright, iPhone 13 emulation, the running Ledger
   dev server, 2026-08-31): `(pointer: coarse)` resolves to `touch` with no
   app code; on Transactions 68 of 72 targets are ≥ 44 px on both sides —

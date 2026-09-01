@@ -37,8 +37,6 @@ const COMFORTABLE = {
     contentMin: 560,
     /** Content never grows wider than this; it centres instead. */
     contentMax: 1120,
-    /** A grid cell narrower than this is not worth a column. */
-    minColumn: 220,
     /** A form field narrower than this is not worth a column. */
     minField: 240,
     /** A bar-chart label column is never narrower than this. */

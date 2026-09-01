@@ -231,7 +231,7 @@ Section({ title: 'Spending by category', children: [Bars({ items: byCategory })]
 
 ### `block-grid` — `Grid` chooses how many cells sit side by side
 
-`GridProps { children }` (`blocks/grid.ts`). `columnsFor(width, count, minColumn 220, gap)`; reports `FIT_CELL` when a single column is narrower than the minimum. Children may be a computed list.
+`GridProps { children }` (`blocks/grid.ts`). `columnsFor(width, count, cellFloor(), gap)` — the floor is derived (a card's padding + one figure column + `minTextColumn`; 238.4 at the default), never a declared number; reports `FIT_CELL` when a single column is narrower than the minimum. Children may be a computed list.
 
 ```typescript
 // ❌ WRONG — asking for a column count

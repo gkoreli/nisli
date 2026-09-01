@@ -23,17 +23,12 @@ In `packages/ledger/src/screens/screens.proof.test.ts`:
 3. `expect(proof.byWidth.map((w) => w.width))` → length `WIDTHS.length * AXES.length`;
    the turns bound per entry stays `< 12` (the axis flip adds ~5 turns to
    `proof.byWidth[i].turns` in total, not per fixed point).
-4. The one finding, recorded:
-   ```ts
-   OverviewScreen: [{ code: 'FIT_COLUMNS', detail: 'columns Category, Amount cannot fit even truncated (0px short at 198px)', at: [[480, 'compact+pointer'], [480, 'compact+touch']] }],
-   ```
-   Why it stands: under compact the rollup `Grid` takes two columns at 480
-   (222 px cells clear `minColumn` 220) and a money + primary-text table
-   needs 198.4 px in 198 — `layout.minColumn` does not cover a card's padding
-   plus the narrowest two-primary table in any context (ADR 0046 §What the
-   review and the Ledger proof changed). The consistent fix is
-   `layout.minColumn` 220 → 240 in the engine, which changes Grid decisions
-   at the default and is the owner's call.
+4. `KNOWN` stays empty. The one finding the first runs made (Overview
+   `FIT_COLUMNS` at 480 under compact) retired when the engine derived the
+   grid floor (`cellFloor()`, engine 0.10.0 — ADR 0046 §What the review and
+   the Ledger proof changed). If the file already carries `KNOWN` rows for
+   it, they now fail as "no longer made": delete them. Final engine-side
+   runs: every screen, five widths × four contexts, zero claims.
 
 ## Optional, one line each (ADR 0046 §Consequences)
 

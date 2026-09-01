@@ -44,11 +44,16 @@ publish.
   - **Proof semantics:** a screen with a standing report now settles —
     movement is a *new* report, never the same one re-filed on the next
     solve (every turn re-measures). `estimateText` honours `min-width`.
-  - Found by the round, left for the owner: `layout.minColumn` 220 does
-    not cover a card's padding plus the narrowest two-primary table
-    (238.4 px at the default); under compact at 480 the Overview's rollup
-    grid takes two columns and its table files `FIT_COLUMNS` by 0.4 px
-    (ADR 0046 §What the review and the Ledger proof changed).
+  - **`layout.minColumn` is gone; the grid floor is derived.** Under
+    compact the axis exposed that the declared 220 did not cover a card's
+    padding plus the narrowest two-primary table (238.4 px at the
+    default) — two floors that had to agree by hand. `cellFloor()`
+    (`engine/space.ts`, exported) is now the narrowest cell a Grid decides:
+    a card around one figure column beside one primary text column at
+    `minTextColumn`, from the same metrics the table uses — 238.4 at the
+    default, 222.4 at compact. A floor that must be consistent with
+    another floor is derived, never declared. Grid decisions move only
+    where a cell would have been too narrow for that table.
 
 ## 0.9.0 — 2026-08-30
 

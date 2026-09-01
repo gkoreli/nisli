@@ -72,6 +72,19 @@ export function labelEvery(slot: number, longest: number): number {
   return Math.max(1, Math.ceil(longest / Math.max(1, slot)));
 }
 
+/**
+ * The narrowest cell a grid may decide: a card's padding around the narrowest
+ * table the engine will not fold — one figure column beside one primary text
+ * column at its floor. Derived from the same numbers the table decides with,
+ * never declared, so a grid floor can never disagree with a table floor (the
+ * north star's F9: derivation from one unit is not self-consistent unless the
+ * floors are). Comfortable: 32 + 110.4 + 96 = 238.4; compact: 24 + 102.4 + 96.
+ */
+export function cellFloor(layout: Layout = metrics.layout, charWidth: number = metrics.charWidth, space: typeof metrics.space = metrics.space): number {
+  const cellPadding = 2 * space[3];
+  return 2 * space[4] + (layout.figureChars * charWidth + cellPadding) + layout.minTextColumn;
+}
+
 // ── Table column budgets (ADR 0044) ────────────────────────────────────
 
 /** What a column *is* — the intent `columnBudgets` decides from. A `Column<T>` satisfies it; the cells never reach here. */

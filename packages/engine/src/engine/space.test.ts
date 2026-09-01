@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { metrics } from '../metrics.js';
-import { shellMode, dialogMode, labelColumn, labelEvery, labelWidth, pageSize, fit, columnsFor, columnBudgets, spreadSlack, textWeights, SORT_MARK_CHARS, type ColumnIntent } from './space.js';
+import { cellFloor, shellMode, dialogMode, labelColumn, labelEvery, labelWidth, pageSize, fit, columnsFor, columnBudgets, spreadSlack, textWeights, SORT_MARK_CHARS, type ColumnIntent } from './space.js';
 
 const L = metrics.layout;
 
@@ -8,6 +8,16 @@ describe('space — decisions from a width', () => {
   it('re-exports the fit and columns decisions', () => {
     expect(typeof fit).toBe('function');
     expect(columnsFor(928, 4, 220, 16)).toBe(4);
+  });
+
+  it('cellFloor: a grid cell is never narrower than a card around the narrowest table — derived, so it cannot disagree with the table floor (ADR 0046)', () => {
+    // comfortable: card padding 2×16 + a figure column (12 × 7.2 + 2×12) + minTextColumn 96
+    expect(cellFloor()).toBeCloseTo(32 + 110.4 + 96);
+    // compact: the same arithmetic over compact spacing — a smaller floor, more cells fit
+    expect(cellFloor(L, 7.2, { 1: 4, 2: 6, 3: 8, 4: 12, 5: 16, 6: 24 })).toBeCloseTo(24 + 102.4 + 96);
+    // a wider figure budget or text floor moves the cell floor with it — one source of truth
+    expect(cellFloor({ ...L, figureChars: 14 })).toBeCloseTo(32 + 124.8 + 96);
+    expect(cellFloor({ ...L, minTextColumn: 120 })).toBeCloseTo(32 + 110.4 + 120);
   });
 
   it('shellMode: a sidebar iff a useful content column fits beside it; unmeasured is roomy', () => {
