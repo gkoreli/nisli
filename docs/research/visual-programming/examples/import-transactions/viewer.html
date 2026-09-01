@@ -1,0 +1,20 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nisli visual program</title>
+<style>
+  body { margin: 0; font: 14px system-ui, sans-serif; background: #eef1f6; color: #172033; }
+  header { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; padding: 14px 18px; background: white; border-bottom: 1px solid #dce2eb; }
+  label { display: flex; gap: 8px; align-items: center; }
+  main { padding: 18px; }
+  canvas { display: block; max-width: 100%; margin: 0 auto; background: #f6f7fb; box-shadow: 0 12px 35px rgba(35,48,71,.12); }
+  output { margin-left: auto; color: #556176; }
+</style>
+<header>
+  <label>State <select id="phase"><option value="empty">Empty</option><option value="populated">Populated</option></select></label>
+  <label>Width <input id="width" type="range" min="320" max="1280" value="1280" step="8"><span id="width-value">1280</span></label>
+  <label><input id="identities" type="checkbox"> Show identities</label>
+  <output id="status">The .nvis file is running directly.</output>
+</header>
+<main><canvas id="screen" aria-label="Running Import transactions visual program"></canvas></main>
+<script type="module" src="./viewer.mjs"></script>

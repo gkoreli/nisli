@@ -1,0 +1,18 @@
+{
+  "extends": "../../../../../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": "../../../../../",
+    "target": "ESNext",
+    "module": "Preserve",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["node", "vitest/globals"],
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "paths": {
+      "@nisli/core": ["packages/core/src/index.ts"],
+      "@nisli/engine": ["packages/engine/src/index.ts"],
+      "@nisli/engine/test": ["packages/engine/src/test/prove.ts"]
+    }
+  },
+  "include": ["./*.ts"]
+}

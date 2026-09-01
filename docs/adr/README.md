@@ -51,4 +51,5 @@ They moved with the framework when `@nisli/core` became a standalone package.
 - [0043. Engine Intent Vocabulary Contract — One Term, One Meaning, Across the Whole Surface](./0043-engine-intent-vocabulary-contract.md) - Accepted - 2026-08-30
 - [0044. Engine Deterministic Decisions — A Layout Decision Is a Function of Width and Intent, Never of Data](./0044-engine-deterministic-decisions.md) - Accepted - 2026-08-30
 - [0046. Engine Density and Input Axes — One Intent, Sized by Context the Engine Detects](./0046-engine-density-and-input-axes.md) - Accepted - 2026-08-31
-- [0047. Visual Programs — A Generative Visual Source Above Typed Engine Code](./0047-visual-programs-as-source.md) - Proposed - 2026-08-31
+- [0047. Visual Programs — A Generative Visual Source Above Typed Engine Code](./0047-visual-programs-as-source.md) - Superseded by 0047.1 - 2026-08-31
+- [0047.1. Live Visual Programming — The Rendered Interface Is the Source Code](./0047.1-live-visual-programming.md) - Proposed - 2026-08-31
