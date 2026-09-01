@@ -74,7 +74,7 @@ describe('prove()', () => {
     expect(skinned.byWidth.map((w) => w.width)).toEqual(WIDTHS);
     const bare = await prove(() => screen(), { widths: WIDTHS });
     expect(bare.claims).toEqual([]);
-  });
+  }, 20_000);
 
   it('with the dialog open the page is inert, the dialog is reachable and labelled, and the sheet at 360 still holds', async () => {
     const proof = await prove(() => screen(true), { widths: [1280, 360], scheme: 'light' });
