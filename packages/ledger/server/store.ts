@@ -6,6 +6,7 @@
 import { copyFile, mkdir, open, readFile, readdir, rename, stat, unlink } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, parse, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { localDate } from '../src/data/calendar.ts';
 import type { CategoryDecision, Ledger } from '../src/data/model.ts';
 import { canSynchronize, mergeOwnerLedgerWrite, normalizeConnection } from './banking/domain.ts';
 import type { BankConnection, BankConnectionInput } from './banking/domain.ts';
@@ -129,7 +130,7 @@ async function writeAtomic(file: string, value: unknown): Promise<void> {
   }
 }
 
-const today = (): string => new Date().toISOString().slice(0, 10);
+const today = (): string => localDate();
 let mutationChain: Promise<void> = Promise.resolve();
 
 /** Serialise all ledger mutations so version checks and file renames never interleave. */

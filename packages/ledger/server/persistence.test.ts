@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { join } from 'node:path';
+import { localDate } from '../src/data/calendar.js';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
 import type { Ledger } from '../src/data/model.ts';
@@ -255,7 +256,7 @@ describe('backup filesystem errors', () => {
     const { directory, store } = await isolatedStore();
     await writeFile(join(directory, 'ledger.json'), JSON.stringify({ version: 1, ledger: ledger() }));
     await mkdir(join(directory, 'backups'));
-    const target = join(directory, 'backups', `ledger-${new Date().toISOString().slice(0, 10)}.json`);
+    const target = join(directory, 'backups', `ledger-${localDate()}.json`);
     await symlink(target, target);
 
     await expect(store.putLedger(1, ledger())).rejects.toMatchObject({ code: 'ELOOP' });
