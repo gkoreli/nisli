@@ -20,13 +20,14 @@ import { describe, it, expect, vi } from 'vitest';
 import { settle, flushEffects } from '@nisli/core';
 import { prove, mount, estimator, type Claim } from '@nisli/engine/test';
 import { addDays } from '../data/finance/index.js';
+import { localDate, localMonth } from '../data/calendar.js';
 import type { Ledger, Transaction } from '../data/model.js';
 import type { BankConnection, BankStatus, FinancialComposition } from '../data/bank.js';
 import type { BackupInfo, LedgerResponse } from '../data/api.js';
 
 // ── The server ─────────────────────────────────────────────────────────
 
-const month = new Date().toISOString().slice(0, 7);
+const month = localMonth();
 const day = (d: number) => `${month}-${String(d).padStart(2, '0')}`;
 const lastMonth = (() => { const [y, m] = month.split('-').map(Number); const d = new Date(y!, m! - 2, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; })();
 
@@ -300,7 +301,7 @@ describe('every screen is proven at 1280, 1024, 768, 480 and 360', () => {
 
 describe('coming up, over a ledger where series are detected', () => {
   it('lists upcoming and overdue occurrences, the committed line, and the next income', () => {
-    const T = new Date().toISOString().slice(0, 10);
+    const T = localDate();
     const at = (n: number) => addDays(T, n);
     const l = ledger();
     l.accounts.push({ id: 'gel', name: 'GEL Checking', kind: 'checking', opening: 100_000, institution: 'Local Bank', currency: 'GEL' });

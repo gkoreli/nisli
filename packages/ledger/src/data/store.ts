@@ -4,6 +4,7 @@ import { notify } from '@nisli/engine';
 import * as api from './api.js';
 import { initialLedger } from './initial-ledger.js';
 import { sameReviewBasis } from './review.js';
+import { localMonth } from './calendar.js';
 
 const KEY = 'ledger.v2';
 
@@ -295,7 +296,7 @@ export const recordSync = (itemId: string, added: number) =>
   patch({ sync: { ...(state.value.sync ?? {}), [itemId]: { at: new Date().toISOString(), added } } });
 
 /** The month the reports look at (YYYY-MM). Not persisted. */
-export const period = signal(new Date().toISOString().slice(0, 7));
+export const period = signal(localMonth());
 export const shiftPeriod = (months: number) => {
   const [y, m] = period.value.split('-').map(Number);
   const d = new Date(y!, m! - 1 + months, 1);

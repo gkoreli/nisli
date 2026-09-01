@@ -1,4 +1,5 @@
 import { settings } from './store.js';
+import { localDate, localMonth } from './calendar.js';
 
 export const money = (cents: number, opts: { sign?: boolean } = {}) => {
   const { currency, locale } = settings.value;
@@ -12,7 +13,7 @@ export const shortDate = (iso: string) => {
 };
 
 export const monthKey = (iso: string) => iso.slice(0, 7);
-export const thisMonth = () => new Date().toISOString().slice(0, 7);
+export const thisMonth = () => localMonth();
 export const monthLabel = (key: string) => {
   const [y, m] = key.split('-').map(Number);
   return new Date(y!, m! - 1, 1).toLocaleDateString(settings.value.locale, { month: 'long', year: 'numeric' });
@@ -32,4 +33,4 @@ export const lastMonths = (key: string, n: number): string[] => {
   while (out.length < n) out.unshift(previousMonth(out[0]!));
   return out;
 };
-export const today = () => new Date().toISOString().slice(0, 10);
+export const today = () => localDate();
