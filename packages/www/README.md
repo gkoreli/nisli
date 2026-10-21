@@ -19,6 +19,7 @@ Information architecture and roadmap: [`IA.md`](./IA.md).
 | `release`   | `build` + `npx wrangler deploy` — the manual deploy path (publishes `dist/` to Cloudflare worker `nisli-www`). Named `release`, not `deploy`, because `pnpm deploy` is a reserved pnpm builtin. |
 | `test`      | `vitest run` — the render test doubles as an end-to-end regression.       |
 | `typecheck` | `tsc --noEmit`.                                                            |
+| `proof:compound-lifecycle` | Bundle current core and UI registry sources in memory and prove issue #1's cloned-fragment ordering and single-template Accordion behavior in Chromium, Firefox, and WebKit. Checks ARIA, click, Enter, and Space on first and cached-template mounts; runs in CI without requiring `dist/`. |
 
 Run from the repo root, e.g. `pnpm --filter @nisli/www build`.
 

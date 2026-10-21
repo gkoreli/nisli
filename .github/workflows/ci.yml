@@ -49,6 +49,9 @@ jobs:
       - name: Core published-package contract
         run: pnpm --filter @nisli/core test:package
 
+      - name: Compound component lifecycle in three browsers
+        run: pnpm --filter @nisli/www proof:compound-lifecycle
+
       - name: Browser-render every UI preview
         run: pnpm --filter @nisli/www test:previews
 

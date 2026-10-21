@@ -15,6 +15,7 @@
     "proof:message-layout:cleanup": "node scripts/message-layout-proof.mjs --self-test-cleanup",
     "proof:animations": "node scripts/animation-proof.mjs",
     "proof:movebefore": "node scripts/movebefore-proof.mjs",
+    "proof:compound-lifecycle": "node scripts/compound-lifecycle-proof.mjs",
     "proof:router-navigation": "node scripts/router-navigation-proof.mjs",
     "proof:router-navigation:vacuity": "node scripts/router-navigation-proof.mjs --self-test-vacuity",
     "proof:view-transitions": "node scripts/view-transition-proof.mjs",
