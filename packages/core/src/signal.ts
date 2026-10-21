@@ -126,15 +126,6 @@ function scheduleFlush(): void {
 
 function flushPendingEffects(): void {
   flushScheduled = false;
-  if (pendingEffects.size === 0) return;
-  if (pendingEffects.size === 1) {
-    // A single pending effect is already in creation order. Remove it before
-    // running so writes during the effect belong to the next flush pass.
-    const effect = pendingEffects.values().next().value;
-    pendingEffects.clear();
-    if (effect) runEffect(effect);
-    return;
-  }
   // Copy to avoid mutation during iteration; sort by creation index so
   // identical writes produce identical run order forever (ADR 0030.2 T5).
   const effects = [...pendingEffects].sort((a, b) => a.order - b.order);

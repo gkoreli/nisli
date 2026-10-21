@@ -27,7 +27,7 @@ and core integration are separate operations.
 
 | Work | Status | Next bounded action |
 |---|---|---|
-| Skip copying/sorting zero or one pending effect | Isolated subset accepted for main | Retain queueMicrotask; final Git/CI receipt is linked below |
+| Skip copying/sorting zero or one pending effect | Held after cross-engine throughput counterevidence; runtime reverted | Profile allocation/JIT costs before proposing a replacement |
 | Cache binding locations and resolve with TreeWalker | Preserved candidate | Rebase separately, measure first-use/retained metadata and repeated native mounts, review callback-driven structural mutation boundaries |
 | Reused Promise scheduler | Held: known behavior difference | Retain queueMicrotask unless exception timing is deliberately accepted or a reporting path preserves the contract across supported hosts |
 | Complete binding-instruction cache / subtree fallback | Proposed only | Profile separately; these were never implemented by the saved location cache |
@@ -72,7 +72,7 @@ Neither correction discards graph cases or changes expected production behavior.
 The full candidate is saved independently before evaluating the queue-only
 subset. No new framework release is implied by this backlog.
 
-## Queue-only integration
+## Queue-only integration (historical; runtime subsequently reverted)
 
 The local full candidate is preserved at `f671dcd` on
 `codex/core-rendering-crosscheck`. The integration branch
@@ -113,3 +113,44 @@ Final Git delivery and remote main-CI acceptance are recorded in the
 [article handoff](https://github.com/gkoreli/blog/blob/main/packages/blog/drafts/research/nisli-framework/03-review-and-handoff.md#core-optimization-preservation-and-integration).
 The other two optimizations remain open backlog items. No npm package version
 is bumped and no new timing measurement is claimed for the isolated subset.
+
+## Throughput counterevidence and runtime rollback
+
+A fresh production-mode check compared core baseline `4fa6360` with queue-only
+source at `9e9d546`. It ran three warmups and seven measured samples per variant,
+alternating variant order, with 10,000 verified DOM writes, six shared microtask
+turns per write, and one or eight pending effects. All samples are retained in
+the [throughput evidence](https://github.com/gkoreli/blog/tree/main/packages/blog/drafts/research/nisli-framework/integration).
+The headless engines and host differ from the article’s original Chrome run;
+these results are not pooled with that article table.
+
+| Engine | Pending effects | Baseline median ms | Queue-only median ms |
+|---|---:|---:|---:|
+| Chromium 149 | 1 | 6.2 | 6.1 |
+| Chromium 149 | 8 | 21.7 | 23.0 |
+| Firefox 151 | 1 | 86.0 | 108.0 |
+| Firefox 151 | 8 | 1235.0 | 1250.0 |
+| WebKit 26.5 | 1 | 5.0 | 5.0 |
+| WebKit 26.5 | 8 | 22.0 | 23.0 |
+
+Firefox's single-effect samples did not overlap (baseline 68–96 ms; candidate
+103–154 ms). Its eight-effect case varied widely, so its median is not evidence
+of a stable magnitude. The other engines show no convincing win. Avoiding the
+array is not sufficient proof of lower runtime cost: iterator allocation, JIT,
+and host GC remain hypotheses requiring profiling. No universal slowdown or
+statistical significance is claimed from this one host/run.
+
+The small runtime subset was integrated before this measurement, then reverted
+before an npm release. Current main retains queueMicrotask and the baseline
+copy/sort implementation. Its four new scheduling regression tests remain.
+The queue-only source is recoverable at `9e9d546`; its earlier correctness
+results remain valid for that source, but do not establish a performance win.
+For those results, check out that commit in a separate worktree before using
+`--expect-equivalent`; running against reverted main would compare the baseline
+with itself. Full-candidate mode likewise requires the archived full port.
+
+All three runtime changes therefore remain preserved backlog candidates rather
+than shipped optimizations. Further work should profile the actual queue paths,
+repeat controlled single- and multi-effect measurements across supported
+engines, and retain the rejected results. Do not reinstate the fast path merely
+because behavioral tests pass.
