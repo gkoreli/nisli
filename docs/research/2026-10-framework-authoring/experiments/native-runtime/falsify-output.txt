@@ -1,0 +1,66 @@
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+ RUN  v2.1.9 /Users/goga/Documents/goga/nisli
+
+stdout | docs/research/2026-10-framework-authoring/experiments/native-runtime/falsify.test.ts > REQUIRED: child factory state survives an unrelated parent-render update
+{"case":"nested factory","setups":2,"retainsInput":false,"value":"seed"}
+
+stdout | docs/research/2026-10-framework-authoring/experiments/native-runtime/falsify.test.ts > REQUIRED: the blanket same-template policy distinguishes different document identities without a supplied key
+{"case":"document identity","selected":"B","draft":"draft belonging to A"}
+
+ ❯ docs/research/2026-10-framework-authoring/experiments/native-runtime/falsify.test.ts (2 tests | 2 failed) 20ms
+   × REQUIRED: child factory state survives an unrelated parent-render update 17ms
+     → retaining the outer template must not recreate its child factory: expected <input value="seed"></input> to be <input value="seed"></input> // Object.is equality
+
+If it should pass with deep equality, replace "toBe" with "toStrictEqual"
+
+Expected: <input value="seed"></input>
+Received: serializes to the same string
+
+   × REQUIRED: the blanket same-template policy distinguishes different document identities without a supplied key 2ms
+     → the new document must not inherit the previous document draft: expected 'draft belonging to A' to be 'seed' // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  docs/research/2026-10-framework-authoring/experiments/native-runtime/falsify.test.ts > REQUIRED: child factory state survives an unrelated parent-render update
+AssertionError: retaining the outer template must not recreate its child factory: expected <input value="seed"></input> to be <input value="seed"></input> // Object.is equality
+
+If it should pass with deep equality, replace "toBe" with "toStrictEqual"
+
+Expected: <input value="seed"></input>
+Received: serializes to the same string
+
+
+Compared values have no visual difference.
+
+ ❯ docs/research/2026-10-framework-authoring/experiments/native-runtime/falsify.test.ts:16:107
+     14|   const input = host.querySelector('input')!; input.value = 'unfinishe…
+     15|   console.log(JSON.stringify({case:'nested factory',setups,retainsInpu…
+     16|   expect(host.querySelector('input'), 'retaining the outer template mu…
+       |                                                                                                           ^
+     17|   expect(setups).toBe(1);
+     18| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  docs/research/2026-10-framework-authoring/experiments/native-runtime/falsify.test.ts > REQUIRED: the blanket same-template policy distinguishes different document identities without a supplied key
+AssertionError: the new document must not inherit the previous document draft: expected 'draft belonging to A' to be 'seed' // Object.is equality
+
+Expected: "seed"
+Received: "draft belonging to A"
+
+ ❯ docs/research/2026-10-framework-authoring/experiments/native-runtime/falsify.test.ts:27:111
+     25|   host.querySelector('input')!.value = 'draft belonging to A'; selecte…
+     26|   console.log(JSON.stringify({case:'document identity',selected:host.q…
+     27|   expect(host.querySelector('input')!.value, 'the new document must no…
+       |                                                                                                               ^
+     28| });
+     29| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  23:36:08
+   Duration  341ms (transform 60ms, setup 0ms, collect 89ms, tests 20ms, environment 90ms, prepare 24ms)
+

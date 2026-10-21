@@ -1,0 +1,109 @@
+{
+  "commit": "1d055cabdffbea8ff8d82cbfd88a6081882ca8b2",
+  "files": [
+    {
+      "path": "packages/core/src/component.ts",
+      "sha256": "34c11006012466a11510dcb0696ce83b14a969ae4a5977a2c68b07fbc23f35ba"
+    },
+    {
+      "path": "packages/core/src/context.ts",
+      "sha256": "cfad5c1438a5598d6e0eff06f86c3fb12e4eb0f85b052abdb0dc9826e9ad52ed"
+    },
+    {
+      "path": "packages/core/src/diagnostics.ts",
+      "sha256": "ac374710323297fe0aacb80ad62a5177090f82cc3e25586a6ac7dfd0d1f33417"
+    },
+    {
+      "path": "packages/core/src/disposable.ts",
+      "sha256": "e81dc53bcfb68db87677a9b8189d7395ab9a12ca88f7f5aa6dbac15d50647860"
+    },
+    {
+      "path": "packages/core/src/element-context.ts",
+      "sha256": "648699473334e45c54b9b23ff9915edd7d7121742362a82455cc935581eaae16"
+    },
+    {
+      "path": "packages/core/src/emitter.ts",
+      "sha256": "2d56fba1ec6a3cd4e42593ffa35ace207c68d8f98ad63e23f90fdc143b5185b4"
+    },
+    {
+      "path": "packages/core/src/hmr/registry.ts",
+      "sha256": "be535752a0d18998f6177d5ae66c359f75f635d1fc55b60c484d711faee9120b"
+    },
+    {
+      "path": "packages/core/src/hmr/transform.ts",
+      "sha256": "f5906ed17108e99a063deadca3a4275f90461b31fa5a835e2fd044df4fc06b06"
+    },
+    {
+      "path": "packages/core/src/index.ts",
+      "sha256": "8cc5127c53c29063541abe773c1bdf36e1e0656846bfa4f958d2f9502012fd1d"
+    },
+    {
+      "path": "packages/core/src/injector.ts",
+      "sha256": "be51f35fb71c3a5fe7f152ba621e137f2b527fd094914a49872562c740cb96da"
+    },
+    {
+      "path": "packages/core/src/lifecycle.ts",
+      "sha256": "70471d26d6049753a185c6a32eeadb065ce42a9b65b344c360745b4f01e0f002"
+    },
+    {
+      "path": "packages/core/src/projection.ts",
+      "sha256": "f59ece3b56e30e6ee121c9242abd0803750b6943fccf28eb328b6d132bacdff0"
+    },
+    {
+      "path": "packages/core/src/query.ts",
+      "sha256": "cfaf4792fd5fc64d417c0fe007efbc283d4969ebf44761a399184fd8366f6337"
+    },
+    {
+      "path": "packages/core/src/ref.ts",
+      "sha256": "a2a694c71546dd81a8ad0156c23b22b8f15808a87935453c5af7bb6005c0dab5"
+    },
+    {
+      "path": "packages/core/src/resource.ts",
+      "sha256": "dfc36565f37fd74a6dee677e5f5ca4cbd9fcb422921a4849a3c7f9ddedd0cd3c"
+    },
+    {
+      "path": "packages/core/src/settle.ts",
+      "sha256": "0223195d53704a21c41a14b337381e5ee9f2a908664f25fb4138921e78124859"
+    },
+    {
+      "path": "packages/core/src/signal.ts",
+      "sha256": "5104a8fc7eeef7a492c9b5c1ff94e256c60c2bb1bd6150de120e001857fbab6e"
+    },
+    {
+      "path": "packages/core/src/template-audit.ts",
+      "sha256": "9fde06a179cd21243d63bcb9aa0ea8f27ae0569e92861c77409051fa3b1b9cd1"
+    },
+    {
+      "path": "packages/core/src/template.ts",
+      "sha256": "4d9577915eb4f1a1265942dd1404475c1807df62ef8b59a3b6462b277a9e3e61"
+    },
+    {
+      "path": "packages/core/src/view-transition.ts",
+      "sha256": "fbdbc0b27573f696137344eba6993c1c79edf6cd86b26509194a8d49e6a64e66"
+    },
+    {
+      "path": "packages/core/src/vite-hmr/plugin.ts",
+      "sha256": "b792451e2d023cffda0f502216b3ea5dd342d66bbee917b0cf48c1844cee844b"
+    },
+    {
+      "path": "packages/core/src/vite-hmr/runtime.ts",
+      "sha256": "e70cd0b50863576664f209c1f950997e10c11de42af5d05f71cf0c88bfe2385b"
+    },
+    {
+      "path": "packages/ui/registry/default/lib/utils.ts",
+      "sha256": "d1237beaea4fc4bbc7e1acacc1afa2d669ff6853025c894567326fa69b8999e0"
+    },
+    {
+      "path": "packages/ui/registry/default/ui/input.ts",
+      "sha256": "c3bfa0d7689f7cc8e5f21fba023cc5be80a32d369442e0143d85bc678048e2fe"
+    },
+    {
+      "path": "packages/ui/registry/default/ui/progress.ts",
+      "sha256": "101fa09efa2a62afd16b29b0d7a9df24f312f34911f47204947f3232d72986ea"
+    },
+    {
+      "path": "packages/ui/registry/default/ui/slider.ts",
+      "sha256": "4ec54dfc18967d87f6b7d7a19674074a17e65e85b33ba47aa578baf82e2eede3"
+    }
+  ]
+}

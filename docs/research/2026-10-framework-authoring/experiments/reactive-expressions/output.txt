@@ -1,0 +1,14 @@
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+ RUN  v2.1.9 /Users/goga/Documents/goga/nisli
+
+stdout | docs/research/2026-10-framework-authoring/experiments/reactive-expressions/probe.test.ts > opt-in lowering into existing Nisli primitives > matches the explicit computed reference and preserves input identity and edit value
+{"experiment":"leaf update under computed view","snapshots":[{"name":"raw","same":false,"value":"initial","text":"after"},{"name":"lowered","same":true,"value":"unsaved edit","text":"after"},{"name":"manual","same":true,"value":"unsaved edit","text":"after"}]}
+
+ ✓ docs/research/2026-10-framework-authoring/experiments/reactive-expressions/probe.test.ts (7 tests) 50ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  23:00:00
+   Duration  780ms (transform 100ms, setup 0ms, collect 340ms, tests 50ms, environment 182ms, prepare 43ms)
+

@@ -1,0 +1,26 @@
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+ RUN  v2.1.9 /Users/goga/Documents/goga/nisli
+
+stdout | docs/research/2026-10-framework-authoring/experiments/native-runtime/probe.test.ts > compares existing computed view with runtime retention, including unfinished input
+{"case":"same template","baselineRetainsInput":false,"prototypeRetainsInput":true}
+
+stdout | docs/research/2026-10-framework-authoring/experiments/native-runtime/probe.test.ts > actual Progress and render variant agree over value, max, class and plain-HTML updates
+{"case":"actual Progress variant","originalComputedDeclarations":5,"variantComputedDeclarations":0,"controlledStates":5,"attributeStates":2}
+
+stdout | docs/research/2026-10-framework-authoring/experiments/native-runtime/probe.test.ts > current typed factory callbacks remain data, so blanket auto-invocation is unsound
+{"case":"function-valued props","blanketInvocationWouldExecuteAction":true}
+
+stdout | docs/research/2026-10-framework-authoring/experiments/native-runtime/probe.test.ts > records actual Slider setup snapshots: live declared min/max inputs do not reach the native control
+{"case":"actual Slider snapshots","requested":[20,200,5],"native":["0","100","1"]}
+
+stdout | docs/research/2026-10-framework-authoring/experiments/native-runtime/probe.test.ts > render retention can still rerun unrelated expensive calculations
+{"case":"calculation counts","region":[2,2],"local":[2,1]}
+
+ ✓ docs/research/2026-10-framework-authoring/experiments/native-runtime/probe.test.ts (11 tests) 29ms
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+   Start at  23:36:00
+   Duration  304ms (transform 50ms, setup 0ms, collect 74ms, tests 29ms, environment 76ms, prepare 26ms)
+

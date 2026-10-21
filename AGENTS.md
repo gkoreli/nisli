@@ -50,6 +50,7 @@
 
 ## Core framework work
 
+- Follow the [framework tenets](docs/TENETS.md).
 - Use `.agents/skills/nisli-framework` when writing, reviewing, or debugging
   Nisli components.
 - Use `.agents/skills/nisli-engine` when composing screens from `@nisli/engine`

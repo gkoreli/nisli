@@ -26,6 +26,8 @@ npm install @nisli/core
 `@nisli/core` has no runtime dependencies. It works with TypeScript or plain
 JavaScript and does not require a framework-specific build step.
 
+See the [framework tenets](./docs/TENETS.md) for design constraints.
+
 ## Quick start
 
 ```ts

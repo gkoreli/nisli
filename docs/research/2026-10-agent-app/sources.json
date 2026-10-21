@@ -1,0 +1,91 @@
+{
+  "retrieved": "2026-10-20 America/Los_Angeles",
+  "method": "Authoritative repository files read through GitHub connector. Default branch at retrieval; blob_sha is file content identity, not a commit. Some repository HEAD features may differ from released packages. No dependency adoption or peer benchmark was performed.",
+  "sources": [
+    {
+      "key": "ash-generic",
+      "url": "https://github.com/ash-project/ash/blob/main/documentation/topics/actions/generic-actions.md",
+      "blob_sha": "9a3feed8957867010bcc352f30d25fa6266dc479"
+    },
+    {
+      "key": "ash-ai",
+      "url": "https://github.com/ash-project/ash_ai/blob/main/README.md",
+      "blob_sha": "5336b8dcf64ed99226844688febdd15f8cabefc0"
+    },
+    {
+      "key": "ash-phoenix",
+      "url": "https://github.com/ash-project/ash_phoenix/blob/main/README.md",
+      "blob_sha": "4f35faa93cadfe3df5eafbe7e2d709c19c218b57"
+    },
+    {
+      "key": "ash-manual",
+      "url": "https://github.com/ash-project/ash/blob/main/documentation/topics/actions/manual-actions.md",
+      "blob_sha": "a57a44a2990876e65e3a51ec0791142ddd93cd78"
+    },
+    {
+      "key": "ash-tools-code",
+      "url": "https://github.com/ash-project/ash_ai/blob/main/lib/ash_ai/tools.ex",
+      "blob_sha": "69babbb05faaf52ac57c9f0007cd20fec4e0842b"
+    },
+    {
+      "key": "ash-ai-execute",
+      "url": "https://github.com/ash-project/ash_ai/blob/main/lib/ash_ai/tool/execution.ex",
+      "blob_sha": "5a0365c868db2fabd9d356c72d43537a639ce74a"
+    },
+    {
+      "key": "standard-schema",
+      "url": "https://github.com/standard-schema/standard-schema/blob/main/README.md",
+      "blob_sha": "c9bc213caeaf3d2bdcad96e9ff725fa07cd38fa9"
+    },
+    {
+      "key": "trpc-validators",
+      "url": "https://github.com/trpc/trpc/blob/main/www/docs/server/validators.md",
+      "blob_sha": "41bc6f0ce78b6d35640e835dbc38f8f5f46a70f1"
+    },
+    {
+      "key": "tanstack-db",
+      "url": "https://github.com/TanStack/db/blob/main/docs/overview.md",
+      "blob_sha": "454afb18772a7ff1686bf146922a6a6e20d1ee66"
+    },
+    {
+      "key": "tanstack-transactions",
+      "url": "https://github.com/TanStack/db/blob/main/docs/guides/mutations.md",
+      "blob_sha": "5b1160fe8b8f182bd8dc22ae350cd58c34550f3d"
+    },
+    {
+      "key": "tanstack-live",
+      "url": "https://github.com/TanStack/db/blob/main/docs/guides/live-queries.md",
+      "blob_sha": "8b1ea145c8dd265a8e946d12f96c3cb2b6255508"
+    },
+    {
+      "key": "tanstack-table",
+      "url": "https://github.com/TanStack/table/blob/main/README.md",
+      "blob_sha": "f9ec9e8e2879b98d9cff04e62ac0929d8d1f1a12"
+    },
+    {
+      "key": "zod-codecs-doc",
+      "url": "https://github.com/colinhacks/zod/blob/main/packages/docs/content/codecs.mdx",
+      "blob_sha": "596cfbd679727fe9b3b8040ca513cbbcdb4bfe09"
+    },
+    {
+      "key": "xstate",
+      "url": "https://github.com/statelyai/xstate/blob/main/README.md",
+      "blob_sha": "4b25e71d6d9a0a25afca28889e08783b15730b6b"
+    },
+    {
+      "key": "xstate-state",
+      "url": "https://github.com/statelyai/xstate/blob/main/packages/core/src/StateMachine.ts",
+      "blob_sha": "b73f055fe4275fa0e7f6bd1453eac0a050c666c9"
+    },
+    {
+      "key": "xstate-actors",
+      "url": "https://github.com/statelyai/xstate/blob/main/packages/core/src/actors/promise.ts",
+      "blob_sha": "3500647528b116d46904deff3cdbbd6dce55956d"
+    },
+    {
+      "key": "temporal",
+      "url": "https://github.com/temporalio/sdk-typescript/blob/main/README.md",
+      "blob_sha": "ee6ba8ee0bd6c4268a8840ba551073d9ec090a8c"
+    }
+  ]
+}

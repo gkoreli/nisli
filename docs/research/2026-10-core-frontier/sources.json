@@ -1,0 +1,90 @@
+{
+  "retrieved": "2026-10-20 America/Los_Angeles",
+  "method": "GitHub connector fetch_file; default branch unless URL says otherwise. blob_sha identifies file content, not a repository commit. Sources are evidence, not a browser compatibility guarantee.",
+  "sources": [
+    {
+      "key": "signalsSource",
+      "url": "https://github.com/tc39/proposal-signals/blob/main/README.md",
+      "blob_sha": "f93eeef6ebe8eac98a145e2caef434744a89a1b7",
+      "encoding": "utf-8"
+    },
+    {
+      "key": "lit-template",
+      "url": "https://github.com/lit/lit/blob/main/packages/lit-html/src/lit-html.ts",
+      "blob_sha": "471b663903fcbff8a92a58d0a93de5bd625cbd53",
+      "encoding": "utf-8"
+    },
+    {
+      "key": "lit-repeat",
+      "url": "https://github.com/lit/lit/blob/main/packages/lit-html/src/directives/repeat.ts",
+      "blob_sha": "83914b5108201d3859f792c7cb9f89039dc6666d",
+      "encoding": "utf-8"
+    },
+    {
+      "key": "preact-signals",
+      "url": "https://github.com/preactjs/signals/blob/main/packages/core/src/index.ts",
+      "blob_sha": "25a641ffe18bb29997967d8fc68f6766c77b736a",
+      "encoding": "utf-8"
+    },
+    {
+      "key": "webmcp",
+      "url": "https://github.com/webmachinelearning/webmcp/blob/main/README.md",
+      "blob_sha": "e28d86f7e18d43946ba5340d87edee8cd46b77ea",
+      "encoding": "utf-8"
+    },
+    {
+      "key": "manifest",
+      "url": "https://github.com/webcomponents/custom-elements-manifest/blob/main/README.md",
+      "blob_sha": "ff8c944908dd2b32dacf69a58838e6f94348fe95",
+      "encoding": "utf-8"
+    },
+    {
+      "key": "svelte-tools",
+      "url": "https://github.com/sveltejs/ai-tools/blob/main/tools/skills/svelte-code-writer/SKILL.md",
+      "blob_sha": "491c425652184a6f37e7154ac73d0d5217dbb0ff",
+      "encoding": "utf-8"
+    },
+    {
+      "key": "lit-compiled",
+      "url": "https://github.com/lit/lit/blob/main/packages/labs/compiler/README.md",
+      "blob_sha": "a9e16421cc3d9016b6e6360e6b4757ebd31e9f1a",
+      "encoding": "utf-8"
+    },
+    {
+      "key": "webmcp-status",
+      "url": "https://github.com/webmachinelearning/webmcp/blob/main/implementation-status.md",
+      "blob_sha": "b762a53346b40baa3016e74325792fccd9f1d5d1",
+      "encoding": "utf-8"
+    },
+    {
+      "key": "webmcp-declarative",
+      "url": "https://github.com/webmachinelearning/webmcp/blob/main/declarative-api-explainer.md",
+      "blob_sha": "68af790f7b625ea6b926113a0e13f7670f93ca90",
+      "encoding": "utf-8"
+    },
+    {
+      "key": "lit-design",
+      "url": "https://github.com/lit/lit/blob/main/dev-docs/design/how-lit-html-works.md",
+      "blob_sha": "3c91c5072100ae9e69900414e997a7610a76b54a",
+      "encoding": "utf-8"
+    },
+    {
+      "key": "extra-source-4",
+      "url": "https://github.com/krausest/js-framework-benchmark/blob/master/README.md",
+      "blob_sha": "c6df27722a772ce984d38204a7a9b39221cdd440",
+      "encoding": "utf-8"
+    },
+    {
+      "key": "last-source-0",
+      "url": "https://github.com/lit/lit/blob/main/packages/lit-html/src/lit-html.ts",
+      "blob_sha": "471b663903fcbff8a92a58d0a93de5bd625cbd53",
+      "encoding": "utf-8"
+    },
+    {
+      "key": "last-source-1",
+      "url": "https://github.com/w3c/csswg-drafts/blob/main/css-anchor-position-1/Overview.bs",
+      "blob_sha": "aae947e2766e210642d897b8e25666f43df21df2",
+      "encoding": "utf-8"
+    }
+  ]
+}

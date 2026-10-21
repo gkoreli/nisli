@@ -1,0 +1,11 @@
+{
+  "retrieved": "2026-10-20 America/Los_Angeles",
+  "method": "Read primary GitHub source/documents through the GitHub connector. Remote main/master files are current source inspections, not released-package guarantees. Local experimental sources are pinned separately in experiments/native-runtime/snapshot.json.",
+  "sources": [
+    {"url":"https://github.com/lit/lit/blob/main/dev-docs/design/how-lit-html-works.md","supports":"Template preparation/instance updates; property, attribute and event binding distinction; event handler replacement."},
+    {"url":"https://github.com/lit/lit/blob/main/packages/lit-html/src/lit-html.ts","supports":"_commitTemplateResult reuses matching instances; PropertyPart and EventPart implement distinct DOM operations."},
+    {"url":"https://github.com/lit/lit/blob/main/packages/lit-html/src/directives/keyed.ts","supports":"Explicit key change disposes prior DOM even when the template is the same."},
+    {"url":"https://github.com/vuejs/docs/blob/main/src/guide/essentials/reactivity-fundamentals.md","supports":"Documented reactive-object destructuring, replacement and primitive-argument limitations."},
+    {"url":"https://github.com/justinfagnani/dom-templating-api-proposal/blob/main/EXPLAINER.md","supports":"Proposal combines standard JavaScript, updatable templates, explicit DOM binding surfaces and fine-grained observable updates. It is not shipped platform support."}
+  ]
+}

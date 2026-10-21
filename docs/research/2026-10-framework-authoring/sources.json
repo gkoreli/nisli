@@ -1,0 +1,36 @@
+{
+  "retrieved": "2026-10-20 America/Los_Angeles",
+  "method": "Authoritative GitHub repository files; blob IDs identify content, not commits. Repository HEAD is not a released package guarantee.",
+  "sources": [
+    {
+      "key": "solid-compiled",
+      "url": "https://github.com/solidjs/solid/blob/main/README.md",
+      "blob_sha": "df3be7fe50e0638f2bf3443c16bf2c2d53481c87"
+    },
+    {
+      "key": "solid-buildless",
+      "url": "https://github.com/solidjs/solid/blob/main/packages/solid/html/README.md",
+      "blob_sha": "44fbeaa1b028e66df24e0ebea5ab7c3f0c943485"
+    },
+    {
+      "key": "lit-types",
+      "url": "https://github.com/runem/lit-analyzer/blob/master/packages/lit-analyzer/README.md",
+      "blob_sha": "b4f436fb7fcc9c760125e62c75e8ec5e3a0ad083"
+    },
+    {
+      "key": "lit-compiler",
+      "url": "https://github.com/lit/lit/blob/main/packages/labs/compiler/README.md",
+      "blob_sha": "a9e16421cc3d9016b6e6360e6b4757ebd31e9f1a"
+    },
+    {
+      "key": "vue-scope",
+      "url": "https://github.com/vuejs/rfcs/blob/master/active-rfcs/0041-reactivity-effect-scope.md",
+      "blob_sha": "b645740c93315f99cb8952f28daa5a3f3485b075"
+    },
+    {
+      "key": "vue-scope-source",
+      "url": "https://github.com/vuejs/core/blob/main/packages/reactivity/src/effectScope.ts",
+      "blob_sha": "6fc587de15e9f4cb37580f72b1de3a91f423cd6e"
+    }
+  ]
+}

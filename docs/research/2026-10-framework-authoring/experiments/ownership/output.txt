@@ -1,0 +1,14 @@
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+ RUN  v2.1.9 /Users/goga/Documents/goga/nisli
+
+stdout | docs/research/2026-10-framework-authoring/experiments/ownership/probe.test.ts > optional lifetime ownership separate from dependency tracking > records the current explicit-cleanup contract for standalone nested effects
+{"current":"standalone nested effects require explicit child cleanup","activeChildrenAfterParentStop":2}
+
+ ✓ docs/research/2026-10-framework-authoring/experiments/ownership/probe.test.ts (5 tests) 4ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  23:01:13
+   Duration  244ms (transform 30ms, setup 0ms, collect 33ms, tests 4ms, environment 74ms, prepare 21ms)
+

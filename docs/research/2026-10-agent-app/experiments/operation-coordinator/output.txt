@@ -1,0 +1,29 @@
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+ RUN  v2.1.9 /Users/goga/Documents/goga/nisli
+
+stdout | docs/research/2026-10-agent-app/experiments/operation-coordinator/probe.test.ts > operation coordinator over actual Ledger connection closures > preserves syncOne effect trace when nothing fails
+{"original":"syncOne","fail":null,"trace":["flush","sync","reload","connections","composition"],"effect":"acknowledged","phase":"confirmed-remotely"}
+
+stdout | docs/research/2026-10-agent-app/experiments/operation-coordinator/probe.test.ts > operation coordinator over actual Ledger connection closures > preserves syncOne effect trace when flush fails
+{"original":"syncOne","fail":"flush","trace":["flush","connections","composition"],"effect":"not-started","phase":"failed"}
+
+stdout | docs/research/2026-10-agent-app/experiments/operation-coordinator/probe.test.ts > operation coordinator over actual Ledger connection closures > preserves syncOne effect trace when sync fails
+{"original":"syncOne","fail":"sync","trace":["flush","sync","connections","composition"],"effect":"unconfirmed","phase":"outcome-unknown"}
+
+stdout | docs/research/2026-10-agent-app/experiments/operation-coordinator/probe.test.ts > operation coordinator over actual Ledger connection closures > preserves syncOne effect trace when reload fails
+{"original":"syncOne","fail":"reload","trace":["flush","sync","reload","connections","composition"],"effect":"acknowledged","phase":"acknowledged-needs-attention"}
+
+stdout | docs/research/2026-10-agent-app/experiments/operation-coordinator/probe.test.ts > operation coordinator over actual Ledger connection closures > preserves syncOne effect trace when connections fails
+{"original":"syncOne","fail":"connections","trace":["flush","sync","reload","connections","composition"],"effect":"acknowledged","phase":"acknowledged-needs-attention"}
+
+stdout | docs/research/2026-10-agent-app/experiments/operation-coordinator/probe.test.ts > operation coordinator over actual Ledger connection closures > preserves syncOne effect trace when composition fails
+{"original":"syncOne","fail":"composition","trace":["flush","sync","reload","connections","composition"],"effect":"acknowledged","phase":"acknowledged-needs-attention"}
+
+ ✓ docs/research/2026-10-agent-app/experiments/operation-coordinator/probe.test.ts (15 tests) 62ms
+
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+   Start at  22:49:34
+   Duration  573ms (transform 37ms, setup 0ms, collect 241ms, tests 62ms, environment 123ms, prepare 31ms)
+

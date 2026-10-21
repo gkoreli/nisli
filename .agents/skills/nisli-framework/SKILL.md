@@ -11,6 +11,9 @@ metadata:
 
 Comprehensive guide for building reactive web components using `@nisli/core`. Contains rules across 9 categories covering component authoring, reactivity, templates, dependency injection, events, data loading, error handling, migration, and testing.
 
+Follow the [framework tenets](../../../docs/TENETS.md) when evaluating authoring
+or runtime changes.
+
 ## When to Apply
 
 Reference these guidelines when:

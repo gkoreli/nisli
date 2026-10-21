@@ -74,24 +74,8 @@ measurement is deliberately deferred (see *Deferred* below).
 
 ### 1. Design tenets (the lens)
 
-- **Context economics.** The public API stays one small barrel (today:
-  fourteen export statements); components stay one file importing only
-  `@nisli/core`; there is no hidden build or config to hold in context. A new
-  primitive pays for its tokens: it must remove more explanation than it
-  adds. This is the agent-era restatement of 0019's minimalism — small
-  surface is now an economic property, not an aesthetic one.
-- **Document-as-truth.** What the author wrote ≈ what is in the DOM ≈ what
-  the accessibility tree exposes. Anything that inserts a representation
-  between them (virtual DOM, synthetic events, hydration protocol) fails
-  this lens by construction.
-- **Failure containment is a shipping requirement.** Agent-written code
-  ships before it is 100% right; boundaries and isolation are why it can.
-  The defense-in-depth investments re-price from "resilience garnish" to
-  load-bearing features of the authoring model.
-- **Human DX rides along.** Every property above — small API, fast verify,
-  contained failures, inspectable runtime — is defensible engineering for
-  human authors too. The bet degrades gracefully if the author mix shifts
-  slower than expected.
+The standing design tenets are maintained in
+[Framework tenets](../TENETS.md).
 
 ### 2. The verify loop, productized
 
