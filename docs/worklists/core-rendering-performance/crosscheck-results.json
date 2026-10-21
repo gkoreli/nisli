@@ -25,11 +25,11 @@
         "following:promise"
       ],
       "candidateExceptionalOrder": [
-        "error:diagnostic transport failed",
         "following:queue",
-        "following:promise"
+        "following:promise",
+        "error:diagnostic transport failed"
       ],
-      "testedBehaviorMatchesBaseline": true
+      "completeBehavioralEquivalence": false
     },
     {
       "engine": "firefox",
@@ -53,11 +53,11 @@
         "following:promise"
       ],
       "candidateExceptionalOrder": [
-        "error:diagnostic transport failed",
         "following:queue",
-        "following:promise"
+        "following:promise",
+        "error:diagnostic transport failed"
       ],
-      "testedBehaviorMatchesBaseline": true
+      "completeBehavioralEquivalence": false
     },
     {
       "engine": "webkit",
@@ -81,12 +81,12 @@
         "following:promise"
       ],
       "candidateExceptionalOrder": [
-        "error:diagnostic transport failed",
         "following:queue",
-        "following:promise"
+        "following:promise",
+        "error:diagnostic transport failed"
       ],
-      "testedBehaviorMatchesBaseline": true
+      "completeBehavioralEquivalence": false
     }
   ],
-  "checkedAt": "2026-10-21T07:08:55.061Z"
+  "checkedAt": "2026-10-21T07:06:42.298Z"
 }

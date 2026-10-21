@@ -27,7 +27,7 @@ and core integration are separate operations.
 
 | Work | Status | Next bounded action |
 |---|---|---|
-| Skip copying/sorting zero or one pending effect | Queue-only subset validated locally; integration pending | Observe main CI after integrating; retain queueMicrotask |
+| Skip copying/sorting zero or one pending effect | Isolated subset accepted for main | Retain queueMicrotask; final Git/CI receipt is linked below |
 | Cache binding locations and resolve with TreeWalker | Preserved candidate | Rebase separately, measure first-use/retained metadata and repeated native mounts, review callback-driven structural mutation boundaries |
 | Reused Promise scheduler | Held: known behavior difference | Retain queueMicrotask unless exception timing is deliberately accepted or a reporting path preserves the contract across supported hosts |
 | Complete binding-instruction cache / subtree fallback | Proposed only | Profile separately; these were never implemented by the saved location cache |
@@ -96,3 +96,20 @@ rendering, cleanup, and normal FIFO traces. All three engines pass. These bounde
 checks support the stated invariants; they do not prove arbitrary programs or
 claim a new application speedup. The earlier full-port local gates used Node 24;
 the final integration gates use the repository's pinned Node 22 toolchain.
+
+### Final local acceptance
+
+After rebasing over concurrent main `5728ee4` (the added compound lifecycle proof),
+Node 22.23.2, pnpm 10.17.1, and Bun 1.4.0 pass the toolchain guard, frozen
+install, root typecheck, all 2,342 workspace tests (469 core), root build, and
+the new compound lifecycle proof in Chromium, Firefox, and WebKit. The queue-only
+differential proof also passes all three engines, including unchanged uncaught
+error ordering. Its source fingerprint matches the final signal/template files.
+The archived complete patch reconstructs all four saved runtime/test files
+byte-for-byte at `f671dcd`. Whitespace checks exclude only the archived patch’s
+required context-line spaces. Local links and script syntax pass.
+
+Final Git delivery and remote main-CI acceptance are recorded in the
+[article handoff](https://github.com/gkoreli/blog/blob/main/packages/blog/drafts/research/nisli-framework/03-review-and-handoff.md#core-optimization-preservation-and-integration).
+The other two optimizations remain open backlog items. No npm package version
+is bumped and no new timing measurement is claimed for the isolated subset.

@@ -142,8 +142,8 @@ for (const [engine, browserType] of [['chromium', chromium], ['firefox', firefox
     assert.ok(candidate.templates.every(item => item.clicks === 1 && item.disposed), `${engine}: cleanup failed`);
     const expected = ['before:promise', 'before:queue', 'effect:1', 'after:promise', 'after:queue', 'effect:2'];
     assert.deepEqual(original.normal, expected); assert.deepEqual(candidate.normal, expected);
-    // This is a falsification result, not a compatibility pass. The full
-    // candidate has a real observable exception-order difference.
+    // Full-candidate mode must reproduce its known counterexample; queue-only
+    // mode instead requires exact agreement, including exceptional ordering.
     assert.deepEqual(original.exceptional, ['error:diagnostic transport failed', 'following:queue', 'following:promise']);
     assert.deepEqual(candidate.exceptional, expectEquivalent ? original.exceptional : ['following:queue', 'following:promise', 'error:diagnostic transport failed']);
     const result = {
@@ -160,5 +160,5 @@ for (const [engine, browserType] of [['chromium', chromium], ['firefox', firefox
 }
 server.close();
 report.checkedAt = new Date().toISOString();
-await writeFile(join(root, 'docs/worklists/core-rendering-performance/crosscheck-results.json'), JSON.stringify(report, null, 2) + '\n');
+await writeFile(join(root, 'docs/worklists/core-rendering-performance', expectEquivalent ? 'queue-only-results.json' : 'crosscheck-results.json'), JSON.stringify(report, null, 2) + '\n');
 console.log(expectEquivalent ? 'PASS: queue-only subset matches the bounded normal and exceptional behavior probes in all three engines.' : 'PASS: bounded normal behavior matches; BLOCKER: the full candidate changes exceptional error ordering in all three engines.');
