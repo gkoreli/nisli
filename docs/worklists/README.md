@@ -5,6 +5,7 @@ the repository root and package source directories stay focused on active code
 and entry-point documentation.
 
 - [`ui/`](./ui/) — `@nisli/ui` migration and visual-parity worklists.
+- [`core-rendering-performance/`](./core-rendering-performance/) — preserved rendering candidate, queue-only integration, and cross-browser evidence.
 - [`agn/`](./agn/) — agent-native (ADR 0030.x) design-gate packets.
 
 Worklists are historical or operational records. Durable architecture belongs

@@ -4,6 +4,13 @@ All notable changes to `@nisli/core`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
+## Unreleased
+
+- Avoid allocating and sorting an effect array for empty and single-effect
+  flushes. Clear the pending member before running it; multiple effects retain
+  creation-order sorting. Scheduling remains queueMicrotask, including its error
+  reporting behavior. No API or package-version change.
+
 ## 0.57.0 — 2026-10-20
 
 - Fix issue #3 at the publication boundary: bundler ESM exposes standard

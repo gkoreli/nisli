@@ -713,6 +713,61 @@ describe('flush() drains cascades + tick()', () => {
 // ── ADR 0030.2 T5: deterministic flush order ────────────────────────
 
 describe('deterministic flush order (ADR 0030.2 T5)', () => {
+  it('keeps FIFO ordering with Promise jobs and queued callbacks', async () => {
+    const source = signal(0);
+    const log: string[] = [];
+    const stop = effect(() => { const value = source.value; if (value) log.push(`effect:${value}`); });
+    void Promise.resolve().then(() => { log.push('before:promise'); });
+    queueMicrotask(() => { log.push('before:queue'); });
+    source.value = 1;
+    void Promise.resolve().then(() => { log.push('after:promise'); source.value = 2; });
+    queueMicrotask(() => { log.push('after:queue'); });
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    expect(log).toEqual(['before:promise', 'before:queue', 'effect:1', 'after:promise', 'after:queue', 'effect:2']);
+    stop();
+  });
+
+  it('does not run an effect disposed before its queued flush', async () => {
+    const source = signal(0);
+    const values: number[] = [];
+    const stop = effect(() => { values.push(source.value); });
+    source.value = 1;
+    stop();
+    await Promise.resolve();
+    expect(values).toEqual([0]);
+  });
+
+  it('propagates unexpected scheduled failures from the queued flush', async () => {
+    const scheduledErrors: Array<() => void> = [];
+    const failure = new Error('diagnostic transport failed');
+    const source = signal(0);
+    const stop = effect(() => { if (source.value > 0) throw new Error('effect failed'); });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => { throw failure; });
+    vi.stubGlobal('queueMicrotask', (callback: () => void) => { scheduledErrors.push(callback); });
+    try {
+      source.value = 1;
+      await Promise.resolve();
+      expect(scheduledErrors).toHaveLength(1);
+      const report = scheduledErrors[0];
+      expect(report).toBeDefined();
+      expect(report).toThrow(failure);
+    } finally { stop(); log.mockRestore(); vi.unstubAllGlobals(); }
+  });
+
+  it('a single pending writer queues older observers in creation order', () => {
+    const trigger = signal(0);
+    const value = signal(0);
+    const log: string[] = [];
+    const stopFirst = effect(() => { log.push(`first:${value.value}`); });
+    const stopSecond = effect(() => { log.push(`second:${value.value}`); });
+    const stopWriter = effect(() => { value.value = trigger.value; });
+    log.length = 0;
+    trigger.value = 1;
+    flushEffects();
+    expect(log).toEqual(['first:1', 'second:1']);
+    stopFirst(); stopSecond(); stopWriter();
+  });
+
   it('pending effects run in creation order, surviving observer-set reshuffles', () => {
     const s = signal(0);
     const flag = signal(true);

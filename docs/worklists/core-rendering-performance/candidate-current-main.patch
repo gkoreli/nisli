@@ -1,0 +1,404 @@
+diff --git a/packages/core/src/signal.test.ts b/packages/core/src/signal.test.ts
+index 6a9eae6..3c021e7 100644
+--- a/packages/core/src/signal.test.ts
++++ b/packages/core/src/signal.test.ts
+@@ -713,6 +713,61 @@ describe('flush() drains cascades + tick()', () => {
+ // ── ADR 0030.2 T5: deterministic flush order ────────────────────────
+ 
+ describe('deterministic flush order (ADR 0030.2 T5)', () => {
++  it('keeps FIFO ordering with Promise jobs and queued callbacks', async () => {
++    const source = signal(0);
++    const log: string[] = [];
++    const stop = effect(() => { const value = source.value; if (value) log.push(`effect:${value}`); });
++    void Promise.resolve().then(() => { log.push('before:promise'); });
++    queueMicrotask(() => { log.push('before:queue'); });
++    source.value = 1;
++    void Promise.resolve().then(() => { log.push('after:promise'); source.value = 2; });
++    queueMicrotask(() => { log.push('after:queue'); });
++    await new Promise<void>(resolve => setTimeout(resolve, 0));
++    expect(log).toEqual(['before:promise', 'before:queue', 'effect:1', 'after:promise', 'after:queue', 'effect:2']);
++    stop();
++  });
++
++  it('does not run an effect disposed before its queued flush', async () => {
++    const source = signal(0);
++    const values: number[] = [];
++    const stop = effect(() => { values.push(source.value); });
++    source.value = 1;
++    stop();
++    await Promise.resolve();
++    expect(values).toEqual([0]);
++  });
++
++  it('keeps unexpected scheduled failures on the uncaught-exception channel', async () => {
++    const scheduledErrors: Array<() => void> = [];
++    const failure = new Error('diagnostic transport failed');
++    const source = signal(0);
++    const stop = effect(() => { if (source.value > 0) throw new Error('effect failed'); });
++    const log = vi.spyOn(console, 'error').mockImplementation(() => { throw failure; });
++    vi.stubGlobal('queueMicrotask', (callback: () => void) => { scheduledErrors.push(callback); });
++    try {
++      source.value = 1;
++      await Promise.resolve();
++      expect(scheduledErrors).toHaveLength(1);
++      const report = scheduledErrors[0];
++      expect(report).toBeDefined();
++      expect(report).toThrow(failure);
++    } finally { stop(); log.mockRestore(); vi.unstubAllGlobals(); }
++  });
++
++  it('a single pending writer queues older observers in creation order', () => {
++    const trigger = signal(0);
++    const value = signal(0);
++    const log: string[] = [];
++    const stopFirst = effect(() => { log.push(`first:${value.value}`); });
++    const stopSecond = effect(() => { log.push(`second:${value.value}`); });
++    const stopWriter = effect(() => { value.value = trigger.value; });
++    log.length = 0;
++    trigger.value = 1;
++    flushEffects();
++    expect(log).toEqual(['first:1', 'second:1']);
++    stopFirst(); stopSecond(); stopWriter();
++  });
++
+   it('pending effects run in creation order, surviving observer-set reshuffles', () => {
+     const s = signal(0);
+     const flag = signal(true);
+diff --git a/packages/core/src/signal.ts b/packages/core/src/signal.ts
+index 58a76cb..0b81081 100644
+--- a/packages/core/src/signal.ts
++++ b/packages/core/src/signal.ts
+@@ -116,16 +116,37 @@ function diag(code: string, message: string, detail?: object): void {
+ 
+ const pendingEffects = new Set<EffectNode>();
+ let flushScheduled = false;
++const resolvedPromise = Promise.resolve();
++
++function flushMicrotask(): void {
++  try {
++    flushPendingEffects();
++  } catch (error) {
++    // Effects contain their own errors. Preserve the uncaught-exception
++    // channel for an unexpected scheduler failure instead of converting it
++    // into an unhandled Promise rejection.
++    queueMicrotask(() => { throw error; });
++  }
++}
+ 
+ function scheduleFlush(): void {
+   if (!flushScheduled) {
+     flushScheduled = true;
+-    queueMicrotask(flushPendingEffects);
++    void resolvedPromise.then(flushMicrotask);
+   }
+ }
+ 
+ function flushPendingEffects(): void {
+   flushScheduled = false;
++  if (pendingEffects.size === 0) return;
++  if (pendingEffects.size === 1) {
++    // A single pending effect is already in creation order. Remove it before
++    // running so writes during the effect belong to the next flush pass.
++    const effect = pendingEffects.values().next().value;
++    pendingEffects.clear();
++    if (effect) runEffect(effect);
++    return;
++  }
+   // Copy to avoid mutation during iteration; sort by creation index so
+   // identical writes produce identical run order forever (ADR 0030.2 T5).
+   const effects = [...pendingEffects].sort((a, b) => a.order - b.order);
+diff --git a/packages/core/src/template.test.ts b/packages/core/src/template.test.ts
+index 80d964a..0dccf0e 100644
+--- a/packages/core/src/template.test.ts
++++ b/packages/core/src/template.test.ts
+@@ -16,6 +16,7 @@ import {
+ } from './template.js';
+ import { signal, computed, effect, flushEffects, type Signal } from './signal.js';
+ import { component } from './component.js';
++import { ref } from './ref.js';
+ 
+ beforeEach(() => {
+   document.body.innerHTML = '';
+@@ -29,6 +30,122 @@ function mount(result: TemplateResult): HTMLElement {
+ 
+ // ── Text bindings ───────────────────────────────────────────────────
+ 
++describe('cached binding locations', () => {
++  it('keeps live discovery when a DOM shim has no TreeWalker, including a cached callsite', () => {
++    const render = (value: Signal<string>) => html`<output title=${value}>${value}</output>`;
++    const first = render(signal('prime'));
++    mount(first); first.dispose();
++    const descriptor = Object.getOwnPropertyDescriptor(document, 'createTreeWalker');
++    Object.defineProperty(document, 'createTreeWalker', { configurable: true, value: undefined });
++    try {
++      const value = signal('before');
++      const cached = render(value);
++      const fresh = html`<span>${value}</span>`;
++      const cachedHost = mount(cached);
++      const freshHost = mount(fresh);
++      value.value = 'after'; flushEffects();
++      expect(cachedHost.textContent).toBe('after');
++      expect(cachedHost.querySelector('output')?.getAttribute('title')).toBe('after');
++      expect(freshHost.textContent).toBe('after');
++      cached.dispose(); fresh.dispose();
++    } finally {
++      if (descriptor) Object.defineProperty(document, 'createTreeWalker', descriptor);
++      else Reflect.deleteProperty(document, 'createTreeWalker');
++    }
++  });
++
++  it('does not add global DOM constructor requirements to a DOM shim', () => {
++    const value = signal('before');
++    vi.stubGlobal('Element', undefined);
++    vi.stubGlobal('Comment', undefined);
++    try {
++      const result = html`<output title=${value}>${value}</output>`;
++      const host = mount(result);
++      value.value = 'after'; flushEffects();
++      expect(host.textContent).toBe('after');
++      expect(host.querySelector('output')?.getAttribute('title')).toBe('after');
++      result.dispose();
++    } finally { vi.unstubAllGlobals(); }
++  });
++
++  it('preserves synchronous descendant changes from a custom prop setter', () => {
++    // An interop element may replace its children while a prop is bound.
++    class InteropChild extends HTMLElement {
++      _setProp() {
++        const output = document.createElement('output');
++        output.appendChild(document.createComment('bk-1'));
++        this.replaceChildren(output);
++      }
++    }
++    customElements.define('optimization-interop-child', InteropChild);
++    const value = signal('before');
++    const result = html`<optimization-interop-child payload=${value}><i>${value}</i></optimization-interop-child>`;
++    const host = mount(result);
++    expect(host.querySelector('output')?.textContent).toBe('before');
++    result.dispose();
++  });
++
++  it('preserves synchronous descendant changes from a ref setter', () => {
++    const reference = ref<HTMLElement>();
++    Object.defineProperty(reference, 'current', {
++      set(element: HTMLElement | null) {
++        if (!element) return;
++        const output = document.createElement('output');
++        output.appendChild(document.createComment('bk-1'));
++        element.replaceChildren(output);
++      },
++    });
++    const value = signal('before');
++    const result = html`<section ref=${reference}><i>${value}</i></section>`;
++    const host = mount(result);
++    expect(host.querySelector('output')?.textContent).toBe('before');
++    result.dispose();
++  });
++
++  it('resolves later siblings before earlier slots expand or disappear', () => {
++    const render = (first: unknown, last: Signal<string>) => html`${first}<section><b>static</b><output title="value-${last}">${last}</output></section>${null}<footer>${last}</footer>`;
++    for (const first of [null, [html`<i>one</i>`, html`<i>two</i>`]]) {
++      const value = signal('before');
++      const result = render(first, value);
++      const host = mount(result);
++      expect(host.querySelector('output')?.textContent).toBe('before');
++      value.value = 'after'; flushEffects();
++      expect(host.querySelector('output')?.getAttribute('title')).toBe('value-after');
++      expect(host.querySelector('footer')?.textContent).toBe('after');
++      result.dispose();
++      value.value = 'disposed'; flushEffects();
++      expect(host.querySelector('footer')?.textContent).toBe('after');
++    }
++  });
++
++  it('uses the parsed table and SVG structure across repeated mounts', () => {
++    const render = (value: Signal<number>) => html`<table><tbody><tr><td>${value}</td><td data-count=${value}>static</td></tr></tbody></table><svg viewBox="0 0 10 10"><g><text>${value}</text></g></svg>`;
++    for (let i = 0; i < 2; i++) {
++      const value = signal(i);
++      const result = render(value);
++      const host = mount(result);
++      value.value = i + 10; flushEffects();
++      expect(host.querySelector('td')?.textContent).toBe(String(i + 10));
++      expect(host.querySelector('td[data-count]')?.getAttribute('data-count')).toBe(String(i + 10));
++      expect(host.querySelector('svg text')?.textContent).toBe(String(i + 10));
++      result.dispose();
++    }
++  });
++
++  it('retains the live descendant walk when html:inner replaces children', () => {
++    const render = (value: Signal<string>) => html`<div html:inner=${raw('<b>replacement</b>')}><i>${value}</i></div><output>${value}</output>`;
++    for (let i = 0; i < 2; i++) {
++      const value = signal('before');
++      const result = render(value);
++      const host = mount(result);
++      value.value = 'after'; flushEffects();
++      expect(host.querySelector('div')?.innerHTML).toBe('<b>replacement</b>');
++      expect(host.querySelector('output')?.textContent).toBe('after');
++      result.dispose();
++    }
++  });
++});
++
+ describe('text bindings', () => {
+   it('renders static text', () => {
+     const result = html`<span>Hello World</span>`;
+diff --git a/packages/core/src/template.ts b/packages/core/src/template.ts
+index f2266c8..e69f3ae 100644
+--- a/packages/core/src/template.ts
++++ b/packages/core/src/template.ts
+@@ -223,7 +223,18 @@ function nisliError(code: string, message: string): Error {
+  * Since tagged templates always produce the same static strings array
+  * reference per call site, we use WeakMap for efficient caching.
+  */
+-const templateCache = new WeakMap<TemplateStringsArray, HTMLTemplateElement>();
++type BindingTarget =
++  | { nodeIndex: number; kind: 'child'; index: number }
++  | { nodeIndex: number; kind: 'attributes' };
++
++interface ParsedTemplate {
++  element: HTMLTemplateElement;
++  // null retains the live walk where binding/upgrade hooks can replace
++  // descendants before the old walker discovers their bindings.
++  targets: BindingTarget[] | null;
++}
++
++const templateCache = new WeakMap<TemplateStringsArray, ParsedTemplate>();
+ 
+ /** Parses performed since module load — test-only regression hook (issue 0015). */
+ let parseCount = 0;
+@@ -244,7 +255,7 @@ export function __templateParseCount(): number {
+  * over the pristine parsed element — it still carries the raw `@event`/
+  * `class:`/marker attributes that processAttributes later strips from clones.
+  */
+-function parseTemplate(strings: TemplateStringsArray, valueCount: number): HTMLTemplateElement {
++function parseTemplate(strings: TemplateStringsArray, valueCount: number): ParsedTemplate {
+   let template = templateCache.get(strings);
+   if (template) return template;
+ 
+@@ -274,12 +285,13 @@ function parseTemplate(strings: TemplateStringsArray, valueCount: number): HTMLT
+   }
+ 
+   parseCount++;
+-  template = document.createElement('template');
+-  template.innerHTML = htmlStr;
++  const element = document.createElement('template');
++  element.innerHTML = htmlStr;
++  template = { element, targets: discoverBindingTargets(element.content) };
+   templateCache.set(strings, template);
+ 
+   // Dev-only first-parse audit (N101–N104); no-op when disabled.
+-  if (process.env.NODE_ENV !== 'production') auditTemplate(strings, template);
++if (process.env.NODE_ENV !== 'production') auditTemplate(strings, element);
+ 
+   return template;
+ }
+@@ -289,6 +301,9 @@ function parseTemplate(strings: TemplateStringsArray, valueCount: number): HTMLT
+ const MARKER_PREFIX = '<!--bk-';
+ const MARKER_SUFFIX = '-->';
+ const ATTR_MARKER = 'bk-';
++// SHOW_ELEMENT | SHOW_COMMENT. SSG supplies document.createTreeWalker()
++// without installing the NodeFilter constructor as a global.
++const BINDING_NODE_FILTER = 0x81;
+ 
+ /**
+  * Generate a unique marker for each expression slot.
+@@ -390,15 +405,12 @@ export function html(
+       }
+       mounted = true;
+ 
+-      // Parse-once: the parsed template is cached per callsite; each mount
+-      // only pays the clone + binding walk. The per-mount processNode walk
+-      // below REMAINS by design until the ADR 0014-class work — caching
+-      // removes the *parse*, not the walk (ADR 0030.2 §8).
++      // Cache binding locations from the browser-parsed DOM, not from a
++      // second HTML parser. Resolve them all before binding mutates siblings.
+       const template = parseTemplate(strings, values.length);
+-      const fragment = template.content.cloneNode(true) as DocumentFragment;
++      const fragment = template.element.content.cloneNode(true);
+ 
+-      // Walk the DOM tree and replace markers with bindings
+-      processNode(fragment, values, bindings, disposers);
++      bindTemplate(fragment, template.targets, values, bindings, disposers);
+ 
+       // Mount into host
+       host.appendChild(fragment);
+@@ -422,6 +434,79 @@ export function html(
+ 
+ // ── DOM walking and binding creation ────────────────────────────────
+ 
++function isElementNode(node: Node): node is Element {
++  return node.nodeType === Node.ELEMENT_NODE;
++}
++
++function isCommentNode(node: Node): node is Comment {
++  return node.nodeType === Node.COMMENT_NODE;
++}
++
++function discoverBindingTargets(root: Node): BindingTarget[] | null {
++  if (typeof document.createTreeWalker !== 'function') return null;
++  const targets: BindingTarget[] = [];
++  const walker = document.createTreeWalker(root, BINDING_NODE_FILTER);
++  let nodeIndex = 0;
++  for (let node = walker.nextNode(); node; node = walker.nextNode(), nodeIndex++) {
++    if (isElementNode(node)) {
++      // Custom constructors/prop setters and ref accessors may synchronously
++      // change descendants. Preserve the existing live discovery order there.
++      if (node.localName.includes('-') || node.hasAttribute('is')) return null;
++      let hasBindings = false;
++      for (const attr of node.attributes) {
++        if (attr.name === 'html:inner'
++          || (attr.name === 'ref' && attr.value.includes(MARKER_PREFIX))) return null;
++        if (attr.name.startsWith('@') || attr.name.startsWith('class:')
++          || attr.value.includes(MARKER_PREFIX)) hasBindings = true;
++      }
++      if (hasBindings) targets.push({ nodeIndex, kind: 'attributes' });
++    } else if (isCommentNode(node)) {
++      const text = node.textContent || '';
++      if (text.startsWith('bk-') && !isNaN(Number(text.slice(3)))) {
++        targets.push({ nodeIndex, kind: 'child', index: Number(text.slice(3)) });
++      }
++    }
++  }
++  return targets;
++}
++
++function bindTemplate(
++  fragment: Node,
++  targets: BindingTarget[] | null,
++  values: unknown[],
++  bindings: Binding[],
++  disposers: (() => void)[],
++): void {
++  if (targets === null || typeof document.createTreeWalker !== 'function') {
++    processNode(fragment, values, bindings, disposers);
++    return;
++  }
++  if (targets.length === 0) return;
++  const nodes: Node[] = [];
++  const walker = document.createTreeWalker(fragment, BINDING_NODE_FILTER);
++  let node: Node | null = walker.nextNode();
++  let nodeIndex = 0;
++  for (const target of targets) {
++    while (node && nodeIndex < target.nodeIndex) { node = walker.nextNode(); nodeIndex++; }
++    if (!node || (target.kind === 'child' ? !isCommentNode(node) : !isElementNode(node))) {
++      // No binding has run yet, so an unexpected clone structure can safely
++      // fall back to the original live walker.
++      processNode(fragment, values, bindings, disposers);
++      return;
++    }
++    nodes.push(node);
++  }
++  for (let i = 0; i < targets.length; i++) {
++    const target = targets[i];
++    const node = nodes[i];
++    if (target?.kind === 'child' && node && isCommentNode(node)) {
++      replaceMarkerWithBinding(node, values[target.index], bindings, disposers);
++    } else if (node && isElementNode(node)) {
++      processAttributes(node, values, bindings, disposers);
++    }
++  }
++}
++
+ function processNode(
+   node: Node,
+   values: unknown[],

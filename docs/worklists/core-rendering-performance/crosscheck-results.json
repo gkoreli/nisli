@@ -1,0 +1,92 @@
+{
+  "fixtureOrigin": "same-origin HTTP loopback",
+  "baseline": "4fa6360",
+  "candidateHead": "4fa636031a3dc0796fb2172e1bada15391299d1d",
+  "browsers": [
+    {
+      "engine": "chromium",
+      "version": "149.0.7827.55",
+      "graphSeeds": 100,
+      "writesPerSeed": 50,
+      "matchingGraphTraceSha256": "c57ebfcbf3a5eef6e5cae7c86a644e48ded72e79a4e82762e9cf5feb2e10689b",
+      "repeatedMounts": 12,
+      "verifiedUpdatesPerMount": 10,
+      "normalOrdering": [
+        "before:promise",
+        "before:queue",
+        "effect:1",
+        "after:promise",
+        "after:queue",
+        "effect:2"
+      ],
+      "baselineExceptionalOrder": [
+        "error:diagnostic transport failed",
+        "following:queue",
+        "following:promise"
+      ],
+      "candidateExceptionalOrder": [
+        "error:diagnostic transport failed",
+        "following:queue",
+        "following:promise"
+      ],
+      "testedBehaviorMatchesBaseline": true
+    },
+    {
+      "engine": "firefox",
+      "version": "151.0",
+      "graphSeeds": 100,
+      "writesPerSeed": 50,
+      "matchingGraphTraceSha256": "c57ebfcbf3a5eef6e5cae7c86a644e48ded72e79a4e82762e9cf5feb2e10689b",
+      "repeatedMounts": 12,
+      "verifiedUpdatesPerMount": 10,
+      "normalOrdering": [
+        "before:promise",
+        "before:queue",
+        "effect:1",
+        "after:promise",
+        "after:queue",
+        "effect:2"
+      ],
+      "baselineExceptionalOrder": [
+        "error:diagnostic transport failed",
+        "following:queue",
+        "following:promise"
+      ],
+      "candidateExceptionalOrder": [
+        "error:diagnostic transport failed",
+        "following:queue",
+        "following:promise"
+      ],
+      "testedBehaviorMatchesBaseline": true
+    },
+    {
+      "engine": "webkit",
+      "version": "26.5",
+      "graphSeeds": 100,
+      "writesPerSeed": 50,
+      "matchingGraphTraceSha256": "c57ebfcbf3a5eef6e5cae7c86a644e48ded72e79a4e82762e9cf5feb2e10689b",
+      "repeatedMounts": 12,
+      "verifiedUpdatesPerMount": 10,
+      "normalOrdering": [
+        "before:promise",
+        "before:queue",
+        "effect:1",
+        "after:promise",
+        "after:queue",
+        "effect:2"
+      ],
+      "baselineExceptionalOrder": [
+        "error:diagnostic transport failed",
+        "following:queue",
+        "following:promise"
+      ],
+      "candidateExceptionalOrder": [
+        "error:diagnostic transport failed",
+        "following:queue",
+        "following:promise"
+      ],
+      "testedBehaviorMatchesBaseline": true
+    }
+  ],
+  "checkedAt": "2026-10-21T07:08:55.061Z"
+}
