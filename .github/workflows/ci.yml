@@ -40,8 +40,14 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Install preview browser
-        run: pnpm --filter @nisli/www exec playwright install --with-deps chromium
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Install proof browsers
+        run: pnpm --filter @nisli/www exec playwright install --with-deps chromium firefox webkit
+
+      - name: Core published-package contract
+        run: pnpm --filter @nisli/core test:package
 
       - name: Browser-render every UI preview
         run: pnpm --filter @nisli/www test:previews

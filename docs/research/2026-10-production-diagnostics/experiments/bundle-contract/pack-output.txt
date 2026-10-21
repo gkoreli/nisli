@@ -1,0 +1,30 @@
+📦  @nisli/core@0.56.0-research
+Tarball Contents
+dist/browser/dev.js
+dist/browser/prod.js
+dist/bundler/component.js
+dist/bundler/context.js
+dist/bundler/diagnostics.js
+dist/bundler/disposable.js
+dist/bundler/element-context.js
+dist/bundler/emitter.js
+dist/bundler/hmr/registry.js
+dist/bundler/hmr/transform.js
+dist/bundler/index.js
+dist/bundler/injector.js
+dist/bundler/lifecycle.js
+dist/bundler/package.json
+dist/bundler/projection.js
+dist/bundler/query.js
+dist/bundler/ref.js
+dist/bundler/resource.js
+dist/bundler/settle.js
+dist/bundler/signal.js
+dist/bundler/template-audit.js
+dist/bundler/template.js
+dist/bundler/view-transition.js
+dist/bundler/vite-hmr/plugin.js
+dist/bundler/vite-hmr/runtime.js
+package.json
+Tarball Details
+/Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/generated/packed/nisli-core-0.56.0-research.tgz

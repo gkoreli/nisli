@@ -29,6 +29,12 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.17
+      esbuild:
+        specifier: 0.28.1
+        version: 0.28.1
+      vite:
+        specifier: 7.3.6
+        version: 7.3.6(@types/node@22.19.17)(jiti@2.7.0)(lightningcss@1.32.0)
 
   packages/engine:
     dependencies:

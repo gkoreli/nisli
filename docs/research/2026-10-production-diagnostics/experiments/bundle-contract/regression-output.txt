@@ -1,0 +1,44 @@
+stderr | element-context.test.ts > createContext — through the component model > a reader with no provider renders the error boundary
+[nisli N401] <rc-reader> setup failed: Context "Rc" not found: <rc-reader> must be rendered inside a provider that calls RcContext.provide(host, …). {
+  tag: 'rc-reader',
+  phase: 'setup',
+  error: Error: Context "Rc" not found: <rc-reader> must be rendered inside a provider that calls RcContext.provide(host, …).
+      at Object.inject (/Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/generated/regression/static-dev/element-context.js:22:13)
+      at /Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/generated/regression/static-dev/element-context.test.ts:218:24
+      at /Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/generated/regression/static-dev/component.js:138:36
+      at Module.runWithContext (/Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/generated/regression/static-dev/context.js:6:5)
+      at /Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/generated/regression/static-dev/component.js:137:11
+      at Module.untrack (/Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/generated/regression/static-dev/signal.js:261:12)
+      at FrameworkComponent.connectedCallback (/Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/generated/regression/static-dev/component.js:132:45)
+      at CustomElementReactionStack.enqueueReaction (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/custom-element/CustomElementReactionStack.ts:52:80)
+      at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/element/Element.ts:1534:74)
+      at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/html-element/HTMLElement.ts:1008:44)
+}
+
+static-dev  Test Files  21 passed (21)
+      Tests  465 passed (465)
+   Start at  23:14:40
+   Duration  2.05s (transform 639ms, setup 0ms, collect 1.41s, tests 2.18s, environment 5.98s, prepare 1.78s)
+
+
+stderr | element-context.test.ts > createContext — through the component model > a reader with no provider renders the error boundary
+[nisli N401] <rc-reader> setup failed: Context "Rc" not found: <rc-reader> must be rendered inside a provider that calls RcContext.provide(host, …). {
+  tag: 'rc-reader',
+  phase: 'setup',
+  error: Error: Context "Rc" not found: <rc-reader> must be rendered inside a provider that calls RcContext.provide(host, …).
+      at Object.inject (/Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/generated/regression/static-bundler/element-context.js:22:13)
+      at /Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/generated/regression/static-bundler/element-context.test.ts:218:24
+      at /Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/generated/regression/static-bundler/component.js:138:36
+      at Module.runWithContext (/Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/generated/regression/static-bundler/context.js:6:5)
+      at /Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/generated/regression/static-bundler/component.js:137:11
+      at Module.untrack (/Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/generated/regression/static-bundler/signal.js:261:12)
+      at FrameworkComponent.connectedCallback (/Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/generated/regression/static-bundler/component.js:132:45)
+      at CustomElementReactionStack.enqueueReaction (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/custom-element/CustomElementReactionStack.ts:52:80)
+      at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/element/Element.ts:1534:74)
+      at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/html-element/HTMLElement.ts:1008:44)
+}
+
+static-bundler  Test Files  21 passed (21)
+      Tests  465 passed (465)
+   Start at  23:14:42
+   Duration  1.66s (transform 499ms, setup 0ms, collect 1.25s, tests 1.97s, environment 5.50s, prepare 1.46s)

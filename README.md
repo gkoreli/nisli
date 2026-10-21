@@ -122,6 +122,23 @@ current source; component teardown disposes automatically, while standalone
 callers can use `dispose()`. Returning `undefined` from the source disables the
 resource and clears its current state.
 
+## Development and production diagnostics
+
+The published `@nisli/core` root gives bundlers standard `process.env.NODE_ENV`
+guards. Vite production builds and esbuild browser bundles with full minification
+remove optional diagnostics and their bookkeeping. Other bundlers should use
+their normal production replacement and dead-code elimination settings.
+
+Native browser ESM needs no application build: serve `dist/index.js` for
+development or `dist/index.production.js` for production, and map `@nisli/core`
+to that one URL for the entire application. Component imports stay unchanged.
+`setDevMode()` controls available development checks; it cannot restore code
+removed from a production artifact. Template safety and failure containment
+remain enabled in production.
+
+See the [core diagnostics and migration guide](./packages/core/README.md#diagnostics)
+for the import map, runtime overrides, and production error behavior.
+
 ## Explicit resource management
 
 Standalone Nisli disposables support `using` on runtimes with native explicit
@@ -262,6 +279,8 @@ pnpm install
 pnpm build
 pnpm test
 pnpm typecheck
+pnpm exec playwright install chromium firefox webkit
+pnpm --filter @nisli/core test:package
 ```
 
 Architecture decisions live in [`docs/adr`](./docs/adr). Package-specific

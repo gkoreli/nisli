@@ -4,6 +4,27 @@ All notable changes to `@nisli/core`. Format: keep-a-changelog-lite — one
 section per version, human-readable highlights. Releases happen at
 checkpoints (ADR 0022); dates are release dates.
 
+## 0.57.0 — 2026-10-20
+
+- Fix issue #3 at the publication boundary: bundler ESM exposes standard
+  `process.env.NODE_ENV` guards at optional diagnostic callsites and allocations,
+  so production optimization removes the template audit, attribution stacks,
+  and diagnostic bookkeeping instead of merely silencing them.
+- Publish browser-ready development (`dist/index.js`, existing URL) and
+  production (`dist/index.production.js`) artifacts from the same source. A
+  native browser application selects one root import-map URL; no application
+  compiler, process shim, custom build flag, or new authoring import is needed.
+- **Migration:** `setDevMode(true)` cannot re-enable
+  diagnostics removed from a production artifact. Tests that assert diagnostics
+  must use development mode. `import.meta.env.PROD` alone no longer selects the
+  mode; use the bundler's standard production configuration. The published root
+  now resolves to `dist/bundler/index.js`; native browser consumers use the
+  documented standalone files. Do not mix core artifact URLs in one module graph.
+- Production template safety, query-key validation, loop disposal, lifecycle
+  reporting, and asynchronous/event failure containment remain active. Add a
+  packed-consumer CI proof covering esbuild, Vite, declarations, SSG, native ESM,
+  runtime identity, and live Vite HMR in Chromium, Firefox, and WebKit.
+
 ## 0.56.0 — 2026-08-29
 
 - `each()` accepts component factory results (issue 0021). The natural

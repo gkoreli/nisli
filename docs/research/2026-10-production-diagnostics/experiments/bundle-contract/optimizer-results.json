@@ -1,0 +1,35 @@
+[
+  {
+    "name": "local-literal",
+    "source": {
+      "entry": "const DEV=false; function audit(){console.log(\"audit sentinel\")} if(DEV) audit();"
+    },
+    "output": "(()=>{})();\n",
+    "auditRetained": false
+  },
+  {
+    "name": "local-node-env",
+    "source": {
+      "entry": "const DEV=process.env.NODE_ENV!==\"production\"; function audit(){console.log(\"audit sentinel\")} if(DEV) audit();"
+    },
+    "output": "(()=>{})();\n",
+    "auditRetained": false
+  },
+  {
+    "name": "safe-runtime-fallback",
+    "source": {
+      "entry": "const DEV=typeof process===\"undefined\" || process.env.NODE_ENV!==\"production\"; function audit(){console.log(\"audit sentinel\")} if(DEV) audit();"
+    },
+    "output": "(()=>{var n=typeof process>\"u\"||!1;function o(){console.log(\"audit sentinel\")}n&&o();})();\n",
+    "auditRetained": true
+  },
+  {
+    "name": "imported-constant",
+    "source": {
+      "entry": "import { DEV } from \"env\"; function audit(){console.log(\"audit sentinel\")} if(DEV) audit();",
+      "env": "export const DEV=false;"
+    },
+    "output": "(()=>{function t(){console.log(\"audit sentinel\")}!1;})();\n",
+    "auditRetained": true
+  }
+]

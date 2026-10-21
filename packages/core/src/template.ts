@@ -279,7 +279,7 @@ function parseTemplate(strings: TemplateStringsArray, valueCount: number): HTMLT
   templateCache.set(strings, template);
 
   // Dev-only first-parse audit (N101–N104); no-op when disabled.
-  auditTemplate(strings, template);
+  if (process.env.NODE_ENV !== 'production') auditTemplate(strings, template);
 
   return template;
 }
@@ -368,7 +368,7 @@ export function html(
   const disposers: (() => void)[] = [];
   // Dev-only: remember the authoring callsite for first-parse audit
   // diagnostics — by first-mount time this frame is gone from the stack.
-  captureCallsite(strings);
+  if (process.env.NODE_ENV !== 'production') captureCallsite(strings);
   let mounted = false;
 
   return {

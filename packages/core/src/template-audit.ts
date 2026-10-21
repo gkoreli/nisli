@@ -33,11 +33,10 @@
  * (and SSG output) as an inert HTML comment. Documented, accepted for the
  * prototype; the design gate may choose to strip it at parse.
  *
- * Dev gating: core has no build-time dev/prod define today — that mechanism
- * is a named Wave-1 deliverable (§8). Until it exists this module is gated on
- * the `devMode` flag below ONLY. SSG/happy-dom detection is deliberately NOT
- * attempted (unreliable); an SSG build that wants silence must call
- * `setTemplateAuditEnabled(false)` before rendering.
+ * Calls AND module allocations are statically gated (ADR 0048). The runtime
+ * override can suppress or restore available audits, never restore removed code.
+ * No SSG/happy-dom detection is attempted; production rendering uses NODE_ENV
+ * or the native production artifact.
  */
 
 // Reporting goes through the diagnostics leaf. The audit keeps its own
@@ -52,12 +51,12 @@ let enabledOverride: boolean | null = null;
  * `null` restores the dev-gate default.
  */
 export function setTemplateAuditEnabled(enabled: boolean | null): void {
-  enabledOverride = enabled;
+  if (process.env.NODE_ENV !== 'production') enabledOverride = enabled;
 }
 
 /** Current audit gate state (exposed for template.ts and tests). */
 export function isTemplateAuditEnabled(): boolean {
-  return enabledOverride ?? isDev();
+  return process.env.NODE_ENV !== 'production' && (enabledOverride ?? isDev());
 }
 
 /** Emit a coded audit diagnostic through the diagnostics leaf (audit-gated). */
@@ -69,7 +68,8 @@ export function diag(code: string, message: string, detail?: unknown): void {
 // ── Callsite capture ────────────────────────────────────────────────
 
 /** First-seen authoring callsite per template identity (dev only). */
-const callsites = new WeakMap<TemplateStringsArray, string>();
+const callsites = process.env.NODE_ENV !== 'production'
+  ? new WeakMap<TemplateStringsArray, string>() : undefined;
 
 /**
  * Remember the authoring callsite of an `html` template the first time its
@@ -78,37 +78,40 @@ const callsites = new WeakMap<TemplateStringsArray, string>();
  * from the stack. No-op when the audit is disabled or already captured.
  */
 export function captureCallsite(strings: TemplateStringsArray): void {
-  if (!isTemplateAuditEnabled() || callsites.has(strings)) return;
+  if (!isTemplateAuditEnabled() || callsites!.has(strings)) return;
   const stack = new Error().stack ?? '';
   const frame = stack
     .split('\n')
     .slice(1)
     .find(line => line.includes('at ') && !/template(-audit)?\.(ts|js|mjs|cjs)/.test(line));
-  callsites.set(strings, frame ? frame.trim() : '(unknown callsite)');
+  callsites!.set(strings, frame ? frame.trim() : '(unknown callsite)');
 }
 
 // ── Audit ───────────────────────────────────────────────────────────
 
-const audited = new WeakSet<TemplateStringsArray>();
+const audited = process.env.NODE_ENV !== 'production'
+  ? new WeakSet<TemplateStringsArray>() : undefined;
 
 /** Modifiers understood by bindEvent (template.ts). */
-const KNOWN_MODIFIERS = new Set(['stop', 'prevent', 'once', 'enter', 'escape', 'space', 'tab']);
+const KNOWN_MODIFIERS = process.env.NODE_ENV !== 'production'
+  ? new Set(['stop', 'prevent', 'once', 'enter', 'escape', 'space', 'tab']) : undefined;
 
 /** Component-dispatched event prefixes exempt from the native-event check (§8). */
 const COMPONENT_EVENT_PREFIXES = ['ui-', 'nisli-'];
 
 /** Real native events with no `on*` IDL attribute (the `in`-check misses them). */
-const NATIVE_EVENTS_WITHOUT_IDL = new Set(['focusin', 'focusout']);
+const NATIVE_EVENTS_WITHOUT_IDL = process.env.NODE_ENV !== 'production'
+  ? new Set(['focusin', 'focusout']) : undefined;
 
 /**
  * Global HTML attributes legal on ANY component tag. Mirrors (and must stay a
  * superset of) template.ts's auto-resolution exclusion list — these reach the
  * element as plain attributes, never `_setProp`.
  */
-const GLOBAL_ATTRS = new Set([
+const GLOBAL_ATTRS = process.env.NODE_ENV !== 'production' ? new Set([
   'id', 'class', 'style', 'slot', 'title', 'role', 'tabindex', 'name',
   'part', 'hidden', 'dir', 'lang', 'is',
-]);
+]) : undefined;
 
 interface AuditDirectives {
   off: boolean;
@@ -195,7 +198,7 @@ function checkEvent(el: Element, attrName: string, site: string): void {
   const eventName = parts[0] ?? '';
   const modifiers = parts.slice(1);
 
-  const isNative = `on${eventName}` in el || NATIVE_EVENTS_WITHOUT_IDL.has(eventName);
+  const isNative = `on${eventName}` in el || NATIVE_EVENTS_WITHOUT_IDL!.has(eventName);
   const isComponentEvent = COMPONENT_EVENT_PREFIXES.some(p => eventName.startsWith(p));
   if (eventName && !isNative && !isComponentEvent) {
     diag(
@@ -205,11 +208,11 @@ function checkEvent(el: Element, attrName: string, site: string): void {
     );
   }
   for (const mod of modifiers) {
-    if (!KNOWN_MODIFIERS.has(mod)) {
+    if (!KNOWN_MODIFIERS!.has(mod)) {
       diag(
         'N103',
         `unknown event modifier ".${mod}" in "${attrName}" — known: ` +
-        `${[...KNOWN_MODIFIERS].join(', ')} — at ${site}`,
+        `${[...KNOWN_MODIFIERS!].join(', ')} — at ${site}`,
       );
     }
   }
@@ -218,7 +221,7 @@ function checkEvent(el: Element, attrName: string, site: string): void {
 /** N104 — undeclared attribute on a component that DECLARES attributes. */
 function checkComponentAttr(tag: string, name: string, observed: string[], site: string): void {
   if (name.startsWith('data-') || name.startsWith('aria-')) return;
-  if (GLOBAL_ATTRS.has(name) || observed.includes(name)) return;
+  if (GLOBAL_ATTRS!.has(name) || observed.includes(name)) return;
   diag(
     'N104',
     `<${tag}> declares attributes [${observed.join(', ')}] but the template sets ` +
@@ -234,10 +237,10 @@ function checkComponentAttr(tag: string, name: string, observed: string[], site:
  * template element — mounting state is never touched.
  */
 export function auditTemplate(strings: TemplateStringsArray, template: HTMLTemplateElement): void {
-  if (!isTemplateAuditEnabled() || audited.has(strings)) return;
-  audited.add(strings);
+  if (!isTemplateAuditEnabled() || audited!.has(strings)) return;
+  audited!.add(strings);
 
-  const site = callsites.get(strings) ?? '(unknown callsite)';
+  const site = callsites!.get(strings) ?? '(unknown callsite)';
   const content = template.content;
   const directives = parseDirectives(content);
   if (directives.off) return;

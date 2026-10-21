@@ -6,7 +6,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { codes, diag, formatDiag, isDev, setDevMode } from './diagnostics.js';
 
 afterEach(() => {
-  setDevMode(null); // restore the probed default between cases
+  setDevMode(null); // restore the artifact default between cases
 });
 
 describe('diag()', () => {
@@ -35,17 +35,17 @@ describe('diag()', () => {
 });
 
 describe('dev gate', () => {
-  it('defaults to dev under the test runner (probe sees a non-production env)', () => {
+  it('defaults to dev under the test runner (non-production artifact)', () => {
     expect(isDev()).toBe(true);
   });
 
-  it('setDevMode() overrides the probe; setDevMode(null) restores it', () => {
+  it('setDevMode() controls available diagnostics; null restores the default', () => {
     setDevMode(false);
     expect(isDev()).toBe(false);
     setDevMode(true);
     expect(isDev()).toBe(true);
     setDevMode(null);
-    expect(isDev()).toBe(true); // back to the probed default
+    expect(isDev()).toBe(true); // back to the artifact default
   });
 });
 

@@ -146,13 +146,45 @@ It fails closed by design: nisli never silently downgrades untrusted markup to
 
 ## Diagnostics
 
-Development-only problems are reported as stable coded lines — `[nisli N107] …`
-— and the gate that enables them is probed once at load (Vite's `import.meta.env`,
-`NODE_ENV`, and loud by default in buildless ESM). Production builds are silent.
+Development diagnostics report stable codes such as `[nisli N102]` for an
+unknown event. The published package gives bundlers standard
+`process.env.NODE_ENV` guards around optional diagnostics and their bookkeeping.
+Vite production builds and esbuild browser bundles with full minification remove
+that code automatically. For other bundlers, use their normal production
+configuration that replaces `process.env.NODE_ENV` with `"production"` and
+eliminates dead code. No Nisli plugin or custom flag is required. Unbundled Node
+consumers use `NODE_ENV=production` to disable development checks.
 
-Override the probe when the probe cannot know: `setDevMode(true)` in a test that
-asserts a diagnostic, `setDevMode(false)` on a buildless page you deploy to
-production, `setDevMode(null)` to restore it.
+For native browser ESM, serve the package's `dist/index.js` (development) or
+`dist/index.production.js` (production). Both are complete, dependency-free
+browser modules with no `process` global. Map the root import once for the whole
+application; component source stays the same:
+
+```html
+<script type="importmap">
+  { "imports": { "@nisli/core": "/vendor/nisli/index.production.js" } }
+</script>
+<script type="module" src="/app.js"></script>
+```
+
+Here `/vendor/nisli/index.production.js` is a copy of the installed package's
+`dist/index.production.js`. Switch the mapping to `index.js` for development.
+Keep all modules on the same core URL: loading both artifacts creates separate
+reactive and injection state. The package root is for bundlers/Node; a raw
+browser import must use one of the browser artifacts.
+
+`setDevMode(false)` suppresses available development diagnostics;
+`setDevMode(true)` enables them and `setDevMode(null)` restores the artifact's
+default. Suppression does not shrink a development artifact. **Production
+artifacts cannot re-enable removed diagnostics**, including from tests; use a
+development artifact when asserting them. This replaces the pre-0.57 runtime
+probe contract. `import.meta.env.PROD` alone is no longer a mode override.
+
+Production still enforces template safety (`N105`–`N107`), query keys (`N602`),
+effect loop disposal, and failure containment. Setup/mount failures still emit
+`N401`/`N402`, stamp the host, and dispatch `nisli-error`; asynchronous effect
+rejections and event-handler failures remain caught and reported. Development
+diagnostics disappearing does not make production failures silent.
 
 ## Explicit resource management
 

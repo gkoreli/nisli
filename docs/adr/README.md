@@ -52,3 +52,4 @@ They moved with the framework when `@nisli/core` became a standalone package.
 - [0044. Engine Deterministic Decisions — A Layout Decision Is a Function of Width and Intent, Never of Data](./0044-engine-deterministic-decisions.md) - Accepted - 2026-08-30
 - [0046. Engine Density and Input Axes — One Intent, Sized by Context the Engine Detects](./0046-engine-density-and-input-axes.md) - Accepted - 2026-08-31
 - [0047. Visual Programs — A Generative Visual Source Above Typed Engine Code](./0047-visual-programs-as-source.md) - Proposed - 2026-08-31
+- [0048. Production diagnostics belong to the artifact](./0048-production-diagnostic-artifacts.md) - Accepted, implemented for core 0.57.0 - 2026-10-20

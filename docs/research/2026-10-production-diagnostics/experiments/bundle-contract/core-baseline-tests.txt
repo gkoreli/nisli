@@ -1,0 +1,50 @@
+
+> @nisli/core@0.56.0 test /Users/goga/Documents/goga/nisli/packages/core
+> vitest run
+
+
+ RUN  v2.1.9 /Users/goga/Documents/goga/nisli/packages/core
+
+ ✓ src/view-transition.test.ts (13 tests) 13ms
+stderr | src/element-context.test.ts > createContext — through the component model > a reader with no provider renders the error boundary
+[nisli N401] <rc-reader> setup failed: Context "Rc" not found: <rc-reader> must be rendered inside a provider that calls RcContext.provide(host, …). {
+  tag: 'rc-reader',
+  phase: 'setup',
+  error: Error: Context "Rc" not found: <rc-reader> must be rendered inside a provider that calls RcContext.provide(host, …).
+      at Object.inject (/Users/goga/Documents/goga/nisli/packages/core/src/element-context.ts:137:13)
+      at /Users/goga/Documents/goga/nisli/packages/core/src/element-context.test.ts:218:24
+      at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:507:36
+      at Module.runWithContext (/Users/goga/Documents/goga/nisli/packages/core/src/context.ts:44:5)
+      at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:504:11
+      at Module.untrack (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:714:12)
+      at FrameworkComponent.connectedCallback (/Users/goga/Documents/goga/nisli/packages/core/src/component.ts:476:7)
+      at CustomElementReactionStack.enqueueReaction (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/custom-element/CustomElementReactionStack.ts:52:80)
+      at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/element/Element.ts:1534:74)
+      at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/html-element/HTMLElement.ts:1008:44)
+}
+
+ ✓ src/element-context.test.ts (18 tests) 43ms
+ ✓ src/component.test.ts (41 tests) 97ms
+ ✓ src/signal.test.ts (65 tests) 144ms
+ ✓ src/query.test.ts (29 tests) 104ms
+ ✓ src/template.test.ts (75 tests) 113ms
+ ✓ src/each.test.ts (23 tests) 129ms
+ ✓ src/projection.test.ts (12 tests) 49ms
+ ✓ src/invariants.test.ts (63 tests) 156ms
+ ✓ src/injector.test.ts (21 tests) 11ms
+ ✓ src/context.test.ts (8 tests) 3ms
+ ✓ src/emitter.test.ts (15 tests) 11ms
+ ✓ src/el.test.ts (12 tests) 36ms
+ ✓ src/lifecycle.test.ts (9 tests) 20ms
+ ✓ src/hmr/registry.test.ts (3 tests) 20ms
+ ✓ src/template-audit.test.ts (16 tests) 148ms
+ ✓ src/settle.test.ts (10 tests) 190ms
+ ✓ src/vite-hmr/plugin.test.ts (6 tests) 2ms
+ ✓ src/diagnostics.test.ts (8 tests) 3ms
+ ✓ src/ref.test.ts (6 tests) 12ms
+ ✓ src/resource.test.ts (12 tests) 535ms
+
+ Test Files  21 passed (21)
+      Tests  465 passed (465)
+   Start at  23:11:22
+   Duration  2.35s (transform 765ms, setup 0ms, collect 2.06s, tests 1.84s, environment 8.29s, prepare 2.12s)

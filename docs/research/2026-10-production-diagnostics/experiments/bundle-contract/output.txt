@@ -1,0 +1,24 @@
+(node:65993) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ENVIRONMENT {"node":"v22.23.2","esbuild":"0.28.1","happyDom":"20.8.9","commit":"4afde49c728a330e10ce887a38b8013d63b58498"}
+┌─────────┬───────────────────────────────┬───────┬───────┬────────────┬──────────┬────────┐
+│ (index) │ name                          │ bytes │ gzip  │ auditBytes │ n102Text │ codes  │
+├─────────┼───────────────────────────────┼───────┼───────┼────────────┼──────────┼────────┤
+│ 0       │ 'current-minify'              │ 23516 │ 8334  │ 2806       │ true     │ 'N102' │
+│ 1       │ 'current-node-env'            │ 23516 │ 8334  │ 2806       │ true     │ 'N102' │
+│ 2       │ 'current-meta'                │ 23529 │ 8337  │ 2810       │ true     │ '-'    │
+│ 3       │ 'current-runtime-off'         │ 23516 │ 8334  │ 2806       │ true     │ '-'    │
+│ 4       │ 'probe-only-minify'           │ 23515 │ 8318  │ 2806       │ true     │ '-'    │
+│ 5       │ 'helper-false'                │ 23511 │ 8335  │ 2806       │ true     │ '-'    │
+│ 6       │ 'static-auto-prod'            │ 18698 │ 6378  │ 0          │ false    │ '-'    │
+│ 7       │ 'static-explicit-prod'        │ 18698 │ 6378  │ 0          │ false    │ '-'    │
+│ 8       │ 'static-prod-override-on'     │ 18698 │ 6378  │ 0          │ false    │ '-'    │
+│ 9       │ 'static-dev-minified'         │ 23298 │ 8243  │ 2806       │ true     │ 'N102' │
+│ 10      │ 'static-auto-dev'             │ 49190 │ 12687 │ 5011       │ true     │ 'N102' │
+│ 11      │ 'static-dev-off'              │ 23298 │ 8243  │ 2806       │ true     │ '-'    │
+│ 12      │ 'native-dev-bundled-neutral'  │ 23298 │ 8243  │ 2806       │ true     │ 'N102' │
+│ 13      │ 'native-prod-bundled-neutral' │ 18698 │ 6376  │ 0          │ false    │ '-'    │
+└─────────┴───────────────────────────────┴───────┴───────┴────────────┴──────────┴────────┘
+SAFETY [{"profile":"current","codes":["N401","N402","N302","N301","N310"],"result":{"errors":{"doubleMount":"N105","unbranded":"N106","invalidQueryKey":"N602","noSanitizer":"N107"},"lifecycle":{"setup":"N401","mount":"N402"},"loop":{"settled":true,"disposed":true},"di":{"first":1,"error":"N501"},"duplicate":{"error":"N201"}},"asyncRejectionReported":true},{"profile":"static-bundler","codes":["N401","N402"],"result":{"errors":{"doubleMount":"N105","unbranded":"N106","invalidQueryKey":"N602","noSanitizer":"N107"},"lifecycle":{"setup":"N401","mount":"N402"},"loop":{"settled":true,"disposed":true},"di":{"first":1,"next":2},"duplicate":{"error":null}},"asyncRejectionReported":true},{"profile":"static-dev","codes":["N401","N402","N302","N301","N310"],"result":{"errors":{"doubleMount":"N105","unbranded":"N106","invalidQueryKey":"N602","noSanitizer":"N107"},"lifecycle":{"setup":"N401","mount":"N402"},"loop":{"settled":true,"disposed":true},"di":{"first":1,"error":"N501"},"duplicate":{"error":"N201"}},"asyncRejectionReported":true},{"profile":"static-prod","codes":["N401","N402"],"result":{"errors":{"doubleMount":"N105","unbranded":"N106","invalidQueryKey":"N602","noSanitizer":"N107"},"lifecycle":{"setup":"N401","mount":"N402"},"loop":{"settled":true,"disposed":true},"di":{"first":1,"next":2},"duplicate":{"error":null}},"asyncRejectionReported":true}]
+BROWSER {"version":"149.0.7827.55","rows":[{"name":"current-minify","codes":["N102"],"counter":"Count: 1","process":"undefined"},{"name":"current-node-env","codes":["N102"],"counter":"Count: 1","process":"undefined"},{"name":"current-meta","codes":[],"counter":"Count: 1","process":"undefined"},{"name":"current-runtime-off","codes":[],"counter":"Count: 1","process":"undefined"},{"name":"probe-only-minify","codes":[],"counter":"Count: 1","process":"undefined"},{"name":"helper-false","codes":[],"counter":"Count: 1","process":"undefined"},{"name":"static-auto-prod","codes":[],"counter":"Count: 1","process":"undefined"},{"name":"static-explicit-prod","codes":[],"counter":"Count: 1","process":"undefined"},{"name":"static-prod-override-on","codes":[],"counter":"Count: 1","process":"undefined"},{"name":"static-dev-minified","codes":["N102"],"counter":"Count: 1","process":"undefined"},{"name":"static-auto-dev","codes":["N102"],"counter":"Count: 1","process":"undefined"},{"name":"static-dev-off","codes":[],"counter":"Count: 1","process":"undefined"},{"name":"native-dev-bundled-neutral","codes":["N102"],"counter":"Count: 1","process":"undefined"},{"name":"native-prod-bundled-neutral","codes":[],"counter":"Count: 1","process":"undefined"}]}
+PASS: full counter matrix, emitted audit removal, safety behavior, and real Chromium interaction.

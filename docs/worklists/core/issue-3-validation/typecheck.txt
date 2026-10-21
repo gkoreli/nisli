@@ -1,0 +1,19 @@
+
+> @ typecheck /Users/goga/Documents/goga/nisli
+> pnpm -r typecheck
+
+Scope: 7 of 8 workspace projects
+packages/core typecheck$ tsc --noEmit
+packages/core typecheck: Done
+packages/router typecheck$ tsc --noEmit
+packages/engine typecheck$ tsc --noEmit
+packages/router typecheck: Done
+packages/engine typecheck: Done
+packages/ledger typecheck$ tsc --noEmit
+packages/ssg typecheck$ tsc --noEmit
+packages/ssg typecheck: Done
+packages/ledger typecheck: Done
+packages/ui typecheck$ tsc --noEmit
+packages/ui typecheck: Done
+packages/www typecheck$ tsc --noEmit
+packages/www typecheck: Done

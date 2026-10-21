@@ -1,6 +1,6 @@
 {
   "name": "@nisli/core",
-  "version": "0.56.0",
+  "version": "0.57.0",
   "description": "A reactive web component framework. Signals, templates, dependency injection \u2014 no build step, no virtual DOM, no dependencies.",
   "type": "module",
   "license": "MIT",
@@ -25,21 +25,23 @@
   "publishConfig": {
     "exports": {
       ".": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/bundler/index.js"
       },
       "./vite-hmr": {
-        "types": "./dist/vite-hmr/plugin.d.ts",
-        "default": "./dist/vite-hmr/plugin.js"
+        "types": "./dist/types/vite-hmr/plugin.d.ts",
+        "default": "./dist/bundler/vite-hmr/plugin.js"
       },
       "./vite-hmr/runtime": {
-        "types": "./dist/vite-hmr/runtime.d.ts",
-        "default": "./dist/vite-hmr/runtime.js"
+        "types": "./dist/types/vite-hmr/runtime.d.ts",
+        "default": "./dist/bundler/vite-hmr/runtime.js"
       }
     }
   },
   "devDependencies": {
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "esbuild": "0.28.1",
+    "vite": "7.3.6"
   },
   "files": [
     "dist",
@@ -47,8 +49,9 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node scripts/build.mjs",
     "test": "vitest run",
+    "test:package": "node scripts/proof-package.mjs",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   }

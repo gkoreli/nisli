@@ -1,0 +1,19 @@
+
+> @nisli/core@0.57.0 test:package /Users/goga/Documents/goga/nisli/packages/core
+> node scripts/proof-package.mjs
+
+{"name":"esbuild-production","bytes":18538,"gzip":6316,"auditBytes":0}
+{"name":"esbuild-explicit-production","bytes":18538,"gzip":6316,"auditBytes":0}
+{"name":"esbuild-development","bytes":52414,"gzip":12990,"auditBytes":5325}
+{"name":"esbuild-minified-development","bytes":23360,"gzip":8253,"auditBytes":2810}
+{"name":"esbuild-production-safety","bytes":24139,"gzip":8405,"auditBytes":0}
+{"name":"esbuild-development-safety","bytes":64195,"gzip":16442,"auditBytes":5325}
+{"name":"esbuild-hmr","bytes":56121,"gzip":13893,"auditBytes":5331}
+{"name":"vite-production","bytes":18762,"gzip":6317}
+PASS: packed declarations (no Node ambient types), HMR plugin export/transform
+PASS: packed SSG render, shared DI, reactive settling, disposal
+PASS: packed SSG render, shared DI, reactive settling, disposal
+PASS: chromium 149.0.7827.55 — 17 consumer/safety/HMR cases + 2 native identity cases + Vite live HMR
+PASS: firefox 151.0 — 17 consumer/safety/HMR cases + 2 native identity cases + Vite live HMR
+PASS: webkit 26.5 — 17 consumer/safety/HMR cases + 2 native identity cases + Vite live HMR
+PASS: packed package contract

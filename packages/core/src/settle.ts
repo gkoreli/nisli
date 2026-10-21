@@ -105,7 +105,7 @@ export async function settle(): Promise<void> {
     if (pending.size === 0) return;
     await Promise.allSettled([...pending]);
   }
-  if (isDev()) diag(
+  if (process.env.NODE_ENV !== 'production' && isDev()) diag(
     'N603',
     'settle() did not reach quiescence within 50 iterations — something '
     + 'keeps scheduling new async work (a self-invalidating query or a '

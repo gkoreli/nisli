@@ -17,18 +17,11 @@
  *   the pre-T6 unconditional console.error); others are dev-only attribution
  *   (N201/N202/N501) and their callers guard with {@link isDev}.
  *
- * The dev gate (a named Wave-1 deliverable — core had NO dev/prod mechanism):
- * a runtime probe, layered for the three environments core must serve without
- * a bundler assumption (ADR 0019):
- *   1. `import.meta.env.DEV` / `.PROD` when an injector (Vite serve/build,
- *      vitest) provides them — statically replaced in Vite builds, so a prod
- *      build resolves prod even in the browser where `process` is absent.
- *   2. `globalThis.process?.env?.NODE_ENV` — Node scripts, test runners, SSG.
- *   3. Neither present (raw buildless ESM in a browser): DEV — loud by
- *      default, matching the framework's no-build posture; `setDevMode(false)`
- *      is the explicit opt-out for buildless production pages.
- * The probe runs once at module load; `setDevMode()` overrides it (tests,
- * bundler-less prod), `setDevMode(null)` restores the probed default.
+ * Availability belongs to the artifact (ADR 0048). Bundler ESM leaves standard
+ * NODE_ENV guards at each optional work site; the native browser artifacts
+ * resolve them at publication. No process global is needed in either browser
+ * artifact. The runtime override controls available diagnostics only: it cannot
+ * resurrect instrumentation removed from a production artifact.
  */
 
 // ── Code registry ───────────────────────────────────────────────────
@@ -71,38 +64,19 @@ export const codes: Record<string, string> = {
 
 // ── Dev gate ────────────────────────────────────────────────────────
 
-function probeDevMode(): boolean {
-  // 1) import.meta.env injectors (Vite, vitest). Read the OBJECT (not the
-  // dotted key) so Vite's define replacement works through the optional
-  // access, and a missing env is just `undefined` in Node/raw ESM.
-  const env = (import.meta as ImportMeta & {
-    env?: { DEV?: unknown; PROD?: unknown };
-  }).env;
-  if (env && typeof env.DEV === 'boolean') return env.DEV;
-  if (env && typeof env.PROD === 'boolean') return !env.PROD;
-  // 2) Node / test runners / bundlers that define process.env.NODE_ENV.
-  const nodeEnv = (globalThis as {
-    process?: { env?: Record<string, string | undefined> };
-  }).process?.env?.NODE_ENV;
-  if (typeof nodeEnv === 'string') return nodeEnv !== 'production';
-  // 3) No signal at all (raw buildless ESM): loud by default.
-  return true;
-}
-
-const probed = probeDevMode();
 let override: boolean | null = null;
 
-/** Whether dev-only diagnostics are active. See the module doc for the probe. */
+/** Runtime preference within this artifact's development capability. */
 export function isDev(): boolean {
-  return override ?? probed;
+  return process.env.NODE_ENV !== 'production' && (override ?? true);
 }
 
 /**
- * Override the probed dev mode (`true`/`false`), or restore the probed
- * default (`null`). For tests and for buildless pages deployed to production.
+ * Enable/suppress available development diagnostics, or restore the artifact's
+ * default (`null`). A production artifact cannot re-enable removed diagnostics.
  */
 export function setDevMode(on: boolean | null): void {
-  override = on;
+  if (process.env.NODE_ENV !== 'production') override = on;
 }
 
 // ── Emission ────────────────────────────────────────────────────────

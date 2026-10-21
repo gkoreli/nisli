@@ -120,7 +120,7 @@ export function inject<T>(token: Constructor<T> | InjectionToken<T>): T {
 export function provide<T>(token: Constructor<T>, factory: () => T): void;
 export function provide<T>(token: InjectionToken<T>, factory: () => T): void;
 export function provide<T>(token: Constructor<T> | InjectionToken<T>, factory: () => T): void {
-  if (isDev() && singletonCache.has(token as Constructor | InjectionToken<unknown>)) {
+  if (process.env.NODE_ENV !== 'production' && isDev() && singletonCache.has(token as Constructor | InjectionToken<unknown>)) {
     const name = typeof token === 'function' ? token.name : (token as InjectionToken<T>).name;
     throw new Error(formatDiag(
       'N501',

@@ -1,0 +1,71 @@
+(node:61237) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ENVIRONMENT {"node":"v22.23.2","esbuild":"0.28.1","happyDom":"20.8.9","commit":"4afde49c728a330e10ce887a38b8013d63b58498"}
+┌─────────┬───────────────────────────────┬───────┬───────┬────────────┬──────────┬────────┐
+│ (index) │ name                          │ bytes │ gzip  │ auditBytes │ n102Text │ codes  │
+├─────────┼───────────────────────────────┼───────┼───────┼────────────┼──────────┼────────┤
+│ 0       │ 'current-minify'              │ 23516 │ 8334  │ 2806       │ true     │ 'N102' │
+│ 1       │ 'current-node-env'            │ 23516 │ 8334  │ 2806       │ true     │ 'N102' │
+│ 2       │ 'current-meta'                │ 23529 │ 8337  │ 2810       │ true     │ '-'    │
+│ 3       │ 'current-runtime-off'         │ 23516 │ 8334  │ 2806       │ true     │ '-'    │
+│ 4       │ 'probe-only-minify'           │ 23515 │ 8318  │ 2806       │ true     │ '-'    │
+│ 5       │ 'helper-false'                │ 23511 │ 8335  │ 2806       │ true     │ '-'    │
+│ 6       │ 'static-auto-prod'            │ 18698 │ 6378  │ 0          │ false    │ '-'    │
+│ 7       │ 'static-explicit-prod'        │ 18698 │ 6378  │ 0          │ false    │ '-'    │
+│ 8       │ 'static-prod-override-on'     │ 18698 │ 6378  │ 0          │ false    │ '-'    │
+│ 9       │ 'static-dev-minified'         │ 23298 │ 8243  │ 2806       │ true     │ 'N102' │
+│ 10      │ 'static-auto-dev'             │ 49190 │ 12687 │ 5011       │ true     │ 'N102' │
+│ 11      │ 'static-dev-off'              │ 23298 │ 8243  │ 2806       │ true     │ '-'    │
+│ 12      │ 'native-dev-bundled-neutral'  │ 23298 │ 8243  │ 2806       │ true     │ 'N102' │
+│ 13      │ 'native-prod-bundled-neutral' │ 18698 │ 6376  │ 0          │ false    │ '-'    │
+└─────────┴───────────────────────────────┴───────┴───────┴────────────┴──────────┴────────┘
+SAFETY [{"profile":"current","codes":["N401","N402","N302","N301"],"result":{"errors":{"doubleMount":"N105","unbranded":"N106","noSanitizer":"N107"},"lifecycle":{"setup":"N401","mount":"N402"},"loop":{"settled":true,"disposed":true},"di":{"first":1,"error":"N501"},"duplicate":{"error":"N201"}}},{"profile":"static-bundler","codes":["N401","N402"],"result":{"errors":{"doubleMount":"N105","unbranded":"N106","noSanitizer":"N107"},"lifecycle":{"setup":"N401","mount":"N402"},"loop":{"settled":true,"disposed":true},"di":{"first":1,"next":2},"duplicate":{"error":null}}},{"profile":"static-dev","codes":["N401","N402","N302","N301"],"result":{"errors":{"doubleMount":"N105","unbranded":"N106","noSanitizer":"N107"},"lifecycle":{"setup":"N401","mount":"N402"},"loop":{"settled":true,"disposed":true},"di":{"first":1,"error":"N501"},"duplicate":{"error":"N201"}}},{"profile":"static-prod","codes":["N401","N402"],"result":{"errors":{"doubleMount":"N105","unbranded":"N106","noSanitizer":"N107"},"lifecycle":{"setup":"N401","mount":"N402"},"loop":{"settled":true,"disposed":true},"di":{"first":1,"next":2},"duplicate":{"error":null}}}]
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+browserType.launch: Target page, context or browser has been closed
+Browser logs:
+
+<launching> /Users/goga/Library/Caches/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-mac-arm64/chrome-headless-shell --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-edgeupdater --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,BoundaryEventDispatchTracksNodeRemoval,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate,RenderDocument,OptimizationHints,msForceBrowserSignIn,msEdgeUpdateLaunchServicesPreferredVersion --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --disable-infobars --disable-search-engine-choice-screen --disable-sync --enable-unsafe-swiftshader --headless --hide-scrollbars --mute-audio --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --no-sandbox --user-data-dir=/var/folders/1m/77x7hnqs7_v2kqkcdk0s_v2m0000gn/T/playwright_chromiumdev_profile-tnrql3 --remote-debugging-pipe --no-startup-window
+<launched> pid=61259
+[pid=61259][err] [1020/230901.326279:ERROR:base/power_monitor/thermal_state_observer_mac.mm:140] ThermalStateObserverMac unable to register to power notifications. Result: 9
+[pid=61259][err] [1020/230901.328031:ERROR:net/dns/dns_config_service_posix.cc:138] DNS config watch failed to start.
+[pid=61259][err] [1020/230901.328510:WARNING:net/dns/dns_config_service_posix.cc:197] Failed to read DnsConfig.
+[pid=61259][err] [1020/230901.328479:FATAL:base/apple/mach_port_rendezvous_mac.cc:159] Check failed: kr == KERN_SUCCESS. bootstrap_check_in org.chromium.Chromium.MachPortRendezvousServer.61259: Permission denied (1100)
+Call log:
+[2m  - <launching> /Users/goga/Library/Caches/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-mac-arm64/chrome-headless-shell --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-edgeupdater --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,BoundaryEventDispatchTracksNodeRemoval,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate,RenderDocument,OptimizationHints,msForceBrowserSignIn,msEdgeUpdateLaunchServicesPreferredVersion --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --disable-infobars --disable-search-engine-choice-screen --disable-sync --enable-unsafe-swiftshader --headless --hide-scrollbars --mute-audio --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --no-sandbox --user-data-dir=/var/folders/1m/77x7hnqs7_v2kqkcdk0s_v2m0000gn/T/playwright_chromiumdev_profile-tnrql3 --remote-debugging-pipe --no-startup-window[22m
+[2m  - <launched> pid=61259[22m
+[2m  - [pid=61259][err] [1020/230901.326279:ERROR:base/power_monitor/thermal_state_observer_mac.mm:140] ThermalStateObserverMac unable to register to power notifications. Result: 9[22m
+[2m  - [pid=61259][err] [1020/230901.328031:ERROR:net/dns/dns_config_service_posix.cc:138] DNS config watch failed to start.[22m
+[2m  - [pid=61259][err] [1020/230901.328510:WARNING:net/dns/dns_config_service_posix.cc:197] Failed to read DnsConfig.[22m
+[2m  - [pid=61259][err] [1020/230901.328479:FATAL:base/apple/mach_port_rendezvous_mac.cc:159] Check failed: kr == KERN_SUCCESS. bootstrap_check_in org.chromium.Chromium.MachPortRendezvousServer.61259: Permission denied (1100)[22m
+[2m  - [pid=61259] <gracefully close start>[22m
+[2m  - [pid=61259] <kill>[22m
+[2m  - [pid=61259] <will force kill>[22m
+[2m  - [pid=61259] exception while trying to kill process: Error: kill EPERM[22m
+[2m  - [pid=61259] <process did exit: exitCode=null, signal=SIGTRAP>[22m
+[2m  - [pid=61259] starting temporary directories cleanup[22m
+[2m  - [pid=61259] finished temporary directories cleanup[22m
+[2m  - [pid=61259] <gracefully close end>[22m
+
+    at /Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/run.mjs:210:32 {
+  log: [
+    '  - <launching> /Users/goga/Library/Caches/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-mac-arm64/chrome-headless-shell --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-edgeupdater --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,BoundaryEventDispatchTracksNodeRemoval,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate,RenderDocument,OptimizationHints,msForceBrowserSignIn,msEdgeUpdateLaunchServicesPreferredVersion --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --disable-infobars --disable-search-engine-choice-screen --disable-sync --enable-unsafe-swiftshader --headless --hide-scrollbars --mute-audio --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --no-sandbox --user-data-dir=/var/folders/1m/77x7hnqs7_v2kqkcdk0s_v2m0000gn/T/playwright_chromiumdev_profile-tnrql3 --remote-debugging-pipe --no-startup-window',
+    '  - <launched> pid=61259',
+    '  - [pid=61259][err] [1020/230901.326279:ERROR:base/power_monitor/thermal_state_observer_mac.mm:140] ThermalStateObserverMac unable to register to power notifications. Result: 9',
+    '  - [pid=61259][err] [1020/230901.328031:ERROR:net/dns/dns_config_service_posix.cc:138] DNS config watch failed to start.',
+    '  - [pid=61259][err] [1020/230901.328510:WARNING:net/dns/dns_config_service_posix.cc:197] Failed to read DnsConfig.',
+    '  - [pid=61259][err] [1020/230901.328479:FATAL:base/apple/mach_port_rendezvous_mac.cc:159] Check failed: kr == KERN_SUCCESS. bootstrap_check_in org.chromium.Chromium.MachPortRendezvousServer.61259: Permission denied (1100)',
+    '  - [pid=61259] <gracefully close start>',
+    '  - [pid=61259] <kill>',
+    '  - [pid=61259] <will force kill>',
+    '  - [pid=61259] exception while trying to kill process: Error: kill EPERM',
+    '  - [pid=61259] <process did exit: exitCode=null, signal=SIGTRAP>',
+    '  - [pid=61259] starting temporary directories cleanup',
+    '  - [pid=61259] finished temporary directories cleanup',
+    '  - [pid=61259] <gracefully close end>'
+  ]
+}
+
+Node.js v22.23.2

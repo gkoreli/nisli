@@ -1,0 +1,432 @@
+{
+  "environment": {
+    "node": "v22.23.2",
+    "esbuild": "0.28.1"
+  },
+  "rows": [
+    {
+      "name": "current-minify",
+      "profile": "current",
+      "bytes": 23516,
+      "gzip": 8334,
+      "auditBytes": 2806,
+      "n102Text": true,
+      "stackCapture": true,
+      "sha256": "d0a3116692852fcdd596e12299aa06bf9964b73fb95ad0f50d8f929cc5f3f82e",
+      "codes": [
+        "N102"
+      ],
+      "counter": "Count: 1",
+      "expectedN102": true
+    },
+    {
+      "name": "current-node-env",
+      "profile": "current",
+      "bytes": 23516,
+      "gzip": 8334,
+      "auditBytes": 2806,
+      "n102Text": true,
+      "stackCapture": true,
+      "sha256": "d0a3116692852fcdd596e12299aa06bf9964b73fb95ad0f50d8f929cc5f3f82e",
+      "codes": [
+        "N102"
+      ],
+      "counter": "Count: 1",
+      "expectedN102": true
+    },
+    {
+      "name": "current-meta",
+      "profile": "current",
+      "bytes": 23529,
+      "gzip": 8337,
+      "auditBytes": 2810,
+      "n102Text": true,
+      "stackCapture": true,
+      "sha256": "d1e70dd554c711772e1a7ee008a16fbdccb84d3a7924a330c7ab3f46a34ee33c",
+      "codes": [],
+      "counter": "Count: 1",
+      "expectedN102": false
+    },
+    {
+      "name": "current-runtime-off",
+      "profile": "current",
+      "bytes": 23516,
+      "gzip": 8334,
+      "auditBytes": 2806,
+      "n102Text": true,
+      "stackCapture": true,
+      "sha256": "d0a3116692852fcdd596e12299aa06bf9964b73fb95ad0f50d8f929cc5f3f82e",
+      "codes": [],
+      "counter": "Count: 1",
+      "expectedN102": false,
+      "override": false
+    },
+    {
+      "name": "probe-only-minify",
+      "profile": "probe-only",
+      "bytes": 23515,
+      "gzip": 8318,
+      "auditBytes": 2806,
+      "n102Text": true,
+      "stackCapture": true,
+      "sha256": "babeee665895f4514c2c9502213872ce4adec8ea6cd9ae59518fbb0f6047f069",
+      "codes": [],
+      "counter": "Count: 1",
+      "expectedN102": false
+    },
+    {
+      "name": "helper-false",
+      "profile": "helper-false",
+      "bytes": 23511,
+      "gzip": 8335,
+      "auditBytes": 2806,
+      "n102Text": true,
+      "stackCapture": true,
+      "sha256": "85c98281f7e2b08afedf8c4da4ebf56c0553df9f9da551d02641795f81107d34",
+      "codes": [],
+      "counter": "Count: 1",
+      "expectedN102": false
+    },
+    {
+      "name": "static-auto-prod",
+      "profile": "static-bundler",
+      "bytes": 18698,
+      "gzip": 6378,
+      "auditBytes": 0,
+      "n102Text": false,
+      "stackCapture": false,
+      "sha256": "92ca28781bd2e53afeb7b93d37e9487243366234ab58c09ccc0549351e248733",
+      "codes": [],
+      "counter": "Count: 1",
+      "expectedN102": false
+    },
+    {
+      "name": "static-explicit-prod",
+      "profile": "static-bundler",
+      "bytes": 18698,
+      "gzip": 6378,
+      "auditBytes": 0,
+      "n102Text": false,
+      "stackCapture": false,
+      "sha256": "92ca28781bd2e53afeb7b93d37e9487243366234ab58c09ccc0549351e248733",
+      "codes": [],
+      "counter": "Count: 1",
+      "expectedN102": false
+    },
+    {
+      "name": "static-prod-override-on",
+      "profile": "static-bundler",
+      "bytes": 18698,
+      "gzip": 6378,
+      "auditBytes": 0,
+      "n102Text": false,
+      "stackCapture": false,
+      "sha256": "92ca28781bd2e53afeb7b93d37e9487243366234ab58c09ccc0549351e248733",
+      "codes": [],
+      "counter": "Count: 1",
+      "expectedN102": false,
+      "override": true
+    },
+    {
+      "name": "static-dev-minified",
+      "profile": "static-bundler",
+      "bytes": 23298,
+      "gzip": 8243,
+      "auditBytes": 2806,
+      "n102Text": true,
+      "stackCapture": true,
+      "sha256": "78a2193336a3e96d848dc64c47fa09c64bf2eb713aad6ae18d238f702bee27e6",
+      "codes": [
+        "N102"
+      ],
+      "counter": "Count: 1",
+      "expectedN102": true
+    },
+    {
+      "name": "static-auto-dev",
+      "profile": "static-bundler",
+      "bytes": 49190,
+      "gzip": 12687,
+      "auditBytes": 5011,
+      "n102Text": true,
+      "stackCapture": true,
+      "sha256": "b36fb0369893b2ca95914be4d44a7000fa59713d3faae1ff2bc5cc29c5c93edb",
+      "codes": [
+        "N102"
+      ],
+      "counter": "Count: 1",
+      "expectedN102": true
+    },
+    {
+      "name": "static-dev-off",
+      "profile": "static-bundler",
+      "bytes": 23298,
+      "gzip": 8243,
+      "auditBytes": 2806,
+      "n102Text": true,
+      "stackCapture": true,
+      "sha256": "78a2193336a3e96d848dc64c47fa09c64bf2eb713aad6ae18d238f702bee27e6",
+      "codes": [],
+      "counter": "Count: 1",
+      "expectedN102": false,
+      "override": false
+    },
+    {
+      "name": "native-dev-bundled-neutral",
+      "profile": "static-dev",
+      "bytes": 23298,
+      "gzip": 8243,
+      "auditBytes": 2806,
+      "n102Text": true,
+      "stackCapture": true,
+      "sha256": "0b7f1ba8b2f2d3dd691416b7d38bb490cca47700476389431e1556ecef37b87e",
+      "codes": [
+        "N102"
+      ],
+      "counter": "Count: 1",
+      "expectedN102": true
+    },
+    {
+      "name": "native-prod-bundled-neutral",
+      "profile": "static-prod",
+      "bytes": 18698,
+      "gzip": 6376,
+      "auditBytes": 0,
+      "n102Text": false,
+      "stackCapture": false,
+      "sha256": "9fee2b68df148f7354b8a9c55cd96fea5379464a8f645045689f239271953465",
+      "codes": [],
+      "counter": "Count: 1",
+      "expectedN102": false,
+      "override": true
+    }
+  ],
+  "safety": [
+    {
+      "profile": "current",
+      "codes": [
+        "N401",
+        "N402",
+        "N302",
+        "N301",
+        "N310"
+      ],
+      "result": {
+        "errors": {
+          "doubleMount": "N105",
+          "unbranded": "N106",
+          "invalidQueryKey": "N602",
+          "noSanitizer": "N107"
+        },
+        "lifecycle": {
+          "setup": "N401",
+          "mount": "N402"
+        },
+        "loop": {
+          "settled": true,
+          "disposed": true
+        },
+        "di": {
+          "first": 1,
+          "error": "N501"
+        },
+        "duplicate": {
+          "error": "N201"
+        }
+      },
+      "asyncRejectionReported": true
+    },
+    {
+      "profile": "static-bundler",
+      "codes": [
+        "N401",
+        "N402"
+      ],
+      "result": {
+        "errors": {
+          "doubleMount": "N105",
+          "unbranded": "N106",
+          "invalidQueryKey": "N602",
+          "noSanitizer": "N107"
+        },
+        "lifecycle": {
+          "setup": "N401",
+          "mount": "N402"
+        },
+        "loop": {
+          "settled": true,
+          "disposed": true
+        },
+        "di": {
+          "first": 1,
+          "next": 2
+        },
+        "duplicate": {
+          "error": null
+        }
+      },
+      "asyncRejectionReported": true
+    },
+    {
+      "profile": "static-dev",
+      "codes": [
+        "N401",
+        "N402",
+        "N302",
+        "N301",
+        "N310"
+      ],
+      "result": {
+        "errors": {
+          "doubleMount": "N105",
+          "unbranded": "N106",
+          "invalidQueryKey": "N602",
+          "noSanitizer": "N107"
+        },
+        "lifecycle": {
+          "setup": "N401",
+          "mount": "N402"
+        },
+        "loop": {
+          "settled": true,
+          "disposed": true
+        },
+        "di": {
+          "first": 1,
+          "error": "N501"
+        },
+        "duplicate": {
+          "error": "N201"
+        }
+      },
+      "asyncRejectionReported": true
+    },
+    {
+      "profile": "static-prod",
+      "codes": [
+        "N401",
+        "N402"
+      ],
+      "result": {
+        "errors": {
+          "doubleMount": "N105",
+          "unbranded": "N106",
+          "invalidQueryKey": "N602",
+          "noSanitizer": "N107"
+        },
+        "lifecycle": {
+          "setup": "N401",
+          "mount": "N402"
+        },
+        "loop": {
+          "settled": true,
+          "disposed": true
+        },
+        "di": {
+          "first": 1,
+          "next": 2
+        },
+        "duplicate": {
+          "error": null
+        }
+      },
+      "asyncRejectionReported": true
+    }
+  ],
+  "browser": [
+    {
+      "name": "current-minify",
+      "codes": [
+        "N102"
+      ],
+      "counter": "Count: 1",
+      "process": "undefined"
+    },
+    {
+      "name": "current-node-env",
+      "codes": [
+        "N102"
+      ],
+      "counter": "Count: 1",
+      "process": "undefined"
+    },
+    {
+      "name": "current-meta",
+      "codes": [],
+      "counter": "Count: 1",
+      "process": "undefined"
+    },
+    {
+      "name": "current-runtime-off",
+      "codes": [],
+      "counter": "Count: 1",
+      "process": "undefined"
+    },
+    {
+      "name": "probe-only-minify",
+      "codes": [],
+      "counter": "Count: 1",
+      "process": "undefined"
+    },
+    {
+      "name": "helper-false",
+      "codes": [],
+      "counter": "Count: 1",
+      "process": "undefined"
+    },
+    {
+      "name": "static-auto-prod",
+      "codes": [],
+      "counter": "Count: 1",
+      "process": "undefined"
+    },
+    {
+      "name": "static-explicit-prod",
+      "codes": [],
+      "counter": "Count: 1",
+      "process": "undefined"
+    },
+    {
+      "name": "static-prod-override-on",
+      "codes": [],
+      "counter": "Count: 1",
+      "process": "undefined"
+    },
+    {
+      "name": "static-dev-minified",
+      "codes": [
+        "N102"
+      ],
+      "counter": "Count: 1",
+      "process": "undefined"
+    },
+    {
+      "name": "static-auto-dev",
+      "codes": [
+        "N102"
+      ],
+      "counter": "Count: 1",
+      "process": "undefined"
+    },
+    {
+      "name": "static-dev-off",
+      "codes": [],
+      "counter": "Count: 1",
+      "process": "undefined"
+    },
+    {
+      "name": "native-dev-bundled-neutral",
+      "codes": [
+        "N102"
+      ],
+      "counter": "Count: 1",
+      "process": "undefined"
+    },
+    {
+      "name": "native-prod-bundled-neutral",
+      "codes": [],
+      "counter": "Count: 1",
+      "process": "undefined"
+    }
+  ]
+}

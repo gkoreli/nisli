@@ -1,0 +1,434 @@
+
+> @ test /Users/goga/Documents/goga/nisli
+> pnpm -r test
+
+Scope: 7 of 8 workspace projects
+packages/core test$ vitest run
+packages/core test:  RUN  v2.1.9 /Users/goga/Documents/goga/nisli/packages/core
+packages/core test:  ✓ src/view-transition.test.ts (13 tests) 10ms
+packages/core test: stderr | src/element-context.test.ts > createContext — through the component model > a reader with no provider renders the error boundary
+packages/core test: [nisli N401] <rc-reader> setup failed: Context "Rc" not found: <rc-reader> must be rendered inside a provider that calls RcContext.provide(host, …). {
+packages/core test:   tag: 'rc-reader',
+packages/core test:   phase: 'setup',
+packages/core test:   error: Error: Context "Rc" not found: <rc-reader> must be rendered inside a provider that calls RcContext.provide(host, …).
+packages/core test:       at Object.inject (/Users/goga/Documents/goga/nisli/packages/core/src/element-context.ts:137:13)
+packages/core test:       at /Users/goga/Documents/goga/nisli/packages/core/src/element-context.test.ts:218:24
+packages/core test:       at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:510:36
+packages/core test:       at Module.runWithContext (/Users/goga/Documents/goga/nisli/packages/core/src/context.ts:44:5)
+packages/core test:       at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:507:11
+packages/core test:       at Module.untrack (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:715:12)
+packages/core test:       at FrameworkComponent.connectedCallback (/Users/goga/Documents/goga/nisli/packages/core/src/component.ts:479:7)
+packages/core test:       at CustomElementReactionStack.enqueueReaction (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/custom-element/CustomElementReactionStack.ts:52:80)
+packages/core test:       at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/element/Element.ts:1534:74)
+packages/core test:       at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/html-element/HTMLElement.ts:1008:44)
+packages/core test: }
+packages/core test:  ✓ src/element-context.test.ts (18 tests) 27ms
+packages/core test:  ✓ src/component.test.ts (41 tests) 57ms
+packages/core test:  ✓ src/projection.test.ts (12 tests) 25ms
+packages/core test:  ✓ src/each.test.ts (23 tests) 70ms
+packages/core test:  ✓ src/template.test.ts (75 tests) 83ms
+packages/core test:  ✓ src/query.test.ts (29 tests) 96ms
+packages/core test:  ✓ src/invariants.test.ts (63 tests) 148ms
+packages/core test:  ✓ src/signal.test.ts (65 tests) 189ms
+packages/core test:  ✓ src/injector.test.ts (21 tests) 16ms
+packages/core test:  ✓ src/el.test.ts (12 tests) 37ms
+packages/core test:  ✓ src/emitter.test.ts (15 tests) 12ms
+packages/core test:  ✓ src/lifecycle.test.ts (9 tests) 18ms
+packages/core test:  ✓ src/context.test.ts (8 tests) 4ms
+packages/core test:  ✓ src/hmr/registry.test.ts (3 tests) 15ms
+packages/core test:  ✓ src/template-audit.test.ts (16 tests) 152ms
+packages/core test:  ✓ src/vite-hmr/plugin.test.ts (6 tests) 3ms
+packages/core test:  ✓ src/settle.test.ts (10 tests) 176ms
+packages/core test:  ✓ src/diagnostics.test.ts (8 tests) 2ms
+packages/core test:  ✓ src/ref.test.ts (6 tests) 8ms
+packages/core test:  ✓ src/resource.test.ts (12 tests) 533ms
+packages/core test:  Test Files  21 passed (21)
+packages/core test:       Tests  465 passed (465)
+packages/core test:    Start at  23:32:46
+packages/core test:    Duration  1.57s (transform 577ms, setup 0ms, collect 1.23s, tests 1.68s, environment 4.70s, prepare 1.18s)
+packages/core test: Done
+packages/engine test$ vitest run --typecheck
+packages/router test$ vitest run --typecheck
+packages/engine test: Testing types with tsc and vue-tsc is an experimental feature.
+packages/engine test: Breaking changes might not follow SemVer, please pin Vitest's version when using it.
+packages/router test: Testing types with tsc and vue-tsc is an experimental feature.
+packages/router test: Breaking changes might not follow SemVer, please pin Vitest's version when using it.
+packages/engine test:  RUN  v2.1.9 /Users/goga/Documents/goga/nisli/packages/engine
+packages/router test:  RUN  v2.1.9 /Users/goga/Documents/goga/nisli/packages/router
+packages/router test:  ✓ src/purity.test.ts (14 tests) 5ms
+packages/router test:  ✓ src/node-definition.test.ts (1 test) 3ms
+packages/router test:  ✓ src/query.test.ts (3 tests) 1ms
+packages/router test:  ✓ src/matcher.test.ts (15 tests) 5ms
+packages/router test:  ✓ src/vite.test.ts (7 tests) 19ms
+packages/router test:  ✓ src/render-binding.test.ts (3 tests) 26ms
+packages/router test:  ✓ src/view-transitions.test.ts (22 tests) 94ms
+packages/router test:  ✓ src/router.test.ts (22 tests) 154ms
+packages/router test:  ✓ src/navigation-engine.test.ts (40 tests) 186ms
+packages/engine test:  ✓ src/test/claims.test.ts (20 tests) 118ms
+packages/engine test: stderr | src/blocks/kernel.test.ts > block kernel > status: a block with no status shape cannot place a status slot (setup fails, N401)
+packages/engine test: [nisli N401] <nisli-kernel-wrong> setup failed: <nisli-kernel-wrong> uses ctx.failure but declares no status {
+packages/engine test:   tag: 'nisli-kernel-wrong',
+packages/engine test:   phase: 'setup',
+packages/engine test:   error: Error: <nisli-kernel-wrong> uses ctx.failure but declares no status
+packages/engine test:       at requireView (/Users/goga/Documents/goga/nisli/packages/engine/src/blocks/kernel.ts:158:24)
+packages/engine test:       at Object.get failure [as failure] (/Users/goga/Documents/goga/nisli/packages/engine/src/blocks/kernel.ts:188:19)
+packages/engine test:       at Object.render (/Users/goga/Documents/goga/nisli/packages/engine/src/blocks/kernel.test.ts:145:94)
+packages/engine test:       at /Users/goga/Documents/goga/nisli/packages/engine/src/blocks/kernel.ts:220:58
+packages/engine test:       at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:510:36
+packages/engine test:       at Module.runWithContext (/Users/goga/Documents/goga/nisli/packages/core/src/context.ts:44:5)
+packages/engine test:       at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:507:11
+packages/engine test:       at Module.untrack (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:715:12)
+packages/engine test:       at FrameworkComponent.connectedCallback (/Users/goga/Documents/goga/nisli/packages/core/src/component.ts:479:7)
+packages/engine test:       at CustomElementReactionStack.enqueueReaction (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/custom-element/CustomElementReactionStack.ts:52:80)
+packages/engine test: }
+packages/engine test:  ✓ src/blocks/kernel.test.ts (18 tests) 91ms
+packages/engine test: stderr | src/axes-flip.test.ts > every block follows the axes live (ADR 0046) > nisli-page: flipped live to compact + touch it matches a fresh mount there, byte for byte
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "T" and its primary actions cannot fit (928px short at 768px)
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "T" and its primary actions cannot fit (916px short at 776px)
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "T" and its primary actions cannot fit (916px short at 776px)
+packages/engine test: stderr | src/blocks/actions.test.ts > one Action, one rule, one renderer > Toolbar, Empty, Form and Dialog dress the same action the same way
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "T" and its primary actions cannot fit (2536px short at 1168px)
+packages/engine test: stderr | src/blocks/actions.test.ts > one Action, one rule, one renderer > an action overflowed into the Toolbar menu keeps the same rule: a destructive item is danger, and busy under its id
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "Connections" and its primary actions cannot fit (64px short at 128px)
+packages/engine test: stderr | src/axes-flip.test.ts > every block follows the axes live (ADR 0046) > nisli-page: flipped live to compact + touch it matches a fresh mount there, byte for byte
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "T" and its primary actions cannot fit (916px short at 776px)
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "T" and its primary actions cannot fit (916px short at 776px)
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "T" and its primary actions cannot fit (916px short at 776px)
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "T" and its primary actions cannot fit (916px short at 776px)
+packages/engine test: stderr | src/axes-flip.test.ts > every block follows the axes live (ADR 0046) > nisli-page: flipped live to compact + touch it matches a fresh mount there, byte for byte
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "T" and its primary actions cannot fit (916px short at 776px)
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "T" and its primary actions cannot fit (916px short at 776px)
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "T" and its primary actions cannot fit (928px short at 768px)
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "T" and its primary actions cannot fit (928px short at 768px)
+packages/engine test:  ✓ src/blocks/actions.test.ts (9 tests) 227ms
+packages/engine test:  ✓ src/blocks/form.test.ts (24 tests) 377ms
+packages/engine test:  ✓ src/blocks/overlay.test.ts (34 tests) 436ms
+packages/engine test:  ✓ src/engine/space.test.ts (18 tests) 6ms
+packages/engine test:  ✓ src/blocks/extras.test.ts (15 tests) 663ms
+packages/engine test:  ✓ src/blocks/toolbar.test.ts (15 tests) 228ms
+packages/engine test:  ✓ src/engine/fit.test.ts (14 tests) 4ms
+packages/engine test:  ✓ src/engine/overlay.test.ts (11 tests) 14ms
+packages/engine test: stderr | src/skin.test.ts > the engine is visual-less > bare: no block emits a visual property
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "T" and its primary actions cannot fit (928px short at 768px)
+packages/engine test: stderr | src/skin.test.ts > the engine is visual-less > skinned: the same blocks pick up the skin, live
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "T" and its primary actions cannot fit (928px short at 768px)
+packages/engine test:  ✓ src/skin.test.ts (9 tests) 216ms
+packages/engine test:  ✓ src/engine/axes.test.ts (13 tests) 3ms
+packages/engine test:  ✓ src/blocks/layout.test.ts (10 tests) 258ms
+packages/engine test:  ✓ src/test/glyphs.test.ts (22 tests) 9ms
+packages/engine test: stderr | src/blocks/status.test.ts > async actions > a promise-returning action is busy until it settles
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "T" and its primary actions cannot fit (120px short at 768px)
+packages/engine test: stderr | src/blocks/status.test.ts > async actions > a rejection is told to the person and the action is released
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "T" and its primary actions cannot fit (120px short at 768px)
+packages/engine test:  ✓ src/blocks/status.test.ts (9 tests) 68ms
+packages/engine test:  ✓ src/blocks/form/schema.test.ts (7 tests) 6ms
+packages/engine test:  ✓ src/blocks/form/draft.test.ts (7 tests) 9ms
+packages/engine test:  ✓ src/verify/index.test.ts (2 tests) 1ms
+packages/engine test:  ✓ src/engine/columns.test.ts (2 tests) 2ms
+packages/engine test:  ✓ src/axes-flip.test.ts (26 tests) 1417ms
+packages/engine test:    ✓ the branches follow the axes live too (ADR 0046 §5) > Table: sorted, columns folded at 360, more than a page of rows: flipped live to compact + touch it matches a fresh mount there, byte for byte 811ms
+packages/router test:  ✓  TS  src/types.test-d.ts (0 test)
+packages/router test:  ✓  TS  src/readme.test-d.ts (0 test)
+packages/router test:  Test Files  11 passed (11)
+packages/router test:       Tests  127 passed (127)
+packages/router test: Type Errors  no errors
+packages/router test:    Start at  23:32:47
+packages/router test:    Duration  2.85s (transform 451ms, setup 0ms, collect 1.44s, tests 493ms, environment 4.05s, prepare 1.10s, typecheck 2.69s)
+packages/router test: Done
+packages/engine test:  ✓ src/blocks/table.test.ts (24 tests) 2349ms
+packages/engine test:    ✓ Table column decisions are a function of width and intent, never of the rows shown (tenet, ADR 0044) > at every width, the header set and the pinned widths are the same for any rows: sorted, paged, one row, none 1567ms
+packages/engine test: stderr | src/test/prove.test.ts > runtime evidence (dev) > an unsatisfied plan stamps the block host data-nisli-report and lands in window.__nisli.reports; a satisfied one clears the stamp
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "A title that is far too long to survive" and its primary actions cannot fit (60px short at 108px)
+packages/engine test: stderr | src/test/prove.test.ts > runtime evidence (dev) > outside dev nothing is stamped and there is no ring
+packages/engine test: [nisli engine FIT_ROW] <nisli-toolbar> title "A title that is far too long to survive" and its primary actions cannot fit (60px short at 108px)
+packages/engine test:  ✓ src/test/prove.test.ts (11 tests) 2551ms
+packages/engine test:    ✓ prove() > a real screen holds every claim at five widths, skinned and bare 2052ms
+packages/engine test:  Test Files  22 passed (22)
+packages/engine test:       Tests  320 passed (320)
+packages/engine test: Type Errors  no errors
+packages/engine test:    Start at  23:32:47
+packages/engine test:    Duration  3.91s (transform 948ms, setup 0ms, collect 3.87s, tests 9.05s, environment 8.03s, prepare 1.63s)
+packages/engine test: Done
+packages/ledger test$ vitest run --typecheck
+packages/ssg test$ vitest run
+packages/ledger test: Testing types with tsc and vue-tsc is an experimental feature.
+packages/ledger test: Breaking changes might not follow SemVer, please pin Vitest's version when using it.
+packages/ssg test:  RUN  v2.1.9 /Users/goga/Documents/goga/nisli/packages/ssg
+packages/ledger test:  RUN  v2.1.9 /Users/goga/Documents/goga/nisli/packages/ledger
+packages/ssg test:  ✓ src/client.test.ts (4 tests) 2ms
+packages/ssg test:  ✓ src/render.test.ts (14 tests) 4ms
+packages/ssg test:  ✓ src/output.test.ts (7 tests) 7ms
+packages/ledger test:  ✓ server/banking/categorization.test.ts (43 tests) 3ms
+packages/ssg test:  ✓ src/view-transitions.test.ts (13 tests) 35ms
+packages/ledger test:  ✓ src/data/finance/flow.test.ts (9 tests) 5ms
+packages/ledger test:  ✓ server/banking/application.test.ts (7 tests) 10ms
+packages/ledger test:  ✓ src/data/finance/safe-to-spend.test.ts (17 tests) 5ms
+packages/ledger test:  ✓ src/data/finance/commitment.test.ts (13 tests) 5ms
+packages/ssg test:  ✓ src/build.test.ts (18 tests) 80ms
+packages/ledger test:  ✓ server/bank-sync.test.ts (25 tests) 46ms
+packages/ssg test:  ✓ src/router-equivalence.test.ts (1 test) 40ms
+packages/ssg test:  Test Files  6 passed (6)
+packages/ssg test:       Tests  57 passed (57)
+packages/ssg test:    Start at  23:32:51
+packages/ssg test:    Duration  1.04s (transform 537ms, setup 0ms, collect 2.04s, tests 169ms, environment 431ms, prepare 564ms)
+packages/ssg test: Done
+packages/ledger test:  ✓ src/data/review.test.ts (3 tests) 1ms
+packages/ledger test:  ✓ src/data/finance/period.test.ts (9 tests) 5ms
+packages/ledger test:  ✓ server/persistence.test.ts (13 tests) 448ms
+packages/ledger test:  ✓ src/data/finance/rollup.test.ts (5 tests) 4ms
+packages/ledger test:  ✓ src/data/finance/money.test.ts (9 tests) 2ms
+packages/ledger test:  ✓ src/data/store.test.ts (8 tests) 529ms
+packages/ledger test:  ✓ src/data/finance/delta.test.ts (7 tests) 4ms
+packages/ledger test:  ✓ src/data/bank.test.ts (1 test) 3ms
+packages/ledger test:  ✓ src/data/calendar.test.ts (2 tests) 1ms
+packages/ledger test:  ✓ src/data/csv.test.ts (3 tests) 1ms
+packages/ledger test:  ✓ src/screens/screens.proof.test.ts (16 tests) 20874ms
+packages/ledger test:    ✓ every screen is proven at five widths across density and input contexts > OverviewScreen 3085ms
+packages/ledger test:    ✓ every screen is proven at five widths across density and input contexts > AccountsScreen 1033ms
+packages/ledger test:    ✓ every screen is proven at five widths across density and input contexts > AccountScreen({ id: "card" }) 2396ms
+packages/ledger test:    ✓ every screen is proven at five widths across density and input contexts > TransactionsScreen 4939ms
+packages/ledger test:    ✓ every screen is proven at five widths across density and input contexts > BudgetsScreen 1954ms
+packages/ledger test:    ✓ every screen is proven at five widths across density and input contexts > ImportScreen 533ms
+packages/ledger test:    ✓ every screen is proven at five widths across density and input contexts > RulesScreen 1930ms
+packages/ledger test:    ✓ every screen is proven at five widths across density and input contexts > ConnectionsScreen 2466ms
+packages/ledger test:    ✓ every screen is proven at five widths across density and input contexts > SettingsScreen 2140ms
+packages/ledger test:  Test Files  17 passed (17)
+packages/ledger test:       Tests  190 passed (190)
+packages/ledger test: Type Errors  no errors
+packages/ledger test:    Start at  23:32:51
+packages/ledger test:    Duration  22.43s (transform 899ms, setup 0ms, collect 1.63s, tests 21.95s, environment 5.46s, prepare 1.23s)
+packages/ledger test: Done
+packages/ui test$ vitest run
+packages/ui test:  RUN  v2.1.9 /Users/goga/Documents/goga/nisli/packages/ui
+packages/ui test:  ✓ registry/default/ui/form-field.test.ts (27 tests) 192ms
+packages/ui test:  ✓ registry/default/ui/tabs.test.ts (17 tests) 269ms
+packages/ui test: stderr | registry/default/ui/accordion.test.ts > Accordion — single mode > opens on click and only one item stays open
+packages/ui test: [nisli N302] Effect wrote to a signal it also reads — the write re-schedules the effect. If this does not converge to an equal value it is an infinite loop. Derive the value with computed() instead. {
+packages/ui test:   effect: 'Error: effect() created here\n' +
+packages/ui test:     '    at Module.effect (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:657:22)\n' +
+packages/ui test:     '    at __vite_ssr_import_0__.component.attrs.className (/Users/goga/Documents/goga/nisli/packages/ui/registry/default/ui/accordion.ts:348:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:510:36\n' +
+packages/ui test:     '    at Module.runWithContext (/Users/goga/Documents/goga/nisli/packages/core/src/context.ts:44:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:507:11\n' +
+packages/ui test:     '    at Module.untrack (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:715:12)\n' +
+packages/ui test:     '    at FrameworkComponent.connectedCallback (/Users/goga/Documents/goga/nisli/packages/core/src/component.ts:479:7)\n' +
+packages/ui test:     '    at CustomElementReactionStack.enqueueReaction (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/custom-element/CustomElementReactionStack.ts:52:80)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/element/Element.ts:1534:74)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/html-element/HTMLElement.ts:1008:44)'
+packages/ui test: }
+packages/ui test: stderr | registry/default/ui/accordion.test.ts > Accordion — single mode > collapsible: clicking the open item closes it
+packages/ui test: [nisli N302] Effect wrote to a signal it also reads — the write re-schedules the effect. If this does not converge to an equal value it is an infinite loop. Derive the value with computed() instead. {
+packages/ui test:   effect: 'Error: effect() created here\n' +
+packages/ui test:     '    at Module.effect (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:657:22)\n' +
+packages/ui test:     '    at __vite_ssr_import_0__.component.attrs.className (/Users/goga/Documents/goga/nisli/packages/ui/registry/default/ui/accordion.ts:348:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:510:36\n' +
+packages/ui test:     '    at Module.runWithContext (/Users/goga/Documents/goga/nisli/packages/core/src/context.ts:44:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:507:11\n' +
+packages/ui test:     '    at Module.untrack (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:715:12)\n' +
+packages/ui test:     '    at FrameworkComponent.connectedCallback (/Users/goga/Documents/goga/nisli/packages/core/src/component.ts:479:7)\n' +
+packages/ui test:     '    at CustomElementReactionStack.enqueueReaction (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/custom-element/CustomElementReactionStack.ts:52:80)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/element/Element.ts:1534:74)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/html-element/HTMLElement.ts:1008:44)'
+packages/ui test: }
+packages/ui test: stderr | registry/default/ui/accordion.test.ts > Accordion — multiple mode > keeps several items open at once
+packages/ui test: [nisli N302] Effect wrote to a signal it also reads — the write re-schedules the effect. If this does not converge to an equal value it is an infinite loop. Derive the value with computed() instead. {
+packages/ui test:   effect: 'Error: effect() created here\n' +
+packages/ui test:     '    at Module.effect (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:657:22)\n' +
+packages/ui test:     '    at __vite_ssr_import_0__.component.attrs.className (/Users/goga/Documents/goga/nisli/packages/ui/registry/default/ui/accordion.ts:348:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:510:36\n' +
+packages/ui test:     '    at Module.runWithContext (/Users/goga/Documents/goga/nisli/packages/core/src/context.ts:44:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:507:11\n' +
+packages/ui test:     '    at Module.untrack (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:715:12)\n' +
+packages/ui test:     '    at FrameworkComponent.connectedCallback (/Users/goga/Documents/goga/nisli/packages/core/src/component.ts:479:7)\n' +
+packages/ui test:     '    at CustomElementReactionStack.enqueueReaction (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/custom-element/CustomElementReactionStack.ts:52:80)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/element/Element.ts:1534:74)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/html-element/HTMLElement.ts:1008:44)'
+packages/ui test: }
+packages/ui test: stderr | registry/default/ui/accordion.test.ts > Accordion — controlled value > reflects an externally controlled value signal
+packages/ui test: [nisli N302] Effect wrote to a signal it also reads — the write re-schedules the effect. If this does not converge to an equal value it is an infinite loop. Derive the value with computed() instead. {
+packages/ui test:   effect: 'Error: effect() created here\n' +
+packages/ui test:     '    at Module.effect (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:657:22)\n' +
+packages/ui test:     '    at __vite_ssr_import_0__.component.attrs.className (/Users/goga/Documents/goga/nisli/packages/ui/registry/default/ui/accordion.ts:348:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:510:36\n' +
+packages/ui test:     '    at Module.runWithContext (/Users/goga/Documents/goga/nisli/packages/core/src/context.ts:44:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:507:11\n' +
+packages/ui test:     '    at Module.untrack (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:715:12)\n' +
+packages/ui test:     '    at FrameworkComponent.connectedCallback (/Users/goga/Documents/goga/nisli/packages/core/src/component.ts:479:7)\n' +
+packages/ui test:     '    at CustomElementReactionStack.enqueueReaction (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/custom-element/CustomElementReactionStack.ts:52:80)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/element/Element.ts:1534:74)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/html-element/HTMLElement.ts:1008:44)'
+packages/ui test: }
+packages/ui test: stderr | registry/default/ui/accordion.test.ts > Accordion — value-root regression matrix, single (UI-30 3A) > BARE-PARSE: authored value="b" opens item b at connect; component-path click reflects the new value attr
+packages/ui test: [nisli N302] Effect wrote to a signal it also reads — the write re-schedules the effect. If this does not converge to an equal value it is an infinite loop. Derive the value with computed() instead. {
+packages/ui test:   effect: 'Error: effect() created here\n' +
+packages/ui test:     '    at Module.effect (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:657:22)\n' +
+packages/ui test:     '    at __vite_ssr_import_0__.component.attrs.className (/Users/goga/Documents/goga/nisli/packages/ui/registry/default/ui/accordion.ts:348:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:510:36\n' +
+packages/ui test:     '    at Module.runWithContext (/Users/goga/Documents/goga/nisli/packages/core/src/context.ts:44:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:507:11\n' +
+packages/ui test:     '    at Module.untrack (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:715:12)\n' +
+packages/ui test:     '    at FrameworkComponent.connectedCallback (/Users/goga/Documents/goga/nisli/packages/core/src/component.ts:479:7)\n' +
+packages/ui test:     '    at CustomElementReactionStack.enqueueReaction (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/custom-element/CustomElementReactionStack.ts:52:80)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/element/Element.ts:1534:74)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/html-element/HTMLElement.ts:1008:44)'
+packages/ui test: }
+packages/ui test: stderr | registry/default/ui/accordion.test.ts > Accordion — value-root regression matrix, single (UI-30 3A) > CONTROLLED: component-path click fires ui-value-change but the guard preserves the pinned attr; parent signal drives selection
+packages/ui test: [nisli N302] Effect wrote to a signal it also reads — the write re-schedules the effect. If this does not converge to an equal value it is an infinite loop. Derive the value with computed() instead. {
+packages/ui test:   effect: 'Error: effect() created here\n' +
+packages/ui test:     '    at Module.effect (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:657:22)\n' +
+packages/ui test:     '    at __vite_ssr_import_0__.component.attrs.className (/Users/goga/Documents/goga/nisli/packages/ui/registry/default/ui/accordion.ts:348:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:510:36\n' +
+packages/ui test:     '    at Module.runWithContext (/Users/goga/Documents/goga/nisli/packages/core/src/context.ts:44:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:507:11\n' +
+packages/ui test:     '    at Module.untrack (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:715:12)\n' +
+packages/ui test:     '    at FrameworkComponent.connectedCallback (/Users/goga/Documents/goga/nisli/packages/core/src/component.ts:479:7)\n' +
+packages/ui test:     '    at CustomElementReactionStack.enqueueReaction (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/custom-element/CustomElementReactionStack.ts:52:80)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/element/Element.ts:1534:74)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/html-element/HTMLElement.ts:1008:44)'
+packages/ui test: }
+packages/ui test: stderr | registry/default/ui/accordion.test.ts > Accordion — value-root regression matrix, multiple (UI-30 3A) > BARE-PARSE: authored value="a,b" opens both at connect; component-path toggle-off reflects the comma-joined remainder
+packages/ui test: [nisli N302] Effect wrote to a signal it also reads — the write re-schedules the effect. If this does not converge to an equal value it is an infinite loop. Derive the value with computed() instead. {
+packages/ui test:   effect: 'Error: effect() created here\n' +
+packages/ui test:     '    at Module.effect (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:657:22)\n' +
+packages/ui test:     '    at __vite_ssr_import_0__.component.attrs.className (/Users/goga/Documents/goga/nisli/packages/ui/registry/default/ui/accordion.ts:348:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:510:36\n' +
+packages/ui test:     '    at Module.runWithContext (/Users/goga/Documents/goga/nisli/packages/core/src/context.ts:44:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:507:11\n' +
+packages/ui test:     '    at Module.untrack (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:715:12)\n' +
+packages/ui test:     '    at FrameworkComponent.connectedCallback (/Users/goga/Documents/goga/nisli/packages/core/src/component.ts:479:7)\n' +
+packages/ui test:     '    at CustomElementReactionStack.enqueueReaction (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/custom-element/CustomElementReactionStack.ts:52:80)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/element/Element.ts:1534:74)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/html-element/HTMLElement.ts:1008:44)'
+packages/ui test: }
+packages/ui test: stderr | registry/default/ui/accordion.test.ts > Accordion — height animation wiring > keeps the region present when open and hides it after close
+packages/ui test: [nisli N302] Effect wrote to a signal it also reads — the write re-schedules the effect. If this does not converge to an equal value it is an infinite loop. Derive the value with computed() instead. {
+packages/ui test:   effect: 'Error: effect() created here\n' +
+packages/ui test:     '    at Module.effect (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:657:22)\n' +
+packages/ui test:     '    at __vite_ssr_import_0__.component.attrs.className (/Users/goga/Documents/goga/nisli/packages/ui/registry/default/ui/accordion.ts:348:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:510:36\n' +
+packages/ui test:     '    at Module.runWithContext (/Users/goga/Documents/goga/nisli/packages/core/src/context.ts:44:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:507:11\n' +
+packages/ui test:     '    at Module.untrack (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:715:12)\n' +
+packages/ui test:     '    at FrameworkComponent.connectedCallback (/Users/goga/Documents/goga/nisli/packages/core/src/component.ts:479:7)\n' +
+packages/ui test:     '    at CustomElementReactionStack.enqueueReaction (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/custom-element/CustomElementReactionStack.ts:52:80)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/element/Element.ts:1534:74)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/html-element/HTMLElement.ts:1008:44)'
+packages/ui test: }
+packages/ui test:  ✓ registry/default/ui/accordion.test.ts (22 tests) 299ms
+packages/ui test:  ✓ registry/default/ui/popover.test.ts (25 tests) 297ms
+packages/ui test:  ✓ registry/default/ui/dropdown-menu.test.ts (24 tests) 309ms
+packages/ui test:  ✓ registry/default/ui/dialog.test.ts (26 tests) 354ms
+packages/ui test:  ✓ registry/default/ui/context-menu.test.ts (24 tests) 454ms
+packages/ui test:  ✓ registry/default/ui/combobox.test.ts (23 tests) 485ms
+packages/ui test:  ✓ registry/default/ui/message-scroller.test.ts (14 tests) 157ms
+packages/ui test:  ✓ registry/default/lib/floating.test.ts (38 tests) 77ms
+packages/ui test:  ✓ registry/default/ui/sheet.test.ts (20 tests) 213ms
+packages/ui test:  ✓ registry/default/ui/sidebar.test.ts (15 tests) 179ms
+packages/ui test:  ✓ registry/default/ui/drawer.test.ts (23 tests) 246ms
+packages/ui test:  ✓ registry/default/ui/alert-dialog.test.ts (21 tests) 292ms
+packages/ui test:  ✓ registry/default/ui/toggle-group.test.ts (16 tests) 287ms
+packages/ui test:  ✓ registry/default/ui/menubar.test.ts (18 tests) 417ms
+packages/ui test:  ✓ registry/default/ui/tooltip.test.ts (18 tests) 212ms
+packages/ui test:  ✓ registry/default/lib/acp-session.test.ts (21 tests) 16ms
+packages/ui test:  ✓ registry/default/ui/input-otp.test.ts (17 tests) 219ms
+packages/ui test:  ✓ registry/default/ui/switch.test.ts (21 tests) 209ms
+packages/ui test: stderr | registry/default/ui/resizable.test.ts > Resizable — live attribute reactivity > a live min-size increase re-clamps the current user-resized layout
+packages/ui test: [nisli N302] Effect wrote to a signal it also reads — the write re-schedules the effect. If this does not converge to an equal value it is an infinite loop. Derive the value with computed() instead. {
+packages/ui test:   effect: 'Error: effect() created here\n' +
+packages/ui test:     '    at Module.effect (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:657:22)\n' +
+packages/ui test:     '    at __vite_ssr_import_0__.component.attrs (/Users/goga/Documents/goga/nisli/packages/ui/registry/default/ui/resizable.ts:245:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:510:36\n' +
+packages/ui test:     '    at Module.runWithContext (/Users/goga/Documents/goga/nisli/packages/core/src/context.ts:44:5)\n' +
+packages/ui test:     '    at /Users/goga/Documents/goga/nisli/packages/core/src/component.ts:507:11\n' +
+packages/ui test:     '    at Module.untrack (/Users/goga/Documents/goga/nisli/packages/core/src/signal.ts:715:12)\n' +
+packages/ui test:     '    at FrameworkComponent.connectedCallback (/Users/goga/Documents/goga/nisli/packages/core/src/component.ts:479:7)\n' +
+packages/ui test:     '    at CustomElementReactionStack.enqueueReaction (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/custom-element/CustomElementReactionStack.ts:52:80)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/element/Element.ts:1534:74)\n' +
+packages/ui test:     '    at FrameworkComponent.[connectedToDocument] (file:///Users/goga/Documents/goga/nisli/node_modules/.pnpm/happy-dom@20.8.9/node_modules/happy-dom/src/nodes/html-element/HTMLElement.ts:1008:44)'
+packages/ui test: }
+packages/ui test:  ✓ registry/default/ui/resizable.test.ts (18 tests) 253ms
+packages/ui test:  ✓ registry/default/ui/navigation-menu.test.ts (20 tests) 357ms
+packages/ui test:  ✓ registry/default/ui/command.test.ts (13 tests) 387ms
+packages/ui test:  ✓ registry/default/ui/attachment.test.ts (16 tests) 115ms
+packages/ui test:  ✓ registry/default/lib/roving-focus.test.ts (18 tests) 8ms
+packages/ui test:  ✓ registry/default/ui/input-group.test.ts (10 tests) 139ms
+packages/ui test:  ✓ registry/default/ui/collapsible.test.ts (12 tests) 138ms
+packages/ui test:  ✓ registry/default/ui/toggle.test.ts (14 tests) 118ms
+packages/ui test:  ✓ registry/default/ui/toast.test.ts (21 tests) 193ms
+packages/ui test:  ✓ registry/default/ui/carousel.test.ts (12 tests) 221ms
+packages/ui test:  ✓ registry/default/lib/portal.test.ts (10 tests) 96ms
+packages/ui test:  ✓ registry/default/ui/button.test.ts (15 tests) 143ms
+packages/ui test:  ✓ registry/default/ui/checkbox.test.ts (20 tests) 175ms
+packages/ui test:  ✓ registry/default/ui/radio-group.test.ts (16 tests) 114ms
+packages/ui test:  ✓ registry/default/ui/select.test.ts (16 tests) 129ms
+packages/ui test: stderr | registry/default/ui/avatar.test.ts > Avatar > hosts are layout-transparent
+packages/ui test: [nisli N102] @load on <img> is not a known native event (and not an allowlisted ui-/nisli- component event) — at at __vite_ssr_import_0__.component.attrs.src (/Users/goga/Documents/goga/nisli/packages/ui/registry/default/ui/avatar.ts:135:10)
+packages/ui test:  ✓ registry/default/ui/avatar.test.ts (13 tests) 79ms
+packages/ui test:  ✓ registry/default/ui/textarea.test.ts (16 tests) 117ms
+packages/ui test:  ✓ registry/default/ui/acp/acp-chat.test.ts (11 tests) 161ms
+packages/ui test:  ✓ registry/default/ui/hover-card.test.ts (14 tests) 210ms
+packages/ui test:  ✓ registry/default/ui/dropdown-menu-submenu.test.ts (8 tests) 309ms
+packages/ui test:  ✓ registry/default/ui/input.test.ts (14 tests) 89ms
+packages/ui test:  ✓ registry/default/lib/focus.test.ts (14 tests) 36ms
+packages/ui test:  ✓ registry/default/ui/separator.test.ts (11 tests) 105ms
+packages/ui test:  ✓ registry/default/ui/button-group.test.ts (8 tests) 123ms
+packages/ui test:  ✓ registry/default/ui/calendar.test.ts (26 tests) 4048ms
+packages/ui test:    ✓ Calendar — grid > navigates months with prev/next 311ms
+packages/ui test:    ✓ Calendar — keyboard grid navigation > PageUp/PageDown move by month, re-render, and carry real focus across 348ms
+packages/ui test:    ✓ Calendar — keyboard grid navigation > Shift+PageDown / Shift+PageUp jump a full year (±12 months) with focus 427ms
+packages/ui test:  ✓ registry/default/ui/acp/acp-transcript.test.ts (7 tests) 157ms
+packages/ui test:  ✓ registry/default/ui/acp/acp-permission.test.ts (13 tests) 340ms
+packages/ui test:  ✓ registry/default/ui/alert.test.ts (9 tests) 41ms
+packages/ui test:  ✓ registry/default/lib/dismissable-layer.test.ts (10 tests) 12ms
+packages/ui test:  ✓ registry/default/ui/message.test.ts (9 tests) 70ms
+packages/ui test:  ✓ src/cli.test.ts (12 tests) 49ms
+packages/ui test:  ✓ src/registry-integrity.test.ts (81 tests) 395ms
+packages/ui test:    ✓ registry integrity > copied files have no runtime npm dependencies 366ms
+packages/ui test:  ✓ registry/default/ui/badge.test.ts (10 tests) 49ms
+packages/ui test:  ✓ registry/default/ui/card.test.ts (8 tests) 41ms
+packages/ui test:  ✓ registry/default/ui/bubble.test.ts (9 tests) 63ms
+packages/ui test:  ✓ registry/default/ui/acp/acp-tool-call.test.ts (11 tests) 150ms
+packages/ui test:  ✓ registry/default/ui/table.test.ts (7 tests) 52ms
+packages/ui test:  ✓ registry/default/ui/acp/acp-diff.test.ts (12 tests) 35ms
+packages/ui test:  ✓ registry/default/ui/label.test.ts (9 tests) 25ms
+packages/ui test:  ✓ registry/default/ui/acp/acp-content.test.ts (9 tests) 42ms
+packages/ui test:  ✓ registry/default/ui/slider.test.ts (10 tests) 186ms
+packages/ui test:  ✓ registry/default/ui/spinner.test.ts (6 tests) 25ms
+packages/ui test:  ✓ registry/default/ui/progress.test.ts (7 tests) 18ms
+packages/ui test:  ✓ registry/default/ui/aspect-ratio.test.ts (8 tests) 71ms
+packages/ui test:  ✓ registry/default/ui/pagination.test.ts (6 tests) 56ms
+packages/ui test:  ✓ registry/default/ui/item.test.ts (6 tests) 82ms
+packages/ui test:  ✓ registry/default/ui/marker.test.ts (4 tests) 67ms
+packages/ui test:  ✓ registry/default/ui/breadcrumb.test.ts (6 tests) 72ms
+packages/ui test:  ✓ registry/default/ui/direction.test.ts (5 tests) 16ms
+packages/ui test:  ✓ registry/default/ui/skeleton.test.ts (6 tests) 31ms
+packages/ui test:  ✓ registry/default/lib/typeahead.test.ts (9 tests) 5ms
+packages/ui test:  ✓ registry/default/lib/use-mobile.test.ts (6 tests) 17ms
+packages/ui test:  ✓ registry/default/ui/kbd.test.ts (5 tests) 90ms
+packages/ui test:  ✓ registry/default/ui/acp/acp-plan.test.ts (7 tests) 113ms
+packages/ui test:  ✓ registry/default/ui/empty.test.ts (5 tests) 45ms
+packages/ui test:  ✓ registry/default/lib/utils.test.ts (9 tests) 2ms
+packages/ui test:  ✓ registry/default/ui/scroll-area.test.ts (3 tests) 14ms
+packages/ui test:  ✓ registry/default/ui/acp/acp-thought.test.ts (6 tests) 20ms
+packages/ui test:  Test Files  78 passed (78)
+packages/ui test:       Tests  1126 passed (1126)
+packages/ui test:    Start at  23:33:14
+packages/ui test:    Duration  6.76s (transform 1.30s, setup 0ms, collect 6.42s, tests 15.50s, environment 22.43s, prepare 4.56s)
+packages/ui test: Done
+packages/www test$ vitest run
+packages/www test:  RUN  v2.1.9 /Users/goga/Documents/goga/nisli/packages/www
+packages/www test:  ✓ scripts/preview-interactions.test.ts (23 tests) 4ms
+packages/www test:  ✓ src/client/loader.test.ts (2 tests) 13ms
+packages/www test:  ✓ src/temp-cleanup.test.ts (5 tests) 4ms
+packages/www test:  ✓ src/client/hydrate-frame.test.ts (2 tests) 50ms
+packages/www test:  ✓ src/hydrate-example-calendar.test.ts (1 test) 136ms
+packages/www test:  ✓ src/hydrate-example-acp-transcript.test.ts (3 tests) 101ms
+packages/www test:  ✓ src/layout/layout.test.ts (4 tests) 213ms
+packages/www test:  ✓ src/nav-coverage.test.ts (3 tests) 7832ms
+packages/www test:  ✓ src/render.test.ts (9 tests) 7567ms
+packages/www test:  ✓ src/router-equivalence.test.ts (1 test) 8313ms
+packages/www test:  Test Files  10 passed (10)
+packages/www test:       Tests  53 passed (53)
+packages/www test:    Start at  23:33:21
+packages/www test:    Duration  9.18s (transform 905ms, setup 0ms, collect 2.60s, tests 24.23s, environment 2.60s, prepare 651ms)
+packages/www test: Done

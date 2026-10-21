@@ -1,0 +1,29 @@
+
+ RUN  v2.1.9 /Users/goga/Documents/goga/nisli/docs/research/2026-10-production-diagnostics/experiments/bundle-contract/generated/regression/static-dev
+
+ ✓ view-transition.test.ts (13 tests) 17ms
+ ✓ element-context.test.ts (18 tests) 44ms
+ ✓ component.test.ts (41 tests) 82ms
+ ✓ signal.test.ts (65 tests) 115ms
+ ✓ projection.test.ts (12 tests) 43ms
+ ✓ each.test.ts (23 tests) 118ms
+ ✓ query.test.ts (29 tests) 117ms
+ ✓ invariants.test.ts (63 tests) 184ms
+ ✓ template.test.ts (75 tests) 309ms
+ ✓ injector.test.ts (21 tests) 7ms
+ ✓ el.test.ts (12 tests) 66ms
+ ✓ emitter.test.ts (15 tests) 6ms
+ ✓ context.test.ts (8 tests) 3ms
+ ✓ lifecycle.test.ts (9 tests) 55ms
+ ✓ vite-hmr/plugin.test.ts (6 tests) 3ms
+ ✓ template-audit.test.ts (16 tests) 195ms
+ ✓ settle.test.ts (10 tests) 208ms
+ ✓ diagnostics.test.ts (8 tests) 4ms
+ ✓ hmr/registry.test.ts (3 tests) 25ms
+ ✓ ref.test.ts (6 tests) 13ms
+ ✓ resource.test.ts (12 tests) 566ms
+
+ Test Files  21 passed (21)
+      Tests  465 passed (465)
+   Start at  23:14:40
+   Duration  2.05s (transform 639ms, setup 0ms, collect 1.41s, tests 2.18s, environment 5.98s, prepare 1.78s)

@@ -1,0 +1,68 @@
+
+> @ build /Users/goga/Documents/goga/nisli
+> pnpm -r build
+
+Scope: 7 of 8 workspace projects
+packages/core build$ node scripts/build.mjs
+packages/core build: Done
+packages/engine build$ tsc -p tsconfig.build.json
+packages/router build$ tsc -p tsconfig.build.json
+packages/router build: Done
+packages/engine build: Done
+packages/ledger build$ bun --no-env-file x --bun --no-install vite build --configLoader runner
+packages/ssg build$ tsc -p tsconfig.build.json
+packages/ledger build: vite v7.3.6 building client environment for production...
+packages/ledger build: transforming...
+packages/ledger build: ✓ 99 modules transformed.
+packages/ledger build: rendering chunks...
+packages/ledger build: computing gzip size...
+packages/ledger build: dist/index.html                              0.36 kB │ gzip:  0.26 kB
+packages/ledger build: dist/assets/format-BYYaR8P4.js               0.95 kB │ gzip:  0.48 kB
+packages/ledger build: dist/assets/account-DyRlq-7d.js              1.96 kB │ gzip:  0.91 kB
+packages/ledger build: dist/assets/accounts-vR5PRVRc.js             2.23 kB │ gzip:  1.14 kB
+packages/ledger build: dist/assets/budgets-Cw7uzTh3.js              3.22 kB │ gzip:  1.40 kB
+packages/ledger build: dist/assets/transactions-YZ_XnF4E.js         3.47 kB │ gzip:  1.45 kB
+packages/ledger build: dist/assets/transaction-dialog-1qVwpdIg.js   3.54 kB │ gzip:  1.55 kB
+packages/ledger build: dist/assets/rules-BZuS5jaB.js                3.65 kB │ gzip:  1.55 kB
+packages/ledger build: dist/assets/settings-BgOY_nRB.js             4.25 kB │ gzip:  2.04 kB
+packages/ledger build: dist/assets/index-D8I3Hlxx.js                4.54 kB │ gzip:  2.07 kB
+packages/ledger build: dist/assets/import-CAwuwbgO.js               6.12 kB │ gzip:  2.68 kB
+packages/ledger build: dist/assets/connections-DgWQg-4-.js          9.13 kB │ gzip:  3.69 kB
+packages/ledger build: dist/assets/overview-CqazAjrl.js            15.54 kB │ gzip:  5.88 kB
+packages/ledger build: dist/assets/view-transition-CTza3fit.js     23.58 kB │ gzip:  8.08 kB
+packages/ledger build: dist/assets/index-Dj0XV-oy.js               95.77 kB │ gzip: 31.35 kB
+packages/ledger build: ✓ built in 220ms
+packages/ledger build: Done
+packages/ssg build: Done
+packages/ui build$ tsc -p tsconfig.build.json
+packages/ui build: Done
+packages/www build$ pnpm run sync && pnpm run render && tailwindcss -i src/styles/input.css -o dist/assets/site.css --minify && pnpm run build:hydrate
+packages/www build: > @nisli/www@0.0.0 sync /Users/goga/Documents/goga/nisli/packages/www
+packages/www build: > pnpm --filter @nisli/ui build && node scripts/sync.mjs
+packages/www build: > @nisli/ui@0.4.1 build /Users/goga/Documents/goga/nisli/packages/ui
+packages/www build: > tsc -p tsconfig.build.json
+packages/www build: www: installed 77 files from 77 registry items
+packages/www build: > @nisli/www@0.0.0 render /Users/goga/Documents/goga/nisli/packages/www
+packages/www build: > vitest run src/render.test.ts
+packages/www build:  RUN  v2.1.9 /Users/goga/Documents/goga/nisli/packages/www
+packages/www build:  ✓ src/render.test.ts (9 tests) 5406ms
+packages/www build:  Test Files  1 passed (1)
+packages/www build:       Tests  9 passed (9)
+packages/www build:    Start at  23:32:38
+packages/www build:    Duration  6.16s (transform 322ms, setup 0ms, collect 442ms, tests 5.41s, environment 129ms, prepare 39ms)
+packages/www build: ≈ tailwindcss v4.3.2
+packages/www build: Done in 101ms
+packages/www build: > @nisli/www@0.0.0 build:hydrate /Users/goga/Documents/goga/nisli/packages/www
+packages/www build: > vite build --config vite.hydrate.config.ts
+packages/www build: vite v7.3.6 building client environment for production...
+packages/www build: transforming...
+packages/www build: ✓ 151 modules transformed.
+packages/www build: rendering chunks...
+packages/www build: computing gzip size...
+packages/www build: dist/ui-preview/chunks/list-transition-demo-D6-AuXd4.js    3.03 kB │ gzip:  1.20 kB
+packages/www build: dist/ui-preview/chunks/sheet-ypFoYp7H.js                  12.79 kB │ gzip:  4.72 kB
+packages/www build: dist/ui-preview/hydrate.js                                24.83 kB │ gzip:  8.54 kB
+packages/www build: dist/ui-preview/chunks/mobile-nav-Bcz7fnD2.js             53.45 kB │ gzip: 16.59 kB
+packages/www build: dist/ui-preview/chunks/examples-BOOSk-oA.js              279.95 kB │ gzip: 63.27 kB
+packages/www build: ✓ built in 320ms
+packages/www build: Done

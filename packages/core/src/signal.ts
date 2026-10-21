@@ -196,6 +196,7 @@ class SignalImpl<T> implements Signal<T> {
     // cutoff so certified converging writers — registry reflect effects,
     // each() item-signal reuse — never warn on equal-value writes.
     if (
+      process.env.NODE_ENV !== 'production' && isDev() &&
       runningEffect !== null &&
       runningEffect.sources.has(this._node as SignalNode<unknown>)
     ) {
@@ -531,9 +532,9 @@ function runEffect(node: EffectNode): void {
 
   // Run effect with tracking
   const prevObserver = activeObserver;
-  const prevRunning = runningEffect;
+  const prevRunning = process.env.NODE_ENV !== 'production' ? runningEffect : null;
   activeObserver = node;
-  runningEffect = node;
+  if (process.env.NODE_ENV !== 'production') runningEffect = node;
   try {
     const result: unknown = node.fn();
     if (typeof result === 'function') {
@@ -542,7 +543,7 @@ function runEffect(node: EffectNode): void {
       // effect(async …) — rejected at the type level, guarded at runtime for
       // JS callers (ADR 0030.2 §3). The Promise is NOT a cleanup; route its
       // rejection into the effect error path so nothing goes unhandled.
-      if (!node.asyncWarned) {
+      if (process.env.NODE_ENV !== 'production' && isDev() && !node.asyncWarned) {
         node.asyncWarned = true;
         diag(
           'N310',
@@ -562,7 +563,7 @@ function runEffect(node: EffectNode): void {
     console.error('Effect error:', err);
   } finally {
     activeObserver = prevObserver;
-    runningEffect = prevRunning;
+    if (process.env.NODE_ENV !== 'production') runningEffect = prevRunning;
     // Everything observable up to now — including epochs bumped by this
     // run's own lazy computed pulls — counts as SEEN by this run.
     node.lastRunEpoch = globalEpoch;
@@ -572,7 +573,7 @@ function runEffect(node: EffectNode): void {
   // is back in the pending set (only its own writes can do that mid-run).
   if (pendingEffects.has(node)) {
     if (++node.selfReschedules > MAX_EFFECT_RERUNS) {
-      diag(
+      if (process.env.NODE_ENV !== 'production' && isDev()) diag(
         'N301',
         `Effect exceeded maximum re-run limit (${MAX_EFFECT_RERUNS}). ` +
         `This usually means the effect writes to a signal it reads. ` +
@@ -651,7 +652,7 @@ type SyncEffectGuard<R> = [R] extends [Promise<unknown>]
  */
 export function effect<R>(fn: () => R, ..._rejectAsync: SyncEffectGuard<R>): Disposer {
   const node = createEffectNode(fn as unknown as () => void | (() => void));
-  if (isDev()) {
+  if (process.env.NODE_ENV !== 'production' && isDev()) {
     // Dev-captured effect identity: N301/N302 diagnostics name this site.
     node.createdAt = new Error('effect() created here').stack;
   }
@@ -737,7 +738,7 @@ export function flush(): void {
   while (pendingEffects.size > 0) {
     flushPendingEffects();
     if (++guard > 100000) {
-      diag(
+      if (process.env.NODE_ENV !== 'production' && isDev()) diag(
         'N303',
         'flush() cascade cap reached (100000 passes) — effects keep ' +
         'scheduling more effects (a cross-effect write cycle?). Breaking out ' +
@@ -786,7 +787,7 @@ export async function tick(): Promise<void> {
     if (pendingEffects.size === 0) return; // the microtask drain scheduled nothing
     flush();
   }
-  diag(
+  if (process.env.NODE_ENV !== 'production' && isDev()) diag(
     'N303',
     'tick() iteration cap (50) reached with effects still pending — ' +
     'something keeps scheduling reactive work every task (a ' +

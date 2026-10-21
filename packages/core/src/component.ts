@@ -17,6 +17,15 @@ import type { TemplateResult } from './template.js';
 import { runMountCallbacks } from './lifecycle.js';
 import { diag, formatDiag, isDev } from './diagnostics.js';
 
+// Diagnostic state is external to production component/props objects. Each
+// allocation and use is statically gated so the entire maps disappear (0048).
+const propsReadKeys = process.env.NODE_ENV !== 'production'
+  ? new WeakMap<object, Set<string>>() : undefined;
+const completedSetups = process.env.NODE_ENV !== 'production'
+  ? new WeakSet<HTMLElement>() : undefined;
+const echoedProps = process.env.NODE_ENV !== 'production'
+  ? new WeakMap<HTMLElement, Set<string>>() : undefined;
+
 // Wire up effect auto-disposal: when effect() is called during component setup,
 // auto-register the dispose function with the component host.
 setContextHook(() => {
@@ -278,7 +287,6 @@ class ComponentHostImpl implements ComponentHost {
 function createPropsProxy<P>(): {
   props: ReactiveProps<P>;
   setProperty: (key: string, value: unknown) => void;
-  readKeys: ReadonlySet<string>;
 } {
   const signals = new Map<string, Signal<unknown>>();
 
@@ -288,9 +296,8 @@ function createPropsProxy<P>(): {
   // truth source for the unknown-prop echo (N202, ADR 0030.2): a post-mount
   // write to a never-read key is attribution noise, not state. A component
   // that stashes `props` and reads a key dynamically AFTER such a write gets
-  // one stale echo — accepted; the echo is attribution-only.
-  const readKeys = new Set<string>();
-
+  // one stale echo — accepted; the echo is attribution-only. The dev-only
+  // propsReadKeys map above owns this bookkeeping, outside production objects.
   const getOrCreate = (key: string, initialValue?: unknown): Signal<unknown> => {
     let s = signals.get(key);
     if (!s) {
@@ -304,23 +311,26 @@ function createPropsProxy<P>(): {
     get(_target, key) {
       // Symbol probes (well-known symbols, thenable checks) are not props.
       if (typeof key !== 'string') return undefined;
-      readKeys.add(key);
+      if (process.env.NODE_ENV !== 'production') propsReadKeys!.get(props)!.add(key);
       return getOrCreate(key);
     },
   });
+
+  if (process.env.NODE_ENV !== 'production') propsReadKeys!.set(props, new Set());
 
   const setProperty = (key: string, value: unknown) => {
     const s = getOrCreate(key, value);
     s.value = value;
   };
 
-  return { props, setProperty, readKeys };
+  return { props, setProperty };
 }
 
 // ── Duplicate-define attribution (N201, dev only) ───────────────────
 
 /** First definition site per tag, captured in dev for N201 attribution. */
-const firstDefineSites = new Map<string, string>();
+const firstDefineSites = process.env.NODE_ENV !== 'production'
+  ? new Map<string, string>() : undefined;
 
 /**
  * Best-effort caller frame for N201: the first stack line that is neither the
@@ -403,13 +413,6 @@ export function component<
     private _templateResult: TemplateResult | null = null;
     private _errorTemplateResult: TemplateResult | null = null;
     private _teardownScheduled = false;
-    // True once a setup cycle completed (template mounted, onMount ran).
-    // Gates the unknown-prop echo (N202): factory writes BEFORE connect are
-    // the normal seeding path, never noise.
-    private _setupDone = false;
-    // N202 keys already echoed for this element — one echo per key per
-    // element lifetime keeps a reactive binding from spamming the console.
-    private _echoed: Set<string> | null = null;
     // Props explicitly set via _setProp (factory / direct assignment) are
     // "pinned": an explicit prop wins, so attribute writes no longer overwrite
     // it. (Precedence ruling: prop-pins.)
@@ -534,7 +537,7 @@ export function component<
           phase = 'mount';
           runMountCallbacks(host);
 
-          this._setupDone = true;
+          if (process.env.NODE_ENV !== 'production') completedSetups!.add(this);
           // T6: a SUCCESSFUL (re-)setup — including _remount(), the documented
           // boundary reset — removes the failure stamp.
           this.removeAttribute('data-nisli-error');
@@ -642,7 +645,7 @@ export function component<
      */
     private _teardownNow(): void {
       this._mounted = false;
-      this._setupDone = false;
+      if (process.env.NODE_ENV !== 'production') completedSetups!.delete(this);
       if (this._templateResult?.dispose) {
         this._templateResult.dispose();
       }
@@ -695,17 +698,20 @@ export function component<
       // the pinning doc above). Attribution-only — the write still lands
       // exactly as before; deduped per key per element.
       if (
-        this._setupDone
+        process.env.NODE_ENV !== 'production'
+        && completedSetups!.has(this)
         && value !== undefined
         && isDev()
         // A declared attrs key is contract, not a typo — 'forward' especially,
         // where CORE owns the read and setup() never touches the prop. Gate
         // ruling on ADR 0030.2 §8 T6 Q3: declared keys are exempt.
         && !attrEntriesByKey.has(key)
-        && !this._propsProxy!.readKeys.has(key)
-        && !(this._echoed ??= new Set()).has(key)
+        && !propsReadKeys!.get(this._propsProxy!.props)!.has(key)
+        && !echoedProps!.get(this)?.has(key)
       ) {
-        this._echoed!.add(key);
+        const echoed = echoedProps!.get(this) ?? new Set<string>();
+        echoed.add(key);
+        echoedProps!.set(this, echoed);
         diag(
           'N202',
           `<${tagName}> prop '${key}' was set but setup() never read it — misspelled or unsupported prop?`,
@@ -772,9 +778,9 @@ export function component<
   //   the copy-in registry model makes genuine duplicate tags structural).
   if (!customElements.get(tagName)) {
     customElements.define(tagName, FrameworkComponent);
-    if (isDev()) firstDefineSites.set(tagName, captureDefineSite());
-  } else if (isDev() && !(setup as { __nisliHmr?: boolean }).__nisliHmr) {
-    const first = firstDefineSites.get(tagName)
+    if (process.env.NODE_ENV !== 'production' && isDev()) firstDefineSites!.set(tagName, captureDefineSite());
+  } else if (process.env.NODE_ENV !== 'production' && isDev() && !(setup as { __nisliHmr?: boolean }).__nisliHmr) {
+    const first = firstDefineSites!.get(tagName)
       ?? '(unknown site — defined outside component(), or before dev mode was enabled)';
     throw new Error(formatDiag(
       'N201',
