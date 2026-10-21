@@ -1,6 +1,6 @@
 # Production diagnostics — issue #3
 
-Status: **research and implementation complete; core 0.57.0 release in progress**.
+Status: **complete; core 0.57.0 released and verified on npm; release CI green**.
 Local research date: 2026-10-20, America/Los_Angeles. Source commit:
 `4afde49c728a330e10ce887a38b8013d63b58498`, core 0.56.0.
 
@@ -12,8 +12,10 @@ After the engineering go-ahead, the distribution contract was implemented in
 package source, publication tooling, documentation, and CI. See
 [ADR 0048](../../adr/0048-production-diagnostic-artifacts.md) and the
 [engineering evidence](../../worklists/core/ISSUE-3-PRODUCTION-DIAGNOSTICS.md).
-The release target is core 0.57.0, confirmed available on npm before release.
-Remote CI, publishing, and npm verification remain release gates.
+Core 0.57.0 is published as npm's latest version. Release commit `1d055ca` passed
+remote CI and publishing; the downloaded npm tarball passed integrity, package
+shape, byte identity, and production bundling checks. The engineering evidence
+links the runs and records the npm results.
 
 | Bet / deliverable | Status | Evidence / disposition |
 | --- | --- | --- |
@@ -30,7 +32,7 @@ Remote CI, publishing, and npm verification remain release gates.
 | Production migration and declarations | Implemented, locally validated | README/changelog; packed declarations without Node ambient types |
 | HMR/SSG integration | Passed | Packed SSG in Node dev/prod; actual Vite file-watch updates in three browsers |
 | Workspace gates | Passed | Build, typecheck, 2,338 tests across seven packages |
-| Remote CI / release | In progress | Core 0.57.0; user authorized commit, push, CI observation, and npm verification |
+| Remote CI / release | Passed | Core 0.57.0 published; [CI](https://github.com/gkoreli/nisli/actions/runs/39556217085) and [publishing](https://github.com/gkoreli/nisli/actions/runs/39556217066) green; npm tarball verified |
 
 ## Contents
 

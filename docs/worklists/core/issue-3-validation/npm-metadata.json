@@ -1,0 +1,48 @@
+{
+  "version": "0.57.0",
+  "repository": {
+    "url": "git+https://github.com/gkoreli/nisli.git",
+    "type": "git",
+    "directory": "packages/core"
+  },
+  "dist-tags": {
+    "latest": "0.57.0"
+  },
+  "dist": {
+    "shasum": "53eae8f26c74a6e72abaddd14067e4ac738ec28e",
+    "tarball": "https://registry.npmjs.org/@nisli/core/-/core-0.57.0.tgz",
+    "fileCount": 73,
+    "integrity": "sha512-mXZuVkg4xt51Hoywf5eIvmQqF5FeY18k5SfyM92hjSs5Svn8GYdEB11MRwq/1HuNC/OqMkF9Apdw43F8EyguGA==",
+    "signatures": [
+      {
+        "sig": "MEQCIGZu6LDqEaJK/dAqtuMnAC1V33i2r2LrHAfSnCtWQTbjAiAtntKQnSVavK5M4D6HGRqoumJ0D6mqTgOW1pXVXNpLMg==",
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+      },
+      {
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+        "sig": "MEYCIQCcVM8gfLSql5U8XIywGGVQ1qa56OxKJfst91LJxxCD+QIhAOWVMI8U1/DAmIM0BqDWtVyPIAHCJOkKcUanjMRHUW8y"
+      }
+    ],
+    "attestations": {
+      "url": "https://registry.npmjs.org/-/npm/v1/attestations/@nisli%2fcore@0.57.0",
+      "provenance": {
+        "predicateType": "https://slsa.dev/provenance/v1"
+      }
+    },
+    "unpackedSize": 925737
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/bundler/index.js"
+    },
+    "./vite-hmr": {
+      "types": "./dist/types/vite-hmr/plugin.d.ts",
+      "default": "./dist/bundler/vite-hmr/plugin.js"
+    },
+    "./vite-hmr/runtime": {
+      "types": "./dist/types/vite-hmr/runtime.d.ts",
+      "default": "./dist/bundler/vite-hmr/runtime.js"
+    }
+  }
+}

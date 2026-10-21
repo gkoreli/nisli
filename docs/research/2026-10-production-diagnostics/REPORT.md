@@ -1,11 +1,12 @@
 # A distribution contract for development diagnostics
 
 Implementation follow-through: the user approved engineering after this report.
-The contract is now implemented and locally validated; see
+The contract is now implemented and released as core 0.57.0; see
 [ADR 0048](../../adr/0048-production-diagnostic-artifacts.md) and the
 [engineering evidence](../../worklists/core/ISSUE-3-PRODUCTION-DIAGNOSTICS.md).
 The measurements below remain the original research/prototype results, not
-measurements of the final implementation. No release or remote CI is claimed.
+measurements of the final implementation. The engineering evidence records the
+successful release CI, publishing run, and downloaded npm artifact verification.
 
 ## Recommendation
 

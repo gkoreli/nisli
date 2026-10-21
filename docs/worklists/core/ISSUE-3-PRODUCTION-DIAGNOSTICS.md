@@ -1,6 +1,6 @@
 # Issue #3 — engineering evidence
 
-Status: **implemented and locally validated; core 0.57.0 release in progress**.
+Status: **core 0.57.0 released; remote CI and publishing passed; npm verified**.
 Source baseline: `4afde49c728a330e10ce887a38b8013d63b58498`, core 0.56.0.
 Local date: 2026-10-20 (America/Los_Angeles).
 Decision: [ADR 0048](../../adr/0048-production-diagnostic-artifacts.md).
@@ -95,7 +95,30 @@ The original research preserves its own exact-fixture comparison.
 ## Scope and release status
 
 Unrelated edits to framework tenets, AGENTS, existing ADR guidance, and other
-research programs are preserved and excluded from the release commit. The user
-authorized releasing core 0.57.0, committing only this work, pushing main,
-watching CI/publishing, and verifying npm. Remote verification is in progress;
-local success alone is not release completion.
+research programs were excluded from the release commit. Before that push,
+SHA-256 checks confirmed 62 unrelated files unchanged; the two shared READMEs
+retained their unrelated tenet-link hunks unstaged. Another task subsequently
+committed that separate work as `b498379`; it was not pushed by this release.
+
+- Release commit: [`1d055cabdffbea8ff8d82cbfd88a6081882ca8b2`](https://github.com/gkoreli/nisli/commit/1d055cabdffbea8ff8d82cbfd88a6081882ca8b2), pushed to main.
+- [CI run 39556217085](https://github.com/gkoreli/nisli/actions/runs/39556217085): success, including typecheck, the three-browser package proof, the complete UI preview sweep, package e2e checks, and workspace tests.
+- [Publishing run 39556217066](https://github.com/gkoreli/nisli/actions/runs/39556217066): success. The other package versions already existed and were skipped; core published with provenance.
+- [Release tag `core-v0.57.0`](https://github.com/gkoreli/nisli/releases/tag/core-v0.57.0): peeled commit matches the release commit above.
+- [npm `@nisli/core@0.57.0`](https://www.npmjs.com/package/@nisli/core/v/0.57.0): confirmed as `latest`; repository URL and `packages/core` directory are correct; no runtime dependencies.
+
+Verification used `npm view @nisli/core@0.57.0 version repository dist-tags dist
+exports --json` and `npm pack @nisli/core@0.57.0` with a fresh cache. Initial
+lookups returned E404 during registry propagation; the subsequent lookup and
+download succeeded. The downloaded archive's SHA-512 matches registry integrity,
+and registry metadata includes a SLSA provenance attestation. All 46 JavaScript
+and declaration files are byte-identical to the tested local build. Resolving
+that downloaded package in an isolated esbuild consumer produces the same
+18,538-byte fixture with zero template-audit bytes.
+
+Captured [npm metadata](issue-3-validation/npm-metadata.json) and
+[verification assertions](issue-3-validation/npm-verification.json) preserve the
+exact version, artifact integrity, repository, and measured result. This final
+record is a documentation-only follow-up to the immutable release commit/tag.
+It is committed locally above the concurrent task's unpublished `b498379`, so
+it remains unpushed rather than publishing that task's work without authorization.
+Remote main remains at the verified release commit.

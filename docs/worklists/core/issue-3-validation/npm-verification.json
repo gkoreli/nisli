@@ -1,0 +1,20 @@
+{
+  "version": "0.57.0",
+  "latest": "0.57.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gkoreli/nisli.git",
+    "directory": "packages/core"
+  },
+  "integrity": "sha512-mXZuVkg4xt51Hoywf5eIvmQqF5FeY18k5SfyM92hjSs5Svn8GYdEB11MRwq/1HuNC/OqMkF9Apdw43F8EyguGA==",
+  "attestations": {
+    "url": "https://registry.npmjs.org/-/npm/v1/attestations/@nisli%2fcore@0.57.0",
+    "provenance": {
+      "predicateType": "https://slsa.dev/provenance/v1"
+    }
+  },
+  "identicalRuntimeAndDeclarationFiles": 46,
+  "productionBundleBytes": 18538,
+  "auditBytes": 0,
+  "passed": true
+}
